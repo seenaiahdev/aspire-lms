@@ -1,0 +1,104 @@
+import { cn } from '@/lib/utils';
+import type { ReactNode } from 'react';
+
+interface Tab {
+  id: string;
+  label: string;
+  icon?: ReactNode;
+  badge?: number;
+}
+
+interface TabsProps {
+  tabs: Tab[];
+  active: string;
+  onChange: (id: string) => void;
+  variant?: 'default' | 'pills' | 'underline';
+  className?: string;
+}
+
+export function Tabs({ tabs, active, onChange, variant = 'default', className }: TabsProps) {
+  if (variant === 'pills') {
+    return (
+      <div className={cn('flex gap-2 overflow-x-auto scrollbar-hide', className)}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200',
+              active === tab.id
+                ? 'bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-xs font-bold'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80',
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className={cn(
+                'px-1.5 py-0.5 rounded-full text-2xs font-bold',
+                active === tab.id ? 'bg-white/20' : 'bg-slate-200',
+              )}>
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  if (variant === 'underline') {
+    return (
+      <div className={cn('flex gap-1 border-b border-slate-200 overflow-x-auto scrollbar-hide', className)}>
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={cn(
+              'inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition-all duration-200',
+              active === tab.id
+                ? 'border-[#3b52a4] text-[#3b52a4] font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300',
+            )}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className="px-1.5 py-0.5 rounded-full text-2xs font-bold bg-[#3b52a4]/10 text-[#3b52a4]">
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className={cn('flex p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 overflow-x-auto scrollbar-hide', className)}>
+      {tabs.map((tab) => (
+        <button
+          key={tab.id}
+          onClick={() => onChange(tab.id)}
+          className={cn(
+            'flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all duration-200',
+            active === tab.id
+              ? 'bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-xs border border-blue-600/50 font-bold'
+              : 'text-slate-600 hover:text-slate-900',
+          )}
+        >
+          {tab.icon}
+          {tab.label}
+          {tab.badge !== undefined && tab.badge > 0 && (
+            <span className={cn(
+              "px-1.5 py-0.5 rounded-full text-2xs font-bold",
+              active === tab.id ? "bg-white/20 text-white" : "bg-[#3b52a4]/10 text-[#3b52a4]"
+            )}>
+              {tab.badge}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  );
+}
