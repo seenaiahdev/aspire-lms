@@ -1,13 +1,48 @@
 import React from 'react';
+import { Award, ShieldCheck } from 'lucide-react';
+import { Button } from '@/components/ui/Button';
 
 export function CertificationsScreen() {
   return (
-    <div className="max-w-4xl mx-auto py-20 px-6 font-sans">
-      <div className="rounded-3xl bg-white p-12 shadow-md text-center">
-        <h1 className="text-3xl font-extrabold text-slate-900 mb-4">Certifications</h1>
-        <p className="text-slate-500 mb-6">Certification management is coming soon. Stay tuned for verified badges and certificates.</p>
-        <div className="inline-block mt-6 px-6 py-3 rounded-xl bg-primary-50 text-primary-700 font-bold">
-          Coming Soon
+    <div className="max-w-5xl mx-auto py-20 px-6 font-sans">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+        <div className="rounded-3xl bg-white p-10 shadow-md text-center">
+          <div className="mx-auto w-28 h-28 rounded-full bg-amber-50 flex items-center justify-center mb-6">
+            <Award className="w-12 h-12 text-amber-600" />
+          </div>
+          <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Certifications</h1>
+          <p className="text-slate-500 mb-6">Certification management is coming soon. Stay tuned for verified badges and certificates.</p>
+          <div className="flex justify-center gap-3">
+            <Button variant="primary" size="md">Get Notified</Button>
+            <Button variant="ghost" size="md">View Certificates</Button>
+          </div>
+        </div>
+
+        <div className="rounded-3xl bg-white p-8 shadow-md">
+          <h3 className="text-lg font-semibold mb-3">What to expect</h3>
+          <ul className="space-y-3 text-sm text-slate-600">
+            <li className="flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-emerald-500 mt-1" />
+              <div>
+                <div className="font-medium">Verified certificates</div>
+                <div className="text-xs">Download, verify and share credentials with employers.</div>
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-sky-500 mt-1" />
+              <div>
+                <div className="font-medium">Badge system</div>
+                <div className="text-xs">Earn badges for skill milestones and display them on your profile.</div>
+              </div>
+            </li>
+            <li className="flex items-start gap-3">
+              <ShieldCheck className="w-5 h-5 text-amber-400 mt-1" />
+              <div>
+                <div className="font-medium">Verification API</div>
+                <div className="text-xs">Shareable, cryptographically verifiable certificate links.</div>
+              </div>
+            </li>
+          </ul>
         </div>
       </div>
     </div>
