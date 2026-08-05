@@ -23,6 +23,8 @@ import { ScheduleScreen } from '@/screens/ScheduleScreen';
 import { ProgressScreen } from '@/screens/ProgressScreen';
 import { AchievementsScreen } from '@/screens/AchievementsScreen';
 import { CertificatesScreen } from '@/screens/CertificatesScreen';
+import { RewardsScreen } from '@/screens/RewardsScreen';
+import { CertificationsScreen } from '@/screens/CertificationsScreen';
 import { PlacementScreen } from '@/screens/PlacementScreen';
 import { NotificationsScreen } from '@/screens/NotificationsScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
@@ -67,6 +69,8 @@ function Router() {
           case 'progress': return <ProgressScreen />;
           case 'achievements': return <AchievementsScreen />;
           case 'certificates': return <CertificatesScreen />;
+          case 'rewards': return <RewardsScreen />;
+          case 'certifications': return <CertificationsScreen />;
           case 'placement': return <PlacementScreen />;
           case 'notifications': return <NotificationsScreen />;
           case 'profile': return <ProfileScreen />;
