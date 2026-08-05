@@ -17,6 +17,8 @@ const commands: { id: Route; label: string; icon: any; group: string }[] = [
   { id: 'progress', label: 'Progress', icon: TrendingUp, group: 'Navigation' },
   { id: 'achievements', label: 'Achievements', icon: Trophy, group: 'Navigation' },
   { id: 'certificates', label: 'Certificates', icon: Award, group: 'Navigation' },
+  { id: 'certifications', label: 'Certifications', icon: Award, group: 'Navigation' },
+  { id: 'rewards', label: 'Rewards', icon: Trophy, group: 'Navigation' },
   { id: 'placement', label: 'Placement Hub', icon: Briefcase, group: 'Navigation' },
   { id: 'notifications', label: 'Notifications', icon: Bell, group: 'Account' },
   { id: 'profile', label: 'Profile', icon: User, group: 'Account' },

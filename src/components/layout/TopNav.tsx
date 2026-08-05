@@ -39,6 +39,8 @@ export function TopNav() {
     progress: 'Progress',
     achievements: 'Achievements',
     certificates: 'Certificates',
+    certifications: 'Certifications',
+    rewards: 'Rewards',
     placement: 'Placement Hub',
     notifications: 'Notifications',
     profile: 'Profile',
