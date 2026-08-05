@@ -14,7 +14,6 @@ export function CertificationsScreen() {
           <p className="text-slate-500 mb-6">Certification management is coming soon. Stay tuned for verified badges and certificates.</p>
           <div className="flex justify-center gap-3">
             <Button variant="primary" size="md">Get Notified</Button>
-            <Button variant="ghost" size="md">View Certificates</Button>
           </div>
         </div>
 
@@ -35,13 +34,7 @@ export function CertificationsScreen() {
                 <div className="text-xs">Earn badges for skill milestones and display them on your profile.</div>
               </div>
             </li>
-            <li className="flex items-start gap-3">
-              <ShieldCheck className="w-5 h-5 text-amber-400 mt-1" />
-              <div>
-                <div className="font-medium">Verification API</div>
-                <div className="text-xs">Shareable, cryptographically verifiable certificate links.</div>
-              </div>
-            </li>
+            {/* Removed Verification API item per design request */}
           </ul>
         </div>
       </div>

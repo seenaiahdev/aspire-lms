@@ -1,6 +1,7 @@
 import React from 'react';
 import { Gift, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { useNav } from '@/lib/nav';
 
 export function RewardsScreen() {
   return (
@@ -14,9 +15,7 @@ export function RewardsScreen() {
           <p className="text-slate-500 mb-6">We're building a rewards system to celebrate milestones, streaks, and top contributors.</p>
           <div className="flex justify-center gap-3">
             <Button variant="primary" size="md">Notify Me</Button>
-            <Button variant="ghost" size="md" onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}>
-              Explore Courses
-            </Button>
+            <RewardExplore />
           </div>
         </div>
 
@@ -52,3 +51,12 @@ export function RewardsScreen() {
 }
 
 export default RewardsScreen;
+
+function RewardExplore() {
+  const { navigate } = useNav();
+  return (
+    <Button variant="ghost" size="md" onClick={() => navigate('learning')}>
+      Explore Courses
+    </Button>
+  );
+}
