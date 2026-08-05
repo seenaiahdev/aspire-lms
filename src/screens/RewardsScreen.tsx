@@ -1,11 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Gift, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { useNav } from '@/lib/nav';
+import { Toast } from '@/components/ui/Toast';
 
 export function RewardsScreen() {
+  const [toastVisible, setToastVisible] = useState(false);
   return (
     <div className="max-w-5xl mx-auto py-20 px-6 font-sans">
+      {toastVisible && (
+        <Toast message="You'll be notified when rewards launch." onClose={() => setToastVisible(false)} position="top-right" />
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
         <div className="rounded-3xl bg-white p-10 shadow-md text-center">
           <div className="mx-auto w-28 h-28 rounded-full bg-primary-50 flex items-center justify-center mb-6">
@@ -14,7 +19,7 @@ export function RewardsScreen() {
           <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Rewards</h1>
           <p className="text-slate-500 mb-6">We're building a rewards system to celebrate milestones, streaks, and top contributors.</p>
           <div className="flex justify-center gap-3">
-            <Button variant="primary" size="md">Notify Me</Button>
+            <Button variant="primary" size="md" onClick={() => setToastVisible(true)}>Notify Me</Button>
             <RewardExplore />
           </div>
         </div>
