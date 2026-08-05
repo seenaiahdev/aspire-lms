@@ -16,10 +16,10 @@ export const navItems: { id: Route; label: string; icon: string }[] = [
   { id: 'quizzes', label: 'Quizzes', icon: 'ClipboardCheck' },
   { id: 'projects', label: 'Projects', icon: 'FolderGit2' },
   { id: 'resources', label: 'Resources', icon: 'Library' },
-  { id: 'rewards', label: 'Rewards', icon: 'Gift' },
-  { id: 'certifications', label: 'Certifications', icon: 'Award' },
   { id: 'schedule', label: 'Schedule', icon: 'CalendarDays' },
   { id: 'placement', label: 'Placement Hub', icon: 'Briefcase' },
+  { id: 'certifications', label: 'Certifications', icon: 'Award' },
+  { id: 'rewards', label: 'Rewards', icon: 'Gift' },
 ];
 
 export const bottomNavItems: { id: Route; label: string; icon: string }[] = [

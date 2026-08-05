@@ -319,13 +319,13 @@ export function AssignmentsScreen() {
     return true;
   });
 
-  // Open Task Overview with Dynamic URL Routing (e.g. #/assignments/variables-in-python-quiz)
+  // Open Task Overview with Dynamic URL Routing (e.g. /assignments/variables-in-python-quiz)
   const openDetailTaskWithRoute = (task: PythonTask) => {
     setSelectedDetailTask(task);
-    window.location.hash = `#/assignments/${task.slug}`;
+    window.history.pushState({}, '', `/assignments/${task.slug}`);
   };
 
-  // Open Active Practice Screen (e.g. #/assignments/variables-in-python-quiz/practice)
+  // Open Active Practice Screen (e.g. /assignments/variables-in-python-quiz/practice)
   const openTaskWithRoute = (task: PythonTask) => {
     setActiveTask(task);
     setCurrentMCQIndex(0);
@@ -336,7 +336,7 @@ export function AssignmentsScreen() {
       setUserCode(task.codingProblem.starterCode);
     }
     setCodeTested(false);
-    window.location.hash = `#/assignments/${task.slug}/practice`;
+    window.history.pushState({}, '', `/assignments/${task.slug}/practice`);
   };
 
   const openReviewForAttempt = (task: PythonTask, attempt: PythonTaskAttempt) => {
@@ -362,7 +362,7 @@ export function AssignmentsScreen() {
       setUserCode(task.codingProblem.starterCode);
     }
     setCodeTested(false);
-    window.location.hash = `#/assignments/${task.slug}/practice/review/${attempt.id}`;
+    window.history.pushState({}, '', `/assignments/${task.slug}/practice/review/${attempt.id}`);
   };
 
   const closeReviewToDetail = () => {
@@ -370,23 +370,25 @@ export function AssignmentsScreen() {
     setQuizStatus('taking');
     setSelectedAttemptReview(null);
     if (selectedDetailTask) {
-      window.location.hash = `#/assignments/${selectedDetailTask.slug}${showAttemptsOnLeft ? '/attempts' : ''}`;
+      window.history.pushState({}, '', `/assignments/${selectedDetailTask.slug}${showAttemptsOnLeft ? '/attempts' : ''}`);
     } else {
-      window.location.hash = '#/assignments';
+      window.history.pushState({}, '', '/assignments');
     }
   };
 
   const closeTaskAndReturnToAssignments = () => {
     setActiveTask(null);
     setSelectedDetailTask(null);
-    window.location.hash = '#/assignments';
+    window.history.pushState({}, '', '/assignments');
   };
 
   // Restore active task/details on page refresh or direct URL visit
   useEffect(() => {
-    const hash = window.location.hash;
-    if (hash.includes('#/assignments/')) {
-      const parts = hash.replace('#/assignments/', '').split('/');
+    const parsePath = () => {
+      const path = window.location.pathname.replace('/assignments/', '').replace(/^\//, '');
+      if (!path) return;
+
+      const parts = path.split('/');
       const slug = parts[0]?.trim();
       const isPractice = parts[1] === 'practice';
       const isReview = parts[2] === 'review';
@@ -430,7 +432,11 @@ export function AssignmentsScreen() {
           setCodeTested(false);
         }
       }
-    }
+    };
+
+    parsePath();
+    window.addEventListener('popstate', parsePath);
+    return () => window.removeEventListener('popstate', parsePath);
   }, []);
 
   // Handle MCQ 1-by-1 Option Selection & Submit

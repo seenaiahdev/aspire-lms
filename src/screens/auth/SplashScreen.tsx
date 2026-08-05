@@ -9,9 +9,8 @@ export function SplashScreen() {
     const t = setTimeout(() => {
       const loggedIn = localStorage.getItem('aspire_logged_in') === 'true';
       const storedRoute = (localStorage.getItem('aspire_active_route') || '') as any;
-      const hash = window.location.hash.replace('#/', '').replace('#', '').trim() as any;
-
-      const targetRoute = hash || storedRoute;
+      const path = window.location.pathname.replace(/^\//, '').trim() as any;
+      const targetRoute = path || storedRoute;
 
       if (loggedIn) {
         navigate(targetRoute && targetRoute !== 'splash' && targetRoute !== 'login' ? targetRoute : 'dashboard');

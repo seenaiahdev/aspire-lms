@@ -41,12 +41,10 @@ export function NavProvider({ children }: { children: ReactNode }) {
     setNotificationsOpen(false);
     if (r !== 'splash') {
       localStorage.setItem('aspire_active_route', r);
-      let newHash = `#/${r}`;
-      if (Object.keys(p).length > 0) {
-        const searchParams = new URLSearchParams(p);
-        newHash += `?${searchParams.toString()}`;
-      }
-      window.location.hash = newHash;
+      const searchParams = new URLSearchParams(p);
+      const query = searchParams.toString();
+      const newPath = `/${r}${query ? `?${query}` : ''}`;
+      window.history.pushState({}, '', newPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }, []);
@@ -66,33 +64,31 @@ export function NavProvider({ children }: { children: ReactNode }) {
 
   // Sync hash changes (e.g. browser back/forward buttons)
   useEffect(() => {
-    const handleHashChange = () => {
-      const fullHash = window.location.hash.replace('#/', '').replace('#', '').trim();
-      const [pathPart, queryPart] = fullHash.split('?');
-      const baseRoute = (pathPart.split('/')[0] || 'dashboard') as Route;
-      
+    const parseCurrentPath = () => {
+      const locationPath = window.location.pathname.replace(/^\//, '') || 'dashboard';
+      const [baseRoute, ...rest] = locationPath.split('/');
+      const base = (baseRoute || 'dashboard') as Route;
+      const searchParams = new URLSearchParams(window.location.search);
       const newParams: Record<string, string> = {};
-      if (queryPart) {
-        const searchParams = new URLSearchParams(queryPart);
-        searchParams.forEach((value, key) => {
-          newParams[key] = value;
-        });
-      }
+      searchParams.forEach((value, key) => {
+        newParams[key] = value;
+      });
 
-      if (baseRoute && baseRoute !== 'splash') {
+      if (base && base !== 'splash') {
         const loggedIn = localStorage.getItem('aspire_logged_in') === 'true';
-        if (!loggedIn && !AUTH_ROUTES.includes(baseRoute)) {
+        if (!loggedIn && !AUTH_ROUTES.includes(base)) {
           navigate('login');
         } else {
-          setRoute(baseRoute);
+          setRoute(base);
           setParams(newParams);
-          localStorage.setItem('aspire_active_route', baseRoute);
+          localStorage.setItem('aspire_active_route', base);
         }
       }
     };
 
-    window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    parseCurrentPath();
+    window.addEventListener('popstate', parseCurrentPath);
+    return () => window.removeEventListener('popstate', parseCurrentPath);
   }, [navigate]);
 
   return (
