@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, User, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { currentUser } from '@/data/mock';
+import { useNav } from '@/lib/nav';
 
 interface Message {
   id: string;
@@ -20,7 +21,11 @@ const MOCK_RESPONSES = [
 ];
 
 export function AIChatbot() {
+  const { route } = useNav();
   const [isOpen, setIsOpen] = useState(false);
+
+  // Hide chatbot completely in coding workspace environment to avoid obstruction
+  if (route === 'workspace') return null;
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',

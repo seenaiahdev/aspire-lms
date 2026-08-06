@@ -1,4 +1,4 @@
-import { TrendingUp, Clock, BookOpen, Award, Target, Flame, BarChart3, Calendar } from 'lucide-react';
+import { TrendingUp, Clock, BookOpen, Award, Flame, BarChart3, Calendar } from 'lucide-react';
 import { currentUser, weeklyActivity, attendanceData, courses } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';

@@ -462,11 +462,11 @@ export function LearningScreen() {
                         {/* Assessment */}
                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-[#7c3aed] text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <div className="w-9 h-9 rounded-xl bg-primary-500 text-white flex items-center justify-center shrink-0 shadow-sm">
                               <ClipboardCheck className="w-4.5 h-4.5" />
                             </div>
                             <div>
-                              <span className="text-[10px] font-extrabold text-[#7c3aed] uppercase bg-violet-50 px-1.5 py-0.5 rounded">ASSESSMENT</span>
+                              <span className="text-[10px] font-extrabold text-primary-500 uppercase bg-primary-50 px-1.5 py-0.5 rounded">ASSESSMENT</span>
                               <h4 className="font-bold text-slate-900 text-xs mt-0.5">{mod.assessment}</h4>
                             </div>
                           </div>

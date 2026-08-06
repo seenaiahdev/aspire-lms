@@ -80,7 +80,7 @@ export function TopNav() {
           title="Notifications"
           className={cn(
             'relative w-9 h-9 rounded-xl hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors border border-transparent hover:border-slate-200',
-            notificationsOpen && 'bg-slate-100 text-[#3b52a4] border-slate-200',
+            notificationsOpen && 'bg-slate-100 text-primary-600 border-slate-200',
           )}
         >
           <Bell className="w-4.5 h-4.5" />

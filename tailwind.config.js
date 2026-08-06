@@ -4,19 +4,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        // Brand — Midnight Navy & Royal Cobalt (From Logo)
+        // Brand — Logo Violet / Indigo
         primary: {
-          50: '#f0f3ff',
-          100: '#e0e7ff',
-          200: '#c7d2fe',
-          300: '#a5b4fc',
-          400: '#6366f1',
-          500: '#3b52a4', // Logo Royal Cobalt Blue
-          600: '#1e2761', // Logo Midnight Navy Blue
-          700: '#171e4d',
-          800: '#111639',
-          900: '#0c0f26',
-          950: '#060814',
+          50: '#f2efff',
+          100: '#e7dcff',
+          200: '#d4beff',
+          300: '#b893ff',
+          400: '#9364ff',
+          500: '#7540ff', // Logo Violet
+          600: '#5f32d7', // Logo Indigo
+          700: '#47269f',
+          800: '#321d72',
+          900: '#1f1347',
+          950: '#0f0824',
         },
         // Secondary — Crimson Red Accent (From Logo Scroll Ribbon)
         secondary: {

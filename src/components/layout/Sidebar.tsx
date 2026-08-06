@@ -51,9 +51,9 @@ export function Sidebar() {
         {/* Logo Header */}
         <div className="h-16 flex items-center justify-between px-4 border-b border-slate-100 shrink-0 bg-white">
           <button onClick={() => navigate('dashboard')} className="flex items-center gap-3 group">
-            {/* White Circular Logo Container */}
-            <div className="w-10 h-10 rounded-xl bg-white shadow-sm flex items-center justify-center p-1.5 border border-slate-200 group-hover:scale-105 transition-transform shrink-0">
-              <img src={aspireLogo} alt="AspireNext Logo" className="w-full h-full object-contain" />
+            {/* Direct Rounded Logo Image */}
+            <div className="w-10 h-10 rounded-full overflow-hidden shadow-sm border border-slate-200 group-hover:scale-105 transition-transform shrink-0 bg-white">
+              <img src={aspireLogo} alt="AspireNext Logo" className="w-full h-full object-cover scale-110" />
             </div>
             
             {/* Logo Text */}
@@ -88,14 +88,14 @@ export function Sidebar() {
                 className={cn(
                   'w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-sm transition-all duration-200 group relative font-bold',
                   active
-                    ? 'bg-[#eff6ff] text-[#3b82f6]'
+                    ? 'bg-primary-50 text-primary-600 shadow-xs'
                     : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900',
                 )}
               >
                 {item.id === 'milestones' ? (
-                  <MilestoneRoadmapIcon className={cn('w-5 h-5 shrink-0 transition-colors', active ? 'text-[#3b82f6]' : 'text-slate-400 group-hover:scale-110')} />
+                  <MilestoneRoadmapIcon className={cn('w-5 h-5 shrink-0 transition-colors', active ? 'text-primary-600' : 'text-slate-400 group-hover:scale-110')} />
                 ) : (
-                  <Icon className={cn('w-5 h-5 shrink-0 transition-colors', active ? 'text-[#3b82f6]' : 'text-slate-400 group-hover:scale-110')} />
+                  <Icon className={cn('w-5 h-5 shrink-0 transition-colors', active ? 'text-primary-600' : 'text-slate-400 group-hover:scale-110')} />
                 )}
                 
                 <span className="flex-1 text-left opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap truncate">
@@ -103,7 +103,7 @@ export function Sidebar() {
                 </span>
 
                 {active && (
-                  <ChevronRight className="w-4 h-4 text-[#3b82f6] shrink-0 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 ml-auto" />
+                  <ChevronRight className="w-4 h-4 text-primary-600 shrink-0 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 ml-auto" />
                 )}
               </button>
             );

@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar as CalendarIcon, Play, Code2, Clock, Check, ChevronLeft, ChevronRight as ChevronRightIcon, BookMarked,
-  ArrowLeft, ArrowRight, CheckCircle2, Video, Terminal, BookOpenText, Award, Layers, Sparkles, FileText, CheckCircle, Target, Trophy, TrendingUp
+  ArrowLeft, ArrowRight, CheckCircle2, Video, Terminal, BookOpenText, Award, Layers, Sparkles, FileText, CheckCircle, Trophy, TrendingUp
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -244,16 +244,64 @@ const getDefaultTopicsForDate = (dayNum: number): PythonTopic[] => {
 export function DashboardScreen() {
   const { navigate } = useNav();
 
-  // Month & Date Calendar State
-  const [currentYear, setCurrentYear] = useState(2026);
-  const [currentMonthIndex, setCurrentMonthIndex] = useState(7); // August (0-indexed: 7 = Aug)
+  // Real-time System Today Date
+  const today = useMemo(() => new Date(), []);
+  const realTodayYear = today.getFullYear();
+  const realTodayMonth = today.getMonth();
+  const realTodayDate = today.getDate();
+
+  // Browsing Calendar Month & Year State (Popover View)
+  const [currentYear, setCurrentYear] = useState<number>(realTodayYear);
+  const [currentMonthIndex, setCurrentMonthIndex] = useState<number>(realTodayMonth);
   const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const daysInMonth = new Date(currentYear, currentMonthIndex + 1, 0).getDate();
   const firstDayOfMonth = new Date(currentYear, currentMonthIndex, 1).getDay();
   const calendarStartOffset = (firstDayOfMonth + 6) % 7; // Monday-first grid
 
-  // Selected Date State (Defaults to Today - Aug 7)
-  const [selectedDateNum, setSelectedDateNum] = useState<number>(7);
+  // Selected Date State (Defaults to Real-Time System Today Date)
+  const [selectedYear, setSelectedYear] = useState<number>(realTodayYear);
+  const [selectedMonthIndex, setSelectedMonthIndex] = useState<number>(realTodayMonth);
+  const [selectedDateNum, setSelectedDateNum] = useState<number>(realTodayDate);
+
+  const selectedDateObject = useMemo(
+    () => new Date(selectedYear, selectedMonthIndex, selectedDateNum),
+    [selectedYear, selectedMonthIndex, selectedDateNum]
+  );
+
+  const dayName = selectedDateObject.toLocaleDateString('en-US', { weekday: 'long' });
+  const monthName = selectedDateObject.toLocaleDateString('en-US', { month: 'long' });
+  const formattedDateString = `${dayName}, ${monthName} ${selectedDateNum}, ${selectedYear}`;
+  const isSelectedDateToday =
+    selectedDateNum === realTodayDate &&
+    selectedMonthIndex === realTodayMonth &&
+    selectedYear === realTodayYear;
+
+  const goToPreviousDay = () => {
+    const prev = new Date(selectedYear, selectedMonthIndex, selectedDateNum - 1);
+    setSelectedYear(prev.getFullYear());
+    setSelectedMonthIndex(prev.getMonth());
+    setSelectedDateNum(prev.getDate());
+    setCurrentYear(prev.getFullYear());
+    setCurrentMonthIndex(prev.getMonth());
+  };
+
+  const goToNextDay = () => {
+    const next = new Date(selectedYear, selectedMonthIndex, selectedDateNum + 1);
+    setSelectedYear(next.getFullYear());
+    setSelectedMonthIndex(next.getMonth());
+    setSelectedDateNum(next.getDate());
+    setCurrentYear(next.getFullYear());
+    setCurrentMonthIndex(next.getMonth());
+  };
+
+  const goToToday = () => {
+    const now = new Date();
+    setSelectedYear(now.getFullYear());
+    setSelectedMonthIndex(now.getMonth());
+    setSelectedDateNum(now.getDate());
+    setCurrentYear(now.getFullYear());
+    setCurrentMonthIndex(now.getMonth());
+  };
 
   // Toggle state to view full month calendar grid overlay
   const [showFullCalendar, setShowFullCalendar] = useState(false);
@@ -284,13 +332,52 @@ export function DashboardScreen() {
   };
 
   // ════════ DYNAMIC ROUTING & URL SYNC FOR TOPICS ════════
+  const findTopicBySlug = useCallback((slug: string): PythonTopic | null => {
+    if (!slug) return null;
+    for (const dateKey in pythonDailyTopicsMock) {
+      const topics = pythonDailyTopicsMock[Number(dateKey)];
+      const found = topics.find((t) => t.slug === slug);
+      if (found) return found;
+    }
+    for (let day = 1; day <= 31; day++) {
+      const topics = getDefaultTopicsForDate(day);
+      const found = topics.find((t) => t.slug === slug);
+      if (found) return found;
+    }
+    return null;
+  }, []);
+
   const openTopicWithRoute = (topic: PythonTopic) => {
     setActiveTopic(topic);
+    window.history.pushState({}, '', `/dashboard/${topic.slug}`);
   };
 
   const closeTopicAndReturnToDashboard = () => {
     setActiveTopic(null);
+    window.history.pushState({}, '', '/dashboard');
   };
+
+  useEffect(() => {
+    const syncTopicFromUrl = () => {
+      const pathname = window.location.pathname.replace(/^\//, '');
+      const parts = pathname.split('/');
+      if (parts[0] === 'dashboard' && parts[1]) {
+        const topicSlug = parts[1];
+        const matched = findTopicBySlug(topicSlug);
+        if (matched) {
+          setActiveTopic(matched);
+          return;
+        }
+      }
+      if (parts[0] === 'dashboard' && !parts[1]) {
+        setActiveTopic(null);
+      }
+    };
+
+    syncTopicFromUrl();
+    window.addEventListener('popstate', syncTopicFromUrl);
+    return () => window.removeEventListener('popstate', syncTopicFromUrl);
+  }, [findTopicBySlug]);
 
   // ════════════════ SOLID FULL-SCREEN TOPIC LESSON CANVAS ════════════════
   if (activeTopic) {
@@ -474,7 +561,7 @@ export function DashboardScreen() {
                 <div className="space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
                     <div className="flex items-center gap-2">
-                      <Code className="w-4 h-4 text-primary-600" />
+                      <Code2 className="w-4 h-4 text-primary-600" />
                       <h3 className="font-extrabold text-slate-900 text-sm">Python Code Example</h3>
                     </div>
 
@@ -597,13 +684,26 @@ export function DashboardScreen() {
 
                     {/* Circular Date Grid Buttons */}
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((num) => {
-                      const isSelected = num === selectedDateNum;
-                      const isToday = num === 7;
+                      const isSelected =
+                        num === selectedDateNum &&
+                        currentMonthIndex === selectedMonthIndex &&
+                        currentYear === selectedYear;
+
+                      const isToday =
+                        num === realTodayDate &&
+                        currentMonthIndex === realTodayMonth &&
+                        currentYear === realTodayYear;
 
                       return (
                         <button
                           key={num}
-                          onClick={() => { setSelectedDateNum(num); setShowFullCalendar(false); }}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDateNum(num);
+                            setSelectedMonthIndex(currentMonthIndex);
+                            setSelectedYear(currentYear);
+                            setShowFullCalendar(false);
+                          }}
                           className={`aspect-square w-9 rounded-full mx-auto flex items-center justify-center text-xs font-semibold transition-all duration-150 cursor-pointer ${
                             isSelected
                               ? 'bg-[#3b52a4] text-white font-bold shadow-md scale-105'
@@ -642,32 +742,42 @@ export function DashboardScreen() {
             </div>
           </div>
 
-          {/* Date Navigator Row: < Friday, August 7, 2026 Today > */}
+          {/* Date Navigator Row */}
           <div className="flex items-center justify-between py-2 border-b border-slate-100/80">
             <button
-              onClick={() => setSelectedDateNum(prev => Math.max(1, prev - 1))}
+              onClick={goToPreviousDay}
               className="p-2 rounded-xl hover:bg-slate-100 text-slate-700 transition-colors"
               title="Previous Day"
+              type="button"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
 
             <div className="flex items-center gap-2.5">
               <span className="font-semibold text-slate-900 text-base sm:text-lg">
-                {['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'][(selectedDateNum - 1) % 7]}, {monthNames[currentMonthIndex]} {selectedDateNum}, {currentYear}
+                {formattedDateString}
               </span>
 
-              {selectedDateNum === 7 && (
+              {isSelectedDateToday ? (
                 <span className="bg-indigo-50 text-[#3b52a4] font-semibold px-3 py-1 rounded-full text-xs border border-indigo-100/80 shadow-2xs">
                   Today
                 </span>
+              ) : (
+                <button
+                  type="button"
+                  onClick={goToToday}
+                  className="bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-[#3b52a4] font-semibold px-2.5 py-0.5 rounded-full text-xs transition-colors"
+                >
+                  Go to Today
+                </button>
               )}
             </div>
 
             <button
-              onClick={() => setSelectedDateNum(prev => Math.min(31, prev + 1))}
+              onClick={goToNextDay}
               className="p-2 rounded-xl hover:bg-slate-100 text-slate-700 transition-colors"
               title="Next Day"
+              type="button"
             >
               <ChevronRightIcon className="w-5 h-5" />
             </button>

@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import {
   FileText, Clock, Upload, CheckCircle2, AlertCircle, Star, Paperclip, ArrowRight, X,
-  HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Target, RotateCcw, Eye
+  HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Compass, RotateCcw, Eye
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Modal } from '@/components/ui/Modal';
 
 // Struct for MCQ Questions
 interface MCQQuestion {
@@ -51,13 +52,13 @@ interface PythonTask {
   };
 }
 
-// Comprehensive Python MCQ & Coding Assignments Mock Data
+// Comprehensive Python MCQ Assessments Data
 const pythonAssignments: PythonTask[] = [
   {
     id: '1',
     slug: 'variables-in-python-quiz',
     type: 'mcq',
-    title: 'Variables in Python Practice Quiz',
+    title: 'Variables & Data Types Quiz',
     category: 'Variables & Types',
     difficulty: 'Beginner',
     xp: 100,
@@ -122,14 +123,14 @@ const pythonAssignments: PythonTask[] = [
   },
   {
     id: '2',
-    slug: 'python-loops-coding',
-    type: 'coding',
-    title: 'Control Flow & Loop Logic Practice Lab',
+    slug: 'control-flow-loops-quiz',
+    type: 'mcq',
+    title: 'Control Flow & Loop Logic Quiz',
     category: 'Control Flow',
     difficulty: 'Beginner',
-    xp: 150,
-    timeEstimate: '15 mins',
-    description: 'Write a Python function to filter even numbers and calculate their squares using list comprehensions.',
+    xp: 120,
+    timeEstimate: '10 mins',
+    description: 'Test your understanding of if-elif-else branches, range(), for loops, while loops, and break/continue statements.',
     status: 'pending',
     attemptsCount: 1,
     passedCount: 1,
@@ -142,30 +143,32 @@ const pythonAssignments: PythonTask[] = [
         score: 100,
         status: 'Passed',
         date: '2025-09-12',
-        reviewSummary: 'The code correctly filtered even numbers and returned their squares. Great use of list comprehension.',
+        reviewSummary: 'Mastered loop boundaries and break conditions.',
       },
     ],
-    codingProblem: {
-      instructions: 'Write a Python function `filter_even_squares(numbers)` that takes a list of integers and returns a new list containing the squares of all even numbers.',
-      starterCode: `# Python Coding Task: Filter & Square Even Numbers
-def filter_even_squares(numbers):
-    # Your code here
-    pass
-
-# Test execution
-sample = [1, 2, 3, 4, 5, 6]
-print(filter_even_squares(sample))  # Expected: [4, 16, 36]`,
-      testCases: [
-        { input: '[1, 2, 3, 4, 5, 6]', expected: '[4, 16, 36]' },
-        { input: '[10, 15, 20]', expected: '[100, 400]' },
-      ],
-    },
+    mcqQuestions: [
+      {
+        id: 1,
+        question: 'What will list(range(1, 10, 2)) produce in Python?',
+        options: ['[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]', '[1, 3, 5, 7, 9]', '[2, 4, 6, 8, 10]', '[1, 3, 5, 7]'],
+        correctIndex: 1,
+        explanation: 'range(start, stop, step) begins at 1, increments by 2, and stops before reaching 10, resulting in [1, 3, 5, 7, 9].',
+      },
+      {
+        id: 2,
+        question: 'What is the output of the following loop with a break statement?',
+        codeSnippet: `for i in range(5):\n    if i == 3:\n        break\n    print(i, end=" ")`,
+        options: ['0 1 2 3 4', '0 1 2 3', '0 1 2', '1 2 3'],
+        correctIndex: 2,
+        explanation: 'When i reaches 3, the break statement immediately terminates loop execution, printing only 0 1 2.',
+      },
+    ],
   },
   {
     id: '3',
     slug: 'python-functions-scope-quiz',
     type: 'mcq',
-    title: 'Functions, Scopes & Lambda Expressions Quiz',
+    title: 'Functions, Scopes & Lambda Quiz',
     category: 'Functions',
     difficulty: 'Intermediate',
     xp: 120,
@@ -203,40 +206,35 @@ print(filter_even_squares(sample))  # Expected: [4, 16, 36]`,
   },
   {
     id: '4',
-    slug: 'python-oop-coding',
-    type: 'coding',
-    title: 'Object-Oriented Programming (OOP) Class Design',
+    slug: 'python-oop-concepts-quiz',
+    type: 'mcq',
+    title: 'Object-Oriented Programming (OOP) Quiz',
     category: 'OOP',
     difficulty: 'Intermediate',
-    xp: 200,
-    timeEstimate: '20 mins',
-    description: 'Implement a Student class with encapsulated attributes, XP reward methods, and docstrings.',
+    xp: 150,
+    timeEstimate: '12 mins',
+    description: 'Assess your knowledge of classes, __init__ constructor, self reference, inheritance, and encapsulation.',
     status: 'pending',
     attemptsCount: 0,
     passedCount: 0,
     failedCount: 0,
     bestScorePercentage: 0,
-    codingProblem: {
-      instructions: 'Create a `Student` class with `__init__(self, name, xp=0)`, a method `add_xp(self, points)`, and a property `level` that returns `xp // 100`.',
-      starterCode: `class Student:
-    def __init__(self, name, xp=0):
-        self.name = name
-        self.xp = xp
-
-    def add_xp(self, points):
-        self.xp += points
-
-    @property
-    def level(self):
-        return self.xp // 100
-
-# Test
-s = Student("Aarav", 250)
-print(f"Name: {s.name}, Level: {s.level}")`,
-      testCases: [
-        { input: 'Student("Aarav", 250).level', expected: '2' },
-      ],
-    },
+    mcqQuestions: [
+      {
+        id: 1,
+        question: 'What is the primary purpose of self in Python class methods?',
+        options: ['It is a reserved system keyword for creating threads', 'It refers to the current instance of the class', 'It imports external libraries', 'It converts methods to static functions'],
+        correctIndex: 1,
+        explanation: 'self represents the instance of the class, allowing access to instance attributes and methods.',
+      },
+      {
+        id: 2,
+        question: 'Which magic method is called automatically when a new object instance is instantiated?',
+        options: ['__new__', '__init__', '__start__', '__create__'],
+        correctIndex: 1,
+        explanation: 'The __init__ method acts as the initializer/constructor for object instances in Python.',
+      },
+    ],
   },
 ];
 
@@ -291,14 +289,14 @@ const ConfettiBurst = () => {
 
 export function AssignmentsScreen() {
   const { navigate } = useNav();
-  const [filterTab, setFilterTab] = useState<'all' | 'mcq' | 'coding' | 'completed'>('all');
+  const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'completed'>('all');
 
   // Currently Selected Task for Pre-Start Quiz Details Modal
   const [selectedDetailTask, setSelectedDetailTask] = useState<PythonTask | null>(null);
   const [showAttemptsOnLeft, setShowAttemptsOnLeft] = useState(false);
   const [selectedAttemptReview, setSelectedAttemptReview] = useState<PythonTaskAttempt | null>(null);
 
-  // Currently Active Practice Task (MCQ or Coding Runner)
+  // Currently Active Practice Task (MCQ Quiz Runner)
   const [activeTask, setActiveTask] = useState<PythonTask | null>(null);
 
   // MCQ Exam State
@@ -306,15 +304,11 @@ export function AssignmentsScreen() {
   const [userAnswers, setUserAnswers] = useState<number[]>([]);
   const [quizStatus, setQuizStatus] = useState<'taking' | 'results' | 'review'>('taking');
   const [userScore, setUserScore] = useState(0);
-
-  // Coding Practice State
-  const [userCode, setUserCode] = useState('');
-  const [codeTested, setCodeTested] = useState(false);
+  const [confirmQuizAction, setConfirmQuizAction] = useState<'submit' | 'exit' | null>(null);
 
   // Filter Tasks
   const filteredTasks = pythonAssignments.filter((t) => {
-    if (filterTab === 'mcq') return t.type === 'mcq';
-    if (filterTab === 'coding') return t.type === 'coding';
+    if (filterTab === 'pending') return t.status === 'pending';
     if (filterTab === 'completed') return t.status === 'completed';
     return true;
   });
@@ -379,13 +373,30 @@ export function AssignmentsScreen() {
   const closeTaskAndReturnToAssignments = () => {
     setActiveTask(null);
     setSelectedDetailTask(null);
+    setConfirmQuizAction(null);
     window.history.pushState({}, '', '/assignments');
+  };
+
+  const openQuizConfirm = (action: 'submit' | 'exit') => {
+    setConfirmQuizAction(action);
+  };
+
+  const handleConfirmQuizAction = () => {
+    if (confirmQuizAction === 'submit') {
+      handleNextOrSubmit();
+    } else if (confirmQuizAction === 'exit') {
+      closeTaskAndReturnToAssignments();
+    }
+    setConfirmQuizAction(null);
   };
 
   // Restore active task/details on page refresh or direct URL visit
   useEffect(() => {
     const parsePath = () => {
-      const path = window.location.pathname.replace('/assignments/', '').replace(/^\//, '');
+      const rawPath = window.location.hash.startsWith('#/')
+        ? window.location.hash.replace(/^#/, '')
+        : window.location.pathname;
+      const path = rawPath.replace('/assignments/', '').replace(/^\//, '');
       if (!path) return;
 
       const parts = path.split('/');
@@ -480,7 +491,7 @@ export function AssignmentsScreen() {
         {quizStatus === 'taking' && (
           <div className="w-full max-w-5xl mx-auto flex items-center justify-between gap-4 pb-2 shrink-0 relative z-10">
             <button
-              onClick={closeTaskAndReturnToAssignments}
+              onClick={() => openQuizConfirm('exit')}
               className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all active:scale-95 shrink-0 border border-slate-200 shadow-sm"
             >
               <ArrowLeft className="w-4 h-4 text-primary-500" />
@@ -516,36 +527,34 @@ export function AssignmentsScreen() {
                 <div className="space-y-6 flex-1 flex flex-col justify-between overflow-hidden max-w-5xl mx-auto w-full px-2 sm:px-8 py-2">
                   
                   {/* Sleek Premium Question Counter Bar */}
-                  <div className="flex items-center justify-between gap-2 shrink-0 pb-4 border-b border-slate-100">
-                    <div className="flex items-center gap-2.5">
-                      <span className="px-3 py-1 rounded-lg bg-[#3b52a4]/10 text-[#3b52a4] flex items-center justify-center font-black text-xs">
+                  <div className="flex items-center justify-between gap-3 shrink-0 pb-4 border-b border-slate-200">
+                    <div className="flex items-center gap-2">
+                      <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs tracking-[0.24em]">
                         {currentMCQIndex + 1} / {questions.length}
                       </span>
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest hidden sm:inline-block">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-[0.32em] hidden sm:inline-flex">
                         Question {currentMCQIndex + 1}
                       </span>
                     </div>
 
                     {/* EXAM MODE BADGE */}
-                    <div className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-slate-50">
-                       <Clock className="w-3.5 h-3.5 text-slate-400" />
-                       <span className="text-[10px] font-extrabold text-slate-500 uppercase tracking-widest">Exam Mode</span>
+                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200">
+                      <Clock className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.32em]">Exam Mode</span>
                     </div>
                   </div>
 
                   {/* Question Container (Full-Screen Layout) */}
-                  <div className="flex-1 flex flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden pb-8">
-                    
-                    <div className="shrink-0 mt-4 bg-white p-6 sm:p-8 sm:pb-10 rounded-3xl border border-slate-200/70 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-[#3b52a4]" />
-                      
-                      <div className="mb-6">
-                        <h3 className="font-bold text-slate-800 text-lg sm:text-xl leading-relaxed">
+                  <div className="flex-1 flex flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden pb-6">
+                    <div className="shrink-0 mt-4 bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-primary-500" />
+                      <div className="mb-5">
+                        <h3 className="font-semibold text-slate-900 text-lg sm:text-xl leading-7">
                           {currentQ.question}
                         </h3>
 
                         {currentQ.codeSnippet && (
-                          <pre className="p-5 rounded-xl bg-[#0d1117] text-slate-300 font-mono text-sm overflow-x-auto shadow-inner mt-5 border border-slate-800">
+                          <pre className="p-4 rounded-2xl bg-slate-950 text-slate-200 font-mono text-sm overflow-x-auto shadow-inner mt-4 border border-slate-800">
                             <code>{currentQ.codeSnippet}</code>
                           </pre>
                         )}
@@ -555,33 +564,39 @@ export function AssignmentsScreen() {
                       <div className="flex flex-col gap-3">
                         {currentQ.options.map((optionText, idx) => {
                           const isSelected = userAnswers[currentMCQIndex] === idx;
-                          
+
                           return (
-                            <div
+                            <button
                               key={idx}
+                              type="button"
                               onClick={() => handleSelectOption(idx)}
-                              className="group flex items-center gap-3 transition-all duration-200 cursor-pointer py-2 w-fit pr-8"
+                              className={`w-full text-left rounded-2xl border px-4 py-3 transition-all duration-200 flex items-center gap-3 ${isSelected ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100'}`}
                             >
-                              <div className={`w-5 h-5 rounded-full border-2 transition-all shrink-0 flex items-center justify-center ${
-                                isSelected ? 'border-[#3b52a4] bg-[#3b52a4]' : 'border-slate-300 group-hover:border-slate-400'
-                              }`}>
-                                {isSelected && <div className="w-2 h-2 bg-white rounded-full"></div>}
+                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-primary-600 bg-primary-600' : 'border-slate-300 bg-white'}`}>
+                                {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
                               </div>
-                              <span className={`text-base transition-colors ${isSelected ? 'text-[#3b52a4] font-bold' : 'text-slate-700 font-medium group-hover:text-slate-900'}`}>{optionText}</span>
-                            </div>
+                              <span className={`text-sm ${isSelected ? 'text-slate-900 font-semibold' : 'text-slate-700'}`}>
+                                {optionText}
+                              </span>
+                            </button>
                           );
                         })}
                       </div>
                     </div>
-
                   </div>
 
                   {/* Action Controls */}
-                  <div className="pt-6 shrink-0 bg-transparent flex flex-col justify-end w-full border-t border-slate-100 mt-auto">
+                  <div className="pt-5 shrink-0 flex flex-col justify-end w-full border-t border-slate-200 mt-auto">
                     <button
-                      onClick={handleNextOrSubmit}
+                      onClick={() => {
+                        if (currentMCQIndex < questions.length - 1) {
+                          handleNextOrSubmit();
+                        } else {
+                          openQuizConfirm('submit');
+                        }
+                      }}
                       disabled={userAnswers[currentMCQIndex] === -1}
-                      className="px-10 py-4 rounded-xl bg-[#3b52a4] text-white font-extrabold text-sm hover:bg-[#2a3780] disabled:bg-slate-200 disabled:text-slate-400 transition-all uppercase tracking-widest shadow-sm self-end"
+                      className="w-full max-w-sm px-7 py-3 rounded-2xl bg-primary-600 text-white font-semibold text-sm hover:bg-primary-700 disabled:bg-slate-200 disabled:text-slate-400 transition-all tracking-[0.16em] shadow-sm self-end"
                     >
                       {currentMCQIndex < questions.length - 1 ? 'Next Question' : 'Submit Exam'}
                     </button>
@@ -593,32 +608,32 @@ export function AssignmentsScreen() {
                 <div className="bg-white rounded-3xl p-8 sm:p-10 border border-slate-200 shadow-xl text-center space-y-5 animate-fade-in max-w-md mx-auto my-auto relative z-20">
                   {userScore >= 70 && <ConfettiBurst />}
                   
-                  <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto shadow-sm ${userScore >= 70 ? 'bg-emerald-50 text-emerald-500' : 'bg-red-50 text-red-500'}`}>
+                  <div className={`w-20 h-20 rounded-3xl flex items-center justify-center mx-auto shadow-sm ${userScore >= 70 ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
                     {userScore >= 70 ? <Trophy className="w-10 h-10" /> : <XCircle className="w-10 h-10" />}
                   </div>
 
                   <div>
-                    <span className={`px-3 py-1 rounded-full text-xs font-bold flex items-center justify-center gap-1.5 w-fit mx-auto ${userScore >= 70 ? 'bg-emerald-100 text-emerald-800' : 'bg-red-100 text-red-800'}`}>
+                    <span className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center justify-center gap-1.5 w-fit mx-auto ${userScore >= 70 ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
                       {userScore >= 70 ? <Sparkles className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                      <span>{userScore >= 70 ? 'Exam Passed!' : 'Exam Failed'}</span>
+                      <span>{userScore >= 70 ? 'Exam Passed' : 'Exam Failed'}</span>
                     </span>
-                    <h3 className="text-4xl font-black text-slate-900 mt-4">{userScore}%</h3>
+                    <h3 className="text-3xl sm:text-4xl font-semibold text-slate-900 mt-4">{userScore}%</h3>
                     <p className="text-sm text-slate-500 mt-2 font-medium">
-                      {userScore >= 70 ? 'Amazing job! You really know your stuff.' : 'Keep practicing! Review your answers below.'}
+                      {userScore >= 70 ? 'Solid work. Your answers are on target.' : 'Review your responses and try again for a higher score.'}
                     </p>
                   </div>
 
                   {userScore >= 70 && (
-                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-0.5">
-                      <p className="text-xs font-semibold text-slate-500">Reward Earned</p>
-                      <p className="text-2xl font-black text-[#3b52a4]">+{activeTask.xp} XP</p>
+                    <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                      <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.24em]">Reward Earned</p>
+                      <p className="text-2xl font-black text-slate-900">+{activeTask.xp} XP</p>
                     </div>
                   )}
 
                   <div className="flex flex-col gap-3 pt-4">
                     <button
                       onClick={() => setQuizStatus('review')}
-                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-xs uppercase tracking-wider py-3.5 rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 border border-slate-200"
+                      className="w-full bg-slate-100 hover:bg-slate-200 text-slate-800 font-semibold text-sm py-3.5 rounded-2xl transition-all active:scale-95 flex items-center justify-center gap-2 border border-slate-200"
                     >
                       <FileText className="w-4 h-4 text-slate-500" />
                       <span>Review Answers</span>
@@ -626,7 +641,7 @@ export function AssignmentsScreen() {
 
                     <button
                       onClick={closeTaskAndReturnToAssignments}
-                      className="w-full bg-[#3b52a4] hover:bg-[#2a3780] text-white font-extrabold text-xs uppercase tracking-wider py-3.5 rounded-xl shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                      className="w-full bg-primary-600 hover:bg-primary-700 text-white font-semibold text-sm py-3.5 rounded-2xl shadow-sm transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
                       <ArrowLeft className="w-4 h-4 text-indigo-100" />
                       <span>Return to Hub</span>
@@ -797,6 +812,60 @@ export function AssignmentsScreen() {
             </div>
           )}
 
+          <Modal open={confirmQuizAction !== null} onClose={() => setConfirmQuizAction(null)} size="sm">
+            <div className="p-6 sm:p-8">
+              <div className="flex items-start gap-4">
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${confirmQuizAction === 'submit' ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-700'}`}>
+                  {confirmQuizAction === 'submit' ? <CheckCircle2 className="w-6 h-6" /> : <HelpCircle className="w-6 h-6" />}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">
+                    {confirmQuizAction === 'submit' ? 'Submit Exam' : 'Exit Practice'}
+                  </p>
+                  <h3 className="mt-2 text-xl font-semibold text-slate-900">
+                    {confirmQuizAction === 'submit' ? 'Submit your answers now?' : 'Leave this quiz session?'}
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                    {confirmQuizAction === 'submit'
+                      ? 'Your current answer sheet will be scored and the results screen will open immediately.'
+                      : 'You can return to the assignment hub, but this quiz session will be closed for now.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-slate-500">Question</span>
+                  <span className="font-semibold text-slate-900">{currentMCQIndex + 1} of {questions.length}</span>
+                </div>
+                <div className="mt-3 h-2 rounded-full bg-slate-200 overflow-hidden">
+                  <div
+                    className="h-full rounded-full bg-primary-600"
+                    style={{ width: `${Math.round(((currentMCQIndex + 1) / Math.max(questions.length, 1)) * 100)}%` }}
+                  />
+                </div>
+              </div>
+
+              <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setConfirmQuizAction(null)}
+                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                >
+                  Continue Quiz
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmQuizAction}
+                  className={`rounded-2xl px-5 py-3 text-sm font-semibold text-white transition shadow-sm ${confirmQuizAction === 'submit' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-rose-600 hover:bg-rose-700'}`}
+                >
+                  {confirmQuizAction === 'submit' ? 'Submit Now' : 'Exit Quiz'}
+                </button>
+              </div>
+            </div>
+          </Modal>
+
         </div>
 
       </div>
@@ -933,7 +1002,7 @@ export function AssignmentsScreen() {
 
                   <div className="p-5 rounded-3xl bg-white border border-slate-200/60 shadow-sm flex flex-col items-start gap-2 group hover:border-primary-200 transition-colors">
                     <div className="w-10 h-10 rounded-2xl bg-primary-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                      <Target className="w-5 h-5 text-primary-500" />
+                      <Compass className="w-5 h-5 text-primary-500" />
                     </div>
                     <div>
                       <p className="text-[10px] font-extrabold text-slate-400 uppercase tracking-widest">Pass Mark</p>
@@ -964,7 +1033,7 @@ export function AssignmentsScreen() {
                     const next = !showAttemptsOnLeft;
                     setShowAttemptsOnLeft(next);
                     if (selectedDetailTask) {
-                      window.location.hash = `#/assignments/${selectedDetailTask.slug}${next ? '/attempts' : ''}`;
+                      window.history.pushState({}, '', `/assignments/${selectedDetailTask.slug}${next ? '/attempts' : ''}`);
                     }
                   }}
                   className={`w-full text-left flex items-center justify-between p-4 rounded-2xl transition-all ${showAttemptsOnLeft ? 'bg-primary-50 border border-primary-200 shadow-sm' : 'bg-slate-50 border border-slate-100 hover:shadow-sm'}`}
@@ -1035,30 +1104,27 @@ export function AssignmentsScreen() {
       {/* Clean Top Header */}
       <div className="pb-2">
         <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-          Assignments & Topic Quizzes
+          Assignments & MCQ Quizzes
         </h2>
         <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-          Click any assessment to open topic-based practice quizzes and coding labs.
+          Click any assessment to start topic-based multiple choice practice quizzes.
         </p>
       </div>
 
-
-
-
       {/* Filter Tabs */}
-      <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-lg">
+      <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-md">
         {[
-          { id: 'all', label: 'All Tasks' },
-          { id: 'mcq', label: 'MCQ Quizzes' },
-          { id: 'coding', label: 'Coding Labs' },
+          { id: 'all', label: 'All Quizzes' },
+          { id: 'pending', label: 'Pending' },
           { id: 'completed', label: 'Completed' },
         ].map((t) => (
           <button
             key={t.id}
+            type="button"
             onClick={() => setFilterTab(t.id as any)}
             className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
               filterTab === t.id
-                ? 'bg-white text-[#101537] shadow-xs border border-slate-200/60 font-bold'
+                ? 'bg-white text-primary-900 shadow-xs border border-slate-200/60 font-bold'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
@@ -1067,26 +1133,20 @@ export function AssignmentsScreen() {
         ))}
       </div>
 
-
       {/* Tasks List Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredTasks.map((task) => {
-          const isMCQ = task.type === 'mcq';
-          const isDone = task.status === 'completed';
-
           return (
             <Card
               key={task.id}
               hover
               onClick={() => openDetailTaskWithRoute(task)}
-              className="p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-[#3b52a4] transition-all duration-300 group cursor-pointer bg-white"
+              className="p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-primary-500 transition-all duration-300 group cursor-pointer bg-white"
             >
               <div className="flex items-start justify-between gap-3 mb-3">
                 <div className="flex items-center gap-2">
-                  <span className={`px-2.5 py-1 rounded-xl text-xs font-black border ${
-                    isMCQ ? 'bg-indigo-50 text-[#3b52a4] border-indigo-100' : 'bg-blue-50 text-blue-800 border-blue-200'
-                  }`}>
-                    {isMCQ ? 'MCQ QUIZ (1 BY 1)' : 'CODING LAB'}
+                  <span className="px-2.5 py-1 rounded-xl text-xs font-black border bg-primary-50 text-primary-700 border-primary-100">
+                    MCQ QUIZ
                   </span>
 
                   <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">

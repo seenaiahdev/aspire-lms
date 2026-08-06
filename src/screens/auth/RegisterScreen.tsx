@@ -3,6 +3,7 @@ import { GraduationCap, ArrowLeft, ArrowRight, User, Mail, Lock, Eye, EyeOff, Ch
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
+import aspireLogo from '@/assests/Aspire_logo.jpg';
 
 export function RegisterScreen() {
   const { navigate } = useNav();
@@ -21,11 +22,11 @@ export function RegisterScreen() {
       </div>
 
       <div className="w-full max-w-md animate-fade-up">
-        <div className="flex items-center gap-2.5 mb-6 justify-center">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-primary-500 to-accent-500 flex items-center justify-center">
-            <GraduationCap className="w-5 h-5 text-white" />
+        <div className="flex items-center gap-3 mb-6 justify-center">
+          <div className="w-11 h-11 rounded-full overflow-hidden shadow-md border border-white shrink-0 bg-white">
+            <img src={aspireLogo} alt="AspireNext Logo" className="w-full h-full object-cover scale-110" />
           </div>
-          <span className="font-display font-bold text-xl text-ink-900">Aspire<span className="text-primary-600">Next</span></span>
+          <span className="font-display font-bold text-2xl text-ink-900">Aspire<span className="text-primary-600">Next</span></span>
         </div>
 
         {/* Stepper */}

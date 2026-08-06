@@ -25,20 +25,20 @@ export function SplashScreen() {
   return (
     <div 
       className="min-h-screen relative flex items-center justify-center overflow-hidden font-sans select-none"
-      style={{ background: 'radial-gradient(ellipse at 25% 30%, #1e2761 0%, #171e4d 45%, #0c0f26 100%)' }}
+      style={{ background: 'radial-gradient(ellipse at 25% 30%, #321d72 0%, #47269f 45%, #0c0f26 100%)' }}
     >
       {/* 3D Ambient Glows */}
       <div 
         className="absolute top-0 left-0 w-[500px] h-[500px] rounded-full pointer-events-none opacity-30 blur-[140px]"
-        style={{ background: '#3b52a4' }} 
+        style={{ background: 'rgba(117,64,255,0.4)' }} 
       />
       <div 
         className="absolute bottom-0 right-0 w-[500px] h-[500px] rounded-full pointer-events-none opacity-30 blur-[150px]"
-        style={{ background: '#1e2761' }} 
+        style={{ background: 'rgba(95,50,215,0.35)' }} 
       />
       <div 
         className="absolute top-[40%] left-[35%] w-[400px] h-[400px] rounded-full pointer-events-none opacity-20 blur-[130px]"
-        style={{ background: '#60a5fa' }} 
+        style={{ background: 'rgba(149,100,255,0.28)' }} 
       />
 
       <div className="relative z-10 flex flex-col items-center gap-6">
@@ -46,13 +46,13 @@ export function SplashScreen() {
         {/* Logo icon box with spinning ring loader */}
         <div className="relative flex items-center justify-center">
           <div 
-            className="absolute -inset-3.5 rounded-[2.2rem] border-2 border-transparent border-t-[#60a5fa] border-r-[#3b52a4] animate-spin" 
+            className="absolute -inset-3.5 rounded-[2.2rem] border-2 border-transparent border-t-primary-400 border-r-primary-500 animate-spin" 
           />
-          <div className="relative w-24 h-24 rounded-3xl bg-white shadow-2xl flex items-center justify-center overflow-hidden animate-scale-in border border-white/80 p-2">
+          <div className="relative w-24 h-24 rounded-full bg-white shadow-2xl flex items-center justify-center overflow-hidden animate-scale-in border-2 border-white p-0">
             <img
               src={aspireLogo}
               alt="Aspire Next Logo"
-              className="w-full h-full object-contain"
+              className="w-full h-full object-cover scale-110"
             />
           </div>
         </div>
@@ -60,16 +60,16 @@ export function SplashScreen() {
         {/* Brand name */}
         <div className="text-center animate-fade-up">
           <h1 className="font-bold text-4xl text-white tracking-tight">
-            Aspire<span style={{ color: '#60a5fa' }}>Next</span>
+            Aspire<span className="text-primary-400">Next</span>
           </h1>
-          <p className="text-indigo-100/80 text-sm mt-1.5 tracking-wide font-normal">Learn. Practice. Achieve.</p>
+          <p className="text-primary-100/80 text-sm mt-1.5 tracking-wide font-normal">Learn. Practice. Achieve.</p>
         </div>
 
         {/* Loader Dots */}
         <div className="flex items-center gap-2 mt-2">
-          <div className="w-2.5 h-2.5 rounded-full bg-[#60a5fa] animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-2.5 h-2.5 rounded-full bg-[#3b52a4] animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-2.5 h-2.5 rounded-full bg-[#1e2761] animate-bounce" style={{ animationDelay: '300ms' }} />
+          <div className="w-2.5 h-2.5 rounded-full bg-primary-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+          <div className="w-2.5 h-2.5 rounded-full bg-primary-500 animate-bounce" style={{ animationDelay: '150ms' }} />
+          <div className="w-2.5 h-2.5 rounded-full bg-primary-600 animate-bounce" style={{ animationDelay: '300ms' }} />
         </div>
 
       </div>

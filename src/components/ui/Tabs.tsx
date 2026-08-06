@@ -27,7 +27,7 @@ export function Tabs({ tabs, active, onChange, variant = 'default', className }:
             className={cn(
               'inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all duration-200',
               active === tab.id
-                ? 'bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-xs font-bold'
+                ? 'bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700 text-white shadow-xs font-bold'
                 : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80',
             )}
           >
@@ -57,14 +57,14 @@ export function Tabs({ tabs, active, onChange, variant = 'default', className }:
             className={cn(
               'inline-flex items-center gap-2 px-4 py-3 text-sm font-semibold whitespace-nowrap border-b-2 -mb-px transition-all duration-200',
               active === tab.id
-                ? 'border-[#3b52a4] text-[#3b52a4] font-bold'
+                ? 'border-primary-600 text-primary-600 font-bold'
                 : 'border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300',
             )}
           >
             {tab.icon}
             {tab.label}
             {tab.badge !== undefined && tab.badge > 0 && (
-              <span className="px-1.5 py-0.5 rounded-full text-2xs font-bold bg-[#3b52a4]/10 text-[#3b52a4]">
+              <span className="px-1.5 py-0.5 rounded-full text-2xs font-bold bg-primary-50 text-primary-600">
                 {tab.badge}
               </span>
             )}
@@ -83,7 +83,7 @@ export function Tabs({ tabs, active, onChange, variant = 'default', className }:
           className={cn(
             'flex-1 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all duration-200',
             active === tab.id
-              ? 'bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-xs border border-blue-600/50 font-bold'
+              ? 'bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700 text-white shadow-xs border border-primary-600/50 font-bold'
               : 'text-slate-600 hover:text-slate-900',
           )}
         >
@@ -92,7 +92,7 @@ export function Tabs({ tabs, active, onChange, variant = 'default', className }:
           {tab.badge !== undefined && tab.badge > 0 && (
             <span className={cn(
               "px-1.5 py-0.5 rounded-full text-2xs font-bold",
-              active === tab.id ? "bg-white/20 text-white" : "bg-[#3b52a4]/10 text-[#3b52a4]"
+              active === tab.id ? "bg-white/20 text-white" : "bg-primary-100 text-primary-600"
             )}>
               {tab.badge}
             </span>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Code2, CheckCircle2, Clock, Target, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar } from 'lucide-react';
+import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar } from 'lucide-react';
 import { practiceProblems } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -97,7 +97,7 @@ export function PracticeScreen() {
         <div className="relative z-10 flex items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Target className="w-4 h-4 text-secondary-300" />
+              <Compass className="w-4 h-4 text-secondary-300" />
               <span className="text-xs font-bold uppercase tracking-wider">Daily Challenge</span>
             </div>
             <h3 className="font-bold text-lg mb-1">Binary Tree Maximum Path Sum</h3>

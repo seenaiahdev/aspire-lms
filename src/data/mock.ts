@@ -202,9 +202,10 @@ export const quizzes: Quiz[] = [
 ];
 
 export const projects: Project[] = [
-  { id: 'p1', title: 'E-commerce Platform', course: 'Full-Stack Web Dev', status: 'assigned', difficulty: 'Advanced', skills: ['React', 'Node.js', 'PostgreSQL', 'Stripe'], description: 'Build a complete e-commerce platform with cart, checkout, and admin dashboard.', dueDate: 'Aug 20' },
+  { id: 'p1', title: 'Login & Signup Welcome Page', course: 'Full-Stack Web Dev', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Build a simple login and signup page that validates input and shows a welcome message after submit.', dueDate: 'Aug 20' },
   { id: 'p2', title: 'Image Classification App', course: 'ML Fundamentals', status: 'submitted', difficulty: 'Intermediate', skills: ['Python', 'TensorFlow', 'CNN'], description: 'Train a CNN to classify images and deploy as a web app.', dueDate: 'Aug 1' },
   { id: 'p3', title: 'Chat System Design', course: 'System Design', status: 'feedback', difficulty: 'Advanced', skills: ['Architecture', 'WebSocket', 'Redis'], description: 'Design and document a real-time chat system.', mentorFeedback: 'Great architecture diagram! Consider adding more detail on message ordering and delivery guarantees.', grade: 89, dueDate: 'Jul 25' },
+  { id: 'p4', title: 'Personal Portfolio Page', course: 'Full-Stack Web Dev', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Create a responsive personal portfolio page showcasing projects, skills, and contact info.', dueDate: 'Aug 30' },
 ];
 
 export const notifications: Notification[] = [];

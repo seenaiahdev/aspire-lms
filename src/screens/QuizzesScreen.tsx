@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Target, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2 } from 'lucide-react';
+import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2 } from 'lucide-react';
 import { quizzes, leaderboard } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -8,6 +8,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusChip, DifficultyBadge } from '@/components/ui/StatusChip';
 import { BarChart } from '@/components/ui/Charts';
+import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
 
@@ -31,6 +32,7 @@ export function QuizzesScreen() {
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [reviewMarked, setReviewMarked] = useState<Record<number, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
+  const [confirmExamAction, setConfirmExamAction] = useState<'submit' | 'exit' | null>(null);
 
   useEffect(() => {
     let timer: any;
@@ -75,17 +77,24 @@ export function QuizzesScreen() {
     }
   };
 
-  const handleSubmitExam = () => {
-    alert("Exam submitted successfully!");
-    if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
+  const finalizeExam = () => {
+    if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+    setIsExamStarted(false);
+    setConfirmExamAction(null);
     setSelectedQuiz(null);
   };
 
   const handleExitExam = () => {
-    if (window.confirm("Are you sure you want to exit? Your progress will be saved but time will continue running.")) {
-      if (document.exitFullscreen) document.exitFullscreen().catch(()=>{});
-      setIsExamStarted(false);
-      setSelectedQuiz(null);
+    setConfirmExamAction('exit');
+  };
+
+  const openExamConfirm = (action: 'submit' | 'exit') => {
+    setConfirmExamAction(action);
+  };
+
+  const handleConfirmExamAction = () => {
+    if (confirmExamAction === 'submit' || confirmExamAction === 'exit') {
+      finalizeExam();
     }
   };
 
@@ -159,7 +168,7 @@ export function QuizzesScreen() {
                 </div>
                 
                 <div className="flex items-center gap-3 text-xs font-semibold text-slate-500 mb-6 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <span className="flex items-center gap-1.5"><Target className="w-4 h-4 text-slate-400" />{q.questions} questions</span>
+                  <span className="flex items-center gap-1.5"><Compass className="w-4 h-4 text-slate-400" />{q.questions} questions</span>
                   <span>•</span>
                   <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-slate-400" />{q.duration}</span>
                   <span>•</span>
@@ -370,7 +379,7 @@ export function QuizzesScreen() {
                     
                     <div className="flex items-center justify-between pb-6 border-b border-slate-100">
                       <div className="flex items-center gap-3 text-slate-500">
-                        <Target className="w-4 h-4" />
+                        <Compass className="w-4 h-4" />
                         <span className="font-semibold text-sm">Questions</span>
                       </div>
                       <span className="font-bold text-slate-900">{selectedQuiz.questions}</span>
@@ -541,7 +550,7 @@ export function QuizzesScreen() {
                   
                   <div className="p-4 border-t border-slate-100 bg-slate-50/50 flex flex-col gap-2.5 shrink-0">
                     <button 
-                      onClick={handleSubmitExam}
+                      onClick={() => openExamConfirm('submit')}
                       className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md shadow-emerald-500/20 transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
                       <CheckCircle2 className="w-4 h-4" />
@@ -559,6 +568,39 @@ export function QuizzesScreen() {
                 </div>
 
               </div>
+
+              <Modal open={confirmExamAction !== null} onClose={() => setConfirmExamAction(null)} size="sm">
+                <div className="p-6 sm:p-8">
+                  <div className="space-y-2 text-center sm:text-left">
+                    <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">
+                      {confirmExamAction === 'submit' ? 'Submit' : 'Exit'}
+                    </p>
+                    <h3 className="text-2xl font-semibold text-slate-900">
+                      {confirmExamAction === 'submit' ? 'Submit exam?' : 'Exit exam?'}
+                    </h3>
+                    <p className="text-sm font-medium text-slate-500">
+                      {currentQuestionIdx + 1}/{selectedQuiz?.questions || 20} answered
+                    </p>
+                  </div>
+
+                  <div className="mt-7 flex flex-col-reverse sm:flex-row sm:justify-end gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmExamAction(null)}
+                      className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition-all hover:bg-slate-50 hover:border-slate-300"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmExamAction}
+                      className={`rounded-2xl px-5 py-3 text-sm font-semibold text-white transition-all shadow-sm ${confirmExamAction === 'submit' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-rose-600 hover:bg-rose-700'}`}
+                    >
+                      {confirmExamAction === 'submit' ? 'Submit' : 'Exit'}
+                    </button>
+                  </div>
+                </div>
+              </Modal>
             </div>
           )}
         </div>,

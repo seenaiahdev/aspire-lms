@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { 
   ArrowLeft, Play, CheckCircle2, RefreshCw, Terminal, 
-  Check, X, FileCode, Lock, RotateCcw, Award, Sparkles, BookOpen
+  Check, X, FileCode, Lock, RotateCcw, Award, Sparkles, BookOpen, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +15,8 @@ interface TestCase {
   actual?: string;
   passed?: boolean;
   error?: string;
+  isPublic?: boolean;
+  name?: string;
 }
 
 interface ProblemConfig {
@@ -29,8 +31,8 @@ interface ProblemConfig {
     python: string;
   };
   testCases: {
-    javascript: { input: any[]; expected: any; displayInput: string; displayExpected: string }[];
-    python: { input: any[]; expected: any; displayInput: string; displayExpected: string }[];
+    javascript: { input: any[]; expected: any; displayInput: string; displayExpected: string; isPublic?: boolean; name?: string }[];
+    python: { input: any[]; expected: any; displayInput: string; displayExpected: string; isPublic?: boolean; name?: string }[];
   };
 }
 
@@ -70,14 +72,28 @@ def two_sum(nums, target):
     },
     testCases: {
       javascript: [
-        { input: [[2, 7, 11, 15], 9], expected: [0, 1], displayInput: 'nums = [2,7,11,15], target = 9', displayExpected: '[0, 1]' },
-        { input: [[3, 2, 4], 6], expected: [1, 2], displayInput: 'nums = [3,2,4], target = 6', displayExpected: '[1, 2]' },
-        { input: [[3, 3], 6], expected: [0, 1], displayInput: 'nums = [3,3], target = 6', displayExpected: '[0, 1]' }
+        { input: [[2, 7, 11, 15], 9], expected: [0, 1], displayInput: 'nums = [2,7,11,15], target = 9', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 1' },
+        { input: [[3, 2, 4], 6], expected: [1, 2], displayInput: 'nums = [3,2,4], target = 6', displayExpected: '[1, 2]', isPublic: true, name: 'Public Test Case 2' },
+        { input: [[3, 3], 6], expected: [0, 1], displayInput: 'nums = [3,3], target = 6', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 3' },
+        { input: [[-3, 4, 3, 90], 0], expected: [0, 2], displayInput: 'nums = [-3,4,3,90], target = 0', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 1 (Negative Integers)' },
+        { input: [[0, 4, 3, 0], 0], expected: [0, 3], displayInput: 'nums = [0,4,3,0], target = 0', displayExpected: '[0, 3]', isPublic: false, name: 'Hidden Case 2 (Zero Target Sum)' },
+        { input: [[1, 5, 5, 11], 10], expected: [1, 2], displayInput: 'nums = [1,5,5,11], target = 10', displayExpected: '[1, 2]', isPublic: false, name: 'Hidden Case 3 (Duplicate Values)' },
+        { input: [[100, 200, 300, 400], 500], expected: [0, 2], displayInput: 'nums = [100,200,300,400], target = 500', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 4 (Large Integers)' },
+        { input: [[8, 1, 3, 9, 2], 10], expected: [0, 4], displayInput: 'nums = [8,1,3,9,2], target = 10', displayExpected: '[0, 4]', isPublic: false, name: 'Hidden Case 5 (First & Last Pair)' },
+        { input: [[4, 7, 2, 8, 9], 17], expected: [3, 4], displayInput: 'nums = [4,7,2,8,9], target = 17', displayExpected: '[3, 4]', isPublic: false, name: 'Hidden Case 6 (Adjacent End Pair)' },
+        { input: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 19], expected: [8, 9], displayInput: 'nums = [1..10], target = 19', displayExpected: '[8, 9]', isPublic: false, name: 'Hidden Case 7 (Large Array)' }
       ],
       python: [
-        { input: [[2, 7, 11, 15], 9], expected: [0, 1], displayInput: 'nums = [2,7,11,15], target = 9', displayExpected: '[0, 1]' },
-        { input: [[3, 2, 4], 6], expected: [1, 2], displayInput: 'nums = [3,2,4], target = 6', displayExpected: '[1, 2]' },
-        { input: [[3, 3], 6], expected: [0, 1], displayInput: 'nums = [3,3], target = 6', displayExpected: '[0, 1]' }
+        { input: [[2, 7, 11, 15], 9], expected: [0, 1], displayInput: 'nums = [2,7,11,15], target = 9', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 1' },
+        { input: [[3, 2, 4], 6], expected: [1, 2], displayInput: 'nums = [3,2,4], target = 6', displayExpected: '[1, 2]', isPublic: true, name: 'Public Test Case 2' },
+        { input: [[3, 3], 6], expected: [0, 1], displayInput: 'nums = [3,3], target = 6', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 3' },
+        { input: [[-3, 4, 3, 90], 0], expected: [0, 2], displayInput: 'nums = [-3,4,3,90], target = 0', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 1 (Negative Integers)' },
+        { input: [[0, 4, 3, 0], 0], expected: [0, 3], displayInput: 'nums = [0,4,3,0], target = 0', displayExpected: '[0, 3]', isPublic: false, name: 'Hidden Case 2 (Zero Target Sum)' },
+        { input: [[1, 5, 5, 11], 10], expected: [1, 2], displayInput: 'nums = [1,5,5,11], target = 10', displayExpected: '[1, 2]', isPublic: false, name: 'Hidden Case 3 (Duplicate Values)' },
+        { input: [[100, 200, 300, 400], 500], expected: [0, 2], displayInput: 'nums = [100,200,300,400], target = 500', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 4 (Large Integers)' },
+        { input: [[8, 1, 3, 9, 2], 10], expected: [0, 4], displayInput: 'nums = [8,1,3,9,2], target = 10', displayExpected: '[0, 4]', isPublic: false, name: 'Hidden Case 5 (First & Last Pair)' },
+        { input: [[4, 7, 2, 8, 9], 17], expected: [3, 4], displayInput: 'nums = [4,7,2,8,9], target = 17', displayExpected: '[3, 4]', isPublic: false, name: 'Hidden Case 6 (Adjacent End Pair)' },
+        { input: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 19], expected: [8, 9], displayInput: 'nums = [1..10], target = 19', displayExpected: '[8, 9]', isPublic: false, name: 'Hidden Case 7 (Large Array)' }
       ]
     }
   },
@@ -107,10 +123,12 @@ print(hello_world())`
     },
     testCases: {
       javascript: [
-        { input: [], expected: "Hello World", displayInput: 'helloWorld()', displayExpected: '"Hello World"' }
+        { input: [], expected: "Hello World", displayInput: 'helloWorld()', displayExpected: '"Hello World"', isPublic: true, name: 'Public Test' },
+        { input: [], expected: "Hello World", displayInput: 'helloWorld() return type check', displayExpected: '"Hello World"', isPublic: false, name: 'Hidden Case (Type Check)' }
       ],
       python: [
-        { input: [], expected: "Hello World", displayInput: 'hello_world()', displayExpected: '"Hello World"' }
+        { input: [], expected: "Hello World", displayInput: 'hello_world()', displayExpected: '"Hello World"', isPublic: true, name: 'Public Test' },
+        { input: [], expected: "Hello World", displayInput: 'hello_world() return type check', displayExpected: '"Hello World"', isPublic: false, name: 'Hidden Case (Type Check)' }
       ]
     }
   }
@@ -165,133 +183,262 @@ export function WorkspaceScreen() {
     setCode(problemConfig.starters[newLang]);
   };
 
+  const [isRunningCode, setIsRunningCode] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
+
   const resetCode = () => {
     setCode(problemConfig.starters[language]);
     setTerminalOutput(['> Code reset to default template.']);
     setTestResults([]);
   };
 
-  // Run Test Cases Engine
-  const runTests = () => {
-    setIsRunning(true);
-    const logs: string[] = [`[${new Date().toLocaleTimeString()}] Running code with ${language.toUpperCase()} engine...`];
+  // ── Run Code Only (Executes Public Example Test Cases & Console Logs) ──
+  const runCodeOnly = () => {
+    setIsRunningCode(true);
+    const timeStr = new Date().toLocaleTimeString();
+    const logs: string[] = [`[${timeStr}] Running code with ${language.toUpperCase()} engine...` ];
     const results: TestCase[] = [];
 
     setTimeout(() => {
       const tests = problemConfig.testCases[language] || problemConfig.testCases.javascript;
+      const publicTests = tests.filter(t => t.isPublic !== false);
 
-      if (language === 'javascript') {
+      logs.push('\n--- 🟢 PUBLIC TEST CASES ---');
+
+      let publicPassedCount = 0;
+      publicTests.forEach((test, idx) => {
         try {
-          // Custom console log capturer
-          const capturedLogs: string[] = [];
-          const customConsole = {
-            log: (...args: any[]) => {
-              capturedLogs.push(args.map(a => typeof a === 'object' ? JSON.stringify(a) : String(a)).join(' '));
+          let actualResult: any;
+          if (language === 'javascript') {
+            if (problemId === 'pp1') {
+              const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
+              const userFn = fn();
+              actualResult = userFn ? userFn(...test.input) : undefined;
+            } else {
+              const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
+              actualResult = fn();
             }
-          };
-
-          tests.forEach((test, idx) => {
-            try {
-              let userFn: any;
-              let actualResult: any;
-
-              if (problemId === 'pp1') {
-                // Two Sum
-                const fn = new Function('console', `${code}\n return twoSum;`);
-                userFn = fn(customConsole);
-                actualResult = userFn(...test.input);
-              } else {
-                // Hello World
-                const fn = new Function('console', `${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
-                actualResult = fn(customConsole);
+          } else {
+            if (problemId === 'pp1') {
+              const nums = test.input[0];
+              const target = test.input[1];
+              const res: number[] = [];
+              for (let i = 0; i < nums.length; i++) {
+                for (let j = i + 1; j < nums.length; j++) {
+                  if (nums[i] + nums[j] === target) { res.push(i, j); break; }
+                }
+                if (res.length > 0) break;
               }
-
-              const isMatch = JSON.stringify(actualResult) === JSON.stringify(test.expected);
-              results.push({
-                id: idx + 1,
-                input: test.displayInput,
-                expected: test.displayExpected,
-                actual: JSON.stringify(actualResult),
-                passed: isMatch
-              });
-            } catch (err: any) {
-              results.push({
-                id: idx + 1,
-                input: test.displayInput,
-                expected: test.displayExpected,
-                error: err.message || 'Execution error',
-                passed: false
-              });
+              actualResult = res;
+            } else {
+              actualResult = "Hello World";
             }
-          });
-
-          if (capturedLogs.length > 0) {
-            logs.push('--- Console Output ---');
-            capturedLogs.forEach(l => logs.push(l));
           }
 
-        } catch (syntaxErr: any) {
-          logs.push(`❌ Syntax Error: ${syntaxErr.message}`);
+          const isMatch = JSON.stringify(actualResult) === JSON.stringify(test.expected);
+          if (isMatch) publicPassedCount++;
+
+          logs.push(`[${isMatch ? 'PASSED ✅' : 'FAILED ❌'}] ${test.name || `Case ${idx+1}`}`);
+          logs.push(`  Input:           ${test.displayInput}`);
+          logs.push(`  Expected Output: ${test.displayExpected}`);
+          logs.push(`  Actual Output:   ${JSON.stringify(actualResult)}`);
+          logs.push('');
+
+          results.push({
+            id: idx + 1,
+            name: test.name || `Public Case ${idx + 1}`,
+            input: test.displayInput,
+            expected: test.displayExpected,
+            actual: JSON.stringify(actualResult),
+            passed: isMatch,
+            isPublic: true
+          });
+        } catch (err: any) {
+          logs.push(`[FAILED ❌] ${test.name || `Case ${idx+1}`}`);
+          logs.push(`  Input: ${test.displayInput}`);
+          logs.push(`  Error: ${err.message || 'Execution error'}`);
+          logs.push('');
+
+          results.push({
+            id: idx + 1,
+            name: test.name || `Public Case ${idx + 1}`,
+            input: test.displayInput,
+            expected: test.displayExpected,
+            error: err.message || 'Execution error',
+            passed: false,
+            isPublic: true
+          });
         }
+      });
+
+      if (publicPassedCount === publicTests.length) {
+        logs.push(`🎉 All ${publicTests.length} Public Test Cases Passed!`);
+        logs.push('💡 Next Step: Click "Run Tests" or "Submit Assignment" to execute Private Hidden Test Cases.');
       } else {
-        // Python execution fallback / evaluator
-        tests.forEach((test, idx) => {
-          try {
-            let actualResult: any = null;
+        logs.push(`⚠️ Passed ${publicPassedCount}/${publicTests.length} Public Test Cases. Please fix your code logic.`);
+      }
+
+      setTerminalOutput(logs);
+      setTestResults(results);
+      setIsRunningCode(false);
+    }, 350);
+  };
+
+  // ── Run Tests (Executes Public & Private Hidden Test Cases Suite) ──
+  const runTests = () => {
+    setIsRunning(true);
+    const timeStr = new Date().toLocaleTimeString();
+    const logs: string[] = [`[${timeStr}] Initiating Full Test Evaluation Suite (${language.toUpperCase()})...` ];
+    const results: TestCase[] = [];
+
+    setTimeout(() => {
+      const tests = problemConfig.testCases[language] || problemConfig.testCases.javascript;
+      const publicTests = tests.filter(t => t.isPublic !== false);
+      const privateTests = tests.filter(t => t.isPublic === false);
+
+      let publicPassedCount = 0;
+      let privatePassedCount = 0;
+
+      // 1. PUBLIC TEST CASES
+      logs.push('\n--- 🟢 PUBLIC TEST CASES ---');
+      publicTests.forEach((test, idx) => {
+        try {
+          let actualResult: any;
+          if (language === 'javascript') {
             if (problemId === 'pp1') {
-              // Simple python list search evaluation
-              if (code.includes('two_sum') || code.includes('twoSum')) {
+              const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
+              const userFn = fn();
+              actualResult = userFn ? userFn(...test.input) : undefined;
+            } else {
+              const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
+              actualResult = fn();
+            }
+          } else {
+            if (problemId === 'pp1') {
+              const nums = test.input[0];
+              const target = test.input[1];
+              const res: number[] = [];
+              for (let i = 0; i < nums.length; i++) {
+                for (let j = i + 1; j < nums.length; j++) {
+                  if (nums[i] + nums[j] === target) { res.push(i, j); break; }
+                }
+                if (res.length > 0) break;
+              }
+              actualResult = res;
+            } else {
+              actualResult = "Hello World";
+            }
+          }
+
+          const isMatch = JSON.stringify(actualResult) === JSON.stringify(test.expected);
+          if (isMatch) publicPassedCount++;
+
+          logs.push(`[${isMatch ? 'PASS ✅' : 'FAIL ❌'}] ${test.name || `Case ${idx+1}`}: Input: ${test.displayInput} | Expected: ${test.displayExpected} | Actual: ${JSON.stringify(actualResult)}`);
+
+          results.push({
+            id: idx + 1,
+            name: test.name || `Public Case ${idx + 1}`,
+            input: test.displayInput,
+            expected: test.displayExpected,
+            actual: JSON.stringify(actualResult),
+            passed: isMatch,
+            isPublic: true
+          });
+        } catch (err: any) {
+          logs.push(`[FAIL ❌] ${test.name || `Case ${idx+1}`}: Error: ${err.message}`);
+          results.push({
+            id: idx + 1,
+            name: test.name || `Public Case ${idx + 1}`,
+            input: test.displayInput,
+            expected: test.displayExpected,
+            error: err.message,
+            passed: false,
+            isPublic: true
+          });
+        }
+      });
+
+      // 2. PRIVATE / HIDDEN TEST CASES (Only evaluate if public tests passed)
+      logs.push('\n--- 🔒 PRIVATE TEST CASES (HIDDEN EVALUATION) ---');
+      if (publicPassedCount < publicTests.length) {
+        logs.push('⚠️ Private test cases locked. Fix public test failures first to unlock private test evaluation.');
+      } else {
+        privateTests.forEach((test, idx) => {
+          try {
+            let actualResult: any;
+            if (language === 'javascript') {
+              if (problemId === 'pp1') {
+                const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
+                const userFn = fn();
+                actualResult = userFn ? userFn(...test.input) : undefined;
+              } else {
+                const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
+                actualResult = fn();
+              }
+            } else {
+              if (problemId === 'pp1') {
                 const nums = test.input[0];
                 const target = test.input[1];
                 const res: number[] = [];
                 for (let i = 0; i < nums.length; i++) {
                   for (let j = i + 1; j < nums.length; j++) {
-                    if (nums[i] + nums[j] === target) {
-                      res.push(i, j);
-                      break;
-                    }
+                    if (nums[i] + nums[j] === target) { res.push(i, j); break; }
                   }
                   if (res.length > 0) break;
                 }
                 actualResult = res;
+              } else {
+                actualResult = "Hello World";
               }
-            } else {
-              actualResult = "Hello World";
             }
 
             const isMatch = JSON.stringify(actualResult) === JSON.stringify(test.expected);
+            if (isMatch) privatePassedCount++;
+
+            logs.push(`[${isMatch ? 'PASS ✅' : 'FAIL ❌'}] ${test.name || `Hidden Case ${idx+1}`}: Input: ${test.displayInput} | Expected: ${test.displayExpected} | Actual: ${JSON.stringify(actualResult)}`);
+
             results.push({
-              id: idx + 1,
+              id: publicTests.length + idx + 1,
+              name: test.name || `Hidden Case ${idx + 1}`,
               input: test.displayInput,
               expected: test.displayExpected,
               actual: JSON.stringify(actualResult),
-              passed: isMatch
+              passed: isMatch,
+              isPublic: false
             });
           } catch (err: any) {
+            logs.push(`[FAIL ❌] ${test.name || `Hidden Case ${idx+1}`}: Error: ${err.message}`);
             results.push({
-              id: idx + 1,
+              id: publicTests.length + idx + 1,
+              name: test.name || `Hidden Case ${idx + 1}`,
               input: test.displayInput,
               expected: test.displayExpected,
               error: err.message,
-              passed: false
+              passed: false,
+              isPublic: false
             });
           }
         });
       }
 
-      const passedCount = results.filter(r => r.passed).length;
-      logs.push(`\nTest Summary: ${passedCount}/${results.length} passed.`);
-      if (passedCount === results.length && results.length > 0) {
-        logs.push('🎉 All test cases passed successfully!');
+      const totalPassed = publicPassedCount + privatePassedCount;
+      const totalCount = tests.length;
+
+      logs.push('\n--- 📊 EVALUATION SUMMARY ---');
+      logs.push(`Public Test Cases:  ${publicPassedCount}/${publicTests.length} Passed`);
+      logs.push(`Private Test Cases: ${privatePassedCount}/${privateTests.length} Passed`);
+
+      if (totalPassed === totalCount) {
+        logs.push('🎉 ALL TEST CASES PASSED (PUBLIC & PRIVATE)! Ready to submit assignment.');
       } else {
-        logs.push('⚠️ Some test cases failed. Please review your logic.');
+        logs.push(`⚠️ Result: ${totalPassed}/${totalCount} total cases passed.`);
       }
 
       setTerminalOutput(logs);
       setTestResults(results);
       setIsRunning(false);
       setActiveTab('testcases');
-    }, 400);
+    }, 450);
   };
 
   // Submit Assignment Handler
@@ -362,17 +509,31 @@ export function WorkspaceScreen() {
 
           {!isReviewMode ? (
             <>
+              {/* 1. RUN CODE BUTTON */}
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={runCodeOnly}
+                isLoading={isRunningCode}
+                leftIcon={<Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />}
+                className="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 shadow-sm"
+              >
+                Run Code
+              </Button>
+
+              {/* 2. RUN TESTS BUTTON */}
               <Button
                 size="sm"
                 variant="secondary"
                 onClick={runTests}
                 isLoading={isRunning}
-                leftIcon={<Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />}
-                className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 shadow-sm"
+                leftIcon={<Sparkles className="w-4 h-4 text-indigo-400" />}
+                className="bg-slate-800 hover:bg-slate-700 text-indigo-200 border border-indigo-500/30 shadow-sm"
               >
                 Run Tests
               </Button>
 
+              {/* 3. SUBMIT ASSIGNMENT BUTTON */}
               <Button
                 size="sm"
                 variant="primary"
@@ -398,33 +559,97 @@ export function WorkspaceScreen() {
       </div>
 
       {/* ── Main Canvas Split Layout ── */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden relative">
         
-        {/* Left Side: Problem Description & Test Results Drawer */}
-        <div className="w-[420px] bg-[#121725] border-r border-slate-800 flex flex-col shrink-0">
-          
-          {/* Left Panel Tabs */}
-          <div className="flex items-center border-b border-slate-800 bg-[#161c2e] px-2">
+        {/* Collapsed Vertical Sidebar Bar (Appears when question panel is hidden) */}
+        {!isPanelOpen && (
+          <div className="w-12 bg-[#161c2e] border-r border-slate-800 flex flex-col items-center py-4 gap-6 shrink-0 shadow-xl z-20 animate-fade-in">
+            {/* Expand / Show Button */}
             <button
-              onClick={() => setActiveTab('problem')}
-              className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-                activeTab === 'problem' 
-                  ? 'border-blue-500 text-blue-400 bg-slate-800/40' 
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
+              type="button"
+              onClick={() => setIsPanelOpen(true)}
+              className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-400 hover:text-white transition-all border border-slate-700/60 shadow-sm group"
+              title="Expand Question Panel"
             >
-              <BookOpen className="w-3.5 h-3.5" /> Description
+              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-white" />
             </button>
 
+            <div className="w-full h-px bg-slate-800/80 my-1" />
+
+            {/* Vertical Option 1: Question Description */}
             <button
-              onClick={() => setActiveTab('testcases')}
-              className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-                activeTab === 'testcases' 
-                  ? 'border-blue-500 text-blue-400 bg-slate-800/40' 
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
-              }`}
+              type="button"
+              onClick={() => {
+                setActiveTab('problem');
+                setIsPanelOpen(true);
+              }}
+              className="flex flex-col items-center gap-2 p-2 rounded-xl hover:bg-slate-800/80 text-slate-400 hover:text-blue-400 transition-all group cursor-pointer"
+              title="Open Question Description"
             >
-              <CheckCircle2 className="w-3.5 h-3.5" /> Test Cases {testResults.length > 0 && `(${testResults.filter(r => r.passed).length}/${testResults.length})`}
+              <BookOpen className="w-4 h-4 text-slate-400 group-hover:text-blue-400 shrink-0" />
+              <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-extrabold uppercase tracking-widest text-slate-400 group-hover:text-blue-300 py-1">
+                Question
+              </span>
+            </button>
+
+            {/* Vertical Option 2: Test Cases */}
+            <button
+              type="button"
+              onClick={() => {
+                setActiveTab('testcases');
+                setIsPanelOpen(true);
+              }}
+              className="flex flex-col items-center gap-2 p-2 rounded-xl hover:bg-slate-800/80 text-slate-400 hover:text-indigo-400 transition-all group cursor-pointer"
+              title="Open Test Cases"
+            >
+              <CheckCircle2 className="w-4 h-4 text-slate-400 group-hover:text-indigo-400 shrink-0" />
+              <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-extrabold uppercase tracking-widest text-slate-400 group-hover:text-indigo-300 py-1">
+                Test Cases
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Left Side: Problem Description & Test Results Drawer */}
+        <div className={`transition-all duration-300 ease-in-out bg-[#121725] border-r border-slate-800 flex flex-col shrink-0 overflow-hidden ${
+          isPanelOpen ? 'w-[420px]' : 'w-0 border-r-0 opacity-0 pointer-events-none'
+        }`}>
+          
+          {/* Left Panel Tabs */}
+          <div className="flex items-center border-b border-slate-800 bg-[#161c2e] px-2 justify-between">
+            <div className="flex items-center">
+              <button
+                onClick={() => setActiveTab('problem')}
+                className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
+                  activeTab === 'problem' 
+                    ? 'border-blue-500 text-blue-400 bg-slate-800/40' 
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <BookOpen className="w-3.5 h-3.5" /> Description
+              </button>
+
+              <button
+                onClick={() => setActiveTab('testcases')}
+                className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
+                  activeTab === 'testcases' 
+                    ? 'border-blue-500 text-blue-400 bg-slate-800/40' 
+                    : 'border-transparent text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" /> Test Cases {testResults.length > 0 && `(${testResults.filter(r => r.passed).length}/${testResults.length})`}
+              </button>
+            </div>
+
+            {/* Dedicated Hide Button on Right Side of Left Panel Header */}
+            <button
+              type="button"
+              onClick={() => setIsPanelOpen(false)}
+              className="mr-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold transition-all border border-slate-700/60 active:scale-95 cursor-pointer shrink-0"
+              title="Hide Question Panel"
+            >
+              <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
+              <span>Hide</span>
             </button>
           </div>
 
@@ -453,11 +678,16 @@ export function WorkspaceScreen() {
                 </div>
               </>
             ) : (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Test Execution Results</h3>
+              <div className="space-y-5">
+                <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-800">
+                  <div>
+                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
+                      Test Suite Results ({testResults.length}/10)
+                    </h3>
+                    <p className="text-[11px] text-slate-500 mt-0.5">3 Public Cases • 7 Private Hidden Cases</p>
+                  </div>
                   {!isReviewMode && (
-                    <Button size="xs" variant="secondary" onClick={runTests} isLoading={isRunning}>
+                    <Button size="xs" variant="secondary" onClick={runTests} isLoading={isRunning} className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">
                       Re-run Tests
                     </Button>
                   )}
@@ -465,39 +695,99 @@ export function WorkspaceScreen() {
 
                 {testResults.length === 0 ? (
                   <div className="p-8 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-500 space-y-2">
-                    <Play className="w-8 h-8 mx-auto text-slate-600" />
-                    <p className="text-xs font-semibold">No tests run yet.</p>
-                    <p className="text-[11px]">Click "Run Tests" to execute your solution against test cases.</p>
+                    <Play className="w-8 h-8 mx-auto text-blue-400" />
+                    <p className="text-xs font-bold text-slate-300">No Tests Executed Yet</p>
+                    <p className="text-[11px] text-slate-400">
+                      Click <strong>"Run Code"</strong> for quick public test output or <strong>"Run Tests"</strong> to evaluate all 10 test cases (3 Public + 7 Private).
+                    </p>
                   </div>
                 ) : (
-                  <div className="space-y-3">
-                    {testResults.map((tc) => (
-                      <div 
-                        key={tc.id} 
-                        className={`p-4 rounded-xl border transition-all ${
-                          tc.passed 
-                            ? 'bg-emerald-950/20 border-emerald-500/30' 
-                            : 'bg-rose-950/20 border-rose-500/30'
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs font-bold text-slate-200">Test Case {tc.id}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 ${
-                            tc.passed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
-                          }`}>
-                            {tc.passed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                            {tc.passed ? 'PASSED' : 'FAILED'}
-                          </span>
-                        </div>
-
-                        <div className="font-mono text-xs space-y-1 text-slate-400">
-                          <p><span className="text-slate-500">Input:</span> {tc.input}</p>
-                          <p><span className="text-slate-500">Expected:</span> <span className="text-emerald-400">{tc.expected}</span></p>
-                          {tc.actual && <p><span className="text-slate-500">Actual:</span> <span className={tc.passed ? 'text-emerald-400' : 'text-rose-400'}>{tc.actual}</span></p>}
-                          {tc.error && <p className="text-rose-400 text-[11px]">Error: {tc.error}</p>}
-                        </div>
+                  <div className="space-y-5">
+                    
+                    {/* 🟢 PUBLIC TEST CASES SECTION (3 CASES) */}
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                          Public Test Cases ({testResults.filter(r => r.isPublic !== false).filter(r => r.passed).length}/3)
+                        </span>
+                        <span className="text-[10px] font-extrabold bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full">
+                          VISIBLE
+                        </span>
                       </div>
-                    ))}
+
+                      {testResults.filter(r => r.isPublic !== false).map((tc) => (
+                        <div 
+                          key={tc.id} 
+                          className={`p-4 rounded-xl border transition-all ${
+                            tc.passed 
+                              ? 'bg-emerald-950/20 border-emerald-500/30' 
+                              : 'bg-rose-950/20 border-rose-500/30'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-slate-200">{tc.name || `Public Test ${tc.id}`}</span>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 ${
+                              tc.passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            }`}>
+                              {tc.passed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                              {tc.passed ? 'PASSED' : 'FAILED'}
+                            </span>
+                          </div>
+
+                          <div className="font-mono text-xs space-y-1 text-slate-300 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
+                            <p><span className="text-slate-500">Input:</span> {tc.input}</p>
+                            <p><span className="text-slate-500">Expected:</span> <span className="text-emerald-400 font-bold">{tc.expected}</span></p>
+                            {tc.actual && <p><span className="text-slate-500">Actual:</span> <span className={tc.passed ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>{tc.actual}</span></p>}
+                            {tc.error && <p className="text-rose-400 text-[11px]">Error: {tc.error}</p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* 🔒 PRIVATE HIDDEN TEST CASES SECTION (7 CASES) */}
+                    <div className="space-y-3 pt-2 border-t border-slate-800">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <Lock className="w-3.5 h-3.5 text-indigo-400" />
+                          Private Hidden Test Cases ({testResults.filter(r => r.isPublic === false).filter(r => r.passed).length}/7)
+                        </span>
+                        <span className="text-[10px] font-extrabold bg-indigo-950/60 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded-full">
+                          EVALUATION
+                        </span>
+                      </div>
+
+                      {testResults.filter(r => r.isPublic === false).map((tc) => (
+                        <div 
+                          key={tc.id} 
+                          className={`p-3.5 rounded-xl border transition-all ${
+                            tc.passed 
+                              ? 'bg-indigo-950/20 border-indigo-500/30' 
+                              : 'bg-slate-900/60 border-slate-800'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                              <span className="text-xs font-bold text-slate-200">{tc.name || `Hidden Case ${tc.id}`}</span>
+                            </div>
+                            <span className={`px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 ${
+                              tc.passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            }`}>
+                              {tc.passed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
+                              {tc.passed ? 'VERIFIED' : 'FAILED'}
+                            </span>
+                          </div>
+
+                          <div className="font-mono text-[11px] mt-2 space-y-1 text-slate-400 bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/60">
+                            <p><span className="text-slate-500">Input:</span> {tc.input}</p>
+                            <p><span className="text-slate-500">Expected:</span> <span className="text-indigo-300">{tc.expected}</span></p>
+                            {tc.actual && <p><span className="text-slate-500">Actual:</span> <span className={tc.passed ? 'text-indigo-300' : 'text-rose-400'}>{tc.actual}</span></p>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
                   </div>
                 )}
               </div>
