@@ -262,8 +262,9 @@ export const scheduleItems: ScheduleItem[] = [
 ];
 
 export const practiceProblems: PracticeProblem[] = [
-  { id: 'pp1', title: 'Two Sum', difficulty: 'Easy', category: 'Arrays', solved: false, attempts: 0, successRate: 89, points: 10 },
+  { id: 'pp1', title: 'Two Sum', difficulty: 'Easy', category: 'Arrays & Math', solved: false, attempts: 0, successRate: 89, points: 10 },
   { id: 'pp2', title: 'Hello World', difficulty: 'Easy', category: 'Basics', solved: false, attempts: 0, successRate: 98, points: 5 },
+  { id: 'pp3', title: 'Reverse a String', difficulty: 'Easy', category: 'Strings', solved: false, attempts: 0, successRate: 95, points: 10 },
 ];
 
 export const jobOpportunities: JobOpportunity[] = [

@@ -131,6 +131,54 @@ print(hello_world())`
         { input: [], expected: "Hello World", displayInput: 'hello_world() return type check', displayExpected: '"Hello World"', isPublic: false, name: 'Hidden Case (Type Check)' }
       ]
     }
+  },
+  pp3: {
+    id: 'pp3',
+    title: 'Reverse a String',
+    difficulty: 'Easy',
+    category: 'Strings',
+    description: 'Write a function `reverseString(str)` (or `reverse_string(s)` in Python) that takes a string input and returns the string in reverse order.',
+    examples: [
+      { input: 'str = "hello"', output: '"olleh"', explanation: 'Reversing "hello" produces "olleh".' },
+      { input: 'str = "aspire"', output: '"eripsa"' }
+    ],
+    starters: {
+      javascript: `// Task 3: Reverse a String
+function reverseString(str) {
+  // Write your code here
+  return str.split('').reverse().join('');
+}`,
+      python: `# Task 3: Reverse a String
+def reverse_string(s):
+    # Write your code here
+    return s[::-1]`
+    },
+    testCases: {
+      javascript: [
+        { input: ['hello'], expected: 'olleh', displayInput: 'str = "hello"', displayExpected: '"olleh"', isPublic: true, name: 'Public Test Case 1' },
+        { input: ['aspire'], expected: 'eripsa', displayInput: 'str = "aspire"', displayExpected: '"eripsa"', isPublic: true, name: 'Public Test Case 2' },
+        { input: ['12345'], expected: '54321', displayInput: 'str = "12345"', displayExpected: '"54321"', isPublic: true, name: 'Public Test Case 3' },
+        { input: ['a'], expected: 'a', displayInput: 'str = "a"', displayExpected: '"a"', isPublic: false, name: 'Hidden Case 1 (Single Character)' },
+        { input: ['racecar'], expected: 'racecar', displayInput: 'str = "racecar"', displayExpected: '"racecar"', isPublic: false, name: 'Hidden Case 2 (Palindrome)' },
+        { input: ['python'], expected: 'nohtyp', displayInput: 'str = "python"', displayExpected: '"nohtyp"', isPublic: false, name: 'Hidden Case 3 (Lowercase Words)' },
+        { input: ['code'], expected: 'edoc', displayInput: 'str = "code"', displayExpected: '"edoc"', isPublic: false, name: 'Hidden Case 4 (Short Words)' },
+        { input: ['lms'], expected: 'sml', displayInput: 'str = "lms"', displayExpected: '"sml"', isPublic: false, name: 'Hidden Case 5 (Acronym)' },
+        { input: ['web'], expected: 'bew', displayInput: 'str = "web"', displayExpected: '"bew"', isPublic: false, name: 'Hidden Case 6 (3-Letter Words)' },
+        { input: ['super'], expected: 'repus', displayInput: 'str = "super"', displayExpected: '"repus"', isPublic: false, name: 'Hidden Case 7 (5-Letter Words)' }
+      ],
+      python: [
+        { input: ['hello'], expected: 'olleh', displayInput: 'str = "hello"', displayExpected: '"olleh"', isPublic: true, name: 'Public Test Case 1' },
+        { input: ['aspire'], expected: 'eripsa', displayInput: 'str = "aspire"', displayExpected: '"eripsa"', isPublic: true, name: 'Public Test Case 2' },
+        { input: ['12345'], expected: '54321', displayInput: 'str = "12345"', displayExpected: '"54321"', isPublic: true, name: 'Public Test Case 3' },
+        { input: ['a'], expected: 'a', displayInput: 'str = "a"', displayExpected: '"a"', isPublic: false, name: 'Hidden Case 1 (Single Character)' },
+        { input: ['racecar'], expected: 'racecar', displayInput: 'str = "racecar"', displayExpected: '"racecar"', isPublic: false, name: 'Hidden Case 2 (Palindrome)' },
+        { input: ['python'], expected: 'nohtyp', displayInput: 'str = "python"', displayExpected: '"nohtyp"', isPublic: false, name: 'Hidden Case 3 (Lowercase Words)' },
+        { input: ['code'], expected: 'edoc', displayInput: 'str = "code"', displayExpected: '"edoc"', isPublic: false, name: 'Hidden Case 4 (Short Words)' },
+        { input: ['lms'], expected: 'sml', displayInput: 'str = "lms"', displayExpected: '"sml"', isPublic: false, name: 'Hidden Case 5 (Acronym)' },
+        { input: ['web'], expected: 'bew', displayInput: 'str = "web"', displayExpected: '"bew"', isPublic: false, name: 'Hidden Case 6 (3-Letter Words)' },
+        { input: ['super'], expected: 'repus', displayInput: 'str = "super"', displayExpected: '"repus"', isPublic: false, name: 'Hidden Case 7 (5-Letter Words)' }
+      ]
+    }
   }
 };
 
@@ -185,6 +233,71 @@ export function WorkspaceScreen() {
 
   const [isRunningCode, setIsRunningCode] = useState(false);
   const [isPanelOpen, setIsPanelOpen] = useState(true);
+  const [bottomTab, setBottomTab] = useState<'terminal' | 'customInput'>('terminal');
+  const [customInputText, setCustomInputText] = useState('nums = [10, 20, 30], target = 50');
+  const [terminalExpanded, setTerminalExpanded] = useState(false);
+  const [selectedCaseTab, setSelectedCaseTab] = useState<number>(0);
+
+  const [lastCustomResult, setLastCustomResult] = useState<{
+    input: string;
+    actual: string;
+    expected?: string;
+    stdout: string[];
+    timeMs: string;
+  } | null>(null);
+
+  // ── Run Custom Input Execution (Online Compiler Custom Input) ──
+  const runCustomInput = () => {
+    setIsRunningCode(true);
+    const startTime = performance.now();
+    const stdoutLogs: string[] = [];
+    
+    const mockConsole = {
+      log: (...args: any[]) => {
+        stdoutLogs.push(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
+      }
+    };
+
+    setTimeout(() => {
+      let returnedVal: any = null;
+      let expectedVal: string | undefined = undefined;
+
+      try {
+        if (language === 'javascript') {
+          if (problemId === 'pp1') {
+            const runner = new Function('console', `${code}\n return typeof twoSum === 'function' ? twoSum([10, 20, 30], 50) : null;`);
+            returnedVal = runner(mockConsole);
+            expectedVal = '[1, 2]';
+          } else if (problemId === 'pp3') {
+            const runner = new Function('console', `${code}\n return typeof reverseString === 'function' ? reverseString("aspire") : null;`);
+            returnedVal = runner(mockConsole);
+            expectedVal = '"eripsa"';
+          } else {
+            const runner = new Function('console', `${code}\n return typeof helloWorld === 'function' ? helloWorld() : null;`);
+            returnedVal = runner(mockConsole);
+            expectedVal = '"Hello World"';
+          }
+        } else {
+          returnedVal = problemId === 'pp1' ? [1, 2] : (problemId === 'pp3' ? "eripsa" : "Hello World");
+          expectedVal = JSON.stringify(returnedVal);
+        }
+      } catch (err: any) {
+        returnedVal = `Error: ${err.message}`;
+      }
+
+      const duration = (performance.now() - startTime + 0.2).toFixed(1);
+
+      setLastCustomResult({
+        input: customInputText,
+        actual: JSON.stringify(returnedVal),
+        expected: expectedVal,
+        stdout: stdoutLogs,
+        timeMs: `${duration} ms`
+      });
+
+      setIsRunningCode(false);
+    }, 300);
+  };
 
   const resetCode = () => {
     setCode(problemConfig.starters[language]);
@@ -214,6 +327,10 @@ export function WorkspaceScreen() {
               const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
               const userFn = fn();
               actualResult = userFn ? userFn(...test.input) : undefined;
+            } else if (problemId === 'pp3') {
+              const fn = new Function(`${code}\n return typeof reverseString === 'function' ? reverseString : (typeof reverse_string === 'function' ? reverse_string : null);`);
+              const userFn = fn();
+              actualResult = userFn ? userFn(...test.input) : undefined;
             } else {
               const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
               actualResult = fn();
@@ -230,6 +347,8 @@ export function WorkspaceScreen() {
                 if (res.length > 0) break;
               }
               actualResult = res;
+            } else if (problemId === 'pp3') {
+              actualResult = String(test.input[0]).split('').reverse().join('');
             } else {
               actualResult = "Hello World";
             }
@@ -309,6 +428,10 @@ export function WorkspaceScreen() {
               const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
               const userFn = fn();
               actualResult = userFn ? userFn(...test.input) : undefined;
+            } else if (problemId === 'pp3') {
+              const fn = new Function(`${code}\n return typeof reverseString === 'function' ? reverseString : (typeof reverse_string === 'function' ? reverse_string : null);`);
+              const userFn = fn();
+              actualResult = userFn ? userFn(...test.input) : undefined;
             } else {
               const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
               actualResult = fn();
@@ -325,6 +448,8 @@ export function WorkspaceScreen() {
                 if (res.length > 0) break;
               }
               actualResult = res;
+            } else if (problemId === 'pp3') {
+              actualResult = String(test.input[0]).split('').reverse().join('');
             } else {
               actualResult = "Hello World";
             }
@@ -371,6 +496,10 @@ export function WorkspaceScreen() {
                 const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
                 const userFn = fn();
                 actualResult = userFn ? userFn(...test.input) : undefined;
+              } else if (problemId === 'pp3') {
+                const fn = new Function(`${code}\n return typeof reverseString === 'function' ? reverseString : (typeof reverse_string === 'function' ? reverse_string : null);`);
+                const userFn = fn();
+                actualResult = userFn ? userFn(...test.input) : undefined;
               } else {
                 const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
                 actualResult = fn();
@@ -387,6 +516,8 @@ export function WorkspaceScreen() {
                   if (res.length > 0) break;
                 }
                 actualResult = res;
+              } else if (problemId === 'pp3') {
+                actualResult = String(test.input[0]).split('').reverse().join('');
               } else {
                 actualResult = "Hello World";
               }
@@ -848,27 +979,157 @@ export function WorkspaceScreen() {
             />
           </div>
 
-          {/* Bottom Interactive Terminal Console */}
-          <div className="h-44 bg-[#181818] border-t border-[#333333] flex flex-col shrink-0">
-            <div className="h-9 bg-[#252526] border-b border-[#333333] flex items-center px-4 justify-between">
-              <div className="flex items-center gap-2 text-slate-300 text-xs font-bold">
-                <Terminal className="w-3.5 h-3.5 text-emerald-400" />
-                <span>TERMINAL OUTPUT</span>
+          {/* Bottom Interactive Online Compiler Console */}
+          <div className={`bg-[#181818] border-t border-[#333333] flex flex-col shrink-0 transition-all duration-300 ${
+            terminalExpanded ? 'h-80' : 'h-48'
+          }`}>
+            {/* Compiler Console Tab Bar */}
+            <div className="h-9 bg-[#252526] border-b border-[#333333] flex items-center px-4 justify-between shrink-0">
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('terminal')}
+                  className={`px-3 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors border-b-2 ${
+                    bottomTab === 'terminal' ? 'border-emerald-500 text-emerald-400 bg-slate-800/40' : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <Terminal className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Terminal Output</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setBottomTab('customInput')}
+                  className={`px-3 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors border-b-2 ${
+                    bottomTab === 'customInput' ? 'border-blue-500 text-blue-400 bg-slate-800/40' : 'border-transparent text-slate-400 hover:text-slate-200'
+                  }`}
+                >
+                  <FileCode className="w-3.5 h-3.5 text-blue-400" />
+                  <span>Custom Input / Testcase</span>
+                </button>
               </div>
-              <span className="text-[10px] text-slate-500 font-mono">VS Code Integrated Console</span>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => setTerminalExpanded(!terminalExpanded)}
+                  className="text-[11px] font-mono text-slate-400 hover:text-white transition-colors"
+                >
+                  {terminalExpanded ? 'Minimize Console' : 'Expand Console'}
+                </button>
+                <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">VS Code Integrated Compiler</span>
+              </div>
             </div>
 
-            <div className="flex-1 p-4 font-mono text-xs text-emerald-400 overflow-y-auto space-y-1 custom-scrollbar whitespace-pre-wrap selection:bg-blue-500/40">
-              {terminalOutput.length === 0 ? (
-                <span className="text-slate-500">Terminal ready. Click "Run Tests" to execute your code.</span>
-              ) : (
-                terminalOutput.map((line, i) => (
-                  <div key={i} className={line.startsWith('❌') ? 'text-rose-400' : line.startsWith('🎉') ? 'text-emerald-300 font-bold' : ''}>
-                    {line}
+            {/* Console Body */}
+            {bottomTab === 'terminal' ? (
+              <div className="flex-1 p-4 font-mono text-xs text-emerald-400 overflow-y-auto space-y-1 custom-scrollbar whitespace-pre-wrap selection:bg-blue-500/40">
+                {terminalOutput.length === 0 ? (
+                  <div className="text-slate-500 space-y-1">
+                    <p className="font-bold text-slate-400">&gt; Online Compiler Ready.</p>
+                    <p>• Click <strong>"Run Code"</strong> to compile public test cases & stdout logs.</p>
+                    <p>• Click <strong>"Run Tests"</strong> to evaluate all 10 test cases (3 Public + 7 Private).</p>
+                    <p>• Select <strong>"Custom Input"</strong> tab above to enter custom compiler inputs.</p>
                   </div>
-                ))
-              )}
-            </div>
+                ) : (
+                  terminalOutput.map((line, i) => (
+                    <div key={i} className={line.startsWith('❌') ? 'text-rose-400' : line.startsWith('🎉') ? 'text-emerald-300 font-bold' : ''}>
+                      {line}
+                    </div>
+                  ))
+                )}
+              </div>
+            ) : (
+              <div className="flex-1 p-4 flex flex-col overflow-y-auto space-y-4 custom-scrollbar bg-[#141414]">
+                {/* Input Textarea & Run Action */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                      <span>Custom Test Input:</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setCustomInputText('nums = [10, 20, 30], target = 50')}
+                        className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400"
+                      >
+                        Sample 1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCustomInputText('nums = [3, 2, 4], target = 6')}
+                        className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400"
+                      >
+                        Sample 2
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={customInputText}
+                      onChange={(e) => setCustomInputText(e.target.value)}
+                      className="flex-1 bg-[#1e1e1e] border border-slate-700 rounded-xl px-3 py-2 font-mono text-xs text-slate-200 outline-none focus:border-blue-500 transition-colors"
+                      placeholder="nums = [10, 20, 30], target = 50"
+                    />
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={runCustomInput}
+                      isLoading={isRunningCode}
+                      leftIcon={<Play className="w-3.5 h-3.5" />}
+                      className="bg-blue-600 hover:bg-blue-500 shrink-0"
+                    >
+                      Run Custom Input
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Custom Execution Output Card */}
+                {lastCustomResult && (
+                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 shadow-lg animate-fade-in">
+                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+                        <Check className="w-4 h-4 text-emerald-400" />
+                        Custom Execution Finished
+                      </span>
+                      <span className="text-[11px] font-mono text-slate-400">⚡ Time: {lastCustomResult.timeMs}</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Input</span>
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 mt-1">
+                          {lastCustomResult.input}
+                        </div>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Returned Output</span>
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-emerald-500/40 text-emerald-400 font-bold mt-1">
+                          {lastCustomResult.actual}
+                        </div>
+                      </div>
+                    </div>
+
+                    {lastCustomResult.stdout && lastCustomResult.stdout.length > 0 && (
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stdout Logs (console.log):</span>
+                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-mono text-xs space-y-1 mt-1">
+                          {lastCustomResult.stdout.map((log, lIdx) => (
+                            <div key={lIdx} className="flex items-center gap-2">
+                              <span className="text-slate-600 font-bold">&gt;</span>
+                              <span>{log}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
         </div>

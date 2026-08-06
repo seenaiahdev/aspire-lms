@@ -256,8 +256,34 @@ export function ProjectsScreen() {
   })();
 
   const openProjectInVSCode = () => {
-    const vscodeUri = `vscode://file/${VSCODE_WORKSPACE_PATH}`;
+    const workspace = localStorage.getItem('vscodeWorkspacePath') || VSCODE_WORKSPACE_PATH;
+    // map project ids to starter folder names (if present)
+    const starterMap: Record<string, string> = {
+      p1: 'project-starters/login-signup-welcome',
+      // add more mappings if you create additional starter folders
+    };
+
+    const starter = starterMap[selectedProject?.id || ''] || '';
+    // build path and normalize slashes
+    const filePath = starter ? `${workspace.replaceAll('\\', '/')}/${starter}` : workspace.replaceAll('\\', '/');
+    const vscodeUri = `vscode://file/${encodeURI(filePath)}`;
     window.open(vscodeUri, '_blank', 'noopener,noreferrer');
+  };
+
+  const [workspacePath, setWorkspacePath] = useState(() => localStorage.getItem('vscodeWorkspacePath') || '');
+
+  const configureWorkspacePath = () => {
+    const current = localStorage.getItem('vscodeWorkspacePath') || '';
+    const val = window.prompt('Enter your local VS Code workspace absolute path (e.g. C:/Users/you/Projects/my-repo):', current || VSCODE_WORKSPACE_PATH);
+    if (val !== null) {
+      localStorage.setItem('vscodeWorkspacePath', val);
+      setWorkspacePath(val);
+    }
+  };
+
+  const openInVscodeDev = () => {
+    // fallback to opening vscode.dev — user can open the project repo there
+    window.open('https://vscode.dev', '_blank', 'noopener,noreferrer');
   };
 
   const openProjectDetail = (projectId: string) => {
@@ -493,29 +519,23 @@ export function ProjectsScreen() {
             )}
           </div>
 
-            <div className="mt-5">
-              {isSaved ? (
-                <div className="flex items-center gap-3">
-                  <a href={driveLinks[selectedProject.id]} target="_blank" rel="noopener noreferrer" className="truncate rounded-md px-3 py-2 bg-slate-50 border border-slate-200 text-sm text-primary-700 hover:bg-slate-100">
-                    {driveLinks[selectedProject.id]}
-                  </a>
-                  <a href={driveLinks[selectedProject.id]} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:border-primary-300 hover:bg-primary-50">
-                    <ExternalLink className="w-4 h-4" />
-                    Open Link
-                  </a>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={openProjectInVSCode}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-primary-300 hover:bg-primary-50"
-                >
-                  <ExternalLink className="w-4 h-4" />
-                  Open in VS Code
-                </button>
+            <div className="mt-5 flex items-center gap-3">
+              {isSaved && (
+                <a href={driveLinks[selectedProject.id]} target="_blank" rel="noopener noreferrer" className="truncate rounded-md px-3 py-2 bg-slate-50 border border-slate-200 text-sm text-primary-700 hover:bg-slate-100">
+                  {driveLinks[selectedProject.id]}
+                </a>
               )}
+
+              <button
+                type="button"
+                onClick={openInVscodeDev}
+                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-primary-300 hover:bg-primary-50"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open in VS Code
+              </button>
             </div>
-        </Card>
+          </Card>
       </div>
     );
   }

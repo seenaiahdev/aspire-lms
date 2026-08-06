@@ -3,10 +3,11 @@ import type { ButtonHTMLAttributes, ReactNode } from 'react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'ghost' | 'outline' | 'danger';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   leftIcon?: ReactNode;
   rightIcon?: ReactNode;
   loading?: boolean;
+  isLoading?: boolean;
   fullWidth?: boolean;
 }
 
@@ -19,6 +20,7 @@ const variantClasses: Record<string, string> = {
 };
 
 const sizeClasses: Record<string, string> = {
+  xs: 'text-xs px-2.5 py-1.5',
   sm: 'text-sm px-3 py-2',
   md: 'text-sm',
   lg: 'text-base px-5 py-3',
@@ -30,30 +32,33 @@ export function Button({
   leftIcon,
   rightIcon,
   loading,
+  isLoading,
   fullWidth,
   className,
   children,
   disabled,
   ...props
 }: ButtonProps) {
+  const isCurrentlyLoading = loading || isLoading;
+
   return (
     <button
       className={cn(
-        variantClasses[variant],
-        sizeClasses[size],
+        variantClasses[variant] || variantClasses.primary,
+        sizeClasses[size] || sizeClasses.md,
         fullWidth && 'w-full',
         className,
       )}
-      disabled={disabled || loading}
+      disabled={disabled || isCurrentlyLoading}
       {...props}
     >
-      {loading ? (
+      {isCurrentlyLoading ? (
         <span className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
       ) : (
         leftIcon
       )}
       {children}
-      {!loading && rightIcon}
+      {!isCurrentlyLoading && rightIcon}
     </button>
   );
 }

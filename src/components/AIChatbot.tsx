@@ -23,9 +23,6 @@ const MOCK_RESPONSES = [
 export function AIChatbot() {
   const { route } = useNav();
   const [isOpen, setIsOpen] = useState(false);
-
-  // Hide chatbot completely in coding workspace environment to avoid obstruction
-  if (route === 'workspace') return null;
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -45,6 +42,9 @@ export function AIChatbot() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isTyping, isOpen]);
+
+  // Hide chatbot completely in coding workspace environment to avoid obstruction
+  if (route === 'workspace') return null;
 
   const handleSend = () => {
     if (!input.trim()) return;
