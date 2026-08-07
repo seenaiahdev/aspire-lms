@@ -9,7 +9,7 @@ import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
-import aspireBackpackImg from 'C:/Users/Seenaiah/.gemini/antigravity/brain/67992cba-db46-474a-b91c-7626944b0fc1/aspire_adult_bag_1786100761199.jpg';
+import aspireBackpackImg from '@/assests/aspire_backpack.jpg';
 
 export interface SwagReward {
   id: string;
