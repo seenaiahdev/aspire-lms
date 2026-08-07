@@ -9,7 +9,7 @@ import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
-const aspireBackpackImg = 'https://images.unsplash.com/photo-1622560480605-d83c853bc5c3?auto=format&fit=crop&w=800&q=80';
+import aspireBackpackImg from '@/assests/media_1786109472875.jpg';
 
 export interface SwagReward {
   id: string;
