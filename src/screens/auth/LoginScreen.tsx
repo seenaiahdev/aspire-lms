@@ -172,7 +172,7 @@ export function LoginScreen() {
               <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full overflow-hidden shadow-xl border-2 border-white/90 mb-3 hover:scale-105 transition-transform duration-300 shrink-0 bg-white">
                 <img
                   src={aspireLogo}
-                  alt="Aspire Next Logo"
+                  alt="AspireLMS Logo"
                   className="w-full h-full object-cover scale-110"
                 />
               </div>

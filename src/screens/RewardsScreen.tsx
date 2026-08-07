@@ -1,67 +1,422 @@
-import React, { useState } from 'react';
-import { Gift, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/Button';
-import { useNav } from '@/lib/nav';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  Gift, Sparkles, Lock, Unlock, CheckCircle2, Award, ShoppingBag, ArrowRight, Package, Truck, X, ShieldCheck
+} from 'lucide-react';
+import { Card } from '@/components/ui/Card';
 import { Toast } from '@/components/ui/Toast';
+import { triggerFileDownload } from '@/lib/downloadHelper';
+import { useNav } from '@/lib/nav';
+import { cn } from '@/lib/utils';
+import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireBackpackImg from 'C:/Users/Seenaiah/.gemini/antigravity/brain/67992cba-db46-474a-b91c-7626944b0fc1/aspire_adult_bag_1786100761199.jpg';
 
-export function RewardsScreen() {
-  const [toastVisible, setToastVisible] = useState(false);
+export interface SwagReward {
+  id: string;
+  name: string;
+  category: string;
+  description: string;
+  currentXp: number;
+  requiredXp: number;
+  isUnlocked: boolean; // Unlocked item is the Bag
+  productImage: string;
+  tag: string;
+}
+
+const swagRewardsList: SwagReward[] = [
+  {
+    id: 'r1',
+    name: 'Laptop Backpack',
+    category: 'Merchandise',
+    description: 'Laptop Backpack',
+    currentXp: 1200,
+    requiredXp: 1200,
+    isUnlocked: true, // UNLOCKED DEMO ITEM 🎉
+    productImage: aspireBackpackImg,
+    tag: 'UNLOCKED DEMO',
+  },
+  {
+    id: 'r2',
+    name: 'Metallic Gel Pen Set',
+    category: 'Stationery',
+    description: 'Metallic Gel Pen Set',
+    currentXp: 585,
+    requiredXp: 750,
+    isUnlocked: false, // Locked 78%
+    productImage: 'https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?auto=format&fit=crop&w=800&q=80',
+    tag: '78% COMPLETED',
+  },
+  {
+    id: 'r3',
+    name: 'Insulated Water Bottle',
+    category: 'Drinkware',
+    description: 'Insulated Water Bottle',
+    currentXp: 850,
+    requiredXp: 1000,
+    isUnlocked: false, // Locked 85%
+    productImage: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=800&q=80',
+    tag: '85% COMPLETED',
+  },
+  {
+    id: 'r4',
+    name: 'Developer Coffee Mug',
+    category: 'Office',
+    description: 'Developer Coffee Mug',
+    currentXp: 1200,
+    requiredXp: 2000,
+    isUnlocked: false, // Locked 60%
+    productImage: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80',
+    tag: '60% COMPLETED',
+  },
+  {
+    id: 'r5',
+    name: 'iPad Air 11"',
+    category: 'Tech Gear',
+    description: 'iPad Air 11"',
+    currentXp: 2000,
+    requiredXp: 5000,
+    isUnlocked: false, // Locked 40%
+    productImage: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80',
+    tag: '40% COMPLETED',
+  },
+  {
+    id: 'r6',
+    name: 'Developer Hoodie',
+    category: 'Apparel',
+    description: 'Developer Hoodie',
+    currentXp: 1500,
+    requiredXp: 3000,
+    isUnlocked: false, // Locked 50%
+    productImage: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
+    tag: '50% COMPLETED',
+  }
+];
+
+function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: number }) {
+  const strokeWidth = 5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (progress / 100) * circumference;
+
   return (
-    <div className="max-w-5xl mx-auto py-20 px-6 font-sans">
-      {toastVisible && (
-        <Toast message="You'll be notified when rewards launch." onClose={() => setToastVisible(false)} position="top-right" />
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-        <div className="rounded-3xl bg-white p-10 shadow-md text-center">
-          <div className="mx-auto w-28 h-28 rounded-full bg-primary-50 flex items-center justify-center mb-6">
-            <Gift className="w-12 h-12 text-primary-600" />
-          </div>
-          <h1 className="text-3xl font-extrabold text-slate-900 mb-2">Rewards</h1>
-          <p className="text-slate-500 mb-6">We're building a rewards system to celebrate milestones, streaks, and top contributors.</p>
-          <div className="flex justify-center gap-3">
-            <Button variant="primary" size="md" onClick={() => setToastVisible(true)}>Notify Me</Button>
-            <RewardExplore />
-          </div>
-        </div>
+    <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
+      {/* SVG Circular Progress Ring */}
+      <svg className="w-full h-full -rotate-90 transform" viewBox={`0 0 ${size} ${size}`}>
+        {/* Background Track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          className="stroke-amber-400/20"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        {/* Animated Progress Arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          className="stroke-amber-400 transition-all duration-700 ease-out"
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          fill="transparent"
+        />
+      </svg>
 
-        <div className="rounded-3xl bg-white p-8 shadow-md">
-          <h3 className="text-lg font-semibold mb-3">Planned features</h3>
-          <ul className="space-y-3 text-sm text-slate-600">
-            <li className="flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-amber-400 mt-1" />
-              <div>
-                <div className="font-medium">Tiered rewards</div>
-                <div className="text-xs">Badges, points and redeemable perks for active learners.</div>
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-emerald-400 mt-1" />
-              <div>
-                <div className="font-medium">Progress milestones</div>
-                <div className="text-xs">Celebrate course completions and streaks with special rewards.</div>
-              </div>
-            </li>
-            <li className="flex items-start gap-3">
-              <Sparkles className="w-5 h-5 text-sky-400 mt-1" />
-              <div>
-                <div className="font-medium">Leaderboard & challenges</div>
-                <div className="text-xs">Compete with peers and earn seasonal prizes.</div>
-              </div>
-            </li>
-          </ul>
-        </div>
+      {/* Center Lock Icon */}
+      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 rounded-full border border-amber-400/30 m-1 shadow-md">
+        <Lock className="w-6 h-6 text-amber-300 drop-shadow-sm" />
       </div>
     </div>
   );
 }
 
-export default RewardsScreen;
-
-function RewardExplore() {
+export function RewardsScreen() {
   const { navigate } = useNav();
+  const [rewardsState, setRewardsState] = useState<SwagReward[]>(swagRewardsList);
+  const [selectedReward, setSelectedReward] = useState<SwagReward | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [claimedId, setClaimedId] = useState<string | null>(null);
+
+  const unlockedCount = rewardsState.filter(r => r.isUnlocked).length;
+  const lockedCount = rewardsState.filter(r => !r.isUnlocked).length;
+
+  const handleClaimReward = (reward: SwagReward) => {
+    setClaimedId(reward.id);
+    setToastMessage(`Congratulations! ${reward.name} claimed successfully! Free campus shipping dispatched. 🚚🎁`);
+  };
+
   return (
-    <Button variant="ghost" size="md" onClick={() => navigate('learning')}>
-      Explore Courses
-    </Button>
+    <div className="space-y-6 font-sans pb-12 animate-fade-in">
+      
+      {toastMessage && (
+        <Toast message={toastMessage} onClose={() => setToastMessage(null)} position="top-right" />
+      )}
+
+      {/* Header Banner */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-[2rem] bg-white border border-slate-200/90 shadow-xs">
+        <div>
+          <span className="inline-block px-3 py-1 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider mb-2">
+            STUDENT MERCHANDISE & SWAG STORE
+          </span>
+          <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
+            AspireNext Rewards & Merchandise
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+            Earn XP points by solving coding practice problems, completing quizzes, and finishing course modules to unlock official branded merchandise.
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-xs shadow-sm flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-slate-950" />
+            <span>2,850 Total Student XP</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Top 2 Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        
+        {/* Unlocked */}
+        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+            <Gift className="w-5.5 h-5.5 text-emerald-600" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} Reward Unlocked</p>
+            <p className="text-xs font-extrabold text-emerald-600">Ready to Claim (Demo Backpack)</p>
+          </div>
+        </Card>
+
+        {/* Locked */}
+        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+            <Lock className="w-5.5 h-5.5" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{lockedCount} Locked Rewards</p>
+            <p className="text-xs font-extrabold text-amber-600">Locked (XP Milestones)</p>
+          </div>
+        </Card>
+
+      </div>
+
+
+      {/* ════════ PRODUCTS REWARDS GRID ════════ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {rewardsState.map((reward) => {
+          const progressPercent = Math.round((reward.currentXp / reward.requiredXp) * 100);
+          const isClaimed = claimedId === reward.id;
+
+          return (
+            <Card
+              key={reward.id}
+              className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer min-h-[380px]"
+              onClick={() => setSelectedReward(reward)}
+            >
+              
+              {/* ── CARD CONTENT (BLURRED IF LOCKED) ── */}
+              <div className={cn("flex flex-col h-full justify-between transition-all duration-500", !reward.isUnlocked && "blur-[3px] opacity-40 select-none pointer-events-none")}>
+                
+                {/* Full Seamless Edge-to-Edge Image Header */}
+                <div className="relative h-60 w-full overflow-hidden shrink-0 bg-slate-100">
+                  <img
+                    src={reward.productImage}
+                    alt={reward.name}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                  />
+
+                  {/* Status Chip */}
+                  <div className="absolute top-3 right-3 z-20">
+                    {reward.isUnlocked ? (
+                      <span className="px-3 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider shadow-md flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> UNLOCKED DEMO
+                      </span>
+                    ) : (
+                      <span className="px-3 py-1 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-md">
+                        LOCKED ({progressPercent}%)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="p-5 space-y-3 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-[10px] font-black text-[#7c3aed] uppercase bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
+                        {reward.category}
+                      </span>
+                      <span className="text-xs font-black text-slate-900">
+                        {reward.requiredXp} XP
+                      </span>
+                    </div>
+
+                    <h3 className="font-extrabold text-slate-900 text-base leading-snug">
+                      {reward.name}
+                    </h3>
+                  </div>
+
+                  {/* Unlocked Actions */}
+                  <div className="pt-3 border-t border-slate-100 mt-auto">
+                    {isClaimed ? (
+                      <div className="w-full py-2.5 px-4 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-xs flex items-center justify-center gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                        <span>Claimed & Shipping Dispatched!</span>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleClaimReward(reward); }}
+                        className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                      >
+                        <ShoppingBag className="w-4 h-4 text-amber-300" />
+                        <span>Claim Swag Reward</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+
+              {/* ── FULL CARD BLURRED OVERLAY WHEN LOCKED (DEAD CENTER OF ENTIRE CARD) ── */}
+              {!reward.isUnlocked && (
+                <div className="absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center text-white space-y-3.5 animate-fade-in">
+                  
+                  {/* SVG Circular Progress Ring with Lock Icon in Center */}
+                  <CircularRewardLock progress={progressPercent} size={80} />
+
+                  <div className="max-w-xs space-y-1.5">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[11px] font-black uppercase tracking-wider">
+                      <span>LOCKED REWARD</span>
+                      <span className="text-white">({reward.currentXp} / {reward.requiredXp} XP)</span>
+                    </div>
+
+                    <h4 className="font-extrabold text-sm sm:text-base text-white leading-snug line-clamp-2">
+                      {reward.name}
+                    </h4>
+
+                    <p className="text-xs font-semibold text-slate-300 leading-relaxed">
+                      Earn {reward.requiredXp - reward.currentXp} more XP to unlock this official AspireNext merchandise item
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedReward(reward); }}
+                    className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4 text-amber-300" />
+                    <span>View Locked Product Details</span>
+                  </button>
+
+                </div>
+              )}
+
+            </Card>
+          );
+        })}
+      </div>
+
+
+      {/* ════════ PRODUCT DETAILS & CLAIM MODAL ════════ */}
+      {selectedReward && createPortal(
+        <div 
+          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedReward(null); }}
+        >
+          <div className="w-full max-w-xl bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto">
+            
+            {/* Sticky Close Button */}
+            <button
+              onClick={() => setSelectedReward(null)}
+              className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* Product Header Image (Seamless Edge-to-Edge Modern Design) */}
+            <div className="relative h-80 w-full overflow-hidden shrink-0 bg-slate-100">
+              <img src={selectedReward.productImage} alt={selectedReward.name} className="w-full h-full object-cover" />
+            </div>
+
+            {/* Product Body */}
+            <div className="p-6 space-y-4">
+              <div className="space-y-1">
+                <span className="text-[10px] font-black text-[#7c3aed] uppercase bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
+                  {selectedReward.category}
+                </span>
+                <h2 className="text-xl font-extrabold text-slate-900 pt-2 leading-tight">
+                  {selectedReward.name}
+                </h2>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between">
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Required XP</p>
+                  <p className="text-base font-black text-slate-900 mt-0.5">{selectedReward.requiredXp} XP</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Current Student XP</p>
+                  <p className="text-base font-black text-[#7c3aed] mt-0.5">{selectedReward.currentXp} XP</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider">Campus Delivery</p>
+                  <p className="text-xs font-extrabold text-emerald-600 mt-0.5 flex items-center gap-1">
+                    <Truck className="w-3.5 h-3.5" /> Free Express
+                  </p>
+                </div>
+              </div>
+
+              {!selectedReward.isUnlocked && (
+                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
+                  <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
+                    <Lock className="w-4 h-4 text-amber-600" />
+                    <span>Reward Currently Locked</span>
+                  </div>
+                  <p className="text-xs font-medium text-amber-700 leading-relaxed">
+                    Earn <strong>{selectedReward.requiredXp - selectedReward.currentXp} more XP</strong> by completing lessons, solving coding practice questions, or submitting projects in AspireLMS to unlock this item.
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Modal Actions */}
+            <div className="p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3">
+              <button
+                onClick={() => setSelectedReward(null)}
+                className="px-5 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-extrabold text-xs transition-colors"
+              >
+                Close
+              </button>
+
+              {selectedReward.isUnlocked ? (
+                <button
+                  onClick={() => { handleClaimReward(selectedReward); setSelectedReward(null); }}
+                  className="flex-1 py-2.5 px-5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <ShoppingBag className="w-4 h-4 text-amber-300" />
+                  <span>Confirm & Claim Swag Reward</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setSelectedReward(null); navigate('practice'); }}
+                  className="flex-1 py-2.5 px-5 rounded-xl bg-slate-200 hover:bg-purple-50 text-slate-700 hover:text-[#7c3aed] font-extrabold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Sparkles className="w-4 h-4 text-[#7c3aed]" />
+                  <span>Earn XP in Practice Lab</span>
+                </button>
+              )}
+            </div>
+
+          </div>
+        </div>,
+        document.body
+      )}
+
+    </div>
   );
 }
+
+export default RewardsScreen;

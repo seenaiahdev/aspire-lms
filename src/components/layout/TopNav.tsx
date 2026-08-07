@@ -29,13 +29,15 @@ export function TopNav() {
     lesson: 'Lesson Player',
     live: 'Live Classes',
     classroom: 'Live Classroom',
-    assignments: 'Assignments',
+    recording: 'Recorded Masterclass',
+    milestones: 'Milestones Roadmap',
+    assignments: 'Practice Hub',
     practice: 'Practice Lab',
     quizzes: 'Quizzes',
     projects: 'Projects',
     resources: 'Resources',
     community: 'Community',
-    schedule: 'Schedule',
+    schedule: 'Events',
     progress: 'Progress',
     achievements: 'Achievements',
     certificates: 'Certificates',
@@ -57,8 +59,8 @@ export function TopNav() {
           <Menu className="w-5 h-5" />
         </button>
 
-        <h1 className="font-extrabold text-lg text-slate-900 hidden sm:block">
-          {titles[route] || 'Aspire Next'}
+        <h1 className="font-extrabold text-sm sm:text-lg text-slate-900 truncate max-w-[160px] sm:max-w-none">
+          {titles[route] || 'AspireLMS'}
         </h1>
       </div>
 

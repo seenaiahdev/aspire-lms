@@ -12,6 +12,7 @@ import { LearningScreen } from '@/screens/LearningScreen';
 import { CourseScreen } from '@/screens/CourseScreen';
 import { LessonScreen } from '@/screens/LessonScreen';
 import { LiveClassesScreen, LiveClassroomScreen } from '@/screens/LiveClassesScreen';
+import { RecordingScreen } from '@/screens/RecordingScreen';
 import { AssignmentsScreen } from '@/screens/AssignmentsScreen';
 import { PracticeScreen } from '@/screens/PracticeScreen';
 import { WorkspaceScreen } from '@/screens/WorkspaceScreen';
@@ -58,6 +59,7 @@ function Router() {
           case 'lesson': return <LessonScreen />;
           case 'live': return <LiveClassesScreen />;
           case 'classroom': return <LiveClassroomScreen />;
+          case 'recording': return <RecordingScreen />;
           case 'assignments': return <AssignmentsScreen />;
           case 'practice': return <PracticeScreen />;
           case 'workspace': return <WorkspaceScreen />;
@@ -70,7 +72,7 @@ function Router() {
           case 'achievements': return <AchievementsScreen />;
           case 'certificates': return <CertificatesScreen />;
           case 'rewards': return <RewardsScreen />;
-          case 'certifications': return <CertificationsScreen />;
+          case 'certifications': return <CertificatesScreen />;
           case 'placement': return <PlacementScreen />;
           case 'notifications': return <NotificationsScreen />;
           case 'profile': return <ProfileScreen />;

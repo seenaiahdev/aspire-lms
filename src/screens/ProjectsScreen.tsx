@@ -9,9 +9,10 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
-import { StatusChip, DifficultyBadge } from '@/components/ui/StatusChip';
+import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { triggerFileDownload } from '@/lib/downloadHelper';
+import { cn } from '@/lib/utils';
 
 const VSCODE_WORKSPACE_PATH = 'c:/Users/Seenaiah/Downloads/lms/project';
 
@@ -54,29 +55,14 @@ const projectGuides: Record<string, ProjectGuide> = {
         calls: ['handleLoginClick()', 'validateForm()', 'showWelcomeMessage()'],
         result: 'Hide the form and show the welcome message.',
       },
-      {
-        action: 'User clicks Signup',
-        event: 'onclick on Signup button',
-        calls: ['handleSignupClick()', 'validateForm()', 'showWelcomeMessage()'],
-        result: 'Create the account flow and move to welcome state.',
-      },
-      {
-        action: 'User clicks Reset',
-        event: 'onclick on Reset button',
-        calls: ['resetForm()'],
-        result: 'Clear inputs and return the form to default state.',
-      },
     ],
     buildSteps: [
       'Create a simple login and signup form in HTML.',
       'Style the page with CSS for a clean and responsive layout.',
       'Attach onclick handlers in JavaScript for Login, Signup, and Reset.',
-      'Validate the form fields before showing the welcome message.',
-      'Display a friendly welcome section after successful action.',
     ],
     tips: [
       'Keep the UI simple so students can focus on the flow.',
-      'Use clear button names and small function names.',
       'Show a welcome message clearly after successful submit.',
     ],
   },
@@ -87,71 +73,31 @@ const projectGuides: Record<string, ProjectGuide> = {
       { path: 'src/app/UploadImage.tsx', purpose: 'Upload and preview image file' },
       { path: 'src/app/PredictionCard.tsx', purpose: 'Show predicted label and confidence' },
       { path: 'backend/main.py', purpose: 'API for model inference' },
-      { path: 'backend/model.py', purpose: 'Load model and run predictions' },
     ],
-    functions: [
-      'handleImageUpload',
-      'predictImage',
-      'loadModel',
-      'formatPrediction',
-    ],
+    functions: ['handleImageUpload', 'predictImage', 'loadModel', 'formatPrediction'],
     buildSteps: [
-      'Prepare the dataset and train the model.',
-      'Wrap inference in a small API.',
-      'Connect the frontend upload flow to the API.',
-      'Show confidence, class label, and history of predictions.',
+      'Prepare dataset and train model.',
+      'Wrap inference in FastAPI endpoints.',
+      'Connect React frontend to prediction API.',
     ],
-    tips: [
-      'Keep the UI simple and focused on the prediction result.',
-      'Use loading and error states so the demo feels complete.',
-    ],
+    tips: ['Use clear loading spinners during model inference.'],
   },
   p3: {
     brief: 'Document a real-time chat system with clear components, APIs, and trade-offs.',
-    techStack: ['System Design', 'WebSocket', 'Redis', 'Node.js', 'PostgreSQL'],
+    techStack: ['System Architecture', 'WebSocket', 'Redis', 'Docker'],
     fileStructure: [
       { path: 'docs/architecture.md', purpose: 'High-level design and diagrams' },
-      { path: 'docs/api-spec.md', purpose: 'Core endpoints and message flow' },
       { path: 'src/server/websocket.ts', purpose: 'Live message handling' },
-      { path: 'src/server/cache.ts', purpose: 'Redis caching and presence state' },
     ],
-    functions: [
-      'handleSendMessage',
-      'syncMessageDelivery',
-      'trackPresence',
-      'persistChatEvent',
-    ],
-    buildSteps: [
-      'Define users, rooms, and message flow.',
-      'Draw the architecture and storage layers.',
-      'Add real-time communication and caching.',
-      'Explain scaling, retries, and delivery guarantees.',
-    ],
-    tips: [
-      'Be explicit about trade-offs.',
-      'Use diagrams to make the design easy to review.',
-    ],
-  },
-  p4: {
-    brief: 'Create a responsive personal portfolio page to showcase projects, skills, and contact information.',
-    techStack: ['HTML5', 'CSS3', 'JavaScript'],
-    fileStructure: [
-      { path: 'index.html', purpose: 'Portfolio layout and sections' },
-      { path: 'styles.css', purpose: 'Responsive styles and grid layout' },
-      { path: 'main.js', purpose: 'Interactive behavior and filters' },
-    ],
-    functions: ['renderProjects', 'filterByTag', 'openProjectModal'],
-    workflow: [
-      { action: 'Design layout', event: 'n/a', calls: [], result: 'Create hero, projects grid and contact section' },
-      { action: 'Add projects', event: 'n/a', calls: ['renderProjects()'], result: 'Show project cards with links and images' },
-    ],
-    buildSteps: ['Create HTML structure', 'Add responsive CSS', 'Render project cards with JavaScript', 'Add contact form (no backend required)'],
-    tips: ['Keep images optimized', 'Use semantic HTML', 'Make it accessible and responsive'],
+    functions: ['handleSendMessage', 'syncMessageDelivery', 'trackPresence'],
+    buildSteps: ['Define users and message data structures.', 'Setup WebSocket listeners.'],
+    tips: ['Document trade-offs explicitly.'],
   },
 };
 
 export function ProjectsScreen() {
-  const [tab, setTab] = useState('assigned');
+  const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone' | 'templates'>('mini');
+  const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>(() => {
@@ -197,30 +143,47 @@ export function ProjectsScreen() {
     } catch {}
   }, [projectsState]);
 
+  // Category & Sub-Tab Filtering
+  const categoryProjects = useMemo(() => {
+    if (mainCategory === 'templates') return [];
+    return effectiveProjects.filter((p: any) => (p.projectType || 'mini') === mainCategory);
+  }, [effectiveProjects, mainCategory]);
+
   const filtered = useMemo(() => {
-    return effectiveProjects.filter((p: any) => {
-      if (tab === 'assigned') return p.status === 'assigned';
-      if (tab === 'submitted' || tab === 'completed') return p.status === 'submitted' || p.status === 'completed';
-      if (tab === 'feedback') return p.status === 'feedback';
+    if (mainCategory === 'templates') return [];
+    return categoryProjects.filter((p: any) => {
+      if (subTab === 'assigned') return p.status === 'assigned';
+      if (subTab === 'submitted') return p.status === 'submitted' || p.status === 'completed';
+      if (subTab === 'feedback') return p.status === 'feedback';
       return true;
     });
-  }, [effectiveProjects, tab]);
+  }, [categoryProjects, mainCategory, subTab]);
+
+  const assignedCount = categoryProjects.filter((p: any) => p.status === 'assigned').length;
+  const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted' || p.status === 'completed').length;
+  const feedbackCount = categoryProjects.filter((p: any) => p.status === 'feedback').length;
 
   const selectedProject = useMemo(
     () => effectiveProjects.find((p: any) => p.id === selectedProjectId) || null,
     [selectedProjectId, effectiveProjects]
   );
-  const selectedGuide = selectedProject ? projectGuides[selectedProject.id] : undefined;
+  const selectedGuide = selectedProject ? (projectGuides[selectedProject.id] || {
+    brief: selectedProject.description,
+    techStack: selectedProject.skills,
+    fileStructure: [{ path: 'src/App.tsx', purpose: 'Main component layout' }],
+    functions: ['renderApp', 'handleSubmit'],
+    workflow: [{ action: 'User opens app', event: 'onload', calls: ['renderApp()'], result: 'Render page view' }],
+    buildSteps: ['Setup project repository', 'Build core feature logic', 'Submit drive link'],
+    tips: ['Test code thoroughly before submitting drive link.']
+  }) : undefined;
 
   useEffect(() => {
     const syncProjectRoute = () => {
       const [baseRoute, projectId] = window.location.pathname.replace(/^\//, '').split('/');
-
       if (baseRoute !== 'projects' || !projectId) {
         setSelectedProjectId(null);
         return;
       }
-
       const matched = effectiveProjects.find((p: any) => p.id === projectId);
       if (matched) {
         setSelectedProjectId(matched.id);
@@ -242,49 +205,16 @@ export function ProjectsScreen() {
 
   const isSaved = selectedProject ? Boolean(driveLinks[selectedProject.id]) : false;
 
-  // live validation: true when draftLink is a non-empty, parseable URL
   const isValidLink = (() => {
     const v = draftLink.trim();
     if (!v) return false;
     try {
-      // ensure it's an absolute URL
       const u = new URL(v);
       return Boolean(u.protocol && u.hostname);
     } catch {
       return false;
     }
   })();
-
-  const openProjectInVSCode = () => {
-    const workspace = localStorage.getItem('vscodeWorkspacePath') || VSCODE_WORKSPACE_PATH;
-    // map project ids to starter folder names (if present)
-    const starterMap: Record<string, string> = {
-      p1: 'project-starters/login-signup-welcome',
-      // add more mappings if you create additional starter folders
-    };
-
-    const starter = starterMap[selectedProject?.id || ''] || '';
-    // build path and normalize slashes
-    const filePath = starter ? `${workspace.replaceAll('\\', '/')}/${starter}` : workspace.replaceAll('\\', '/');
-    const vscodeUri = `vscode://file/${encodeURI(filePath)}`;
-    window.open(vscodeUri, '_blank', 'noopener,noreferrer');
-  };
-
-  const [workspacePath, setWorkspacePath] = useState(() => localStorage.getItem('vscodeWorkspacePath') || '');
-
-  const configureWorkspacePath = () => {
-    const current = localStorage.getItem('vscodeWorkspacePath') || '';
-    const val = window.prompt('Enter your local VS Code workspace absolute path (e.g. C:/Users/you/Projects/my-repo):', current || VSCODE_WORKSPACE_PATH);
-    if (val !== null) {
-      localStorage.setItem('vscodeWorkspacePath', val);
-      setWorkspacePath(val);
-    }
-  };
-
-  const openInVscodeDev = () => {
-    // fallback to opening vscode.dev — user can open the project repo there
-    window.open('https://vscode.dev', '_blank', 'noopener,noreferrer');
-  };
 
   const openProjectDetail = (projectId: string) => {
     setSelectedProjectId(projectId);
@@ -312,7 +242,7 @@ export function ProjectsScreen() {
       setProjectsState(updatedProjects);
       localStorage.setItem('projectsState', JSON.stringify(updatedProjects));
 
-      setTab('submitted');
+      setSubTab('submitted');
       setToastVisible(true);
       setTouched(false);
     } catch {
@@ -322,7 +252,7 @@ export function ProjectsScreen() {
 
   if (selectedProject && selectedGuide) {
     return (
-      <div className="space-y-6 pb-12">
+      <div className="space-y-6 pb-12 animate-fade-in font-sans">
         {toastVisible && (
           <Toast message="Project submitted — we'll notify you when feedback arrives." onClose={() => setToastVisible(false)} position="top-right" />
         )}
@@ -330,7 +260,7 @@ export function ProjectsScreen() {
           <button
             type="button"
             onClick={closeProjectDetail}
-            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
+            className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 shadow-2xs"
           >
             <ArrowRight className="w-4 h-4 rotate-180" />
             Back to projects
@@ -338,321 +268,383 @@ export function ProjectsScreen() {
 
           <div className="flex items-center gap-2">
             <DifficultyBadge difficulty={selectedProject.difficulty} />
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-500">
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 capitalize shadow-2xs">
               {selectedProject.status}
             </span>
           </div>
         </div>
 
-        <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 p-5 sm:p-6 shadow-[0_18px_60px_rgba(15,23,42,0.05)]">
+        <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 p-6 sm:p-8 shadow-sm">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-3xl space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Project brief</p>
-              <h2 className="text-3xl sm:text-[2.6rem] font-bold text-slate-900 leading-tight">{selectedProject.title}</h2>
-              <p className="text-sm sm:text-base text-slate-500 leading-relaxed">{selectedGuide.brief}</p>
+              <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
+                {selectedProject.projectType || 'mini'} project
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">{selectedProject.title}</h2>
+              <p className="text-sm text-slate-500 leading-relaxed">{selectedGuide.brief}</p>
 
               <div className="flex flex-wrap gap-2 pt-1">
                 {(selectedGuide.techStack || []).map((item) => (
-                  <span key={item} className="rounded-full bg-white border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700">
+                  <span key={item} className="rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700 shadow-2xs">
                     {item}
                   </span>
                 ))}
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px] xl:w-[460px]">
-              <div className="min-h-[104px] rounded-2xl border border-slate-200 bg-white p-4 flex flex-col justify-between">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400 font-semibold">Course</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900 leading-snug">{selectedProject.course}</p>
+            <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Course</p>
+                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{selectedProject.course}</p>
               </div>
-              <div className="min-h-[104px] rounded-2xl border border-slate-200 bg-white p-4 flex flex-col justify-between">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400 font-semibold">Due</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900 leading-snug">{selectedProject.dueDate}</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Due Date</p>
+                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{selectedProject.dueDate}</p>
               </div>
-              <div className="min-h-[104px] rounded-2xl border border-slate-200 bg-white p-4 flex flex-col justify-between">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-slate-400 font-semibold">Status</p>
-                <p className="mt-2 text-sm font-semibold text-slate-900 capitalize leading-snug">{selectedProject.status}</p>
+              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+                <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
+                <p className="mt-1 text-xs font-bold text-[#7c3aed] capitalize leading-snug">{selectedProject.status}</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr] items-start">
-          <div className="space-y-6">
-            <Card className="p-6 border border-slate-200 shadow-[0_16px_50px_rgba(15,23,42,0.05)] rounded-[1.75rem] bg-white">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <FolderGit2 className="w-4 h-4 text-primary-500" /> Suggested file structure
+        {/* ════════ DETAILED PROJECT BRIEF & SPECIFICATIONS ════════ */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          {/* Main Brief Content (2 Cols) */}
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Project Overview & Requirements */}
+            <Card className="p-6 sm:p-7 border border-slate-200/90 shadow-sm rounded-[2rem] bg-white space-y-5">
+              <div>
+                <div className="flex items-center gap-2 text-[#7c3aed] text-xs font-black uppercase tracking-wider mb-1">
+                  <FileText className="w-4 h-4" />
+                  <span>PROJECT BRIEF & OBJECTIVES</span>
+                </div>
+                <h3 className="text-lg font-extrabold text-slate-900">Project Overview</h3>
+                <p className="text-xs text-slate-600 font-medium leading-relaxed mt-2">
+                  {selectedGuide.brief} Develop a production-ready solution adhering to industry coding standards, modular component organization, and clean user experience.
+                </p>
               </div>
-              <div className="mt-5 space-y-3">
-                {(selectedGuide.fileStructure || []).map((item) => (
-                  <div key={item.path} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
-                    <p className="font-mono text-sm font-semibold text-slate-900">{item.path}</p>
-                    <p className="mt-1 text-xs text-slate-500">{item.purpose}</p>
-                  </div>
-                ))}
-              </div>
-            </Card>
 
-            <Card className="p-6 border border-slate-200 shadow-[0_16px_50px_rgba(15,23,42,0.05)] rounded-[1.75rem] bg-white">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <Terminal className="w-4 h-4 text-primary-500" /> Core function names
-              </div>
-              <div className="mt-5 flex flex-wrap gap-2">
-                {(selectedGuide.functions || []).map((fn) => (
-                  <span key={fn} className="rounded-full bg-slate-100 border border-slate-200 px-3 py-1.5 text-xs font-mono text-slate-700">
-                    {fn}
-                  </span>
-                ))}
-              </div>
-            </Card>
-
-            <Card className="p-6 border border-slate-200 shadow-[0_16px_50px_rgba(15,23,42,0.05)] rounded-[1.75rem] bg-white">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <ArrowRight className="w-4 h-4 text-primary-500" /> Workflow
-              </div>
-              <div className="mt-5 space-y-4">
-                {(selectedGuide.workflow || []).map((step, index) => (
-                  <div key={step.action} className="rounded-2xl border border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600 text-xs font-bold">
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-sm font-semibold text-slate-900">{step.action}</p>
-                        <p className="mt-1 text-xs text-slate-500">{step.event}</p>
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {(step.calls || []).map((call) => (
-                            <span key={call} className="rounded-full bg-white border border-slate-200 px-3 py-1 text-[11px] font-mono text-slate-700">
-                              {call}
-                            </span>
-                          ))}
-                        </div>
-                        <p className="mt-3 text-xs text-slate-600">{step.result}</p>
-                      </div>
+              {/* Requirements Checklist */}
+              <div className="pt-4 border-t border-slate-100 space-y-3">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Key Functional Requirements</h4>
+                <div className="space-y-2.5">
+                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-extrabold text-slate-900">Responsive UI & Modern Layout</p>
+                      <p className="text-[11px] font-medium text-slate-500 mt-0.5">Ensure seamless experience across mobile, tablet, and desktop viewports.</p>
                     </div>
                   </div>
-                ))}
+
+                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-extrabold text-slate-900">Input Validation & State Handling</p>
+                      <p className="text-[11px] font-medium text-slate-500 mt-0.5">Implement validation rules, error feedback, and loading states for async actions.</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-extrabold text-slate-900">Clean Code & Version Control</p>
+                      <p className="text-[11px] font-medium text-slate-500 mt-0.5">Submit clean code with meaningful commit messages and proper file structuring.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
+
+              {/* Implementation Steps */}
+              {selectedGuide.buildSteps && selectedGuide.buildSteps.length > 0 && (
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Recommended Implementation Steps</h4>
+                  <div className="space-y-2">
+                    {selectedGuide.buildSteps.map((step, idx) => (
+                      <div key={idx} className="flex items-center gap-3 text-xs font-medium text-slate-700">
+                        <span className="w-5 h-5 rounded-full bg-purple-100 text-[#7c3aed] font-black text-[10px] flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <span>{step}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
+
           </div>
 
+          {/* Sidebar Info (1 Col): Evaluation Rubric & Tips */}
           <div className="space-y-6">
-            <Card className="p-6 border border-slate-200 shadow-[0_16px_50px_rgba(15,23,42,0.05)] rounded-[1.75rem] bg-white">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <BookOpen className="w-4 h-4 text-primary-500" /> Build flow
+            
+            {/* Evaluation Rubric */}
+            <Card className="p-6 border border-slate-200/90 shadow-sm rounded-[2rem] bg-white space-y-4">
+              <div className="flex items-center gap-2 text-[#7c3aed] text-xs font-black uppercase tracking-wider">
+                <Star className="w-4 h-4" />
+                <span>EVALUATION RUBRIC</span>
               </div>
-              <ol className="mt-5 space-y-3">
-                {(selectedGuide.buildSteps || []).map((step, index) => (
-                  <li key={step} className="flex gap-3 text-sm text-slate-600">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary-50 text-primary-600 text-xs font-bold">
-                      {index + 1}
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
+              
+              <div className="space-y-3">
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-slate-800">UI/UX & Responsiveness</span>
+                    <span className="text-[#7c3aed]">35%</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: '35%' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-slate-800">Functionality & Logic</span>
+                    <span className="text-[#7c3aed]">35%</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: '35%' }} />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="flex justify-between text-xs font-bold mb-1">
+                    <span className="text-slate-800">Code Quality & Cleanliness</span>
+                    <span className="text-[#7c3aed]">30%</span>
+                  </div>
+                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: '30%' }} />
+                  </div>
+                </div>
+              </div>
             </Card>
 
-            <Card className="p-6 border border-slate-200 shadow-[0_16px_50px_rgba(15,23,42,0.05)] rounded-[1.75rem] bg-white">
-              <div className="flex items-center gap-2 text-sm font-semibold text-slate-700">
-                <CheckCircle2 className="w-4 h-4 text-primary-500" /> Tips
-              </div>
-              <ul className="mt-5 space-y-2 text-sm text-slate-600">
-                {(selectedGuide.tips || []).map((tip) => (
-                  <li key={tip} className="flex gap-2">
-                    <span className="mt-2 h-1.5 w-1.5 rounded-full bg-primary-500 shrink-0" />
-                    <span>{tip}</span>
-                  </li>
-                ))}
-              </ul>
-            </Card>
+            {/* Pro Tips */}
+            {selectedGuide.tips && selectedGuide.tips.length > 0 && (
+              <Card className="p-6 border border-amber-200/80 shadow-2xs rounded-[2rem] bg-amber-50/50 space-y-3">
+                <div className="flex items-center gap-2 text-amber-800 text-xs font-black uppercase tracking-wider">
+                  <BookOpen className="w-4 h-4 text-amber-600" />
+                  <span>MENTOR PRO TIPS</span>
+                </div>
+                <ul className="space-y-2 text-xs font-medium text-amber-900/90 leading-relaxed list-disc list-inside">
+                  {selectedGuide.tips.map((tip, idx) => (
+                    <li key={idx}>{tip}</li>
+                  ))}
+                </ul>
+              </Card>
+            )}
+
           </div>
+
         </div>
 
-        <Card className="p-6 border border-slate-200 shadow-[0_16px_50px_rgba(15,23,42,0.05)] rounded-[1.75rem] bg-white">
+        {/* Submission Link Bar */}
+        <Card className="p-6 border border-slate-200/90 shadow-sm rounded-[2rem] bg-white">
           <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] items-center">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Submission link</p>
-              <div className="mt-2 flex items-center gap-2 text-sm text-slate-600">
-                <Link2 className="w-4 h-4 text-primary-500" />
-                <span>Paste the Google Drive link for this project.</span>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Project Submission Link</p>
+              <div className="mt-1 flex items-center gap-2 text-xs font-medium text-slate-600">
+                <Link2 className="w-4 h-4 text-[#7c3aed]" />
+                <span>Paste your Google Drive or GitHub repository link below.</span>
               </div>
             </div>
-            {/* submission input */}
+
             <div className="min-w-0 w-full lg:w-[320px]">
               <input
                 value={draftLink}
                 onChange={(e) => { setDraftLink(e.target.value); setTouched(true); }}
-                placeholder="Paste Google Drive link"
+                placeholder="https://drive.google.com/..."
                 readOnly={isSaved}
                 disabled={isSaved}
-                className={`w-full rounded-2xl px-4 py-3 text-sm outline-none transition ${isSaved ? 'border border-emerald-200 bg-emerald-50 text-emerald-900' : ''} ${
-                  !isSaved ? (isValidLink ? 'border border-emerald-300 bg-emerald-50 text-emerald-900 focus:ring-2 focus:ring-emerald-500/15' : (draftLink.trim() === '' ? 'border border-red-300 bg-red-50 text-red-900 focus:ring-2 focus:ring-red-500/15' : 'border border-red-300 bg-red-50 text-red-900 focus:ring-2 focus:ring-red-500/15')) : ''
-                }`}
-              />
-              <div className="mt-2">
-                {!isSaved && (
-                  <>
-                    {draftLink.trim() === '' && touched && (
-                      <p className="text-xs text-red-600">Please paste a link — this field cannot be empty.</p>
-                    )}
-                    {draftLink.trim() !== '' && (
-                      isValidLink ? (
-                        <p className="text-xs text-emerald-700">Looks good — valid URL.</p>
-                      ) : (
-                        <p className="text-xs text-red-600">That doesn't look like a valid URL.</p>
-                      )
-                    )}
-                  </>
+                className={cn(
+                  "w-full rounded-xl px-4 py-2.5 text-xs font-semibold outline-none transition border",
+                  isSaved 
+                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
+                    : isValidLink 
+                    ? 'border-emerald-300 bg-emerald-50/50 text-slate-900' 
+                    : 'border-slate-200 focus:border-[#7c3aed] bg-white'
                 )}
-              </div>
+              />
             </div>
             {isSaved ? (
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-violet-500 to-purple-500 text-white shadow-sm">
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white font-extrabold text-xs shadow-sm">
                 <CheckCircle2 className="w-4 h-4" />
-                <span className="font-semibold">Saved</span>
+                <span>Submitted & Saved</span>
               </div>
             ) : (
-              <Button onClick={saveDriveLink} disabled={!isValidLink} className="whitespace-nowrap" leftIcon={<CheckCircle2 className="w-4 h-4" />}>
-                Save Link
+              <Button onClick={saveDriveLink} disabled={!isValidLink} className="bg-[#7c3aed] text-white font-extrabold text-xs" leftIcon={<CheckCircle2 className="w-4 h-4" />}>
+                Submit Project
               </Button>
             )}
           </div>
-
-            <div className="mt-5 flex items-center gap-3">
-              {isSaved && (
-                <a href={driveLinks[selectedProject.id]} target="_blank" rel="noopener noreferrer" className="truncate rounded-md px-3 py-2 bg-slate-50 border border-slate-200 text-sm text-primary-700 hover:bg-slate-100">
-                  {driveLinks[selectedProject.id]}
-                </a>
-              )}
-
-              <button
-                type="button"
-                onClick={openInVscodeDev}
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:border-primary-300 hover:bg-primary-50"
-              >
-                <ExternalLink className="w-4 h-4" />
-                Open in VS Code
-              </button>
-            </div>
-          </Card>
+        </Card>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <div className="rounded-3xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-6 sm:p-8 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Projects</p>
-            <h2 className="mt-2 font-display font-bold text-3xl text-ink-900">Project workflow</h2>
-            <p className="text-slate-500 text-sm mt-2 max-w-2xl">
-              Open an assigned project, inspect the brief, launch VS Code, and submit your drive link when you are ready.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <span className="rounded-full bg-white border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">Assigned briefs</span>
-            <span className="rounded-full bg-white border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">VS Code launch</span>
-            <span className="rounded-full bg-white border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600">Drive submission</span>
-          </div>
-        </div>
+    <div className="space-y-6 font-sans pb-12 animate-fade-in">
+      
+      {/* Header */}
+      <div className="pb-2">
+        <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
+          Projects Workflow
+        </h2>
+        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+          Inspect project briefs, build industry solutions, and submit drive links for mentor reviews.
+        </p>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+
+
+      {/* ════════ 1. TOP-LEVEL CATEGORY TABS ════════ */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-slate-200">
         {[
-          { label: 'Assigned', value: effectiveProjects.filter((p: any) => p.status === 'assigned').length, icon: Clock, color: 'warning' },
-          { label: 'Submitted / Completed', value: effectiveProjects.filter((p: any) => p.status === 'submitted' || p.status === 'completed').length, icon: CheckCircle2, color: 'accent' },
-          { label: 'With Feedback', value: effectiveProjects.filter((p: any) => p.status === 'feedback').length, icon: MessageCircle, color: 'primary' },
-          { label: 'Avg Grade', value: '89%', icon: Star, color: 'success' },
-        ].map((s, i) => (
-          <Card key={i} className="p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl bg-${s.color}-100 flex items-center justify-center`}>
-              <s.icon className={`w-5 h-5 text-${s.color}-600`} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-ink-900 font-display">{s.value}</p>
-              <p className="text-xs text-ink-500">{s.label}</p>
-            </div>
-          </Card>
-        ))}
+          { id: 'mini', label: 'Mini Projects' },
+          { id: 'major', label: 'Major Projects' },
+          { id: 'capstone', label: 'Capstone Projects' },
+          { id: 'templates', label: 'Templates' },
+        ].map((cat) => {
+          const isActive = mainCategory === cat.id;
+          return (
+            <button
+              key={cat.id}
+              onClick={() => setMainCategory(cat.id as any)}
+              className={cn(
+                "px-5 py-2.5 rounded-2xl text-xs font-black tracking-wide transition-all duration-200 cursor-pointer shadow-2xs border shrink-0",
+                isActive
+                  ? "bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white border-transparent shadow-md scale-[1.02]"
+                  : "bg-white hover:bg-purple-50/50 text-slate-600 hover:text-[#7c3aed] border-slate-200 hover:border-purple-200"
+              )}
+            >
+              {cat.label}
+            </button>
+          );
+        })}
       </div>
 
-      <Tabs
-        variant="pills"
-        tabs={[
-          { id: 'assigned', label: `Assigned (${effectiveProjects.filter((p: any) => p.status === 'assigned').length})` },
-          { id: 'submitted', label: `Submitted / Completed (${effectiveProjects.filter((p: any) => p.status === 'submitted' || p.status === 'completed').length})` },
-          { id: 'feedback', label: `Mentor Feedback (${effectiveProjects.filter((p: any) => p.status === 'feedback').length})` },
-          { id: 'templates', label: 'Templates' },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
+      {/* ════════ 2. SUB-TABS (ASSIGNED / SUBMITTED / MENTOR FEEDBACK) ════════ */}
+      {mainCategory !== 'templates' && (
+        <div className="space-y-6">
+          <Tabs
+            variant="pills"
+            tabs={[
+              { id: 'assigned', label: `Assigned (${assignedCount})` },
+              { id: 'submitted', label: `Submitted (${submittedCount})` },
+              { id: 'feedback', label: `Mentor Feedback (${feedbackCount})` },
+            ]}
+            active={subTab}
+            onChange={(val) => setSubTab(val as any)}
+          />
 
-      {tab !== 'templates' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {filtered.map((p) => (
-            <Card key={p.id} hover className="group p-5 cursor-pointer rounded-[1.75rem] border border-slate-200/80 bg-white shadow-[0_16px_50px_rgba(15,23,42,0.05)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_22px_70px_rgba(15,23,42,0.10)]" onClick={() => openProjectDetail(p.id)}>
-              <div className="flex items-start justify-between mb-4 gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-primary-50 to-white border border-primary-100 flex items-center justify-center shadow-sm">
-                    <FolderGit2 className="w-5 h-5 text-primary-600" />
-                  </div>
+          {/* PROJECTS GRID */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {filtered.length === 0 ? (
+              <div className="col-span-full">
+                <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
+                  <FolderGit2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                  <h3 className="font-extrabold text-slate-800 text-base">No Projects Found</h3>
+                  <p className="text-xs text-slate-500 mt-1">There are no {subTab} projects in this category currently.</p>
+                </Card>
+              </div>
+            ) : (
+              filtered.map((p) => (
+                <Card 
+                  key={p.id} 
+                  hover 
+                  className="group p-6 cursor-pointer rounded-[2rem] border border-slate-200/90 bg-white shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
+                  onClick={() => openProjectDetail(p.id)}
+                >
                   <div>
-                    <h3 className="font-bold text-ink-900 text-sm group-hover:text-primary-700 transition-colors">{p.title}</h3>
-                    <p className="text-xs text-ink-500">{p.course}</p>
-                  </div>
-                </div>
-                <DifficultyBadge difficulty={p.difficulty} />
-              </div>
-              <p className="text-sm text-ink-600 mb-4 leading-relaxed">{p.description}</p>
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {p.skills.map((s: string) => <Badge key={s} variant="default">{s}</Badge>)}
-              </div>
-              {p.status === 'feedback' && p.mentorFeedback && (
-                <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 mb-4">
-                  <p className="text-xs font-semibold text-accent-700 mb-1">Mentor Feedback</p>
-                  <p className="text-xs text-accent-700">{p.mentorFeedback}</p>
-                  {p.grade && (
-                    <div className="mt-2 flex items-center gap-2">
-                      <ProgressBar value={p.grade} color="bg-accent-500" className="flex-1" />
-                      <span className="text-xs font-bold text-accent-700">{p.grade}/100</span>
+                    <div className="flex items-start justify-between mb-4 gap-3">
+                      <div className="flex items-center gap-3.5">
+                        <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                          <FolderGit2 className="w-6 h-6 text-[#7c3aed]" />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-900 text-base leading-snug group-hover:text-[#7c3aed] transition-colors">{p.title}</h3>
+                          <p className="text-xs font-bold text-slate-500 mt-0.5">{p.course}</p>
+                        </div>
+                      </div>
+                      <DifficultyBadge difficulty={p.difficulty} />
                     </div>
-                  )}
-                </div>
-              )}
-              <div className="flex items-center justify-between gap-3 pt-1">
-                <span className="text-xs text-ink-500 flex items-center gap-1"><Clock className="w-3.5 h-3.5" />Due {p.dueDate}</span>
-                <Button size="sm" variant={p.status === 'assigned' ? 'primary' : 'secondary'} rightIcon={<ArrowRight className="w-3.5 h-3.5" />}>
-                  Open Brief
-                </Button>
-              </div>
-            </Card>
-          ))}
+
+                    <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{p.description}</p>
+                    
+                    <div className="flex flex-wrap gap-1.5 mb-4">
+                      {p.skills.map((s: string) => (
+                        <span key={s} className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold">
+                          {s}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Mentor Feedback Banner */}
+                    {p.status === 'feedback' && p.mentorFeedback && (
+                      <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100 mb-4">
+                        <p className="text-xs font-extrabold text-[#7c3aed] mb-1">Mentor Feedback</p>
+                        <p className="text-xs font-medium text-slate-700 leading-relaxed">{p.mentorFeedback}</p>
+                        {p.grade && (
+                          <div className="mt-2.5 flex items-center gap-2">
+                            <div className="flex-1 h-1.5 bg-purple-200 rounded-full overflow-hidden">
+                              <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: `${p.grade}%` }} />
+                            </div>
+                            <span className="text-xs font-extrabold text-[#7c3aed]">{p.grade}/100</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-auto">
+                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                      <Clock className="w-4 h-4 text-slate-400" />
+                      Due {p.dueDate}
+                    </span>
+                    <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
+                      <span>Open Brief</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </Card>
+              ))
+            )}
+          </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {['React Starter Kit', 'Node.js API Template', 'ML Project Boilerplate', 'Next.js SaaS Template', 'Python Data Pipeline', 'Docker Dev Setup'].map((t, i) => (
-            <Card key={i} hover className="p-5 flex flex-col justify-between">
+      )}
+
+      {/* ════════ 3. TEMPLATES TAB ════════ */}
+      {mainCategory === 'templates' && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
+          {[
+            { title: 'React 19 & Vite Starter Kit', desc: 'Production-ready React 19 boilerplate with Tailwind CSS, Lucide icons, and TypeScript.' },
+            { title: 'Node.js & Express REST API Template', desc: 'Pre-configured Express API starter with JWT auth, Zod validation, and Prisma ORM.' },
+            { title: 'ML & PyTorch Model Boilerplate', desc: 'Clean PyTorch training pipeline with Jupyter notebooks, dataset loaders, and FastAPI.' },
+            { title: 'Next.js SaaS Full-Stack Template', desc: 'Next.js Server Components starter with Stripe checkout and Supabase database.' },
+            { title: 'Python Data Science Pipeline', desc: 'Pandas, NumPy, and Scikit-Learn data cleaning and visualization notebook setup.' },
+            { title: 'Docker Microservices Dev Setup', desc: 'Multi-container Docker Compose configuration for React, Node, Redis, and PostgreSQL.' }
+          ].map((t, i) => (
+            <Card key={i} className="p-6 bg-white border border-slate-200/90 rounded-[2rem] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
               <div>
-                <div className="w-11 h-11 rounded-xl bg-ink-100 flex items-center justify-center mb-3">
-                  <Code2 className="w-5 h-5 text-ink-500" />
+                <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mb-4">
+                  <Code2 className="w-6 h-6 text-[#7c3aed]" />
                 </div>
-                <h3 className="font-bold text-ink-900 text-sm mb-1">{t}</h3>
-                <p className="text-xs text-ink-500 mb-4">Production-ready template with best practices built in.</p>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1.5">{t.title}</h3>
+                <p className="text-xs font-medium text-slate-500 leading-relaxed mb-6">{t.desc}</p>
               </div>
               <Button
-                variant="outline"
                 size="sm"
                 fullWidth
-                leftIcon={<Download className="w-3.5 h-3.5" />}
+                leftIcon={<Download className="w-4 h-4" />}
+                className="bg-[#7c3aed] text-white font-extrabold text-xs shadow-xs"
                 onClick={() => {
-                  triggerFileDownload(t);
+                  triggerFileDownload(t.title);
                   setToastVisible(true);
                 }}
               >
-                Download
+                Download Starter Kit
               </Button>
             </Card>
           ))}

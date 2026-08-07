@@ -51,7 +51,7 @@ export function SplashScreen() {
           <div className="relative w-24 h-24 rounded-full bg-white shadow-2xl flex items-center justify-center overflow-hidden animate-scale-in border-2 border-white p-0">
             <img
               src={aspireLogo}
-              alt="Aspire Next Logo"
+              alt="AspireLMS Logo"
               className="w-full h-full object-cover scale-110"
             />
           </div>

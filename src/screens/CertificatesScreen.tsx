@@ -1,67 +1,509 @@
-import { Award, Download, Share2, ShieldCheck, ExternalLink, Calendar } from 'lucide-react';
-import { certificates } from '@/data/mock';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { useState } from 'react';
+import { createPortal } from 'react-dom';
+import {
+  Award, Download, Share2, ShieldCheck, Lock, Unlock, CheckCircle2, Clock, Sparkles, BookOpen, ExternalLink, RefreshCw, X, Check, FileCheck
+} from 'lucide-react';
+import { Card } from '@/components/ui/Card';
+import { Toast } from '@/components/ui/Toast';
+import { triggerFileDownload } from '@/lib/downloadHelper';
+import { useNav } from '@/lib/nav';
+import { cn } from '@/lib/utils';
+import aspireLogo from '@/assests/Aspire_logo.jpg';
+
+export interface CourseCertificate {
+  id: string;
+  courseTitle: string;
+  categoryLabel: string;
+  instructorName: string;
+  instructorRole: string;
+  progress: number; // 0 to 100
+  issuedDate?: string;
+  verifyId?: string;
+  certificateBg: string;
+}
+
+// Exactly 6 Certificates matching 1-to-1 with the 6 My Learning items
+const initialCertificates: CourseCertificate[] = [
+  {
+    id: 'c1',
+    courseTitle: 'Advanced Full-Stack React & Next.js Masterclass',
+    categoryLabel: 'Courses',
+    instructorName: 'Sara Khan',
+    instructorRole: 'Staff Frontend Architect',
+    progress: 78,
+    verifyId: 'CERT-AN-7829-REACT',
+    certificateBg: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 's1',
+    courseTitle: 'Executive Workplace Communication & Speaking',
+    categoryLabel: 'Communication / Soft Skills',
+    instructorName: 'Elena Rostova',
+    instructorRole: 'Corporate Communications Director',
+    progress: 60,
+    verifyId: 'CERT-AN-6012-COMM',
+    certificateBg: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'a1',
+    courseTitle: 'Quantitative Aptitude Masterclass for Tech Interviews',
+    categoryLabel: 'Aptitude & Reasoning',
+    instructorName: 'Prof. Rajesh Kumar',
+    instructorRole: 'Aptitude & GATE Specialist',
+    progress: 80,
+    verifyId: 'CERT-AN-8043-APT',
+    certificateBg: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'p1',
+    courseTitle: 'Full-Stack Developer Portfolio Blueprint',
+    categoryLabel: 'Portfolio',
+    instructorName: 'Alex Morgan',
+    instructorRole: 'Senior UI/UX Engineer',
+    progress: 90,
+    verifyId: 'CERT-AN-9011-PORT',
+    certificateBg: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'r1',
+    courseTitle: 'ATS-Optimized Tech Resume Masterclass',
+    categoryLabel: 'Resume',
+    instructorName: 'Jessica Alba',
+    instructorRole: 'Senior Talent Acquisition Lead',
+    progress: 100, // UNLOCKED 100%!
+    issuedDate: 'August 05, 2026',
+    verifyId: 'CERT-AN-1000-RESUME',
+    certificateBg: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80',
+  },
+  {
+    id: 'l1',
+    courseTitle: 'LinkedIn Personal Branding & Tech Recruiter Magnet',
+    categoryLabel: 'LinkedIn',
+    instructorName: 'Sophia Williams',
+    instructorRole: 'LinkedIn Top Voice & Recruiter',
+    progress: 85,
+    verifyId: 'CERT-AN-8594-LINKEDIN',
+    certificateBg: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?auto=format&fit=crop&w=800&q=80',
+  }
+];
+
+function CircularProgressLock({ progress, size = 76 }: { progress: number; size?: number }) {
+  const strokeWidth = 5;
+  const radius = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (progress / 100) * circumference;
+
+  return (
+    <div className="relative flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
+      {/* SVG Circular Progress Ring */}
+      <svg className="w-full h-full -rotate-90 transform" viewBox={`0 0 ${size} ${size}`}>
+        {/* Background Track */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          className="stroke-amber-400/20"
+          strokeWidth={strokeWidth}
+          fill="transparent"
+        />
+        {/* Animated Progress Arc */}
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={radius}
+          className="stroke-amber-400 transition-all duration-700 ease-out"
+          strokeWidth={strokeWidth}
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+          fill="transparent"
+        />
+      </svg>
+
+      {/* Center Lock Icon */}
+      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 rounded-full border border-amber-400/30 m-1 shadow-md">
+        <Lock className="w-6 h-6 text-amber-300 drop-shadow-sm" />
+      </div>
+    </div>
+  );
+}
 
 export function CertificatesScreen() {
+  const { navigate } = useNav();
+  const [certs, setCerts] = useState<CourseCertificate[]>(initialCertificates);
+  const [selectedCert, setSelectedCert] = useState<CourseCertificate | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const unlockedCount = certs.filter(c => c.progress >= 100).length;
+  const lockedCount = certs.filter(c => c.progress < 100).length;
+  const avgProgress = Math.round(certs.reduce((acc, c) => acc + c.progress, 0) / certs.length);
+
+  const handleDownload = (cert: CourseCertificate) => {
+    triggerFileDownload(`AspireNext Certificate - ${cert.courseTitle}`);
+    setToastMessage(`Downloading official AspireNext PDF certificate for ${cert.courseTitle}... 📜`);
+  };
+
+  const handleShare = (cert: CourseCertificate) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(`https://aspirenext.edu/verify/${cert.verifyId || cert.id}`);
+    }
+    setToastMessage(`AspireNext certificate link copied to clipboard! Share on LinkedIn & Resume. 🚀`);
+  };
+
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-display font-bold text-2xl text-ink-900">Certificates</h2>
-        <p className="text-ink-500 text-sm mt-1">Download, verify, and share your earned certificates</p>
+    <div className="space-y-6 font-sans pb-12 animate-fade-in">
+      
+      {toastMessage && (
+        <Toast message={toastMessage} onClose={() => setToastMessage(null)} position="top-right" />
+      )}
+
+      {/* Clean Top Header */}
+      <div className="pb-2">
+        <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
+          AspireNext Course Certificates
+        </h2>
+        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+          Certificates automatically unlock when you complete 100% of the course modules in My Learning. Click any certificate to preview your official AspireNext accreditation.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {[
-          { label: 'Earned', value: certificates.length, icon: Award, color: 'primary' },
-          { label: 'Verified', value: certificates.length, icon: ShieldCheck, color: 'success' },
-          { label: 'Shared', value: 2, icon: Share2, color: 'accent' },
-        ].map((s, i) => (
-          <Card key={i} className="p-4 flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl bg-${s.color}-100 flex items-center justify-center`}>
-              <s.icon className={`w-5 h-5 text-${s.color}-600`} />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-ink-900 font-display">{s.value}</p>
-              <p className="text-xs text-ink-500">{s.label}</p>
-            </div>
-          </Card>
-        ))}
+      {/* Top 3 Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        
+        {/* Unlocked */}
+        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
+            <Award className="w-5.5 h-5.5 text-[#7c3aed]" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} / {certs.length}</p>
+            <p className="text-xs font-extrabold text-[#7c3aed]">Unlocked Certificates</p>
+          </div>
+        </Card>
+
+        {/* Locked In Progress */}
+        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
+            <Lock className="w-5.5 h-5.5" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{lockedCount}</p>
+            <p className="text-xs font-extrabold text-amber-600">Locked (In Progress)</p>
+          </div>
+        </Card>
+
+        {/* Avg Course Progress */}
+        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+            <Sparkles className="w-5.5 h-5.5" />
+          </div>
+          <div>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{avgProgress}%</p>
+            <p className="text-xs font-extrabold text-emerald-600">Overall Completion</p>
+          </div>
+        </Card>
+
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {certificates.map((cert) => (
-          <Card key={cert.id} hover className="overflow-hidden group">
-            {/* Certificate preview */}
-            <div className="relative h-48 bg-gradient-to-br from-primary-600 via-primary-700 to-accent-700 p-6 flex flex-col items-center justify-center text-white text-center">
-              <div className="absolute inset-0 dot-pattern opacity-10" />
-              <div className="absolute inset-2 border-2 border-white/20 rounded-xl" />
-              <div className="relative z-10">
-                <Award className="w-12 h-12 text-secondary-300 mx-auto mb-2" />
-                <p className="text-xs uppercase tracking-wider text-white/60 mb-1">Certificate of Completion</p>
-                <p className="font-display font-bold text-lg leading-tight">{cert.title}</p>
-                <p className="text-xs text-white/70 mt-1">Grade: {cert.grade}</p>
+
+      {/* ════════ CERTIFICATE CARDS GRID (EXACTLY 6 CARDS MATCHING MY LEARNING) ════════ */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        {certs.map((cert) => {
+          const isUnlocked = cert.progress >= 100;
+
+          return (
+            <Card
+              key={cert.id}
+              className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer min-h-[380px]"
+              onClick={() => setSelectedCert(cert)}
+            >
+              
+              {/* ── CARD CONTENT (BLURRED IF LOCKED) ── */}
+              <div className={cn("flex flex-col h-full justify-between transition-all duration-500", !isUnlocked && "blur-[3px] opacity-40 select-none pointer-events-none")}>
+                
+                {/* Certificate Background Image Preview */}
+                <div className="relative h-48 w-full bg-slate-900 overflow-hidden shrink-0">
+                  <img
+                    src={cert.certificateBg}
+                    alt={cert.courseTitle}
+                    className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+                  />
+                  <div className="absolute inset-3 border-2 border-amber-400/40 rounded-xl pointer-events-none z-10 flex flex-col justify-between p-3">
+                    <div className="flex justify-between items-center text-amber-300/70 text-[9px] font-black uppercase tracking-widest">
+                      <span>ASPIRE NEXT</span>
+                      <span>OFFICIAL ACCREDITATION</span>
+                    </div>
+                    <div className="flex justify-between items-center text-amber-300/70 text-[9px] font-black uppercase tracking-widest">
+                      <span>VERIFIED CREDENTIAL</span>
+                      <span>2026</span>
+                    </div>
+                  </div>
+
+                  <div className="absolute inset-0 z-20 p-5 flex flex-col justify-between bg-gradient-to-t from-black/90 via-black/40 to-black/20 text-white">
+                    <div className="flex items-center justify-between">
+                      <span className="px-2.5 py-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1">
+                        <Award className="w-3.5 h-3.5" /> OFFICIAL DIPLOMA
+                      </span>
+                      <CheckCircle2 className="w-6 h-6 text-emerald-400 drop-shadow-md" />
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-[10px] uppercase font-extrabold text-amber-300 tracking-wider">CERTIFICATE OF COMPLETION</p>
+                      <h3 className="font-extrabold text-base text-white leading-tight line-clamp-2">
+                        {cert.courseTitle}
+                      </h3>
+                      <p className="text-[11px] font-medium text-slate-300">Issued: {cert.issuedDate || 'August 05, 2026'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Card Body */}
+                <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-1.5">
+                      <span className="text-[10px] font-black text-[#7c3aed] uppercase bg-purple-50 px-2 py-0.5 rounded border border-purple-100">
+                        {cert.categoryLabel}
+                      </span>
+                      <span className="text-xs font-extrabold text-slate-500">
+                        100% Completed
+                      </span>
+                    </div>
+
+                    <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-2">
+                      {cert.courseTitle}
+                    </h3>
+
+                    <p className="text-xs font-semibold text-slate-500 mt-1">
+                      Instructor: {cert.instructorName}
+                    </p>
+                  </div>
+
+                  {/* Unlocked Buttons */}
+                  <div className="pt-3 border-t border-slate-100 mt-auto flex items-center gap-2">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleDownload(cert); }}
+                      className="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download PDF</span>
+                    </button>
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); handleShare(cert); }}
+                      className="py-2.5 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-100 font-extrabold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Share</span>
+                    </button>
+                  </div>
+                </div>
+
               </div>
-            </div>
-            <CardBody>
-              <div className="flex items-center justify-between mb-2">
-                <h3 className="font-bold text-ink-900 text-sm">{cert.course}</h3>
-                <Badge variant="success">{cert.grade}</Badge>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-ink-500 mb-4">
-                <Calendar className="w-3.5 h-3.5" />{cert.issuedDate}
-                <span className="text-ink-300">·</span>
-                <span className="font-mono">{cert.verifyId}</span>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" fullWidth leftIcon={<Download className="w-3.5 h-3.5" />}>Download</Button>
-                <Button size="sm" variant="ghost" leftIcon={<Share2 className="w-3.5 h-3.5" />}>Share</Button>
-              </div>
-            </CardBody>
-          </Card>
-        ))}
+
+              {/* ── FULL CARD BLURRED OVERLAY WHEN LOCKED (DEAD CENTER OF ENTIRE CARD) ── */}
+              {!isUnlocked && (
+                <div className="absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center text-white space-y-3.5 animate-fade-in">
+                  
+                  {/* SVG Circular Progress Ring with Lock Icon in Center */}
+                  <CircularProgressLock progress={cert.progress} size={80} />
+
+                  <div className="max-w-xs space-y-1.5">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[11px] font-black uppercase tracking-wider">
+                      <span>LOCKED CERTIFICATE</span>
+                      <span className="text-white">({cert.progress}%)</span>
+                    </div>
+
+                    <h4 className="font-extrabold text-sm sm:text-base text-white leading-snug line-clamp-2">
+                      {cert.courseTitle}
+                    </h4>
+
+                    <p className="text-xs font-semibold text-slate-300 leading-relaxed">
+                      Complete 100% course in My Learning to unlock certificate
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedCert(cert); }}
+                    className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4 text-amber-300" />
+                    <span>Preview Locked Certificate</span>
+                  </button>
+
+                </div>
+              )}
+
+            </Card>
+          );
+        })}
       </div>
+
+
+      {/* ════════ RESPONSIVE OFFICIAL ASPIRE NEXT CERTIFICATE MODAL ════════ */}
+      {selectedCert && createPortal(
+        <div 
+          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 font-sans cursor-default overflow-y-auto animate-fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setSelectedCert(null); }}
+        >
+          <div className="w-full max-w-2xl lg:max-w-3xl max-h-[92vh] bg-white rounded-2xl sm:rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto">
+            
+            {/* Sticky Close Button */}
+            <button
+              onClick={() => setSelectedCert(null)}
+              className="absolute top-4 right-4 z-50 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
+            >
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
+            </button>
+
+            {/* Scrollable Document Area */}
+            <div className="p-3 sm:p-6 overflow-y-auto flex-1 bg-[#fcfcfd] scrollbar-thin">
+              
+              {/* Responsive Double Gold Ornate Border Frame */}
+              <div className="border-[4px] sm:border-[6px] border-amber-400/80 p-3 sm:p-6 rounded-xl sm:rounded-[1.25rem] bg-white shadow-inner">
+                <div className="border border-dashed border-amber-300/80 p-4 sm:p-6 rounded-lg sm:rounded-xl relative">
+                  
+                  {/* Top Header: AspireNext Logo & Title */}
+                  <div className="flex flex-col items-center text-center space-y-1.5 pb-4 sm:pb-5 border-b border-slate-100">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-amber-400 p-0.5 shadow-md bg-white">
+                      <img src={aspireLogo} alt="AspireNext Logo" className="w-full h-full object-cover rounded-full" />
+                    </div>
+
+                    <div>
+                      <h2 className="font-black text-base sm:text-xl md:text-2xl text-slate-900 tracking-wider uppercase">
+                        ASPIRE NEXT ACADEMY
+                      </h2>
+                      <p className="text-[9px] sm:text-[11px] font-black text-[#7c3aed] uppercase tracking-[0.2em] sm:tracking-[0.25em] mt-0.5">
+                        INSTITUTE OF ADVANCED SOFTWARE ENGINEERING & AI
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Body Content */}
+                  <div className="py-4 sm:py-6 text-center space-y-2.5 sm:space-y-3.5">
+                    <span className="text-[10px] sm:text-xs font-black text-amber-600 uppercase tracking-[0.25em]">
+                      CERTIFICATE OF COMPLETION
+                    </span>
+
+                    <p className="text-[11px] sm:text-xs font-medium text-slate-500 italic">
+                      This official accreditation is proudly awarded to
+                    </p>
+
+                    <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight text-gradient bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] bg-clip-text text-transparent py-0.5">
+                      Aarav Sharma
+                    </h1>
+
+                    <p className="text-[11px] sm:text-xs font-medium text-slate-600 max-w-md mx-auto leading-relaxed">
+                      for successfully completing 100% of the coursework, practical projects, and assessment milestones for the professional track:
+                    </p>
+
+                    <h3 className="text-sm sm:text-lg md:text-xl font-extrabold text-slate-900 max-w-lg mx-auto leading-snug">
+                      "{selectedCert.courseTitle}"
+                    </h3>
+                  </div>
+
+                  {/* Signatures & Gold Seal Footer */}
+                  <div className="pt-4 sm:pt-6 border-t border-slate-100 flex flex-row items-center justify-between gap-2 sm:gap-4">
+                    
+                    {/* Instructor Signature */}
+                    <div className="text-left">
+                      <p className="font-serif italic text-xs sm:text-base text-slate-800 font-bold truncate max-w-[120px] sm:max-w-none">{selectedCert.instructorName}</p>
+                      <div className="w-20 sm:w-28 h-0.5 bg-slate-300 my-1" />
+                      <p className="text-[8px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider truncate max-w-[120px] sm:max-w-none">{selectedCert.instructorRole}</p>
+                      <p className="text-[8px] sm:text-[10px] font-bold text-slate-500">Lead Instructor</p>
+                    </div>
+
+                    {/* Gold Official Seal Badge */}
+                    <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-br from-amber-300 via-amber-400 to-amber-500 p-0.5 shadow-md flex items-center justify-center text-slate-950 text-center shrink-0 border border-white">
+                      <div className="w-full h-full rounded-full border border-dashed border-slate-950/30 flex flex-col items-center justify-center p-0.5">
+                        <Award className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950" />
+                        <span className="text-[6px] sm:text-[7px] font-black uppercase tracking-tighter leading-none mt-0.5">VERIFIED</span>
+                        <span className="text-[5px] sm:text-[6px] font-bold uppercase tracking-tighter">ASPIRE NEXT</span>
+                      </div>
+                    </div>
+
+                    {/* Director Signature */}
+                    <div className="text-right">
+                      <p className="font-serif italic text-xs sm:text-base text-slate-800 font-bold">B.Kamalakar</p>
+                      <div className="w-20 sm:w-28 h-0.5 bg-slate-300 my-1 ml-auto" />
+                      <p className="text-[8px] sm:text-[10px] font-extrabold text-slate-400 uppercase tracking-wider">Director of Academics</p>
+                      <p className="text-[8px] sm:text-[10px] font-bold text-slate-500">AspireNext Academy</p>
+                    </div>
+
+                  </div>
+
+                  {/* Verification Footer Bar */}
+                  <div className="mt-4 sm:mt-5 pt-2 border-t border-slate-100 flex items-center justify-between text-[9px] sm:text-[10px] font-mono text-slate-400">
+                    <span className="truncate">ID: {selectedCert.verifyId || 'CERT-AN-2026'}</span>
+                    <span className="truncate">Verify: aspirenext.edu/verify</span>
+                  </div>
+
+                </div>
+              </div>
+
+              {/* ── LOCKED WATERMARK OVERLAY (IF PROGRESS < 100%) ── */}
+              {selectedCert.progress < 100 && (
+                <div className="absolute inset-0 z-40 bg-slate-950/85 backdrop-blur-sm p-4 sm:p-8 flex flex-col items-center justify-center text-center text-white space-y-3 sm:space-y-4 animate-fade-in">
+                  <CircularProgressLock progress={selectedCert.progress} size={72} />
+
+                  <div className="max-w-md space-y-1.5">
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[10px] sm:text-xs font-black uppercase tracking-wider">
+                      CERTIFICATE LOCKED ({selectedCert.progress}% / 100%)
+                    </span>
+                    <h3 className="font-extrabold text-base sm:text-xl text-white">
+                      Complete Course to Claim Certificate
+                    </h3>
+                    <p className="text-[11px] sm:text-xs text-slate-300 leading-relaxed font-medium">
+                      You are currently at <strong>{selectedCert.progress}% progress</strong> for "{selectedCert.courseTitle}". Finish all course lessons to unlock your official signed AspireNext diploma.
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={() => { setSelectedCert(null); navigate('learning'); }}
+                    className="mt-1 py-2.5 px-5 sm:py-3 sm:px-6 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                  >
+                    <BookOpen className="w-4 h-4" />
+                    <span>Go to My Learning ({selectedCert.progress}% done)</span>
+                  </button>
+                </div>
+              )}
+
+            </div>
+
+            {/* Modal Actions Footer */}
+            <div className="p-3 sm:p-4 border-t border-slate-100 bg-slate-50 flex items-center justify-between gap-3 shrink-0">
+              <button
+                onClick={() => setSelectedCert(null)}
+                className="px-4 py-2 sm:px-5 sm:py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-extrabold text-xs transition-colors"
+              >
+                Close Preview
+              </button>
+
+              {selectedCert.progress >= 100 && (
+                <div className="flex items-center gap-2 sm:gap-3">
+                  <button
+                    onClick={() => handleDownload(selectedCert)}
+                    className="py-2.5 px-4 sm:px-5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md flex items-center gap-1.5 sm:gap-2 transition-all cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>Download PDF</span>
+                  </button>
+
+                  <button
+                    onClick={() => handleShare(selectedCert)}
+                    className="py-2.5 px-3 sm:px-4 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-100 font-extrabold text-xs flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer"
+                  >
+                    <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    <span>Share</span>
+                  </button>
+                </div>
+              )}
+            </div>
+
+          </div>
+        </div>,
+        document.body
+      )}
+
     </div>
   );
 }

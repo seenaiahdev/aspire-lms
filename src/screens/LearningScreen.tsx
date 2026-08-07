@@ -5,15 +5,168 @@ import {
   Trophy, Zap, MapPin, CheckCircle2, Video, Code2, ClipboardCheck, X, Sparkles, Brain, Lock, ExternalLink, ChevronDown
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { courses } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { ProgressBar } from '@/components/ui/ProgressBar';
-import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { Tabs } from '@/components/ui/Tabs';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
+
+export interface LearningItem {
+  id: string;
+  category: 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin';
+  categoryLabel: string;
+  title: string;
+  subtitle: string;
+  thumbnail: string;
+  level: 'Beginner' | 'Intermediate' | 'Advanced';
+  duration: string;
+  lessonsCount: number;
+  enrolledCount: string;
+  rating: number;
+  progress: number;
+  instructor: {
+    name: string;
+    avatar: string;
+    role: string;
+  };
+  actionText: string;
+  targetRoute?: string;
+}
+
+const learningItems: LearningItem[] = [
+  // ════════ 1. COURSES (EXACTLY 1 COURSE) ════════
+  {
+    id: 'c1',
+    category: 'courses',
+    categoryLabel: 'Courses',
+    title: 'Advanced Full-Stack React & Next.js Masterclass',
+    subtitle: 'Build production-ready web apps with React 19, Server Components, and Tailwind CSS.',
+    thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80',
+    level: 'Intermediate',
+    duration: '24 hours',
+    lessonsCount: 42,
+    enrolledCount: '2.4k enrolled',
+    rating: 4.9,
+    progress: 78,
+    instructor: {
+      name: 'Sara Khan',
+      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
+      role: 'Staff Frontend Architect'
+    },
+    actionText: 'Continue Course',
+    targetRoute: 'course'
+  },
+
+  // ════════ 2. COMMUNICATION & SOFT SKILLS (EXACTLY 1 COURSE) ════════
+  {
+    id: 's1',
+    category: 'soft_skills',
+    categoryLabel: 'Communication / Soft Skills',
+    title: 'Executive Workplace Communication & Speaking',
+    subtitle: 'Master vocal clarity, team presentations, email etiquette, and persuasive leadership.',
+    thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80',
+    level: 'Beginner',
+    duration: '10 hours',
+    lessonsCount: 18,
+    enrolledCount: '1.5k enrolled',
+    rating: 4.9,
+    progress: 60,
+    instructor: {
+      name: 'Elena Rostova',
+      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
+      role: 'Corporate Communications Director'
+    },
+    actionText: 'Start Soft Skills Unit'
+  },
+
+  // ════════ 3. APTITUDE & REASONING (EXACTLY 1 COURSE) ════════
+  {
+    id: 'a1',
+    category: 'aptitude',
+    categoryLabel: 'Aptitude & Reasoning',
+    title: 'Quantitative Aptitude Masterclass for Tech Interviews',
+    subtitle: 'Solve speed math, probability, permutations, profit & loss, and time-distance problems.',
+    thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
+    level: 'Intermediate',
+    duration: '18 hours',
+    lessonsCount: 30,
+    enrolledCount: '3.4k enrolled',
+    rating: 4.8,
+    progress: 80,
+    instructor: {
+      name: 'Prof. Rajesh Kumar',
+      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
+      role: 'Aptitude & GATE Specialist'
+    },
+    actionText: 'Solve Aptitude Tests'
+  },
+
+  // ════════ 4. PORTFOLIO (EXACTLY 1 COURSE) ════════
+  {
+    id: 'p1',
+    category: 'portfolio',
+    categoryLabel: 'Portfolio',
+    title: 'Full-Stack Developer Portfolio Blueprint',
+    subtitle: 'Design and deploy a breathtaking portfolio with interactive 3D elements, dark mode, and case studies.',
+    thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
+    level: 'Intermediate',
+    duration: '12 hours',
+    lessonsCount: 16,
+    enrolledCount: '1.9k enrolled',
+    rating: 4.9,
+    progress: 90,
+    instructor: {
+      name: 'Alex Morgan',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      role: 'Senior UI/UX Engineer'
+    },
+    actionText: 'Build Portfolio'
+  },
+
+  // ════════ 5. RESUME (EXACTLY 1 COURSE) ════════
+  {
+    id: 'r1',
+    category: 'resume',
+    categoryLabel: 'Resume',
+    title: 'ATS-Optimized Tech Resume Masterclass',
+    subtitle: 'Pass automated recruiter scanners with impact metrics, action verbs, and clean single-column templates.',
+    thumbnail: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80',
+    level: 'Beginner',
+    duration: '5 hours',
+    lessonsCount: 9,
+    enrolledCount: '4.2k enrolled',
+    rating: 5.0,
+    progress: 100,
+    instructor: {
+      name: 'Jessica Alba',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      role: 'Senior Talent Acquisition Lead'
+    },
+    actionText: 'Download ATS Templates'
+  },
+
+  // ════════ 6. LINKEDIN (EXACTLY 1 COURSE) ════════
+  {
+    id: 'l1',
+    category: 'linkedin',
+    categoryLabel: 'LinkedIn',
+    title: 'LinkedIn Personal Branding & Tech Recruiter Magnet',
+    subtitle: 'Optimize your headline, about summary, skills, and SEO keywords so recruiters message you directly.',
+    thumbnail: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?auto=format&fit=crop&w=800&q=80',
+    level: 'Beginner',
+    duration: '7 hours',
+    lessonsCount: 12,
+    enrolledCount: '3.6k enrolled',
+    rating: 4.9,
+    progress: 85,
+    instructor: {
+      name: 'Sophia Williams',
+      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
+      role: 'LinkedIn Top Voice & Recruiter'
+    },
+    actionText: 'Audit LinkedIn Profile'
+  }
+];
 
 const topicDataMap: Record<string, { title: string; subtitle: string; modules: { letter: string; name: string; liveClass: string; lab: string; assessment: string }[] }> = {
   'Python Programming Basics': {
@@ -45,14 +198,18 @@ const topicDataMap: Record<string, { title: string; subtitle: string; modules: {
 export function LearningScreen() {
   const { navigate, route } = useNav();
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'all' | 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin'>('all');
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<string | null>(null);
   const [expandedModule, setExpandedModule] = useState<number | null>(0);
 
-  const filtered = courses.filter((c) => 
-    c.title.toLowerCase().includes(search.toLowerCase()) || 
-    c.category.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredItems = learningItems.filter((item) => {
+    const matchesTab = activeTab === 'all' || item.category === activeTab;
+    const matchesSearch = item.title.toLowerCase().includes(search.toLowerCase()) || 
+                          item.subtitle.toLowerCase().includes(search.toLowerCase()) ||
+                          item.categoryLabel.toLowerCase().includes(search.toLowerCase());
+    return matchesTab && matchesSearch;
+  });
 
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12">
@@ -60,12 +217,12 @@ export function LearningScreen() {
       {/* Clean Top Header */}
       <div className="pb-2">
         <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-          {route === 'milestones' ? 'Milestones Roadmap' : 'Course Catalog'}
+          {route === 'milestones' ? 'Milestones Roadmap' : 'My Learning'}
         </h2>
         <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
           {route === 'milestones' 
             ? 'Track your journey and master core engineering fundamentals.'
-            : 'Explore your enrolled courses, lessons, and practice labs.'}
+            : 'Explore your courses, soft skills masterclasses, aptitude tests, resume guides, and portfolio blueprints.'}
         </p>
       </div>
 
@@ -75,7 +232,7 @@ export function LearningScreen() {
         <div className="space-y-8 animate-fade-in">
 
           {/* 1. Top Banner */}
-          <div className="p-6 sm:p-8 rounded-[2rem] bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-lg relative overflow-hidden">
+          <div className="p-6 sm:p-8 rounded-[2rem] bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xl relative overflow-hidden">
             {/* Background Decorations */}
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/3" />
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/10 rounded-full blur-2xl translate-y-1/3 -translate-x-1/4" />
@@ -116,23 +273,23 @@ export function LearningScreen() {
           </div>
 
           {/* 2. Vertical Stage Timeline Roadmap */}
-          <div className="relative pl-12 space-y-8 before:absolute before:left-[22px] before:top-8 before:bottom-8 before:w-1 before:bg-indigo-200/60 before:rounded-full">
+          <div className="relative pl-12 space-y-8 before:absolute before:left-[22px] before:top-8 before:bottom-8 before:w-1 before:bg-purple-200/60 before:rounded-full">
             
             {/* Stage 1 */}
             <div className="relative group">
-              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full bg-white border-[3px] border-[#3b52a4] shadow-[0_0_15px_rgba(59,82,164,0.3)] flex items-center justify-center z-10">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#3b52a4] animate-pulse" />
+              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full bg-white border-[3px] border-[#7c3aed] shadow-[0_0_15px_rgba(124,58,237,0.3)] flex items-center justify-center z-10">
+                <div className="w-2.5 h-2.5 rounded-full bg-[#7c3aed] animate-pulse" />
               </div>
 
               <div className="p-6 rounded-[2rem] bg-white border border-slate-200/90 shadow-md space-y-4 hover:shadow-lg transition-all">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-[#3b52a4] text-white flex items-center justify-center shadow-md shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-[#7c3aed] text-white flex items-center justify-center shadow-md shrink-0">
                       <Brain className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-[#3b52a4] border border-indigo-100 text-[10px] font-black uppercase tracking-wider">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
                           STAGE 01
                         </span>
                         <span className="text-xs font-semibold text-slate-500">Phase 1 • Core Mastery</span>
@@ -143,17 +300,17 @@ export function LearningScreen() {
                     </div>
                   </div>
 
-                  <span className="px-3 py-1 rounded-full bg-indigo-50 text-[#3b52a4] border border-indigo-100 text-xs font-bold flex items-center gap-1.5 w-fit">
-                    <span className="w-2 h-2 rounded-full bg-[#3b52a4] animate-pulse" />
+                  <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-bold flex items-center gap-1.5 w-fit">
+                    <span className="w-2 h-2 rounded-full bg-[#7c3aed] animate-pulse" />
                     IN PROGRESS
                   </span>
                 </div>
 
-                {/* Subtopic Button Pill (Royal Cobalt Light Mode) */}
+                {/* Subtopic Button Pill (Brand Purple) */}
                 <div className="pt-2">
                   <button
                     onClick={() => setSelectedTopicDrawer('Python Programming Basics')}
-                    className="w-full sm:w-[450px] p-4 rounded-2xl bg-[#3b82f6] hover:bg-[#2563eb] text-white shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-between group/btn border border-blue-400"
+                    className="w-full sm:w-[450px] p-4 rounded-2xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-between group/btn border border-purple-500"
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
@@ -161,7 +318,7 @@ export function LearningScreen() {
                       </div>
                       <div className="text-left">
                         <h4 className="font-extrabold text-base leading-tight">Python Programming Basics</h4>
-                        <p className="text-[11px] font-semibold text-blue-100 mt-0.5">Click to view subtopics</p>
+                        <p className="text-[11px] font-semibold text-purple-100 mt-0.5">Click to view subtopics</p>
                       </div>
                     </div>
                     <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 group-hover/btn:bg-white/30 transition-colors">
@@ -175,19 +332,19 @@ export function LearningScreen() {
 
             {/* Stage 2 */}
             <div className="relative group">
-              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full bg-white border-[3px] border-indigo-400 shadow-sm flex items-center justify-center z-10">
-                <div className="w-2.5 h-2.5 rounded-full bg-indigo-400" />
+              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full bg-white border-[3px] border-purple-400 shadow-sm flex items-center justify-center z-10">
+                <div className="w-2.5 h-2.5 rounded-full bg-purple-400" />
               </div>
 
               <div className="p-6 rounded-[2rem] bg-white border border-slate-200/90 shadow-md space-y-4 hover:shadow-lg transition-all">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-indigo-500 text-white flex items-center justify-center shadow-md shrink-0">
+                    <div className="w-12 h-12 rounded-2xl bg-[#7c3aed] text-white flex items-center justify-center shadow-md shrink-0">
                       <Brain className="w-6 h-6" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-[#3b52a4] border border-indigo-100 text-[10px] font-black uppercase tracking-wider">
+                        <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
                           STAGE 02
                         </span>
                         <span className="text-xs font-semibold text-slate-500">Phase 2 • Core Mastery</span>
@@ -206,7 +363,7 @@ export function LearningScreen() {
                 <div className="pt-2">
                   <button
                     onClick={() => setSelectedTopicDrawer('ML Fundamentals & Scikit-Learn')}
-                    className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-100 hover:bg-indigo-50 text-[#101537] hover:text-[#3b52a4] font-extrabold text-xs border border-slate-200 transition-all flex items-center justify-between sm:justify-start gap-4"
+                    className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-100 hover:bg-purple-50 text-slate-900 hover:text-[#7c3aed] font-extrabold text-xs border border-slate-200 transition-all flex items-center justify-between sm:justify-start gap-4"
                   >
                     <span>ML Fundamentals & Scikit-Learn</span>
                     <ChevronRight className="w-4 h-4" />
@@ -248,88 +405,133 @@ export function LearningScreen() {
         </div>
       )}
 
-
-      {/* ════════ TAB 2: COURSE CATALOG GRID/LIST ════════ */}
+      {/* ════════ TAB 2: MY LEARNING CATEGORY TABS & CARDS ════════ */}
       {route === 'learning' && (
-        <div className="space-y-4 animate-fade-in">
-          <div className="flex items-center justify-between gap-3">
-            <SearchInput value={search} onChange={setSearch} placeholder="Search courses..." className="w-full sm:w-72" />
-            <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
-              <button onClick={() => setView('grid')} className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', view === 'grid' ? 'bg-white shadow-sm text-[#3b52a4]' : 'text-slate-400 hover:text-slate-600')}>
-                <Grid3x3 className="w-4 h-4" />
-              </button>
-              <button onClick={() => setView('list')} className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', view === 'list' ? 'bg-white shadow-sm text-[#3b52a4]' : 'text-slate-400 hover:text-slate-600')}>
-                <List className="w-4 h-4" />
-              </button>
+        <div className="space-y-6 animate-fade-in">
+          
+          {/* CATEGORY PILL TABS BAR */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200/80">
+            {[
+              { id: 'all', label: 'All' },
+              { id: 'courses', label: 'Courses' },
+              { id: 'soft_skills', label: 'Communication / Soft Skills' },
+              { id: 'aptitude', label: 'Aptitude & Reasoning' },
+              { id: 'portfolio', label: 'Portfolio' },
+              { id: 'resume', label: 'Resume' },
+              { id: 'linkedin', label: 'LinkedIn' },
+            ].map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all duration-200 cursor-pointer shadow-2xs border shrink-0",
+                    isActive
+                      ? "bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white border-transparent shadow-md scale-[1.02]"
+                      : "bg-white hover:bg-purple-50/50 text-slate-600 hover:text-[#7c3aed] border-slate-200 hover:border-purple-200"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* SEARCH & VIEW SWITCHER ROW */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <SearchInput value={search} onChange={setSearch} placeholder="Search learning modules..." className="w-full sm:w-80" />
+            
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-slate-500">
+                Showing {filteredItems.length} {filteredItems.length === 1 ? 'module' : 'modules'}
+              </span>
+
+              <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
+                <button onClick={() => setView('grid')} className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', view === 'grid' ? 'bg-white shadow-xs text-[#7c3aed]' : 'text-slate-400 hover:text-slate-600')}>
+                  <Grid3x3 className="w-4 h-4" />
+                </button>
+                <button onClick={() => setView('list')} className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', view === 'list' ? 'bg-white shadow-xs text-[#7c3aed]' : 'text-slate-400 hover:text-slate-600')}>
+                  <List className="w-4 h-4" />
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className={cn("grid gap-5", view === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1")}>
-            {filtered.map((course) => {
-              const levelBg = course.level === 'Beginner' ? 'bg-[#f0fdf4] text-[#15803d] border-emerald-200/80' :
-                              course.level === 'Intermediate' ? 'bg-[#fffbeb] text-[#b45309] border-amber-200/80' :
+          {/* CARDS GRID / LIST */}
+          <div className={cn("grid gap-6", view === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1")}>
+            {filteredItems.map((item) => {
+              const levelBg = item.level === 'Beginner' ? 'bg-[#f0fdf4] text-[#15803d] border-emerald-200/80' :
+                              item.level === 'Intermediate' ? 'bg-[#fffbeb] text-[#b45309] border-amber-200/80' :
                               'bg-[#fff1f2] text-[#be123c] border-rose-200/80';
 
               return (
                 <div
-                  key={course.id}
-                  onClick={() => navigate('course', { id: course.id })}
+                  key={item.id}
+                  onClick={() => {
+                    if (item.targetRoute) navigate(item.targetRoute as any, { id: item.id });
+                  }}
                   className={cn(
                     "overflow-hidden rounded-[1.8rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 group cursor-pointer flex justify-between",
-                    view === 'grid' ? "flex-col" : "flex-col sm:flex-row items-stretch h-auto sm:h-44"
+                    view === 'grid' ? "flex-col" : "flex-col sm:flex-row items-stretch h-auto sm:h-52"
                   )}
                 >
-                  <div className={cn("relative overflow-hidden shrink-0", view === 'grid' ? "h-44 w-full" : "h-44 sm:h-full w-full sm:w-64")}>
-                    <img src={course.thumbnail} alt={course.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  {/* Thumbnail Banner */}
+                  <div className={cn("relative overflow-hidden shrink-0 bg-slate-900", view === 'grid' ? "h-48 w-full" : "h-48 sm:h-full w-full sm:w-72")}>
+                    <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                     
-                    {/* Top Left Badges (Category + Enrolled) */}
-                    <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
+                    {/* Category & Level Badges */}
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
                       <span className="px-3 py-1 rounded-full bg-white/95 backdrop-blur-md text-slate-900 text-xs font-extrabold shadow-sm border border-slate-200/60">
-                        {course.category}
+                        {item.categoryLabel}
                       </span>
-                      <span className="px-3 py-1 rounded-full bg-[#101537] text-white text-xs font-extrabold shadow-sm">
-                        Enrolled
-                      </span>
-                    </div>
-
-                    {/* Bottom Left Level Badge */}
-                    <div className="absolute bottom-3 left-3 z-10">
-                      <span className={`px-3 py-1 rounded-full text-xs font-extrabold shadow-sm border ${levelBg}`}>
-                        {course.level}
+                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm border ${levelBg}`}>
+                        {item.level}
                       </span>
                     </div>
 
-                    {/* Bottom Right Rating */}
-                    <div className="absolute bottom-3 right-3 z-10 flex items-center gap-1 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md text-white text-xs font-black shadow-sm">
-                      <Star className="w-3.5 h-3.5 text-rose-400 fill-rose-400" />
-                      <span>{course.rating || '4.9'}</span>
+                    {/* Progress Bar Badge on Image */}
+                    <div className="absolute bottom-3 left-3 right-3 z-10 space-y-1">
+                      <div className="flex items-center justify-between text-[11px] font-extrabold text-white">
+                        <span>Progress</span>
+                        <span>{item.progress}%</span>
+                      </div>
+                      <div className="w-full h-1.5 rounded-full bg-white/30 overflow-hidden backdrop-blur-xs">
+                        <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{ width: `${item.progress}%` }} />
+                      </div>
                     </div>
                   </div>
 
-                  {/* Card Content (Title, Subtitle, Meta Footer) */}
-                  <div className={cn("p-5 space-y-3 flex-1 flex flex-col justify-between", view === 'list' && "sm:p-6")}>
+                  {/* Card Body */}
+                  <div className={cn("p-5 space-y-4 flex-1 flex flex-col justify-between", view === 'list' && "sm:p-6")}>
                     <div>
-                      <h3 className="font-extrabold text-slate-900 text-base sm:text-lg lg:text-xl mb-1.5 leading-snug line-clamp-1 group-hover:text-[#3b52a4] transition-colors">
-                        {course.title}
+                      <h3 className="font-extrabold text-slate-900 text-base sm:text-lg mb-1.5 leading-snug line-clamp-2 group-hover:text-[#7c3aed] transition-colors">
+                        {item.title}
                       </h3>
-                      <p className={cn("text-slate-500 font-medium", view === 'grid' ? "text-xs sm:text-sm line-clamp-1" : "text-sm line-clamp-2")}>
-                        {course.subtitle}
+                      <p className="text-slate-500 text-xs font-medium line-clamp-2 leading-relaxed">
+                        {item.subtitle}
                       </p>
                     </div>
 
-                    {/* Footer Meta Row matching Screenshot */}
-                    <div className="flex items-center gap-5 text-xs font-semibold text-slate-500 pt-4 border-t border-slate-100 mt-auto">
-                      <span className="flex items-center gap-1.5">
-                        <Clock className="w-4 h-4 text-slate-400" />
-                        {course.duration}
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <BookOpen className="w-4 h-4 text-slate-400" />
-                        {course.lessonsCount} lessons
-                      </span>
-                      <span className="flex items-center gap-1.5">
-                        <Users className="w-4 h-4 text-slate-400" />
-                        {course.enrolledCount}
+                    {/* Instructor Info */}
+                    <div className="flex items-center gap-3 pt-2">
+                      <Avatar src={item.instructor.avatar} name={item.instructor.name} size="sm" />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 truncate">{item.instructor.name}</p>
+                        <p className="text-[10px] font-semibold text-slate-500 truncate">{item.instructor.role}</p>
+                      </div>
+                    </div>
+
+                    {/* Footer Meta Row */}
+                    <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-3 border-t border-slate-100 mt-auto">
+                      <div className="flex items-center gap-3 text-[11px]">
+                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" />{item.duration}</span>
+                        <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5 text-slate-400" />{item.lessonsCount} lessons</span>
+                      </div>
+
+                      <span className="text-xs font-extrabold text-[#7c3aed] group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                        {item.actionText} →
                       </span>
                     </div>
                   </div>
@@ -337,6 +539,7 @@ export function LearningScreen() {
               );
             })}
           </div>
+
         </div>
       )}
 
@@ -389,18 +592,18 @@ export function LearningScreen() {
                   const isExpanded = expandedModule === idx;
                   
                   return (
-                  <div key={idx} className={cn("rounded-2xl border overflow-hidden shadow-sm transition-all", isExpanded ? "border-[#2563eb]" : "border-slate-200")}>
+                  <div key={idx} className={cn("rounded-2xl border overflow-hidden shadow-sm transition-all", isExpanded ? "border-[#7c3aed]" : "border-slate-200")}>
                     <button
                       onClick={() => setExpandedModule(isExpanded ? null : idx)}
                       className={cn(
                         "w-full p-4 flex items-center justify-between gap-3 transition-colors",
-                        isExpanded ? "bg-[#2563eb] text-white" : "bg-white hover:bg-slate-50 text-slate-900"
+                        isExpanded ? "bg-[#7c3aed] text-white" : "bg-white hover:bg-slate-50 text-slate-900"
                       )}
                     >
                       <div className="flex items-center gap-3">
                         <span className={cn(
                           "w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center",
-                          isExpanded ? "bg-white/20 text-white" : "bg-blue-50 text-blue-600"
+                          isExpanded ? "bg-white/20 text-white" : "bg-purple-50 text-[#7c3aed]"
                         )}>
                           {mod.letter}
                         </span>
@@ -420,18 +623,18 @@ export function LearningScreen() {
                         {/* Live Class */}
                         <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-[#2563eb] text-white flex items-center justify-center shrink-0 shadow-sm">
+                            <div className="w-9 h-9 rounded-xl bg-[#7c3aed] text-white flex items-center justify-center shrink-0 shadow-sm">
                               <Video className="w-4.5 h-4.5" />
                             </div>
                             <div>
-                              <span className="text-[10px] font-extrabold text-[#2563eb] uppercase bg-blue-50 px-1.5 py-0.5 rounded">LIVE CLASS</span>
+                              <span className="text-[10px] font-extrabold text-[#7c3aed] uppercase bg-purple-50 px-1.5 py-0.5 rounded">LIVE CLASS</span>
                               <h4 className="font-bold text-slate-900 text-xs mt-0.5">{mod.liveClass}</h4>
                             </div>
                           </div>
 
                           <button
                             onClick={() => { setSelectedTopicDrawer(null); navigate('live'); }}
-                            className="px-3.5 py-1.5 rounded-xl bg-[#2563eb] hover:bg-[#1d4ed8] text-white font-extrabold text-xs shadow-2xs flex items-center gap-1 transition-all"
+                            className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-2xs flex items-center gap-1 transition-all"
                           >
                             <span>JOIN</span>
                             <ExternalLink className="w-3 h-3" />

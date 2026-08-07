@@ -112,6 +112,7 @@ export interface Project {
   title: string;
   course: string;
   status: 'assigned' | 'submitted' | 'feedback';
+  projectType?: 'mini' | 'major' | 'capstone';
   difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
   skills: string[];
   description: string;

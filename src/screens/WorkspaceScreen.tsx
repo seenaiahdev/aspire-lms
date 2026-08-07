@@ -647,9 +647,9 @@ export function WorkspaceScreen() {
                 onClick={runCodeOnly}
                 isLoading={isRunningCode}
                 leftIcon={<Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />}
-                className="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 shadow-sm"
+                className="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 shadow-sm px-2.5 sm:px-3 text-xs"
               >
-                Run Code
+                <span>Run</span><span className="hidden sm:inline"> Code</span>
               </Button>
 
               {/* 2. RUN TESTS BUTTON */}
@@ -659,9 +659,9 @@ export function WorkspaceScreen() {
                 onClick={runTests}
                 isLoading={isRunning}
                 leftIcon={<Sparkles className="w-4 h-4 text-indigo-400" />}
-                className="bg-slate-800 hover:bg-slate-700 text-indigo-200 border border-indigo-500/30 shadow-sm"
+                className="bg-slate-800 hover:bg-slate-700 text-indigo-200 border border-indigo-500/30 shadow-sm px-2.5 sm:px-3 text-xs"
               >
-                Run Tests
+                <span>Run</span><span className="hidden sm:inline"> Tests</span>
               </Button>
 
               {/* 3. SUBMIT ASSIGNMENT BUTTON */}
@@ -671,9 +671,9 @@ export function WorkspaceScreen() {
                 onClick={handleSubmit}
                 isLoading={isSubmitting}
                 leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                className="bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]"
+                className="bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] px-2.5 sm:px-3 text-xs"
               >
-                Submit Assignment
+                <span>Submit</span><span className="hidden sm:inline"> Assignment</span>
               </Button>
             </>
           ) : (
@@ -681,9 +681,9 @@ export function WorkspaceScreen() {
               size="sm"
               variant="secondary"
               onClick={() => navigate('practice')}
-              className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700"
+              className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 text-xs"
             >
-              Return to Practice
+              Return<span className="hidden sm:inline"> to Practice</span>
             </Button>
           )}
         </div>
@@ -743,7 +743,7 @@ export function WorkspaceScreen() {
 
         {/* Left Side: Problem Description & Test Results Drawer */}
         <div className={`transition-all duration-300 ease-in-out bg-[#121725] border-r border-slate-800 flex flex-col shrink-0 overflow-hidden ${
-          isPanelOpen ? 'w-[420px]' : 'w-0 border-r-0 opacity-0 pointer-events-none'
+          isPanelOpen ? 'w-full sm:w-[420px]' : 'w-0 border-r-0 opacity-0 pointer-events-none'
         }`}>
           
           {/* Left Panel Tabs */}

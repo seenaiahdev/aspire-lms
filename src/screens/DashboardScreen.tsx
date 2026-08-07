@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar as CalendarIcon, Play, Code2, Clock, Check, ChevronLeft, ChevronRight as ChevronRightIcon, BookMarked,
-  ArrowLeft, ArrowRight, CheckCircle2, Video, Terminal, BookOpenText, Award, Layers, Sparkles, FileText, CheckCircle, Trophy, TrendingUp
+  ArrowLeft, ArrowRight, CheckCircle2, Video, Terminal, BookOpenText, Award, Layers, Sparkles, FileText, CheckCircle, Trophy, TrendingUp, CalendarDays, Radio, CalendarX
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -310,7 +310,14 @@ export function DashboardScreen() {
   const [activeTopic, setActiveTopic] = useState<PythonTopic | null>(null);
 
   // View Mode inside Topic Screen: 'video' | 'theory'
-  const [topicViewMode, setTopicViewMode] = useState<'video' | 'theory'>('video');
+  const [topicViewMode, setTopicViewMode] = useState<'video' | 'theory'>(() => {
+    return (localStorage.getItem('aspire_topic_view_mode') as 'video' | 'theory') || 'video';
+  });
+
+  const handleTopicViewModeChange = (mode: 'video' | 'theory') => {
+    setTopicViewMode(mode);
+    localStorage.setItem('aspire_topic_view_mode', mode);
+  };
 
   // Dynamic Topics for Selected Date
   const currentTopics = pythonDailyTopicsMock[selectedDateNum] || getDefaultTopicsForDate(selectedDateNum);
@@ -430,7 +437,7 @@ export function DashboardScreen() {
             
             {/* Option 1: Video Mode Button */}
             <button
-              onClick={() => setTopicViewMode('video')}
+              onClick={() => handleTopicViewModeChange('video')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all ${
                 topicViewMode === 'video'
                   ? 'bg-gradient-to-r from-primary-700 to-primary-500 text-white shadow-md'
@@ -443,7 +450,7 @@ export function DashboardScreen() {
 
             {/* Option 2: Theory Mode Button */}
             <button
-              onClick={() => setTopicViewMode('theory')}
+              onClick={() => handleTopicViewModeChange('theory')}
               className={`flex-1 flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl text-xs font-extrabold transition-all ${
                 topicViewMode === 'theory'
                   ? 'bg-gradient-to-r from-primary-700 to-primary-500 text-white shadow-md'
@@ -507,7 +514,7 @@ export function DashboardScreen() {
                 </div>
 
                 <button
-                  onClick={() => setTopicViewMode('theory')}
+                  onClick={() => handleTopicViewModeChange('theory')}
                   className="w-full mt-4 bg-primary-50 hover:bg-primary-100 text-primary-900 font-bold text-xs py-3 rounded-xl border border-primary-200 transition-all text-center"
                 >
                   Switch to Full Theory & Code →
@@ -611,34 +618,40 @@ export function DashboardScreen() {
       {/* Greeting Header */}
       <div className="flex items-center gap-2 px-1">
         <h1 className="text-3xl sm:text-4xl font-black text-[#0c0f26] tracking-tight">
-          {getGreeting()}, {currentUser.name.split(' ')[0]} <span className="inline-block animate-[wave_2.5s_ease-in-out_infinite] origin-[70%_70%]">👋</span>
+          {getGreeting()}, {currentUser.name.split(' ')[0]}
         </h1>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* ════════ LEFT SIDE (8 COLS): YOUR SCHEDULE & TOPICS FEED ════════ */}
-        <div className="lg:col-span-8 border border-slate-200/80 shadow-2xs rounded-3xl overflow-visible bg-white p-6 sm:p-8 space-y-6">
+        {/* ════════ LEFT SIDE (8 COLS): DAILY TASKS & CURRICULUM SCHEDULE ════════ */}
+        <div className="lg:col-span-8 border border-slate-200/80 shadow-sm rounded-[2rem] overflow-visible bg-white p-6 sm:p-7 space-y-6">
           
           {/* Top Header Row: "Your Schedule" & "Calendar" Button with Floating Popover */}
           <div className="flex items-center justify-between relative z-20">
-            <h2 className="font-bold text-slate-900 text-xl sm:text-2xl tracking-tight">Your Schedule</h2>
+            <div>
+              <h2 className="font-extrabold text-slate-900 text-xl sm:text-2xl tracking-tight flex items-center gap-2">
+                <span>Your Schedule</span>
+                <CalendarDays className="w-5.5 h-5.5 text-[#7c3aed] shrink-0" />
+              </h2>
+              <p className="text-slate-500 text-xs sm:text-sm font-medium mt-0.5">Your daily updated learning schedule and live classes.</p>
+            </div>
 
             <div className="relative">
               <button
                 onClick={() => setShowFullCalendar(!showFullCalendar)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-50/80 hover:bg-indigo-100 text-[#3b52a4] font-semibold text-sm transition-all duration-150 active:scale-95 border border-indigo-100/80 shadow-sm"
+                className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-extrabold text-xs sm:text-sm transition-all duration-150 active:scale-95 border border-purple-100 shadow-2xs"
               >
-                <CalendarIcon className="w-4.5 h-4.5 text-[#3b52a4]" />
+                <CalendarIcon className="w-4.5 h-4.5 text-[#7c3aed]" />
                 <span>Calendar</span>
               </button>
 
-              {/* ════════ FLOATING CALENDAR POPOVER POPUP ════════ */}
+              {/* ════════ FLOATING CALENDAR POPOVER POPUP (COMPACT FIT TO SCREEN) ════════ */}
               {showFullCalendar && (
-                <div className="absolute right-0 top-12 z-50 min-w-[22rem] max-w-[24rem] bg-white rounded-[2rem] p-5 shadow-2xl border border-slate-200/90 space-y-4 animate-scale-in">
+                <div className="absolute right-0 top-12 z-50 w-72 bg-white rounded-[1.5rem] p-4 shadow-2xl border border-slate-200/90 space-y-3 animate-scale-in">
                   
                   {/* Header Month Switcher: < Aug 2026 > */}
-                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
                     <button
                       onClick={() => {
                         if (currentMonthIndex === 0) {
@@ -648,13 +661,13 @@ export function DashboardScreen() {
                           setCurrentMonthIndex((prev) => prev - 1);
                         }
                       }}
-                      className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors"
+                      className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors"
                       type="button"
                     >
                       <ChevronLeft className="w-4 h-4" />
                     </button>
 
-                    <span className="font-bold text-slate-900 text-sm">{monthNames[currentMonthIndex]} {currentYear}</span>
+                    <span className="font-extrabold text-slate-900 text-xs">{monthNames[currentMonthIndex]} {currentYear}</span>
 
                     <button
                       onClick={() => {
@@ -665,7 +678,7 @@ export function DashboardScreen() {
                           setCurrentMonthIndex((prev) => prev + 1);
                         }
                       }}
-                      className="w-8 h-8 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors"
+                      className="w-7 h-7 rounded-full hover:bg-slate-100 flex items-center justify-center text-slate-600 transition-colors"
                       type="button"
                     >
                       <ChevronRightIcon className="w-4 h-4" />
@@ -675,11 +688,11 @@ export function DashboardScreen() {
                   {/* Days of Week Header */}
                   <div className="grid grid-cols-7 gap-1 text-center">
                     {['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => (
-                      <span key={i} className="text-xs font-semibold text-slate-600 py-1">{d}</span>
+                      <span key={i} className="text-[10px] font-extrabold text-slate-500 py-0.5">{d}</span>
                     ))}
                     
                     {Array.from({ length: calendarStartOffset }, (_, offset) => (
-                      <div key={`offset-${offset}`} className="w-9 h-9" />
+                      <div key={`offset-${offset}`} className="w-7 h-7" />
                     ))}
 
                     {/* Circular Date Grid Buttons */}
@@ -704,12 +717,12 @@ export function DashboardScreen() {
                             setSelectedYear(currentYear);
                             setShowFullCalendar(false);
                           }}
-                          className={`aspect-square w-9 rounded-full mx-auto flex items-center justify-center text-xs font-semibold transition-all duration-150 cursor-pointer ${
+                          className={`w-7 h-7 rounded-full mx-auto flex items-center justify-center text-[11px] font-semibold transition-all duration-150 cursor-pointer ${
                             isSelected
-                              ? 'bg-[#3b52a4] text-white font-bold shadow-md scale-105'
+                              ? 'bg-[#7c3aed] text-white font-bold shadow-xs scale-105'
                               : isToday
-                              ? 'bg-indigo-50 text-[#3b52a4] border-2 border-[#3b52a4] font-bold'
-                              : 'border border-slate-200/80 text-slate-700 hover:bg-slate-100 hover:border-slate-300'
+                              ? 'bg-purple-50 text-[#7c3aed] border border-[#7c3aed] font-bold'
+                              : 'text-slate-700 hover:bg-slate-100'
                           }`}
                         >
                           {num}
@@ -719,21 +732,18 @@ export function DashboardScreen() {
                   </div>
 
                   {/* Date Status Legend */}
-                  <div className="pt-3 border-t border-slate-100 space-y-2">
-                    <p className="text-xs font-bold text-slate-900">Date Status Legend</p>
-                    <div className="flex items-center gap-3 text-[11px] text-slate-600 font-medium flex-wrap">
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded-full bg-[#3b52a4]" />
-                        <span>Selected Date</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded-full bg-indigo-50 border border-[#3b52a4]" />
-                        <span>Current Date</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <span className="w-3 h-3 rounded-full border border-slate-200 bg-slate-50" />
-                        <span>Holiday</span>
-                      </div>
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-600 font-semibold">
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-[#7c3aed]" />
+                      <span>Selected</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full bg-purple-50 border border-[#7c3aed]" />
+                      <span>Today</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="w-2.5 h-2.5 rounded-full border border-slate-300 bg-slate-50" />
+                      <span>Holiday</span>
                     </div>
                   </div>
 
@@ -743,7 +753,7 @@ export function DashboardScreen() {
           </div>
 
           {/* Date Navigator Row */}
-          <div className="flex items-center justify-between py-2 border-b border-slate-100/80">
+          <div className="flex items-center justify-between py-2 border-b border-slate-100">
             <button
               onClick={goToPreviousDay}
               className="p-2 rounded-xl hover:bg-slate-100 text-slate-700 transition-colors"
@@ -754,19 +764,19 @@ export function DashboardScreen() {
             </button>
 
             <div className="flex items-center gap-2.5">
-              <span className="font-semibold text-slate-900 text-base sm:text-lg">
+              <span className="font-extrabold text-slate-900 text-base sm:text-lg">
                 {formattedDateString}
               </span>
 
               {isSelectedDateToday ? (
-                <span className="bg-indigo-50 text-[#3b52a4] font-semibold px-3 py-1 rounded-full text-xs border border-indigo-100/80 shadow-2xs">
+                <span className="bg-purple-50 text-[#7c3aed] font-extrabold px-3 py-1 rounded-full text-xs border border-purple-100 shadow-2xs">
                   Today
                 </span>
               ) : (
                 <button
                   type="button"
                   onClick={goToToday}
-                  className="bg-slate-100 hover:bg-indigo-50 text-slate-600 hover:text-[#3b52a4] font-semibold px-2.5 py-0.5 rounded-full text-xs transition-colors"
+                  className="bg-slate-100 hover:bg-purple-50 text-slate-600 hover:text-[#7c3aed] font-extrabold px-3 py-1 rounded-full text-xs transition-colors"
                 >
                   Go to Today
                 </button>
@@ -783,88 +793,108 @@ export function DashboardScreen() {
             </button>
           </div>
 
-          {/* ════════ SELECTED DATE TOPICS FEED ════════ */}
-          <div className="pt-2 space-y-4">
+          {/* ════════ SCHEDULE CLASSES FEED (EXACTLY 2 CARDS: LIVE & UPCOMING WITH DIRECT ROUTING) ════════ */}
+          <div className="space-y-4">
             
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
-                <BookMarked className="w-4.5 h-4.5 text-[#3b52a4]" />
-                <h3 className="font-semibold text-slate-900 text-base sm:text-lg">
-                  Topics for {monthNames[currentMonthIndex]} {selectedDateNum}
+                <BookMarked className="w-4.5 h-4.5 text-[#7c3aed]" />
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg">
+                  Tasks & Classes for {monthNames[currentMonthIndex]} {selectedDateNum}
                 </h3>
               </div>
 
-              <span className="bg-slate-100 text-slate-600 font-medium px-2.5 py-0.5 rounded-full text-xs border border-slate-200/60">
-                Day {selectedDateNum} of 31
+              <span className="bg-purple-50 text-[#7c3aed] font-extrabold px-3 py-1 rounded-full text-xs border border-purple-100">
+                {isSelectedDateToday ? '2 Sessions' : '0 Sessions'}
               </span>
             </div>
 
-            {/* 2 Interactive Python Topic Cards (Grid Layout) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {currentTopics.map((topic, index) => {
-                const isCompleted = completedTopicIds.includes(topic.id);
-                return (
-                  <div 
-                    key={topic.id}
-                    onClick={() => openTopicWithRoute(topic)}
-                    className={`p-5 rounded-2xl border transition-all duration-200 cursor-pointer group flex flex-col justify-between ${
-                      isCompleted 
-                        ? 'bg-slate-50/80 border-slate-200/80' 
-                        : 'bg-white border-slate-200/80 hover:border-[#3b52a4]/50 shadow-2xs hover:shadow-md'
-                    }`}
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2.5">
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleTopicCompleted(topic.id);
-                            }}
-                            className={`w-5 h-5 rounded-full flex items-center justify-center transition-all shrink-0 active:scale-95 ${
-                              isCompleted 
-                                ? 'bg-[#3b52a4] text-white' 
-                                : 'bg-white border border-slate-300 text-transparent hover:border-[#3b52a4]'
-                            }`}
-                          >
-                            <Check className="w-3 h-3 stroke-[3]" />
-                          </button>
-                          
-                          <span className="text-[11px] font-semibold text-[#3b52a4] bg-indigo-50/80 px-2 py-0.5 rounded-md border border-indigo-100/60">
-                            Topic {index + 1}
-                          </span>
-
-                          <span className="text-[11px] font-medium text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                            {topic.category}
-                          </span>
-                        </div>
-
-                        <span className="text-xs font-normal text-slate-400 flex items-center gap-1 shrink-0">
-                          <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          {topic.duration}
+            {!isSelectedDateToday ? (
+              /* CLEAN MODERN EMPTY STATE WHEN NO SESSIONS ARE SCHEDULED FOR THE SELECTED DATE */
+              <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
+                <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
+                  <CalendarX className="w-7 h-7" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">Not Yet Scheduled</h4>
+                  <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1 max-w-sm">
+                    No live sessions or tasks scheduled for {monthNames[currentMonthIndex]} {selectedDateNum}. Switch to Today or view the full schedule.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              /* Exactly 2 Interactive Cards (Card 1: Live Now -> Classroom, Card 2: Upcoming -> Live Classes Tab) */
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                
+                {/* CARD 1: LIVE NOW CLASS (Advanced React Patterns Workshop) */}
+                <div 
+                  onClick={() => navigate('classroom', { id: 'lc1' })}
+                  className="p-5 rounded-[1.5rem] border border-purple-200/90 bg-white hover:border-[#7c3aed] shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between ring-1 ring-purple-100 relative overflow-hidden"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <span className="px-3 py-1 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80" />
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                         </span>
-                      </div>
+                        <span>LIVE NOW</span>
+                      </span>
 
-                      <h4 className={`font-semibold text-base mb-1.5 transition-colors group-hover:text-[#3b52a4] ${
-                        isCompleted ? 'text-slate-500' : 'text-slate-900'
-                      }`}>
-                        {topic.title}
-                      </h4>
-                      <p className="text-xs text-slate-500 leading-relaxed font-normal mb-3">
-                        {topic.description}
-                      </p>
-                    </div>
-
-                    <div className="pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-semibold text-[#3b52a4] group-hover:text-[#101537] transition-colors inline-flex items-center gap-1.5">
-                        Open Lesson View
-                        <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        Today, 4:00 PM · 90 min
                       </span>
                     </div>
+
+                    <h4 className="font-extrabold text-base text-slate-900 mb-1 group-hover:text-[#7c3aed] transition-colors leading-snug">
+                      Advanced React Patterns Workshop
+                    </h4>
+                    <p className="text-xs font-bold text-slate-500 mb-4">Full-Stack Web Dev · Sara Khan</p>
                   </div>
-                );
-              })}
-            </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-[#7c3aed] group-hover:text-[#6d28d9] transition-colors inline-flex items-center gap-1.5">
+                      Join Live Class
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                    </span>
+                  </div>
+                </div>
+
+                {/* CARD 2: UPCOMING CLASS (Neural Networks Q&A Session) */}
+                <div 
+                  onClick={() => navigate('live', { tab: 'upcoming' })}
+                  className="p-5 rounded-[1.5rem] border border-slate-200/90 bg-white hover:border-[#7c3aed]/60 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between"
+                >
+                  <div>
+                    <div className="flex items-center justify-between gap-2 mb-4">
+                      <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-[#7c3aed]" />
+                        <span>UPCOMING CLASS</span>
+                      </span>
+
+                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        Tomorrow, 2:00 PM
+                      </span>
+                    </div>
+
+                    <h4 className="font-extrabold text-base text-slate-900 mb-1 group-hover:text-[#7c3aed] transition-colors leading-snug">
+                      Neural Networks Q&A Session
+                    </h4>
+                    <p className="text-xs font-bold text-slate-500 mb-4">ML Fundamentals · Dr. Priya Nair</p>
+                  </div>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-xs font-extrabold text-[#7c3aed] group-hover:text-[#6d28d9] transition-colors inline-flex items-center gap-1.5">
+                      View & Set Reminder
+                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                    </span>
+                  </div>
+                </div>
+
+              </div>
+            )}
 
           </div>
 
@@ -877,65 +907,74 @@ export function DashboardScreen() {
           {/* Live Classes Card */}
           <div 
             onClick={() => navigate('live')}
-            className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:border-red-200 hover:shadow-md transition-all flex items-center justify-between cursor-pointer group relative overflow-hidden"
+            className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:border-purple-200 hover:shadow-md transition-all flex items-center justify-between cursor-pointer group relative overflow-hidden"
           >
-            {/* Subtle red ambient glow in the background */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-red-50 rounded-full blur-3xl group-hover:bg-red-100 transition-colors duration-500" />
+            {/* Subtle purple ambient glow in the background */}
+            <div className="absolute top-0 right-0 w-32 h-32 bg-purple-50 rounded-full blur-3xl group-hover:bg-purple-100 transition-colors duration-500" />
             
             <div className="flex items-center gap-4 relative z-10">
               {/* Icon Container with Ping Effect */}
-              <div className="w-11 h-11 rounded-xl bg-red-50 text-red-500 border border-red-100 flex items-center justify-center shrink-0 relative">
-                <div className="absolute inset-0 bg-red-400 rounded-xl animate-ping opacity-20" />
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center shrink-0 relative">
+                <div className="absolute inset-0 bg-purple-400 rounded-2xl animate-ping opacity-20" />
                 <Video className="w-5 h-5 relative z-10" />
               </div>
               
               <div>
-                <p className="text-[11px] font-black text-red-500 uppercase tracking-widest mb-0.5">Happening Now</p>
-                <p className="text-base font-bold text-slate-900 group-hover:text-red-600 transition-colors">Join Live Classes</p>
+                <p className="text-[11px] font-black text-[#7c3aed] uppercase tracking-widest mb-0.5">Happening Now</p>
+                <p className="text-base font-bold text-slate-900 group-hover:text-[#7c3aed] transition-colors">Join Live Classes</p>
               </div>
             </div>
 
             {/* Interactive Arrow */}
-            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-red-50 border border-transparent group-hover:border-red-100 transition-colors relative z-10">
-              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-red-500 group-hover:translate-x-0.5 transition-all" />
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-purple-50 border border-transparent group-hover:border-purple-100 transition-colors relative z-10">
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#7c3aed] group-hover:translate-x-0.5 transition-all" />
             </div>
           </div>
 
           {/* Card 1: Overall Progress Bar */}
           <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all space-y-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-50 text-[#3b52a4] border border-indigo-100 flex items-center justify-center font-bold shrink-0">
+              <div className="w-10 h-10 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
                 <Award className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs font-medium text-slate-500">Overall Progress</p>
-                <p className="text-base font-bold text-slate-900">72% Completed</p>
+                <p className="text-xs font-semibold text-slate-500">Overall Progress</p>
+                <p className="text-base font-extrabold text-slate-900">72% Completed</p>
               </div>
             </div>
             <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
-              <div className="h-full bg-[#3b52a4] rounded-full transition-all duration-500" style={{ width: '72%' }} />
+              <div className="h-full bg-[#7c3aed] rounded-full transition-all duration-500" style={{ width: '72%' }} />
             </div>
           </div>
 
           {/* Card 2: Modules Finished */}
           <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-indigo-50 text-[#3b52a4] border border-indigo-100 flex items-center justify-center font-bold shrink-0">
+            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
               <CheckCircle2 className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-xs text-slate-500 font-medium">Modules Completed</p>
-              <p className="text-base font-bold text-slate-900 mt-0.5">4 of 6 Finished <span className="text-xs text-emerald-600 font-medium ml-1">(+2 this week)</span></p>
+              <p className="text-xs text-slate-500 font-semibold">Modules Completed</p>
+              <p className="text-base font-extrabold text-slate-900 mt-0.5">4 of 6 Finished <span className="text-xs text-emerald-600 font-bold ml-1">(+2 this week)</span></p>
             </div>
           </div>
 
-          {/* Card 3: Skill Mastery Level */}
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-4">
-            <div className="w-11 h-11 rounded-xl bg-amber-50 text-amber-600 border border-amber-100 flex items-center justify-center font-bold shrink-0">
-              <Trophy className="w-5 h-5" />
+          {/* Card 3: Schedule Tab Quick Access */}
+          <div 
+            onClick={() => navigate('schedule')}
+            className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:border-purple-200 hover:shadow-md transition-all flex items-center justify-between cursor-pointer group relative overflow-hidden"
+          >
+            <div className="flex items-center gap-4 relative z-10">
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
+                <CalendarDays className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-semibold">Events</p>
+                <p className="text-base font-extrabold text-slate-900 group-hover:text-[#7c3aed] transition-colors mt-0.5">View Upcoming Events</p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 font-medium">Skill Level</p>
-              <p className="text-base font-bold text-slate-900 mt-0.5">Level 24 <span className="text-xs text-[#3b52a4] font-medium ml-1">(12,450 XP)</span></p>
+
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-purple-50 border border-transparent group-hover:border-purple-100 transition-colors relative z-10">
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#7c3aed] group-hover:translate-x-0.5 transition-all" />
             </div>
           </div>
 

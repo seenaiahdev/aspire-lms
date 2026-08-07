@@ -3,7 +3,6 @@ import { TopNav } from './TopNav';
 import { BottomNav } from './BottomNav';
 import { CommandPalette } from './CommandPalette';
 import { NotificationsDrawer } from './NotificationsDrawer';
-import { AIChatbot } from '@/components/AIChatbot';
 import type { ReactNode } from 'react';
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -19,7 +18,6 @@ export function AppShell({ children }: { children: ReactNode }) {
       <BottomNav />
       <CommandPalette />
       <NotificationsDrawer />
-      <AIChatbot />
     </div>
   );
 }

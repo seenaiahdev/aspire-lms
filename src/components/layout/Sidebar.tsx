@@ -57,9 +57,8 @@ export function Sidebar() {
             </div>
             
             {/* Logo Text */}
-            <div className="opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap min-w-0">
-              <span className="font-black text-[1.1rem] text-slate-900 tracking-tight leading-none block">AspireLMS</span>
-              <span className="text-[10px] font-bold text-slate-400 tracking-wide block mt-0.5">Enterprise EdTech</span>
+            <div className={cn("transition-opacity duration-300 whitespace-nowrap min-w-0", sidebarOpen ? "opacity-100" : "opacity-0 lg:group-hover/sidebar:opacity-100")}>
+              <span className="font-black text-[1.15rem] text-slate-900 tracking-tight leading-none block">AspireLMS</span>
             </div>
           </button>
 
@@ -73,7 +72,7 @@ export function Sidebar() {
 
         {/* Nav Items */}
         <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1.5 scrollbar-hide">
-          <div className="px-4 mb-3 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap hidden lg:block overflow-hidden">
+          <div className={cn("px-4 mb-3 transition-opacity duration-300 whitespace-nowrap overflow-hidden", sidebarOpen ? "opacity-100" : "opacity-0 lg:group-hover/sidebar:opacity-100")}>
             <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Learning Hub</span>
           </div>
 
@@ -83,7 +82,10 @@ export function Sidebar() {
             return (
               <button
                 key={item.id}
-                onClick={() => navigate(item.id)}
+                onClick={() => {
+                  navigate(item.id);
+                  setSidebarOpen(false);
+                }}
                 title={item.label}
                 className={cn(
                   'w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-sm transition-all duration-200 group relative font-bold',
@@ -98,12 +100,12 @@ export function Sidebar() {
                   <Icon className={cn('w-5 h-5 shrink-0 transition-colors', active ? 'text-primary-600' : 'text-slate-400 group-hover:scale-110')} />
                 )}
                 
-                <span className="flex-1 text-left opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 whitespace-nowrap truncate">
+                <span className={cn("flex-1 text-left transition-opacity duration-300 whitespace-nowrap truncate", sidebarOpen ? "opacity-100" : "opacity-0 lg:group-hover/sidebar:opacity-100")}>
                   {item.label}
                 </span>
 
                 {active && (
-                  <ChevronRight className="w-4 h-4 text-primary-600 shrink-0 opacity-0 group-hover/sidebar:opacity-100 transition-opacity duration-300 ml-auto" />
+                  <ChevronRight className={cn("w-4 h-4 text-primary-600 shrink-0 transition-opacity duration-300 ml-auto", sidebarOpen ? "opacity-100" : "opacity-0 lg:group-hover/sidebar:opacity-100")} />
                 )}
               </button>
             );

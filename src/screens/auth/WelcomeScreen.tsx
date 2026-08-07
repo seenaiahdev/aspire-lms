@@ -61,7 +61,7 @@ export function WelcomeScreen() {
           {/* Logo */}
           <div className="flex items-center gap-3 mb-8">
             <div className="w-10 h-10 rounded-xl bg-white shadow-md border border-gray-100 flex items-center justify-center overflow-hidden">
-              <img src={aspireLogo} alt="Aspire Next" className="w-full h-full object-contain p-0.5" />
+              <img src={aspireLogo} alt="AspireLMS" className="w-full h-full object-contain p-0.5" />
             </div>
             <span className="font-bold text-xl text-gray-900">
               Aspire<span className="text-primary-500">Next</span>

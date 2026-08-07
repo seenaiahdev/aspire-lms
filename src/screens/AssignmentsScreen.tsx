@@ -7,6 +7,7 @@ import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Modal } from '@/components/ui/Modal';
+import { QuizzesScreen } from '@/screens/QuizzesScreen';
 
 // Struct for MCQ Questions
 interface MCQQuestion {
@@ -58,7 +59,7 @@ const pythonAssignments: PythonTask[] = [
     id: '1',
     slug: 'variables-in-python-quiz',
     type: 'mcq',
-    title: 'Variables & Data Types Quiz',
+    title: 'Variables & Data Types Assessment',
     category: 'Variables & Types',
     difficulty: 'Beginner',
     xp: 100,
@@ -125,7 +126,7 @@ const pythonAssignments: PythonTask[] = [
     id: '2',
     slug: 'control-flow-loops-quiz',
     type: 'mcq',
-    title: 'Control Flow & Loop Logic Quiz',
+    title: 'Control Flow & Loop Logic Assessment',
     category: 'Control Flow',
     difficulty: 'Beginner',
     xp: 120,
@@ -168,7 +169,7 @@ const pythonAssignments: PythonTask[] = [
     id: '3',
     slug: 'python-functions-scope-quiz',
     type: 'mcq',
-    title: 'Functions, Scopes & Lambda Quiz',
+    title: 'Functions, Scopes & Lambda Assessment',
     category: 'Functions',
     difficulty: 'Intermediate',
     xp: 120,
@@ -208,7 +209,7 @@ const pythonAssignments: PythonTask[] = [
     id: '4',
     slug: 'python-oop-concepts-quiz',
     type: 'mcq',
-    title: 'Object-Oriented Programming (OOP) Quiz',
+    title: 'Object-Oriented Programming (OOP) Assessment',
     category: 'OOP',
     difficulty: 'Intermediate',
     xp: 150,
@@ -289,6 +290,7 @@ const ConfettiBurst = () => {
 
 export function AssignmentsScreen() {
   const { navigate } = useNav();
+  const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'completed'>('all');
 
   // Currently Selected Task for Pre-Start Quiz Details Modal
@@ -824,7 +826,7 @@ export function AssignmentsScreen() {
                     {confirmQuizAction === 'submit' ? 'Submit Exam' : 'Exit Practice'}
                   </p>
                   <h3 className="mt-2 text-xl font-semibold text-slate-900">
-                    {confirmQuizAction === 'submit' ? 'Submit your answers now?' : 'Leave this quiz session?'}
+                    {confirmQuizAction === 'submit' ? 'Submit your answers now?' : 'Leave this assessment session?'}
                   </h3>
                   <p className="mt-3 text-sm leading-relaxed text-slate-500">
                     {confirmQuizAction === 'submit'
@@ -853,14 +855,14 @@ export function AssignmentsScreen() {
                   onClick={() => setConfirmQuizAction(null)}
                   className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
                 >
-                  Continue Quiz
+                  Continue Assessment
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmQuizAction}
                   className={`rounded-2xl px-5 py-3 text-sm font-semibold text-white transition shadow-sm ${confirmQuizAction === 'submit' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-rose-600 hover:bg-rose-700'}`}
                 >
-                  {confirmQuizAction === 'submit' ? 'Submit Now' : 'Exit Quiz'}
+                  {confirmQuizAction === 'submit' ? 'Submit Now' : 'Exit Assessment'}
                 </button>
               </div>
             </div>
@@ -949,7 +951,7 @@ export function AssignmentsScreen() {
                   <div className="relative z-10">
                     <span className="text-xs font-extrabold text-white/80 uppercase tracking-widest flex items-center gap-2 mb-3">
                       <Sparkles className="w-4 h-4" />
-                      Quiz Overview
+                      Assessment Overview
                     </span>
                     
                     <h2 className="font-extrabold text-white text-3xl sm:text-4xl tracking-tight leading-tight mb-4">
@@ -1077,12 +1079,12 @@ export function AssignmentsScreen() {
                 {selectedDetailTask.attemptsCount > 0 ? (
                   <>
                     <RotateCcw className="w-5 h-5 text-white group-hover:-rotate-180 transition-transform duration-500" />
-                    <span>Retake Practice Quiz</span>
+                    <span>Retake Assessment</span>
                   </>
                 ) : (
                   <>
                     <Play className="w-5 h-5 text-white fill-white" />
-                    <span>Start Practice Quiz</span>
+                    <span>Start Assessment</span>
                   </>
                 )}
                 <ArrowRight className="w-5 h-5 ml-2 opacity-70 group-hover:translate-x-1 transition-transform" />
@@ -1097,97 +1099,132 @@ export function AssignmentsScreen() {
   }
 
 
-  // ════════════════ 3. MAIN ASSIGNMENTS HUB (CARDS GRID) ════════════════
+  // ════════════════ 3. MAIN ASSIGNMENTS & PRACTICE HUB (CARDS GRID) ════════════════
   return (
     <div className="space-y-6 font-sans animate-fade-in">
       
       {/* Clean Top Header */}
-      <div className="pb-2">
-        <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-          Assignments & MCQ Quizzes
-        </h2>
-        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-          Click any assessment to start topic-based multiple choice practice quizzes.
-        </p>
-      </div>
+      <div className="space-y-4">
+        <div>
+          <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
+            Practice Hub
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
+            Topic-based practice assessments, tests, and module quizzes.
+          </p>
+        </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-md">
-        {[
-          { id: 'all', label: 'All Quizzes' },
-          { id: 'pending', label: 'Pending' },
-          { id: 'completed', label: 'Completed' },
-        ].map((t) => (
+        {/* 2 MAIN TABS: ASSESSMENTS | QUIZZES (ALIGNED LEFT AT START) */}
+        <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 w-fit">
           <button
-            key={t.id}
             type="button"
-            onClick={() => setFilterTab(t.id as any)}
-            className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
-              filterTab === t.id
-                ? 'bg-white text-primary-900 shadow-xs border border-slate-200/60 font-bold'
+            onClick={() => setMainPracticeTab('assessments')}
+            className={`py-2 px-5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              mainPracticeTab === 'assessments'
+                ? 'bg-[#7c3aed] text-white shadow-md'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            {t.label}
+            Assessments
           </button>
-        ))}
+          <button
+            type="button"
+            onClick={() => setMainPracticeTab('quizzes')}
+            className={`py-2 px-5 rounded-xl text-xs font-black transition-all cursor-pointer ${
+              mainPracticeTab === 'quizzes'
+                ? 'bg-[#7c3aed] text-white shadow-md'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Quizzes
+          </button>
+        </div>
       </div>
 
-      {/* Tasks List Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {filteredTasks.map((task) => {
-          return (
-            <Card
-              key={task.id}
-              hover
-              onClick={() => openDetailTaskWithRoute(task)}
-              className="p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-primary-500 transition-all duration-300 group cursor-pointer bg-white"
-            >
-              <div className="flex items-start justify-between gap-3 mb-3">
-                <div className="flex items-center gap-2">
-                  <span className="px-2.5 py-1 rounded-xl text-xs font-black border bg-primary-50 text-primary-700 border-primary-100">
-                    MCQ QUIZ
-                  </span>
+      {/* RENDER 2ND TAB (QUIZZES) OR 1ST TAB (ASSESSMENTS) */}
+      {mainPracticeTab === 'quizzes' ? (
+        <QuizzesScreen />
+      ) : (
+        <>
+          {/* Sub-Filter Tabs for Assessments */}
+          <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-md">
+            {[
+              { id: 'all', label: 'All Assessments' },
+              { id: 'pending', label: 'Pending' },
+              { id: 'completed', label: 'Completed' },
+            ].map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setFilterTab(t.id as any)}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                  filterTab === t.id
+                    ? 'bg-white text-primary-900 shadow-xs border border-slate-200/60 font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
 
-                  <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                    {task.category}
-                  </span>
-                </div>
+          {/* Tasks List Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {filteredTasks.map((task) => {
+              return (
+                <Card
+                  key={task.id}
+                  hover
+                  onClick={() => openDetailTaskWithRoute(task)}
+                  className="p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-primary-500 transition-all duration-300 group cursor-pointer bg-white"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2.5 py-1 rounded-xl text-xs font-black border bg-primary-50 text-primary-700 border-primary-100">
+                        MCQ ASSESSMENT
+                      </span>
 
-                <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
-                  +{task.xp} XP
-                </span>
-              </div>
+                      <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
+                        {task.category}
+                      </span>
+                    </div>
 
-              <h3 className="font-extrabold text-slate-900 text-base mb-1.5 group-hover:text-[#3b52a4] transition-colors">
-                {task.title}
-              </h3>
-              <p className="text-xs text-slate-500 leading-relaxed mb-4 line-clamp-2">
-                {task.description}
-              </p>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                <div className="flex items-center gap-3 text-slate-500 font-medium">
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    {task.timeEstimate}
-                  </span>
-                  {task.attemptsCount > 0 && (
-                    <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
-                      {task.attemptsCount} Attempts
+                    <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
+                      +{task.xp} XP
                     </span>
-                  )}
-                </div>
+                  </div>
 
-                <div className="flex items-center gap-1 font-bold text-[#3b52a4] group-hover:translate-x-1 transition-transform">
-                  <span>View Quiz Details</span>
-                  <ArrowRight className="w-4 h-4" />
-                </div>
-              </div>
-            </Card>
-          );
-        })}
-      </div>
+                  <h3 className="font-extrabold text-slate-900 text-base mb-1.5 group-hover:text-[#3b52a4] transition-colors">
+                    {task.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 leading-relaxed mb-4 line-clamp-2">
+                    {task.description}
+                  </p>
+
+                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                    <div className="flex items-center gap-3 text-slate-500 font-medium">
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {task.timeEstimate}
+                      </span>
+                      {task.attemptsCount > 0 && (
+                        <span className="text-[11px] font-bold text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md">
+                          {task.attemptsCount} Attempts
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1 font-bold text-[#3b52a4] group-hover:translate-x-1 transition-transform">
+                      <span>View Assessment Details</span>
+                      <ArrowRight className="w-4 h-4" />
+                    </div>
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        </>
+      )}
 
     </div>
   );

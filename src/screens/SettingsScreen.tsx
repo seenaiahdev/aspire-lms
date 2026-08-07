@@ -23,8 +23,8 @@ export function SettingsScreen() {
     <button
       onClick={onClick}
       className={cn(
-        'relative w-12 h-6 rounded-full transition-all duration-300 shadow-inner flex items-center focus:outline-none focus:ring-2 focus:ring-[#3b82f6]/50 focus:ring-offset-1',
-        active ? 'bg-[#3b82f6]' : 'bg-slate-200'
+        'relative w-12 h-6 rounded-full transition-all duration-300 shadow-inner flex items-center focus:outline-none focus:ring-2 focus:ring-[#7c3aed]/50 focus:ring-offset-1',
+        active ? 'bg-[#7c3aed]' : 'bg-slate-200'
       )}
     >
       <span 
@@ -60,13 +60,13 @@ export function SettingsScreen() {
               className={cn(
                 'w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-extrabold transition-all group',
                 section === s.id 
-                  ? 'bg-blue-50 text-[#3b82f6] shadow-sm border border-blue-100' 
+                  ? 'bg-purple-50 text-[#7c3aed] shadow-sm border border-purple-100' 
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 border border-transparent'
               )}
             >
               <s.icon className={cn(
                 "w-5 h-5 transition-colors",
-                section === s.id ? "text-[#3b82f6]" : "text-slate-400 group-hover:text-slate-600"
+                section === s.id ? "text-[#7c3aed]" : "text-slate-400 group-hover:text-slate-600"
               )} />
               {s.label}
             </button>
@@ -101,19 +101,19 @@ export function SettingsScreen() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Full Name</label>
-                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#3b82f6] focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.name} />
+                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.name} />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Email Address</label>
-                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#3b82f6] focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.email} />
+                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.email} />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Program</label>
-                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#3b82f6] focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.program} />
+                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.program} />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Semester</label>
-                    <select className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#3b82f6] focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 appearance-none">
+                    <select className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 appearance-none">
                       <option>Semester {currentUser.semester}</option>
                       <option>Semester {currentUser.semester + 1}</option>
                     </select>
@@ -123,7 +123,7 @@ export function SettingsScreen() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bio & Tagline</label>
                   <textarea 
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#3b82f6] focus:ring-2 focus:ring-blue-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 min-h-[100px] resize-none" 
+                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 min-h-[100px] resize-none" 
                     defaultValue={currentUser.bio} 
                   />
                 </div>
@@ -132,7 +132,7 @@ export function SettingsScreen() {
                   <button className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all">
                     Cancel
                   </button>
-                  <button className="px-6 py-3 rounded-xl bg-[#3b82f6] hover:bg-[#2563eb] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2">
+                  <button className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2">
                     <Check className="w-4 h-4" /> Save Details
                   </button>
                 </div>
@@ -217,7 +217,7 @@ export function SettingsScreen() {
                     { name: 'LinkedIn', desc: 'Showcase your certificates automatically', icon: Linkedin, connected: true, color: 'text-blue-600' },
                     { name: 'Discord', desc: 'Connect to community servers', icon: Link2, connected: false, color: 'text-[#5865F2]' },
                   ].map((acc) => (
-                    <div key={acc.name} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-blue-100 transition-colors group bg-white">
+                    <div key={acc.name} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-purple-100 transition-colors group bg-white">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
                           <acc.icon className={cn("w-6 h-6", acc.color)} />
@@ -231,7 +231,7 @@ export function SettingsScreen() {
                         "px-4 py-2 rounded-xl text-xs font-extrabold transition-all border",
                         acc.connected 
                           ? "bg-white border-slate-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200" 
-                          : "bg-blue-50 border-blue-100 text-[#3b82f6] hover:bg-[#3b82f6] hover:text-white"
+                          : "bg-purple-50 border-purple-100 text-[#7c3aed] hover:bg-[#7c3aed] hover:text-white"
                       )}>
                         {acc.connected ? 'Disconnect' : 'Connect'}
                       </button>

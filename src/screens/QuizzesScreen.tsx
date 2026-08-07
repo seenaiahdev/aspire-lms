@@ -108,42 +108,12 @@ export function QuizzesScreen() {
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
-      {/* Clean Top Header */}
-      <div className="pb-2">
-        <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-          Quizzes & Assessments
-        </h2>
-        <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-          Test your knowledge and track your scores across modules.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: 'Avg Score', value: '91%', icon: Star, color: 'emerald' },
-          { label: 'Quizzes Taken', value: quizzes.filter(q => q.status === 'attempted').length, icon: ClipboardCheck, color: 'blue' },
-          { label: 'Best Score', value: '94%', icon: Trophy, color: 'amber' },
-          { label: 'Upcoming', value: quizzes.filter(q => q.status === 'upcoming').length, icon: Clock, color: 'rose' },
-        ].map((s, i) => (
-          <Card key={i} className="p-4 flex items-center gap-3.5 bg-white border border-slate-200/90 shadow-2xs rounded-2xl">
-            <div className={`w-11 h-11 rounded-2xl bg-${s.color}-50 flex items-center justify-center shrink-0 border border-${s.color}-100`}>
-              <s.icon className={`w-5.5 h-5.5 text-${s.color}-600`} />
-            </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight">{s.value}</p>
-              <p className="text-xs font-extrabold text-slate-500">{s.label}</p>
-            </div>
-          </Card>
-        ))}
-      </div>
-
       <Tabs
         variant="pills"
         tabs={[
           { id: 'upcoming', label: 'Upcoming' },
           { id: 'results', label: 'Previous Results' },
           { id: 'analytics', label: 'Analytics' },
-          { id: 'leaderboard', label: 'Leaderboard' },
         ]}
         active={tab}
         onChange={setTab}
@@ -156,8 +126,8 @@ export function QuizzesScreen() {
               <div>
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-blue-50 flex items-center justify-center border border-blue-100 shrink-0">
-                      <ClipboardCheck className="w-6 h-6 text-[#3b82f6]" />
+                    <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center border border-purple-100 shrink-0">
+                      <ClipboardCheck className="w-6 h-6 text-[#7c3aed]" />
                     </div>
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-lg leading-snug">{q.title}</h3>
@@ -178,7 +148,7 @@ export function QuizzesScreen() {
 
               <button 
                 onClick={() => setSelectedQuiz(q)}
-                className="w-full py-3 px-4 rounded-2xl bg-[#3b82f6] hover:bg-[#2563eb] text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <Play className="w-4 h-4 fill-current" />
                 <span>Start Assessment</span>
@@ -193,8 +163,8 @@ export function QuizzesScreen() {
           {quizzes.filter(q => q.status === 'attempted').map((q) => (
             <Card key={q.id} className="p-5 bg-white border border-slate-200/90 rounded-[2rem] shadow-sm hover:shadow-md transition-shadow">
               <div className="flex items-center gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
-                  <Award className="w-7 h-7 text-emerald-500" />
+                <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                  <Award className="w-7 h-7 text-[#7c3aed]" />
                 </div>
                 <div className="flex-1">
                   <h3 className="font-extrabold text-slate-900 text-base">{q.title}</h3>
@@ -202,7 +172,7 @@ export function QuizzesScreen() {
                 </div>
                 <div className="text-right">
                   <p className="text-2xl font-black text-slate-900 tracking-tight">{q.score}<span className="text-sm font-bold text-slate-400">/{q.maxScore}</span></p>
-                  <span className="px-3 py-1 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-black uppercase mt-1 inline-block">
+                  <span className="px-3 py-1 rounded-full bg-purple-100 text-[#7c3aed] text-[10px] font-black uppercase mt-1 inline-block">
                     {(q.score ?? 0) >= 90 ? 'Excellent' : (q.score ?? 0) >= 70 ? 'Good' : 'Pass'}
                   </span>
                 </div>
@@ -227,7 +197,7 @@ export function QuizzesScreen() {
                 { label: 'Q6', value: 96 },
               ]}
               height={200}
-              color="bg-gradient-to-t from-[#3b82f6] to-[#1d4ed8]"
+              color="bg-gradient-to-t from-[#6d28d9] to-[#7c3aed]"
             />
             <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-slate-100">
               <div className="text-center">
@@ -243,31 +213,6 @@ export function QuizzesScreen() {
                 <p className="text-xs font-bold text-slate-500">Best Score</p>
               </div>
             </div>
-          </CardBody>
-        </Card>
-      )}
-
-      {tab === 'leaderboard' && (
-        <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm p-4 bg-white">
-          <CardBody className="space-y-3">
-            {leaderboard.map((entry) => (
-              <div key={entry.rank} className={`flex items-center gap-4 p-3.5 rounded-2xl ${entry.rank <= 3 ? 'bg-gradient-to-r from-blue-50/50 to-transparent border border-blue-50' : 'hover:bg-slate-50 border border-transparent'}`}>
-                <span className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-black shrink-0 ${
-                  entry.rank === 1 ? 'bg-amber-400 text-white shadow-md shadow-amber-200' :
-                  entry.rank === 2 ? 'bg-slate-300 text-white shadow-md shadow-slate-200' :
-                  entry.rank === 3 ? 'bg-amber-600 text-white shadow-md' :
-                  'bg-slate-100 text-slate-500'
-                }`}>{entry.rank}</span>
-                <Avatar src={entry.avatar} name={entry.name} size="sm" />
-                <div className="flex-1">
-                  <p className="text-sm font-extrabold text-slate-900">{entry.name}</p>
-                  <p className="text-xs font-semibold text-slate-500">Level {entry.level} · {entry.xp.toLocaleString()} XP</p>
-                </div>
-                <div className="flex items-center gap-1 text-xs">
-                  <TrendingUp className={`w-4 h-4 ${entry.trend === 'up' ? 'text-emerald-500' : entry.trend === 'down' ? 'text-rose-500' : 'text-slate-300'}`} />
-                </div>
-              </div>
-            ))}
           </CardBody>
         </Card>
       )}
@@ -411,7 +356,7 @@ export function QuizzesScreen() {
               {/* Progress Bar */}
               <div className="absolute top-0 left-0 w-full h-1 bg-slate-200 z-10">
                 <div 
-                  className="h-full bg-[#3b82f6] transition-all duration-300"
+                  className="h-full bg-[#7c3aed] transition-all duration-300"
                   style={{ width: `${((Object.keys(answers).length) / selectedQuiz.questions) * 100}%` }}
                 />
               </div>
@@ -423,7 +368,7 @@ export function QuizzesScreen() {
                   
                   <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
                     <div className="flex items-center justify-between mb-4 shrink-0">
-                      <span className="px-3 py-1 rounded-full bg-blue-100/50 text-[#1d4ed8] text-[11px] font-black tracking-widest uppercase">
+                      <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[11px] font-black tracking-widest uppercase">
                         Question {currentQuestionIdx + 1} of {selectedQuiz.questions}
                       </span>
                     </div>
@@ -444,13 +389,13 @@ export function QuizzesScreen() {
                             className={cn(
                               "w-full text-left px-4 py-3 rounded-[1rem] border-2 transition-all flex items-center gap-4 group text-sm",
                               isSelected
-                                ? "bg-blue-50/50 border-[#3b82f6] shadow-sm" 
-                                : "bg-white border-slate-200 hover:border-[#3b82f6]/40 hover:bg-slate-50"
+                                ? "bg-purple-50/70 border-[#7c3aed] shadow-sm" 
+                                : "bg-white border-slate-200 hover:border-[#7c3aed]/40 hover:bg-slate-50"
                             )}
                           >
                             <div className={cn(
                               "w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors",
-                              isSelected ? "border-[#3b82f6] bg-[#3b82f6]" : "border-slate-300 group-hover:border-[#3b82f6]/40"
+                              isSelected ? "border-[#7c3aed] bg-[#7c3aed]" : "border-slate-300 group-hover:border-[#7c3aed]/40"
                             )}>
                               {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
                             </div>
@@ -483,7 +428,7 @@ export function QuizzesScreen() {
                       <button 
                         onClick={handleNextQuestion}
                         disabled={currentQuestionIdx === (selectedQuiz?.questions || 20) - 1}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-[#101537] hover:bg-slate-900 text-white font-bold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-bold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <span>Save & Next</span>
                         <ChevronRight className="w-4 h-4" />
@@ -501,7 +446,7 @@ export function QuizzesScreen() {
                     {/* Legend */}
                     <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-600">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-sm bg-[#3b82f6]" />
+                        <div className="w-2.5 h-2.5 rounded-sm bg-[#7c3aed]" />
                         <span>Answered</span>
                       </div>
                       <div className="flex items-center gap-1.5">
@@ -513,7 +458,7 @@ export function QuizzesScreen() {
                         <span>Unanswered</span>
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <div className="w-2.5 h-2.5 rounded-sm border border-[#101537] bg-white" />
+                        <div className="w-2.5 h-2.5 rounded-sm border border-[#7c3aed] bg-purple-50" />
                         <span>Current</span>
                       </div>
                     </div>
@@ -532,8 +477,8 @@ export function QuizzesScreen() {
                             onClick={() => setCurrentQuestionIdx(i)}
                             className={cn(
                               "aspect-square rounded-lg flex items-center justify-center text-xs font-bold transition-all relative overflow-hidden",
-                              isCurrent ? "border-2 border-[#101537]" : "border border-slate-200 hover:border-slate-400",
-                              isAnswered ? "bg-[#3b82f6] text-white border-transparent" : "bg-white text-slate-600",
+                              isCurrent ? "border-2 border-[#7c3aed] bg-purple-50 text-[#7c3aed]" : "border border-slate-200 hover:border-slate-400",
+                              isAnswered ? "bg-[#7c3aed] text-white border-transparent" : "bg-white text-slate-600",
                               !isAnswered && isReview ? "bg-amber-100 text-amber-800 border-amber-300" : ""
                             )}
                           >

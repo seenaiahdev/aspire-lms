@@ -14,7 +14,7 @@ export function ProfileScreen() {
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12">
       {/* Profile Header Block */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-xl border border-blue-400/30">
+      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xl border border-purple-400/30">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-white/20 blur-3xl translate-x-1/3 -translate-y-1/3" />
         
@@ -25,19 +25,19 @@ export function ProfileScreen() {
                 <Avatar src={currentUser.avatar} name={currentUser.name} size="xl" className="w-28 h-28 sm:w-32 sm:h-32 shadow-inner border-4 border-white" />
               </div>
               <div className="absolute -bottom-2 right-2 px-3 py-1 rounded-full bg-amber-400 border-4 border-white shadow-lg flex items-center justify-center transform hover:scale-110 transition-transform cursor-default">
-                <span className="text-[11px] font-black text-amber-900 tracking-wider">LVL {currentUser.level}</span>
+                <span className="text-[11px] font-black text-amber-950 tracking-wider">LVL {currentUser.level}</span>
               </div>
             </div>
             
             <div className="flex-1 space-y-3">
               <div>
                 <h1 className="font-extrabold text-3xl sm:text-4xl tracking-tight mb-1">{currentUser.name}</h1>
-                <p className="text-blue-100 font-semibold text-sm">{currentUser.program} • Semester {currentUser.semester}</p>
+                <p className="text-purple-100 font-semibold text-sm">{currentUser.program} • Semester {currentUser.semester}</p>
               </div>
               <p className="text-white/80 text-sm max-w-lg leading-relaxed font-medium mx-auto sm:mx-0">
                 {currentUser.bio}
               </p>
-              <div className="flex flex-wrap justify-center sm:justify-start gap-4 text-xs font-semibold text-blue-100 pt-2">
+              <div className="flex flex-wrap justify-center sm:justify-start gap-4 text-xs font-semibold text-purple-100 pt-2">
                 <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-sm"><Mail className="w-3.5 h-3.5" />{currentUser.email}</span>
                 <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-sm"><Calendar className="w-3.5 h-3.5" />Joined {currentUser.joinedDate}</span>
                 <span className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-full border border-white/10 backdrop-blur-sm"><MapPin className="w-3.5 h-3.5" />Bangalore, India</span>
@@ -46,7 +46,7 @@ export function ProfileScreen() {
             
             <button 
               onClick={() => navigate('settings')}
-              className="bg-white text-[#1d4ed8] hover:bg-blue-50 font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center gap-2 shrink-0 border border-white/50"
+              className="bg-white text-[#7c3aed] hover:bg-purple-50 font-extrabold text-xs px-5 py-2.5 rounded-xl transition-all shadow-lg hover:shadow-xl active:scale-95 flex items-center gap-2 shrink-0 border border-white/50"
             >
               <Edit className="w-4 h-4" /> Edit Profile
             </button>
@@ -56,21 +56,21 @@ export function ProfileScreen() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/20">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
               <p className="text-3xl font-black tracking-tight">{currentUser.xp.toLocaleString()}</p>
-              <p className="text-[11px] font-bold text-blue-200 uppercase tracking-widest mt-1">Total XP</p>
+              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Total XP</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
               <p className="text-3xl font-black tracking-tight flex items-center justify-center gap-1">
                 {currentUser.streak} <Flame className="w-6 h-6 text-amber-400" />
               </p>
-              <p className="text-[11px] font-bold text-blue-200 uppercase tracking-widest mt-1">Day Streak</p>
+              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Day Streak</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
               <p className="text-3xl font-black tracking-tight">#{currentUser.rank}</p>
-              <p className="text-[11px] font-bold text-blue-200 uppercase tracking-widest mt-1">Global Rank</p>
+              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Global Rank</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
               <p className="text-3xl font-black tracking-tight">{earnedBadges.length}</p>
-              <p className="text-[11px] font-bold text-blue-200 uppercase tracking-widest mt-1">Badges Earned</p>
+              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Badges Earned</p>
             </div>
           </div>
         </div>
@@ -91,12 +91,12 @@ export function ProfileScreen() {
                 {currentUser.skills.map((skill: { name: string; level: number }) => (
                   <div key={skill.name} className="group">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-extrabold text-slate-700 group-hover:text-[#3b82f6] transition-colors">{skill.name}</span>
+                      <span className="text-xs font-extrabold text-slate-700 group-hover:text-[#7c3aed] transition-colors">{skill.name}</span>
                       <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">{skill.level}%</span>
                     </div>
                     <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/50">
                       <div 
-                        className={cn("h-full rounded-full transition-all duration-1000", skill.level >= 80 ? 'bg-emerald-500' : skill.level >= 60 ? 'bg-[#3b82f6]' : 'bg-amber-500')} 
+                        className={cn("h-full rounded-full transition-all duration-1000", skill.level >= 80 ? 'bg-emerald-500' : skill.level >= 60 ? 'bg-[#7c3aed]' : 'bg-amber-500')} 
                         style={{ width: `${skill.level}%` }}
                       />
                     </div>
@@ -117,16 +117,16 @@ export function ProfileScreen() {
                   const Icon = (Icons as any)[act.icon] as Icons.LucideIcon;
                   return (
                     <div key={act.id} className="flex gap-4 relative pb-6 group cursor-default">
-                      {i < recentActivity.length - 1 && <div className="absolute top-10 bottom-0 left-6 w-0.5 bg-slate-100 group-hover:bg-blue-100 transition-colors" />}
+                      {i < recentActivity.length - 1 && <div className="absolute top-10 bottom-0 left-6 w-0.5 bg-slate-100 group-hover:bg-purple-100 transition-colors" />}
                       <div className="relative z-10 flex flex-col items-center">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-50 group-hover:bg-blue-50 border border-slate-200 group-hover:border-blue-200 flex items-center justify-center shrink-0 transition-colors shadow-2xs">
-                          <Icon className="w-5 h-5 text-slate-400 group-hover:text-[#3b82f6] transition-colors" />
+                        <div className="w-12 h-12 rounded-2xl bg-slate-50 group-hover:bg-purple-50 border border-slate-200 group-hover:border-purple-200 flex items-center justify-center shrink-0 transition-colors shadow-2xs">
+                          <Icon className="w-5 h-5 text-slate-400 group-hover:text-[#7c3aed] transition-colors" />
                         </div>
                       </div>
                       <div className="flex-1 pt-1.5">
                         <p className="text-sm font-semibold text-slate-600 leading-snug">
                           <span className="font-extrabold text-slate-900">{act.action}</span>{' '}
-                          <span className="text-[#3b82f6] font-bold">{act.target}</span>
+                          <span className="text-[#7c3aed] font-bold">{act.target}</span>
                         </p>
                         {act.course && <p className="text-xs font-semibold text-slate-400 mt-0.5">{act.course}</p>}
                         <span className="inline-block mt-2 px-2.5 py-0.5 rounded-md bg-slate-100 text-[10px] font-bold text-slate-500 tracking-wider uppercase">
@@ -147,7 +147,7 @@ export function ProfileScreen() {
           {/* Level Progress Widget */}
           <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white p-6 text-center">
             <div className="relative inline-block mb-4">
-              <ProgressRing value={(currentUser.xp % 500) / 500 * 100} size={120} strokeWidth={10} showLabel={false} color="text-[#3b82f6]" />
+              <ProgressRing value={(currentUser.xp % 500) / 500 * 100} size={120} strokeWidth={10} showLabel={false} color="text-[#7c3aed]" />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Level</span>
                 <span className="text-3xl font-black text-slate-900 -mt-1">{currentUser.level}</span>
@@ -155,7 +155,7 @@ export function ProfileScreen() {
             </div>
             
             <p className="text-xs font-bold text-slate-500 mb-6 bg-slate-50 py-2 rounded-xl border border-slate-100">
-              <span className="text-[#3b82f6] font-black">{500 - (currentUser.xp % 500)} XP</span> to reach Level {currentUser.level + 1}
+              <span className="text-[#7c3aed] font-black">{500 - (currentUser.xp % 500)} XP</span> to reach Level {currentUser.level + 1}
             </p>
             
             <div className="grid grid-cols-3 gap-2">
@@ -205,7 +205,7 @@ export function ProfileScreen() {
           <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white">
             <CardBody className="p-6">
               <h3 className="font-extrabold text-slate-900 mb-5 flex items-center gap-2">
-                <Globe className="w-5 h-5 text-[#3b82f6]" /> Social Links
+                <Globe className="w-5 h-5 text-[#7c3aed]" /> Social Links
               </h3>
               <div className="space-y-3">
                 {[
@@ -213,12 +213,12 @@ export function ProfileScreen() {
                   { icon: Linkedin, label: 'LinkedIn', value: 'linkedin.com/in/aarav', color: 'text-blue-600' },
                   { icon: Globe, label: 'Portfolio', value: 'aarav.dev', color: 'text-emerald-600' },
                 ].map((s, i) => (
-                  <div key={i} className="flex items-center gap-4 p-3.5 rounded-2xl border border-slate-100 hover:border-blue-200 hover:bg-blue-50/50 transition-colors cursor-pointer group">
+                  <div key={i} className="flex items-center gap-4 p-3.5 rounded-2xl border border-slate-100 hover:border-purple-200 hover:bg-purple-50/50 transition-colors cursor-pointer group">
                     <div className="w-10 h-10 rounded-xl bg-slate-50 group-hover:bg-white flex items-center justify-center shrink-0 border border-slate-200/60 shadow-2xs">
                       <s.icon className={cn("w-5 h-5", s.color)} />
                     </div>
                     <div className="flex-1">
-                      <p className="text-sm font-bold text-slate-900 group-hover:text-[#3b82f6] transition-colors">{s.label}</p>
+                      <p className="text-sm font-bold text-slate-900 group-hover:text-[#7c3aed] transition-colors">{s.label}</p>
                       <p className="text-xs font-semibold text-slate-500">{s.value}</p>
                     </div>
                   </div>

@@ -188,10 +188,10 @@ export const assignments: Assignment[] = [
 ];
 
 export const liveClasses: LiveClass[] = [
-  { id: 'lc1', title: 'Advanced React Patterns Workshop', course: 'Full-Stack Web Dev', instructor: instructors[2], scheduledAt: 'Today, 4:00 PM', duration: '90 min', status: 'ongoing', participants: 142, thumbnail: 'https://images.unsplash.com/photo-1596462822660-8d5f5d5f5d5f?w=800&q=80' },
+  { id: 'lc1', title: 'Advanced React Patterns Workshop', course: 'Full-Stack Web Dev', instructor: instructors[2], scheduledAt: 'Today, 4:00 PM', duration: '90 min', status: 'ongoing', participants: 142, thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&q=80' },
   { id: 'lc2', title: 'Neural Networks Q&A Session', course: 'ML Fundamentals', instructor: instructors[0], scheduledAt: 'Tomorrow, 2:00 PM', duration: '60 min', status: 'upcoming', participants: 89, thumbnail: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=800&q=80' },
   { id: 'lc3', title: 'System Design: Twitter Case Study', course: 'System Design', instructor: instructors[1], scheduledAt: 'Aug 6, 6:00 PM', duration: '120 min', status: 'upcoming', participants: 210, thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80' },
-  { id: 'lc4', title: 'Intro to Cloud Architecture', course: 'Cloud Architecture', instructor: instructors[1], scheduledAt: 'Jul 30', duration: '90 min', status: 'completed', participants: 178, thumbnail: 'https://images.unsplash.com/photo-1451187580453-466d7ca8d488?w=800&q=80', recordingUrl: '#' },
+  { id: 'lc4', title: 'Intro to Cloud Architecture', course: 'Cloud Architecture', instructor: instructors[1], scheduledAt: 'Jul 30', duration: '90 min', status: 'completed', participants: 178, thumbnail: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80', recordingUrl: '#' },
 ];
 
 export const quizzes: Quiz[] = [
@@ -202,10 +202,21 @@ export const quizzes: Quiz[] = [
 ];
 
 export const projects: Project[] = [
-  { id: 'p1', title: 'Login & Signup Welcome Page', course: 'Full-Stack Web Dev', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Build a simple login and signup page that validates input and shows a welcome message after submit.', dueDate: 'Aug 20' },
-  { id: 'p2', title: 'Image Classification App', course: 'ML Fundamentals', status: 'submitted', difficulty: 'Intermediate', skills: ['Python', 'TensorFlow', 'CNN'], description: 'Train a CNN to classify images and deploy as a web app.', dueDate: 'Aug 1' },
-  { id: 'p3', title: 'Chat System Design', course: 'System Design', status: 'feedback', difficulty: 'Advanced', skills: ['Architecture', 'WebSocket', 'Redis'], description: 'Design and document a real-time chat system.', mentorFeedback: 'Great architecture diagram! Consider adding more detail on message ordering and delivery guarantees.', grade: 89, dueDate: 'Jul 25' },
-  { id: 'p4', title: 'Personal Portfolio Page', course: 'Full-Stack Web Dev', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Create a responsive personal portfolio page showcasing projects, skills, and contact info.', dueDate: 'Aug 30' },
+  // ════════ MINI PROJECTS ════════
+  { id: 'p1', title: 'Login & Signup Welcome Page', course: 'Full-Stack Web Dev', projectType: 'mini', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Build a simple login and signup page that validates input and shows a welcome message after submit.', dueDate: 'Aug 20' },
+  { id: 'p4', title: 'Personal Portfolio Page', course: 'Full-Stack Web Dev', projectType: 'mini', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Create a responsive personal portfolio page showcasing projects, skills, and contact info.', dueDate: 'Aug 30' },
+  { id: 'p5', title: 'Interactive Weather & News Dashboard', course: 'Frontend Engineering', projectType: 'mini', status: 'submitted', difficulty: 'Beginner', skills: ['React', 'Tailwind CSS', 'REST API'], description: 'Fetch and display real-time weather forecasts and top tech news using public APIs.', dueDate: 'Jul 28' },
+  { id: 'p6', title: 'CLI Task & Note Manager', course: 'Python Basics', projectType: 'mini', status: 'feedback', difficulty: 'Beginner', skills: ['Python', 'JSON', 'CLI'], description: 'A command-line tool to add, complete, and search personal tasks with file persistence.', mentorFeedback: 'Clean command line interface! Great error handling for invalid input files.', grade: 92, dueDate: 'Jul 15' },
+
+  // ════════ MAJOR PROJECTS ════════
+  { id: 'p2', title: 'Image Classification & Inference Web App', course: 'ML Fundamentals', projectType: 'major', status: 'submitted', difficulty: 'Intermediate', skills: ['Python', 'TensorFlow', 'FastAPI', 'React'], description: 'Train a CNN model to classify images and deploy an interactive inference web dashboard.', dueDate: 'Aug 1' },
+  { id: 'p7', title: 'Full-Stack E-Commerce Storefront & Admin', course: 'Full-Stack Web Dev', projectType: 'major', status: 'assigned', difficulty: 'Intermediate', skills: ['Next.js', 'Node.js', 'MongoDB', 'Stripe'], description: 'Build an end-to-end shopping platform with cart management, admin dashboard, and Stripe payments.', dueDate: 'Sep 10' },
+  { id: 'p8', title: 'AI Resume Analyzer & Job Matcher API', course: 'AI Engineering', projectType: 'major', status: 'feedback', difficulty: 'Intermediate', skills: ['Python', 'OpenAI API', 'FastAPI', 'PostgreSQL'], description: 'Extract skills from resumes using LLMs and match candidate profiles to active tech job postings.', mentorFeedback: 'Outstanding prompt engineering and structured JSON outputs from Gemini API.', grade: 96, dueDate: 'Jul 20' },
+
+  // ════════ CAPSTONE PROJECTS ════════
+  { id: 'p3', title: 'Distributed Real-Time Chat & Streaming Engine', course: 'System Design', projectType: 'capstone', status: 'feedback', difficulty: 'Advanced', skills: ['System Architecture', 'WebSocket', 'Redis', 'Docker'], description: 'Design and document a fault-tolerant, multi-node real-time chat system with presence tracking.', mentorFeedback: 'Great architecture diagram! Consider adding more detail on message ordering and delivery guarantees.', grade: 89, dueDate: 'Jul 25' },
+  { id: 'p9', title: 'Enterprise LMS Platform & Course Management', course: 'Software Architecture', projectType: 'capstone', status: 'assigned', difficulty: 'Advanced', skills: ['Next.js 19', 'TypeScript', 'Prisma', 'PostgreSQL'], description: 'Complete LMS ecosystem supporting video streaming, interactive coding labs, and analytics.', dueDate: 'Oct 15' },
+  { id: 'p10', title: 'Cloud-Native Kubernetes & Microservices Deployment', course: 'DevOps & Cloud', projectType: 'capstone', status: 'submitted', difficulty: 'Advanced', skills: ['Docker', 'Kubernetes', 'AWS EKS', 'GitHub Actions'], description: 'Deploy a microservices cluster with automated CI/CD pipelines, Prometheus metrics, and Grafana dashboards.', dueDate: 'Aug 05' },
 ];
 
 export const notifications: Notification[] = [];
