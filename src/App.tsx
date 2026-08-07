@@ -4,8 +4,7 @@ import { AppShell } from '@/components/layout/AppShell';
 import { SplashScreen } from '@/screens/auth/SplashScreen';
 import { WelcomeScreen } from '@/screens/auth/WelcomeScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
-import { RegisterScreen } from '@/screens/auth/RegisterScreen';
-import { ForgotPasswordScreen, ResetPasswordScreen } from '@/screens/auth/ForgotPasswordScreen';
+
 
 import { DashboardScreen } from '@/screens/DashboardScreen';
 import { LearningScreen } from '@/screens/LearningScreen';
@@ -31,7 +30,7 @@ import { NotificationsScreen } from '@/screens/NotificationsScreen';
 import { ProfileScreen } from '@/screens/ProfileScreen';
 import { SettingsScreen } from '@/screens/SettingsScreen';
 
-const authRoutes = ['splash', 'welcome', 'login', 'register', 'forgot', 'reset', 'otp'];
+const authRoutes = ['splash', 'welcome', 'login'];
 
 function Router() {
   const { route } = useNav();
@@ -41,9 +40,6 @@ function Router() {
       case 'splash': return <SplashScreen />;
       case 'welcome': return <WelcomeScreen />;
       case 'login': return <LoginScreen />;
-      case 'register': return <RegisterScreen />;
-      case 'forgot': return <ForgotPasswordScreen />;
-      case 'reset': return <ResetPasswordScreen />;
       default: return <SplashScreen />;
     }
   }

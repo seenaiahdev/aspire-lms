@@ -1,5 +1,5 @@
 export type Route =
-  | 'splash' | 'welcome' | 'login' | 'register' | 'forgot' | 'reset' | 'otp'
+  | 'splash' | 'welcome' | 'login'
   | 'dashboard' | 'learning' | 'milestones' | 'course' | 'lesson' | 'live' | 'classroom' | 'recording'
   | 'assignments' | 'practice' | 'quizzes' | 'projects' | 'resources'
   | 'community' | 'schedule' | 'progress' | 'achievements' | 'certificates'

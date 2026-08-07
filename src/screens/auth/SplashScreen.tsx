@@ -8,13 +8,14 @@ export function SplashScreen() {
   useEffect(() => {
     const t = setTimeout(() => {
       const loggedIn = localStorage.getItem('aspire_logged_in') === 'true';
-      const storedRoute = (localStorage.getItem('aspire_active_route') || '') as any;
       const path = window.location.pathname.replace(/^\//, '').trim() as any;
-      const targetRoute = path || storedRoute;
 
       if (loggedIn) {
-        navigate(targetRoute && targetRoute !== 'splash' && targetRoute !== 'login' ? targetRoute : 'dashboard');
+        // If logged in, go to the page they were on (or dashboard)
+        const safeRoute = path && path !== 'splash' && path !== 'login' && path !== 'welcome' ? path : 'dashboard';
+        navigate(safeRoute);
       } else {
+        // Not logged in — always go to login
         navigate('login');
       }
     }, 1800);

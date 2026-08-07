@@ -1,4 +1,4 @@
-import { Sparkles, TrendingUp, Users, GraduationCap, ArrowRight, Mail } from 'lucide-react';
+import { Sparkles, TrendingUp, Users, GraduationCap, ArrowRight } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
@@ -79,29 +79,6 @@ export function WelcomeScreen() {
               className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-white text-sm transition-all duration-150 active:scale-95 shadow-md hover:shadow-lg bg-primary-600 hover:bg-primary-700"
             >
               Login to your account <ArrowRight className="w-4 h-4" />
-            </button>
-
-            <button
-              onClick={() => navigate('register')}
-              className="w-full py-3.5 rounded-xl font-semibold text-sm border-2 border-slate-200 text-slate-700 hover:border-primary-500 hover:text-primary-700 transition-all duration-150"
-            >
-              Create new account
-            </button>
-
-            <div className="relative py-2">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-100" />
-              </div>
-              <div className="relative flex justify-center">
-                <span className="bg-white px-3 text-xs text-gray-400">or</span>
-              </div>
-            </div>
-
-            <button
-              onClick={() => navigate('dashboard')}
-              className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl font-semibold text-sm border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all duration-150"
-            >
-              <Mail className="w-4 h-4" /> Continue with Google
             </button>
           </div>
 
