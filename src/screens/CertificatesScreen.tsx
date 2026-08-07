@@ -102,7 +102,7 @@ function CircularProgressLock({ progress, size = 76 }: { progress: number; size?
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          className="stroke-amber-400/20"
+          className="stroke-purple-500/20"
           strokeWidth={strokeWidth}
           fill="transparent"
         />
@@ -111,7 +111,7 @@ function CircularProgressLock({ progress, size = 76 }: { progress: number; size?
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          className="stroke-amber-400 transition-all duration-700 ease-out"
+          className="stroke-[#7c3aed] transition-all duration-700 ease-out"
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
@@ -121,8 +121,8 @@ function CircularProgressLock({ progress, size = 76 }: { progress: number; size?
       </svg>
 
       {/* Center Lock Icon */}
-      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 rounded-full border border-amber-400/30 m-1 shadow-md">
-        <Lock className="w-6 h-6 text-amber-300 drop-shadow-sm" />
+      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 rounded-full border border-purple-400/40 m-1 shadow-md">
+        <Lock className="w-6 h-6 text-purple-300 drop-shadow-sm" />
       </div>
     </div>
   );
@@ -183,23 +183,23 @@ export function CertificatesScreen() {
 
         {/* Locked In Progress */}
         <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-            <Lock className="w-5.5 h-5.5" />
+          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
+            <Lock className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
           <div>
             <p className="text-2xl font-black text-slate-900 tracking-tight">{lockedCount}</p>
-            <p className="text-xs font-extrabold text-amber-600">Locked (In Progress)</p>
+            <p className="text-xs font-extrabold text-[#7c3aed]">Locked (In Progress)</p>
           </div>
         </Card>
 
         {/* Avg Course Progress */}
         <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-            <Sparkles className="w-5.5 h-5.5" />
+          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
+            <Sparkles className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
           <div>
             <p className="text-2xl font-black text-slate-900 tracking-tight">{avgProgress}%</p>
-            <p className="text-xs font-extrabold text-emerald-600">Overall Completion</p>
+            <p className="text-xs font-extrabold text-[#7c3aed]">Overall Completion</p>
           </div>
         </Card>
 
@@ -241,14 +241,14 @@ export function CertificatesScreen() {
 
                   <div className="absolute inset-0 z-20 p-5 flex flex-col justify-between bg-gradient-to-t from-black/90 via-black/40 to-black/20 text-white">
                     <div className="flex items-center justify-between">
-                      <span className="px-2.5 py-1 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1">
-                        <Award className="w-3.5 h-3.5" /> OFFICIAL DIPLOMA
+                      <span className="px-2.5 py-1 rounded-full bg-[#7c3aed] text-white text-[10px] font-black uppercase tracking-wider shadow-sm flex items-center gap-1">
+                        <Award className="w-3.5 h-3.5 text-white" /> OFFICIAL DIPLOMA
                       </span>
                       <CheckCircle2 className="w-6 h-6 text-emerald-400 drop-shadow-md" />
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-[10px] uppercase font-extrabold text-amber-300 tracking-wider">CERTIFICATE OF COMPLETION</p>
+                      <p className="text-[10px] uppercase font-extrabold text-purple-300 tracking-wider">CERTIFICATE OF COMPLETION</p>
                       <h3 className="font-extrabold text-base text-white leading-tight line-clamp-2">
                         {cert.courseTitle}
                       </h3>
@@ -308,7 +308,7 @@ export function CertificatesScreen() {
                   <CircularProgressLock progress={cert.progress} size={80} />
 
                   <div className="max-w-xs space-y-1.5">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[11px] font-black uppercase tracking-wider">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/40 text-[11px] font-black uppercase tracking-wider">
                       <span>LOCKED CERTIFICATE</span>
                       <span className="text-white">({cert.progress}%)</span>
                     </div>
@@ -326,7 +326,7 @@ export function CertificatesScreen() {
                     onClick={(e) => { e.stopPropagation(); setSelectedCert(cert); }}
                     className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
                   >
-                    <Lock className="w-4 h-4 text-amber-300" />
+                    <Lock className="w-4 h-4 text-purple-200" />
                     <span>Preview Locked Certificate</span>
                   </button>
 
@@ -358,13 +358,13 @@ export function CertificatesScreen() {
             {/* Scrollable Document Area */}
             <div className="p-3 sm:p-6 overflow-y-auto flex-1 bg-[#fcfcfd] scrollbar-thin">
               
-              {/* Responsive Double Gold Ornate Border Frame */}
-              <div className="border-[4px] sm:border-[6px] border-amber-400/80 p-3 sm:p-6 rounded-xl sm:rounded-[1.25rem] bg-white shadow-inner">
-                <div className="border border-dashed border-amber-300/80 p-4 sm:p-6 rounded-lg sm:rounded-xl relative">
+              {/* Responsive Double Brand Purple Ornate Border Frame */}
+              <div className="border-[4px] sm:border-[6px] border-[#7c3aed] p-3 sm:p-6 rounded-xl sm:rounded-[1.25rem] bg-white shadow-inner">
+                <div className="border border-dashed border-purple-300 p-4 sm:p-6 rounded-lg sm:rounded-xl relative">
                   
                   {/* Top Header: AspireNext Logo & Title */}
                   <div className="flex flex-col items-center text-center space-y-1.5 pb-4 sm:pb-5 border-b border-slate-100">
-                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-amber-400 p-0.5 shadow-md bg-white">
+                    <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-[#7c3aed] p-0.5 shadow-md bg-white">
                       <img src={aspireLogo} alt="AspireNext Logo" className="w-full h-full object-cover rounded-full" />
                     </div>
 
@@ -380,7 +380,7 @@ export function CertificatesScreen() {
 
                   {/* Body Content */}
                   <div className="py-4 sm:py-6 text-center space-y-2.5 sm:space-y-3.5">
-                    <span className="text-[10px] sm:text-xs font-black text-amber-600 uppercase tracking-[0.25em]">
+                    <span className="text-[10px] sm:text-xs font-black text-[#7c3aed] uppercase tracking-[0.25em]">
                       CERTIFICATE OF COMPLETION
                     </span>
 
@@ -412,10 +412,10 @@ export function CertificatesScreen() {
                       <p className="text-[8px] sm:text-[10px] font-bold text-slate-500">Lead Instructor</p>
                     </div>
 
-                    {/* Gold Official Seal Badge */}
-                    <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-br from-amber-300 via-amber-400 to-amber-500 p-0.5 shadow-md flex items-center justify-center text-slate-950 text-center shrink-0 border border-white">
-                      <div className="w-full h-full rounded-full border border-dashed border-slate-950/30 flex flex-col items-center justify-center p-0.5">
-                        <Award className="w-4 h-4 sm:w-5 sm:h-5 text-slate-950" />
+                    {/* Brand Official Seal Badge */}
+                    <div className="w-14 h-14 sm:w-18 sm:h-18 rounded-full bg-gradient-to-br from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] p-0.5 shadow-md flex items-center justify-center text-white text-center shrink-0 border border-white">
+                      <div className="w-full h-full rounded-full border border-dashed border-white/40 flex flex-col items-center justify-center p-0.5">
+                        <Award className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                         <span className="text-[6px] sm:text-[7px] font-black uppercase tracking-tighter leading-none mt-0.5">VERIFIED</span>
                         <span className="text-[5px] sm:text-[6px] font-bold uppercase tracking-tighter">ASPIRE NEXT</span>
                       </div>

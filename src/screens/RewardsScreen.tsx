@@ -107,7 +107,7 @@ function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: 
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          className="stroke-amber-400/20"
+          className="stroke-purple-500/20"
           strokeWidth={strokeWidth}
           fill="transparent"
         />
@@ -116,7 +116,7 @@ function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: 
           cx={size / 2}
           cy={size / 2}
           r={radius}
-          className="stroke-amber-400 transition-all duration-700 ease-out"
+          className="stroke-[#7c3aed] transition-all duration-700 ease-out"
           strokeWidth={strokeWidth}
           strokeDasharray={circumference}
           strokeDashoffset={strokeDashoffset}
@@ -126,8 +126,8 @@ function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: 
       </svg>
 
       {/* Center Lock Icon */}
-      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/70 rounded-full border border-amber-400/30 m-1 shadow-md">
-        <Lock className="w-6 h-6 text-amber-300 drop-shadow-sm" />
+      <div className="absolute inset-0 flex items-center justify-center bg-slate-950/80 rounded-full border border-purple-400/40 m-1 shadow-md">
+        <Lock className="w-6 h-6 text-purple-300 drop-shadow-sm" />
       </div>
     </div>
   );
@@ -170,8 +170,8 @@ export function RewardsScreen() {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
-          <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-xs shadow-sm flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-slate-950" />
+          <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white font-black text-xs shadow-md flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-white" />
             <span>2,850 Total Student XP</span>
           </div>
         </div>
@@ -182,23 +182,23 @@ export function RewardsScreen() {
         
         {/* Unlocked */}
         <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
-            <Gift className="w-5.5 h-5.5 text-emerald-600" />
+          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
+            <Gift className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
           <div>
             <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} Reward Unlocked</p>
-            <p className="text-xs font-extrabold text-emerald-600">Ready to Claim (Demo Backpack)</p>
+            <p className="text-xs font-extrabold text-[#7c3aed]">Ready to Claim (Demo Backpack)</p>
           </div>
         </Card>
 
         {/* Locked */}
         <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-100">
-            <Lock className="w-5.5 h-5.5" />
+          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
+            <Lock className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
           <div>
             <p className="text-2xl font-black text-slate-900 tracking-tight">{lockedCount} Locked Rewards</p>
-            <p className="text-xs font-extrabold text-amber-600">Locked (XP Milestones)</p>
+            <p className="text-xs font-extrabold text-[#7c3aed]">Locked (XP Milestones)</p>
           </div>
         </Card>
 
@@ -236,7 +236,7 @@ export function RewardsScreen() {
                         <CheckCircle2 className="w-3.5 h-3.5" /> UNLOCKED DEMO
                       </span>
                     ) : (
-                      <span className="px-3 py-1 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider shadow-md">
+                      <span className="px-3 py-1 rounded-full bg-[#7c3aed] text-white text-[10px] font-black uppercase tracking-wider shadow-md">
                         LOCKED ({progressPercent}%)
                       </span>
                     )}
@@ -289,7 +289,7 @@ export function RewardsScreen() {
                   <CircularRewardLock progress={progressPercent} size={80} />
 
                   <div className="max-w-xs space-y-1.5">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40 text-[11px] font-black uppercase tracking-wider">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/40 text-[11px] font-black uppercase tracking-wider">
                       <span>LOCKED REWARD</span>
                       <span className="text-white">({reward.currentXp} / {reward.requiredXp} XP)</span>
                     </div>
@@ -307,7 +307,7 @@ export function RewardsScreen() {
                     onClick={(e) => { e.stopPropagation(); setSelectedReward(reward); }}
                     className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
                   >
-                    <Lock className="w-4 h-4 text-amber-300" />
+                    <Lock className="w-4 h-4 text-purple-200" />
                     <span>View Locked Product Details</span>
                   </button>
 
@@ -370,12 +370,12 @@ export function RewardsScreen() {
               </div>
 
               {!selectedReward.isUnlocked && (
-                <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-1">
-                  <div className="flex items-center gap-2 text-amber-800 font-extrabold text-xs">
-                    <Lock className="w-4 h-4 text-amber-600" />
+                <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200 space-y-1">
+                  <div className="flex items-center gap-2 text-[#7c3aed] font-extrabold text-xs">
+                    <Lock className="w-4 h-4 text-[#7c3aed]" />
                     <span>Reward Currently Locked</span>
                   </div>
-                  <p className="text-xs font-medium text-amber-700 leading-relaxed">
+                  <p className="text-xs font-medium text-slate-600 leading-relaxed">
                     Earn <strong>{selectedReward.requiredXp - selectedReward.currentXp} more XP</strong> by completing lessons, solving coding practice questions, or submitting projects in AspireLMS to unlock this item.
                   </p>
                 </div>
