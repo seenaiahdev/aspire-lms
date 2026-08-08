@@ -172,10 +172,116 @@ export const courses: Course[] = [
     rating: 4.9, reviews: 1500, students: 9800, duration: '24h', lessons: 48,
     progress: 0,
     tags: ['Figma', 'Design Systems', 'User Research'],
-    description: 'Learn the principles of great design. From color theory to prototyping, build a portfolio-worthy skill set.',
     price: 0, enrolled: false, updatedAt: '4 days ago',
     modules: [],
   },
+  {
+    id: 's1',
+    title: 'Executive Workplace Communication & Speaking',
+    subtitle: 'Master vocal clarity, team presentations, email etiquette, and persuasive leadership.',
+    category: 'Communication / Soft Skills',
+    level: 'Beginner',
+    instructor: instructors[2],
+    thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&q=80',
+    banner: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=1200&q=80',
+    rating: 4.9, reviews: 340, students: 1500, duration: '10h', lessons: 18,
+    progress: 60,
+    tags: ['Speaking', 'Writing', 'Leadership'],
+    description: 'Practical communication guide for engineers. Learn how to write concise emails, present your engineering ideas to executives, and lead sprint planning meetings with high confidence.',
+    price: 0, enrolled: true, updatedAt: '1 day ago',
+    modules: [
+      { id: 'm1', title: 'Foundations of Communication', lessons: [
+        { id: 'l1', title: 'Introduction to Executive Communication', duration: '10:15', type: 'video', completed: true, preview: true },
+        { id: 'l2', title: 'Speaking with Authority & Clarity', duration: '15:20', type: 'video', completed: true, preview: false },
+        { id: 'l3', title: 'Presenting Technical Architecture', duration: '12:45', type: 'video', completed: false, preview: false },
+      ]}
+    ],
+  },
+  {
+    id: 'a1',
+    title: 'Quantitative Aptitude Masterclass for Tech Interviews',
+    subtitle: 'Solve speed math, probability, permutations, profit & loss, and time-distance problems.',
+    category: 'Aptitude & Reasoning',
+    level: 'Intermediate',
+    instructor: instructors[0],
+    thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80',
+    banner: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&q=80',
+    rating: 4.8, reviews: 890, students: 3400, duration: '18h', lessons: 30,
+    progress: 80,
+    tags: ['Aptitude', 'Math', 'Interviews'],
+    description: 'Learn speed math shortcuts, shortcut formulas, probability, combinations, and analytical reasoning techniques commonly asked in top tech screening rounds.',
+    price: 0, enrolled: true, updatedAt: '3 days ago',
+    modules: [
+      { id: 'm1', title: 'Number Systems & Math', lessons: [
+        { id: 'l1', title: 'Speed Math Techniques', duration: '15:00', type: 'video', completed: true, preview: true },
+        { id: 'l2', title: 'Ratio & Proportions Shortcuts', duration: '20:10', type: 'video', completed: true, preview: false },
+        { id: 'l3', title: 'Probability Rules', duration: '22:15', type: 'video', completed: false, preview: false },
+      ]}
+    ],
+  },
+  {
+    id: 'p1',
+    title: 'Full-Stack Developer Portfolio Blueprint',
+    subtitle: 'Design and deploy a breathtaking portfolio with interactive 3D elements, dark mode, and case studies.',
+    category: 'Portfolio',
+    level: 'Intermediate',
+    instructor: instructors[2],
+    thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80',
+    banner: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&q=80',
+    rating: 4.9, reviews: 450, students: 1900, duration: '12h', lessons: 16,
+    progress: 90,
+    tags: ['Next.js', 'Framer Motion', 'Tailwind CSS'],
+    description: 'Build a premium engineering portfolio site. Includes case studies of your projects, contact forms, interactive project grids, and search engine optimization.',
+    price: 0, enrolled: true, updatedAt: '5 days ago',
+    modules: [
+      { id: 'm1', title: 'Design & Set Up', lessons: [
+        { id: 'l1', title: 'Portfolio Architecture & UX Design', duration: '14:24', type: 'video', completed: true, preview: true },
+        { id: 'l2', title: 'Adding Framer Motion Animations', duration: '24:45', type: 'video', completed: true, preview: false },
+      ]}
+    ],
+  },
+  {
+    id: 'r1',
+    title: 'ATS-Optimized Tech Resume Masterclass',
+    subtitle: 'Pass automated recruiter scanners with impact metrics, action verbs, and clean single-column templates.',
+    category: 'Resume',
+    level: 'Beginner',
+    instructor: instructors[1],
+    thumbnail: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=800&q=80',
+    banner: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=1200&q=80',
+    rating: 5.0, reviews: 760, students: 4200, duration: '5h', lessons: 9,
+    progress: 100,
+    tags: ['Resume', 'Career', 'Tech Jobs'],
+    description: 'Write a high-performance tech resume that matches ATS scanner algorithms, highlights metrics, and gets you interview callbacks.',
+    price: 0, enrolled: true, updatedAt: '2 days ago',
+    modules: [
+      { id: 'm1', title: 'ATS Rules', lessons: [
+        { id: 'l1', title: 'ATS Scanners Explained', duration: '12:00', type: 'video', completed: true, preview: true },
+        { id: 'l2', title: 'Action Verbs & Key Metrics', duration: '18:40', type: 'video', completed: true, preview: false },
+      ]}
+    ],
+  },
+  {
+    id: 'l1',
+    title: 'LinkedIn Personal Branding & Tech Recruiter Magnet',
+    subtitle: 'Optimize your headline, about summary, skills, and SEO keywords so recruiters message you directly.',
+    category: 'LinkedIn',
+    level: 'Beginner',
+    instructor: instructors[2],
+    thumbnail: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?w=800&q=80',
+    banner: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?w=1200&q=80',
+    rating: 4.9, reviews: 540, students: 3600, duration: '7h', lessons: 12,
+    progress: 85,
+    tags: ['LinkedIn', 'Branding', 'Networking'],
+    description: 'Grow your LinkedIn personal brand, write search-optimized headlines, and get inbound recruiter requests.',
+    price: 0, enrolled: true, updatedAt: '4 days ago',
+    modules: [
+      { id: 'm1', title: 'Profile Setup', lessons: [
+        { id: 'l1', title: 'LinkedIn Profile SEO Audit', duration: '14:10', type: 'video', completed: true, preview: true },
+        { id: 'l2', title: 'Writing Recruiter-Friendly Summaries', duration: '22:15', type: 'video', completed: true, preview: false },
+      ]}
+    ],
+  }
 ];
 
 export const assignments: Assignment[] = [
@@ -274,8 +380,10 @@ export const scheduleItems: ScheduleItem[] = [
 
 export const practiceProblems: PracticeProblem[] = [
   { id: 'pp1', title: 'Two Sum', difficulty: 'Easy', category: 'Arrays & Math', solved: false, attempts: 0, successRate: 89, points: 10 },
-  { id: 'pp2', title: 'Hello World', difficulty: 'Easy', category: 'Basics', solved: false, attempts: 0, successRate: 98, points: 5 },
+  { id: 'pp2', title: 'Print Hello World', difficulty: 'Easy', category: 'Basics', solved: false, attempts: 0, successRate: 98, points: 5 },
   { id: 'pp3', title: 'Reverse a String', difficulty: 'Easy', category: 'Strings', solved: false, attempts: 0, successRate: 95, points: 10 },
+  { id: 'pp4', title: 'Valid Palindrome', difficulty: 'Easy', category: 'Strings & Logic', solved: false, attempts: 0, successRate: 91, points: 15 },
+  { id: 'pp5', title: 'Find Maximum in Array', difficulty: 'Medium', category: 'Arrays & Search', solved: false, attempts: 0, successRate: 82, points: 20 },
 ];
 
 export const jobOpportunities: JobOpportunity[] = [

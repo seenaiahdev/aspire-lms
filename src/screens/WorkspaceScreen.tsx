@@ -1,23 +1,14 @@
-import { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, Play, CheckCircle2, RefreshCw, Terminal, 
-  Check, X, FileCode, Lock, RotateCcw, Award, Sparkles, BookOpen, ChevronLeft, ChevronRight
+import { useState, useRef, useCallback, useEffect } from 'react';
+import {
+  ArrowLeft, CheckCircle2, Upload, FolderOpen,
+  ExternalLink, AlertCircle, BookOpen, ChevronLeft, ChevronRight,
+  MonitorSmartphone, Eye, Lock, FileText,
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
-import { practiceProblems } from '@/data/mock';
-import Editor from '@monaco-editor/react';
+import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 
-interface TestCase {
-  id: number;
-  input: string;
-  expected: string;
-  actual?: string;
-  passed?: boolean;
-  error?: string;
-  isPublic?: boolean;
-  name?: string;
-}
+// ── Problem config ────────────────────────────────────────────────────────────
 
 interface ProblemConfig {
   id: string;
@@ -26,14 +17,6 @@ interface ProblemConfig {
   category: string;
   description: string;
   examples: { input: string; output: string; explanation?: string }[];
-  starters: {
-    javascript: string;
-    python: string;
-  };
-  testCases: {
-    javascript: { input: any[]; expected: any; displayInput: string; displayExpected: string; isPublic?: boolean; name?: string }[];
-    python: { input: any[]; expected: any; displayInput: string; displayExpected: string; isPublic?: boolean; name?: string }[];
-  };
 }
 
 const PROBLEM_CONFIGS: Record<string, ProblemConfig> = {
@@ -44,58 +27,10 @@ const PROBLEM_CONFIGS: Record<string, ProblemConfig> = {
     category: 'Arrays & Math',
     description: 'Given an array of integers `nums` and an integer `target`, return indices of the two numbers such that they add up to `target`.\n\nYou may assume that each input would have exactly one solution, and you may not use the same element twice. Return the answer as an array of indices.',
     examples: [
-      { input: 'nums = [2,7,11,15], target = 9', output: '[0, 1]', explanation: 'Because nums[0] + nums[1] == 2 + 7 == 9, we return [0, 1].' },
+      { input: 'nums = [2,7,11,15], target = 9', output: '[0, 1]', explanation: 'Because nums[0] + nums[1] == 9, we return [0, 1].' },
       { input: 'nums = [3,2,4], target = 6', output: '[1, 2]' },
-      { input: 'nums = [3,3], target = 6', output: '[0, 1]' }
+      { input: 'nums = [3,3], target = 6', output: '[0, 1]' },
     ],
-    starters: {
-      javascript: `// Task 1: Add Sum / Two Sum
-function twoSum(nums, target) {
-  // Write your code here
-  for (let i = 0; i < nums.length; i++) {
-    for (let j = i + 1; j < nums.length; j++) {
-      if (nums[i] + nums[j] === target) {
-        return [i, j];
-      }
-    }
-  }
-  return [];
-}`,
-      python: `# Task 1: Add Sum / Two Sum
-def two_sum(nums, target):
-    # Write your code here
-    for i in range(len(nums)):
-        for j in range(i + 1, len(nums)):
-            if nums[i] + nums[j] == target:
-                return [i, j]
-    return []`
-    },
-    testCases: {
-      javascript: [
-        { input: [[2, 7, 11, 15], 9], expected: [0, 1], displayInput: 'nums = [2,7,11,15], target = 9', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 1' },
-        { input: [[3, 2, 4], 6], expected: [1, 2], displayInput: 'nums = [3,2,4], target = 6', displayExpected: '[1, 2]', isPublic: true, name: 'Public Test Case 2' },
-        { input: [[3, 3], 6], expected: [0, 1], displayInput: 'nums = [3,3], target = 6', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 3' },
-        { input: [[-3, 4, 3, 90], 0], expected: [0, 2], displayInput: 'nums = [-3,4,3,90], target = 0', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 1 (Negative Integers)' },
-        { input: [[0, 4, 3, 0], 0], expected: [0, 3], displayInput: 'nums = [0,4,3,0], target = 0', displayExpected: '[0, 3]', isPublic: false, name: 'Hidden Case 2 (Zero Target Sum)' },
-        { input: [[1, 5, 5, 11], 10], expected: [1, 2], displayInput: 'nums = [1,5,5,11], target = 10', displayExpected: '[1, 2]', isPublic: false, name: 'Hidden Case 3 (Duplicate Values)' },
-        { input: [[100, 200, 300, 400], 500], expected: [0, 2], displayInput: 'nums = [100,200,300,400], target = 500', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 4 (Large Integers)' },
-        { input: [[8, 1, 3, 9, 2], 10], expected: [0, 4], displayInput: 'nums = [8,1,3,9,2], target = 10', displayExpected: '[0, 4]', isPublic: false, name: 'Hidden Case 5 (First & Last Pair)' },
-        { input: [[4, 7, 2, 8, 9], 17], expected: [3, 4], displayInput: 'nums = [4,7,2,8,9], target = 17', displayExpected: '[3, 4]', isPublic: false, name: 'Hidden Case 6 (Adjacent End Pair)' },
-        { input: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 19], expected: [8, 9], displayInput: 'nums = [1..10], target = 19', displayExpected: '[8, 9]', isPublic: false, name: 'Hidden Case 7 (Large Array)' }
-      ],
-      python: [
-        { input: [[2, 7, 11, 15], 9], expected: [0, 1], displayInput: 'nums = [2,7,11,15], target = 9', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 1' },
-        { input: [[3, 2, 4], 6], expected: [1, 2], displayInput: 'nums = [3,2,4], target = 6', displayExpected: '[1, 2]', isPublic: true, name: 'Public Test Case 2' },
-        { input: [[3, 3], 6], expected: [0, 1], displayInput: 'nums = [3,3], target = 6', displayExpected: '[0, 1]', isPublic: true, name: 'Public Test Case 3' },
-        { input: [[-3, 4, 3, 90], 0], expected: [0, 2], displayInput: 'nums = [-3,4,3,90], target = 0', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 1 (Negative Integers)' },
-        { input: [[0, 4, 3, 0], 0], expected: [0, 3], displayInput: 'nums = [0,4,3,0], target = 0', displayExpected: '[0, 3]', isPublic: false, name: 'Hidden Case 2 (Zero Target Sum)' },
-        { input: [[1, 5, 5, 11], 10], expected: [1, 2], displayInput: 'nums = [1,5,5,11], target = 10', displayExpected: '[1, 2]', isPublic: false, name: 'Hidden Case 3 (Duplicate Values)' },
-        { input: [[100, 200, 300, 400], 500], expected: [0, 2], displayInput: 'nums = [100,200,300,400], target = 500', displayExpected: '[0, 2]', isPublic: false, name: 'Hidden Case 4 (Large Integers)' },
-        { input: [[8, 1, 3, 9, 2], 10], expected: [0, 4], displayInput: 'nums = [8,1,3,9,2], target = 10', displayExpected: '[0, 4]', isPublic: false, name: 'Hidden Case 5 (First & Last Pair)' },
-        { input: [[4, 7, 2, 8, 9], 17], expected: [3, 4], displayInput: 'nums = [4,7,2,8,9], target = 17', displayExpected: '[3, 4]', isPublic: false, name: 'Hidden Case 6 (Adjacent End Pair)' },
-        { input: [[1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 19], expected: [8, 9], displayInput: 'nums = [1..10], target = 19', displayExpected: '[8, 9]', isPublic: false, name: 'Hidden Case 7 (Large Array)' }
-      ]
-    }
   },
   pp2: {
     id: 'pp2',
@@ -104,33 +39,8 @@ def two_sum(nums, target):
     category: 'Basics',
     description: 'Write a function named `helloWorld` (or `hello_world` in Python) that returns the exact string `"Hello World"`.\n\nMake sure the casing and spacing match exactly.',
     examples: [
-      { input: 'helloWorld()', output: '"Hello World"', explanation: 'Returns the classic greeting string.' }
+      { input: 'helloWorld()', output: '"Hello World"', explanation: 'Returns the classic greeting string.' },
     ],
-    starters: {
-      javascript: `// Task 2: Print Hello World
-function helloWorld() {
-  // Return the string "Hello World"
-  return "Hello World";
-}
-
-console.log(helloWorld());`,
-      python: `# Task 2: Print Hello World
-def hello_world():
-    # Return the string "Hello World"
-    return "Hello World"
-
-print(hello_world())`
-    },
-    testCases: {
-      javascript: [
-        { input: [], expected: "Hello World", displayInput: 'helloWorld()', displayExpected: '"Hello World"', isPublic: true, name: 'Public Test' },
-        { input: [], expected: "Hello World", displayInput: 'helloWorld() return type check', displayExpected: '"Hello World"', isPublic: false, name: 'Hidden Case (Type Check)' }
-      ],
-      python: [
-        { input: [], expected: "Hello World", displayInput: 'hello_world()', displayExpected: '"Hello World"', isPublic: true, name: 'Public Test' },
-        { input: [], expected: "Hello World", displayInput: 'hello_world() return type check', displayExpected: '"Hello World"', isPublic: false, name: 'Hidden Case (Type Check)' }
-      ]
-    }
   },
   pp3: {
     id: 'pp3',
@@ -140,1034 +50,621 @@ print(hello_world())`
     description: 'Write a function `reverseString(str)` (or `reverse_string(s)` in Python) that takes a string input and returns the string in reverse order.',
     examples: [
       { input: 'str = "hello"', output: '"olleh"', explanation: 'Reversing "hello" produces "olleh".' },
-      { input: 'str = "aspire"', output: '"eripsa"' }
+      { input: 'str = "aspire"', output: '"eripsa"' },
     ],
-    starters: {
-      javascript: `// Task 3: Reverse a String
-function reverseString(str) {
-  // Write your code here
-  return str.split('').reverse().join('');
-}`,
-      python: `# Task 3: Reverse a String
-def reverse_string(s):
-    # Write your code here
-    return s[::-1]`
-    },
-    testCases: {
-      javascript: [
-        { input: ['hello'], expected: 'olleh', displayInput: 'str = "hello"', displayExpected: '"olleh"', isPublic: true, name: 'Public Test Case 1' },
-        { input: ['aspire'], expected: 'eripsa', displayInput: 'str = "aspire"', displayExpected: '"eripsa"', isPublic: true, name: 'Public Test Case 2' },
-        { input: ['12345'], expected: '54321', displayInput: 'str = "12345"', displayExpected: '"54321"', isPublic: true, name: 'Public Test Case 3' },
-        { input: ['a'], expected: 'a', displayInput: 'str = "a"', displayExpected: '"a"', isPublic: false, name: 'Hidden Case 1 (Single Character)' },
-        { input: ['racecar'], expected: 'racecar', displayInput: 'str = "racecar"', displayExpected: '"racecar"', isPublic: false, name: 'Hidden Case 2 (Palindrome)' },
-        { input: ['python'], expected: 'nohtyp', displayInput: 'str = "python"', displayExpected: '"nohtyp"', isPublic: false, name: 'Hidden Case 3 (Lowercase Words)' },
-        { input: ['code'], expected: 'edoc', displayInput: 'str = "code"', displayExpected: '"edoc"', isPublic: false, name: 'Hidden Case 4 (Short Words)' },
-        { input: ['lms'], expected: 'sml', displayInput: 'str = "lms"', displayExpected: '"sml"', isPublic: false, name: 'Hidden Case 5 (Acronym)' },
-        { input: ['web'], expected: 'bew', displayInput: 'str = "web"', displayExpected: '"bew"', isPublic: false, name: 'Hidden Case 6 (3-Letter Words)' },
-        { input: ['super'], expected: 'repus', displayInput: 'str = "super"', displayExpected: '"repus"', isPublic: false, name: 'Hidden Case 7 (5-Letter Words)' }
-      ],
-      python: [
-        { input: ['hello'], expected: 'olleh', displayInput: 'str = "hello"', displayExpected: '"olleh"', isPublic: true, name: 'Public Test Case 1' },
-        { input: ['aspire'], expected: 'eripsa', displayInput: 'str = "aspire"', displayExpected: '"eripsa"', isPublic: true, name: 'Public Test Case 2' },
-        { input: ['12345'], expected: '54321', displayInput: 'str = "12345"', displayExpected: '"54321"', isPublic: true, name: 'Public Test Case 3' },
-        { input: ['a'], expected: 'a', displayInput: 'str = "a"', displayExpected: '"a"', isPublic: false, name: 'Hidden Case 1 (Single Character)' },
-        { input: ['racecar'], expected: 'racecar', displayInput: 'str = "racecar"', displayExpected: '"racecar"', isPublic: false, name: 'Hidden Case 2 (Palindrome)' },
-        { input: ['python'], expected: 'nohtyp', displayInput: 'str = "python"', displayExpected: '"nohtyp"', isPublic: false, name: 'Hidden Case 3 (Lowercase Words)' },
-        { input: ['code'], expected: 'edoc', displayInput: 'str = "code"', displayExpected: '"edoc"', isPublic: false, name: 'Hidden Case 4 (Short Words)' },
-        { input: ['lms'], expected: 'sml', displayInput: 'str = "lms"', displayExpected: '"sml"', isPublic: false, name: 'Hidden Case 5 (Acronym)' },
-        { input: ['web'], expected: 'bew', displayInput: 'str = "web"', displayExpected: '"bew"', isPublic: false, name: 'Hidden Case 6 (3-Letter Words)' },
-        { input: ['super'], expected: 'repus', displayInput: 'str = "super"', displayExpected: '"repus"', isPublic: false, name: 'Hidden Case 7 (5-Letter Words)' }
-      ]
-    }
-  }
+  },
+  pp4: {
+    id: 'pp4',
+    title: 'Valid Palindrome',
+    difficulty: 'Easy',
+    category: 'Strings & Logic',
+    description: 'Write a function `isPalindrome(s)` that returns `true` if a given string reads the same backward as forward, ignoring casing and non-alphanumeric characters.',
+    examples: [
+      { input: 's = "A man, a plan, a canal: Panama"', output: 'true', explanation: '"amanaplanacanalpanama" is a palindrome.' },
+      { input: 's = "race a car"', output: 'false', explanation: '"raceacar" is not a palindrome.' },
+    ],
+  },
+  pp5: {
+    id: 'pp5',
+    title: 'Find Maximum in Array',
+    difficulty: 'Medium',
+    category: 'Arrays & Search',
+    description: 'Write a function `findMax(nums)` that takes an array of integers `nums` and returns the maximum element.',
+    examples: [
+      { input: 'nums = [3, 7, 2, 9, 5]', output: '9', explanation: 'The largest number in the array is 9.' },
+      { input: 'nums = [-10, -3, -5, -1]', output: '-1' },
+    ],
+  },
 };
+
+// Directories to skip during folder upload
+const SKIP_DIRS = ['node_modules', '.git', '.next', 'dist', 'build', '__pycache__', '.DS_Store', 'venv', '.venv'];
+
+// Accepted single-file extensions
+const SINGLE_FILE_EXTS = ['.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c', '.cs', '.go', '.rb', '.php', '.kt', '.swift', '.rs', '.html', '.css', '.txt', '.md'];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
+
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export function WorkspaceScreen() {
   const { navigate, params } = useNav();
-  
+
   const problemId = (params.id && PROBLEM_CONFIGS[params.id]) ? params.id : 'pp1';
   const problemConfig = PROBLEM_CONFIGS[problemId] || PROBLEM_CONFIGS['pp1'];
-  
   const isReviewMode = params.mode === 'review';
 
-  const [language, setLanguage] = useState<'javascript' | 'python'>('javascript');
-  const [code, setCode] = useState<string>(problemConfig.starters.javascript);
-  const [activeTab, setActiveTab] = useState<'problem' | 'testcases'>('problem');
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [testResults, setTestResults] = useState<TestCase[]>([]);
-  const [isRunning, setIsRunning] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSubmittedSuccess, setIsSubmittedSuccess] = useState(false);
+  const [isPanelOpen, setIsPanelOpen] = useState(true);
 
-  // Load code from localStorage if review mode or saved draft exists
+  // Upload state
+  const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadedStorageUrl, setUploadedStorageUrl] = useState<string | null>(null);
+  const [uploadedFileCount, setUploadedFileCount] = useState(0);
+  const [uploadedTotalSize, setUploadedTotalSize] = useState(0);
+  const [uploadedProjectName, setUploadedProjectName] = useState('');
+
+  // Review mode: inline file viewer
+  const [reviewBundle, setReviewBundle] = useState<ReturnType<typeof loadBundleFromStorage> | null>(null);
+  const [showFullExplorer, setShowFullExplorer] = useState(false);
+
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // On mount: load submitted data
   useEffect(() => {
-    const savedSubmissionRaw = localStorage.getItem(`submission_${problemId}`);
-    if (savedSubmissionRaw) {
-      try {
-        const data = JSON.parse(savedSubmissionRaw);
-        if (data.code) setCode(data.code);
-        if (data.language) setLanguage(data.language);
-      } catch (e) {
-        console.error("Failed to parse saved submission:", e);
+    try {
+      const raw = localStorage.getItem(`submission_${problemId}`);
+      if (raw) {
+        const data = JSON.parse(raw);
+        if (data.storageUrl) {
+          setUploadedStorageUrl(data.storageUrl);
+          setUploadedFileCount(data.fileCount ?? 0);
+          setUploadedTotalSize(0);
+          setUploadedProjectName(data.projectName ?? '');
+          if (isReviewMode) {
+            const bundle = loadBundleFromStorage(data.storageUrl);
+            setReviewBundle(bundle);
+          }
+        }
       }
-    } else {
-      setCode(problemConfig.starters[language]);
-    }
+    } catch {}
   }, [problemId, isReviewMode]);
 
-  // Handle language switch
-  const handleLanguageChange = (newLang: 'javascript' | 'python') => {
-    setLanguage(newLang);
-    const saved = localStorage.getItem(`submission_${problemId}`);
-    if (saved) {
-      try {
-        const data = JSON.parse(saved);
-        if (data.language === newLang && data.code) {
-          setCode(data.code);
-          return;
-        }
-      } catch (e) {}
-    }
-    setCode(problemConfig.starters[newLang]);
-  };
+  // ── File Processing ─────────────────────────────────────────────────────────
 
-  const [isRunningCode, setIsRunningCode] = useState(false);
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
-  const [bottomTab, setBottomTab] = useState<'terminal' | 'customInput'>('terminal');
-  const [customInputText, setCustomInputText] = useState('nums = [10, 20, 30], target = 50');
-  const [terminalExpanded, setTerminalExpanded] = useState(false);
-  const [selectedCaseTab, setSelectedCaseTab] = useState<number>(0);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState('');
+  const [processingFileName, setProcessingFileName] = useState('');
 
-  const [lastCustomResult, setLastCustomResult] = useState<{
-    input: string;
-    actual: string;
-    expected?: string;
-    stdout: string[];
-    timeMs: string;
-  } | null>(null);
+  const processFileList = useCallback(async (files: File[]) => {
+    if (!files || files.length === 0) return;
 
-  // ── Run Custom Input Execution (Online Compiler Custom Input) ──
-  const runCustomInput = () => {
-    setIsRunningCode(true);
-    const startTime = performance.now();
-    const stdoutLogs: string[] = [];
-    
-    const mockConsole = {
-      log: (...args: any[]) => {
-        stdoutLogs.push(args.map(a => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
-      }
+    setIsProcessing(true);
+    setUploadProgress(15);
+    setUploadStatusText('Scanning solution files...');
+    setUploadedStorageUrl(null);
+
+    const firstItem = files[0];
+    const nameCandidate = firstItem?.webkitRelativePath?.split('/')[0] || firstItem?.name || 'Solution';
+    setProcessingFileName(nameCandidate);
+
+    const projectFiles: ProjectFile[] = [];
+    const langMap: Record<string, string> = {
+      ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+      py: 'python', java: 'java', cpp: 'cpp', c: 'c', cs: 'csharp',
+      html: 'html', css: 'css', json: 'json', md: 'markdown', txt: 'text',
+      go: 'go', rb: 'ruby', php: 'php', kt: 'kotlin', swift: 'swift',
+      rs: 'rust',
     };
 
-    setTimeout(() => {
-      let returnedVal: any = null;
-      let expectedVal: string | undefined = undefined;
+    const readers = files.map((file) =>
+      new Promise<void>((resolve) => {
+        const relativePath = file.webkitRelativePath
+          ? file.webkitRelativePath.split('/').slice(1).join('/')
+          : file.name;
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
 
-      try {
-        if (language === 'javascript') {
-          if (problemId === 'pp1') {
-            const runner = new Function('console', `${code}\n return typeof twoSum === 'function' ? twoSum([10, 20, 30], 50) : null;`);
-            returnedVal = runner(mockConsole);
-            expectedVal = '[1, 2]';
-          } else if (problemId === 'pp3') {
-            const runner = new Function('console', `${code}\n return typeof reverseString === 'function' ? reverseString("aspire") : null;`);
-            returnedVal = runner(mockConsole);
-            expectedVal = '"eripsa"';
-          } else {
-            const runner = new Function('console', `${code}\n return typeof helloWorld === 'function' ? helloWorld() : null;`);
-            returnedVal = runner(mockConsole);
-            expectedVal = '"Hello World"';
-          }
+        if (file.size < 1024 * 512) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            projectFiles.push({
+              path: relativePath,
+              name: file.name,
+              content: (e.target?.result as string) ?? '',
+              size: file.size,
+              language: langMap[ext] ?? 'text',
+            });
+            resolve();
+          };
+          reader.onerror = () => resolve();
+          reader.readAsText(file);
         } else {
-          returnedVal = problemId === 'pp1' ? [1, 2] : (problemId === 'pp3' ? "eripsa" : "Hello World");
-          expectedVal = JSON.stringify(returnedVal);
+          projectFiles.push({
+            path: relativePath,
+            name: file.name,
+            content: '// Binary or oversized file — cannot preview',
+            size: file.size,
+            language: 'text',
+          });
+          resolve();
         }
-      } catch (err: any) {
-        returnedVal = `Error: ${err.message}`;
-      }
+      })
+    );
 
-      const duration = (performance.now() - startTime + 0.2).toFixed(1);
+    await Promise.all(readers);
 
-      setLastCustomResult({
-        input: customInputText,
-        actual: JSON.stringify(returnedVal),
-        expected: expectedVal,
-        stdout: stdoutLogs,
-        timeMs: `${duration} ms`
-      });
+    setUploadProgress(50);
+    setUploadStatusText(`Packaging ${projectFiles.length} file${projectFiles.length !== 1 ? 's' : ''}...`);
+    await new Promise((r) => setTimeout(r, 350));
 
-      setIsRunningCode(false);
-    }, 300);
-  };
+    setUploadProgress(85);
+    setUploadStatusText('Generating database link & saving submission...');
+    await new Promise((r) => setTimeout(r, 450));
 
-  const resetCode = () => {
-    setCode(problemConfig.starters[language]);
-    setTerminalOutput(['> Code reset to default template.']);
-    setTestResults([]);
-  };
+    const totalSize = projectFiles.reduce((s, f) => s + f.size, 0);
+    const projectName = nameCandidate;
 
-  // ── Run Code Only (Executes Public Example Test Cases & Console Logs) ──
-  const runCodeOnly = () => {
-    setIsRunningCode(true);
-    const timeStr = new Date().toLocaleTimeString();
-    const logs: string[] = [`[${timeStr}] Running code with ${language.toUpperCase()} engine...` ];
-    const results: TestCase[] = [];
+    const storageUrl = saveBundleToStorage({
+      projectName,
+      totalFiles: projectFiles.length,
+      totalSize,
+      uploadedAt: new Date().toISOString(),
+      storageUrl: '',
+      files: projectFiles,
+    });
 
-    setTimeout(() => {
-      const tests = problemConfig.testCases[language] || problemConfig.testCases.javascript;
-      const publicTests = tests.filter(t => t.isPublic !== false);
+    // Only the link goes to the DB
+    localStorage.setItem(`submission_${problemId}`, JSON.stringify({
+      storageUrl,
+      language: 'project',
+      timestamp: new Date().toISOString(),
+      solved: true,
+      projectName,
+      fileCount: projectFiles.length,
+    }));
 
-      logs.push('\n--- 🟢 PUBLIC TEST CASES ---');
+    setUploadProgress(100);
+    setUploadedStorageUrl(storageUrl);
+    setUploadedFileCount(projectFiles.length);
+    setUploadedTotalSize(totalSize);
+    setUploadedProjectName(projectName);
+    setIsProcessing(false);
+  }, [problemId]);
 
-      let publicPassedCount = 0;
-      publicTests.forEach((test, idx) => {
-        try {
-          let actualResult: any;
-          if (language === 'javascript') {
-            if (problemId === 'pp1') {
-              const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
-              const userFn = fn();
-              actualResult = userFn ? userFn(...test.input) : undefined;
-            } else if (problemId === 'pp3') {
-              const fn = new Function(`${code}\n return typeof reverseString === 'function' ? reverseString : (typeof reverse_string === 'function' ? reverse_string : null);`);
-              const userFn = fn();
-              actualResult = userFn ? userFn(...test.input) : undefined;
-            } else {
-              const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
-              actualResult = fn();
-            }
-          } else {
-            if (problemId === 'pp1') {
-              const nums = test.input[0];
-              const target = test.input[1];
-              const res: number[] = [];
-              for (let i = 0; i < nums.length; i++) {
-                for (let j = i + 1; j < nums.length; j++) {
-                  if (nums[i] + nums[j] === target) { res.push(i, j); break; }
-                }
-                if (res.length > 0) break;
-              }
-              actualResult = res;
-            } else if (problemId === 'pp3') {
-              actualResult = String(test.input[0]).split('').reverse().join('');
-            } else {
-              actualResult = "Hello World";
-            }
-          }
+  // Folder upload
+  const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    const fileArray = Array.from(e.target.files).filter((f) => {
+      const parts = (f.webkitRelativePath || f.name).split('/');
+      return !parts.some((p) => SKIP_DIRS.includes(p));
+    });
+    processFileList(fileArray);
+  }, [processFileList]);
 
-          const isMatch = JSON.stringify(actualResult) === JSON.stringify(test.expected);
-          if (isMatch) publicPassedCount++;
+  // Single file upload
+  const handleSingleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    processFileList(Array.from(e.target.files));
+  }, [processFileList]);
 
-          logs.push(`[${isMatch ? 'PASSED ✅' : 'FAILED ❌'}] ${test.name || `Case ${idx+1}`}`);
-          logs.push(`  Input:           ${test.displayInput}`);
-          logs.push(`  Expected Output: ${test.displayExpected}`);
-          logs.push(`  Actual Output:   ${JSON.stringify(actualResult)}`);
-          logs.push('');
+  // Drag & drop (supports both files and folders)
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (!e.dataTransfer.files?.length) return;
+    const fileArray = Array.from(e.dataTransfer.files).filter((f) => {
+      const parts = (f.webkitRelativePath || f.name).split('/');
+      return !parts.some((p) => SKIP_DIRS.includes(p));
+    });
+    processFileList(fileArray);
+  }, [processFileList]);
 
-          results.push({
-            id: idx + 1,
-            name: test.name || `Public Case ${idx + 1}`,
-            input: test.displayInput,
-            expected: test.displayExpected,
-            actual: JSON.stringify(actualResult),
-            passed: isMatch,
-            isPublic: true
-          });
-        } catch (err: any) {
-          logs.push(`[FAILED ❌] ${test.name || `Case ${idx+1}`}`);
-          logs.push(`  Input: ${test.displayInput}`);
-          logs.push(`  Error: ${err.message || 'Execution error'}`);
-          logs.push('');
+  // ── Left Panel ──────────────────────────────────────────────────────────────
 
-          results.push({
-            id: idx + 1,
-            name: test.name || `Public Case ${idx + 1}`,
-            input: test.displayInput,
-            expected: test.displayExpected,
-            error: err.message || 'Execution error',
-            passed: false,
-            isPublic: true
-          });
-        }
-      });
+  const LeftPanel = (
+    <div className={`transition-all duration-300 ease-in-out bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden ${
+      isPanelOpen ? 'w-full sm:w-[400px]' : 'w-0 border-r-0 opacity-0 pointer-events-none'
+    }`}>
+      <div className="flex items-center border-b border-slate-200 bg-slate-50 px-2 justify-between">
+        <button className="px-4 py-3.5 text-xs font-black border-b-2 border-[#7c3aed] text-[#7c3aed] bg-white flex items-center gap-2">
+          <BookOpen className="w-3.5 h-3.5" /> Description
+        </button>
+        <button
+          onClick={() => setIsPanelOpen(false)}
+          className="mr-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-xs font-extrabold transition-all border border-slate-200"
+        >
+          <ChevronLeft className="w-3.5 h-3.5" /> Hide
+        </button>
+      </div>
 
-      if (publicPassedCount === publicTests.length) {
-        logs.push(`🎉 All ${publicTests.length} Public Test Cases Passed!`);
-        logs.push('💡 Next Step: Click "Run Tests" or "Submit Assignment" to execute Private Hidden Test Cases.');
-      } else {
-        logs.push(`⚠️ Passed ${publicPassedCount}/${publicTests.length} Public Test Cases. Please fix your code logic.`);
-      }
+      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar text-slate-700 bg-white">
+        <div>
+          <h2 className="text-xl font-black text-slate-900 mb-2">{problemConfig.title}</h2>
+          <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{problemConfig.description}</p>
+        </div>
 
-      setTerminalOutput(logs);
-      setTestResults(results);
-      setIsRunningCode(false);
-    }, 350);
-  };
+        <div className="space-y-4">
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Examples</h3>
+          {problemConfig.examples.map((ex, idx) => (
+            <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-1.5 font-mono text-xs">
+              <p className="font-bold text-slate-500 text-[10px] uppercase">Example {idx + 1}:</p>
+              <p><span className="text-[#7c3aed] font-bold">Input:</span> {ex.input}</p>
+              <p><span className="text-emerald-600 font-bold">Output:</span> {ex.output}</p>
+              {ex.explanation && <p className="text-slate-500 text-[11px] font-sans mt-1">{ex.explanation}</p>}
+            </div>
+          ))}
+        </div>
 
-  // ── Run Tests (Executes Public & Private Hidden Test Cases Suite) ──
-  const runTests = () => {
-    setIsRunning(true);
-    const timeStr = new Date().toLocaleTimeString();
-    const logs: string[] = [`[${timeStr}] Initiating Full Test Evaluation Suite (${language.toUpperCase()})...` ];
-    const results: TestCase[] = [];
+        {!isReviewMode && (
+          <div className="p-4 rounded-xl bg-primary-500/10 border border-primary-500/30">
+            <h3 className="text-xs font-bold text-primary-300 mb-2">How to Submit</h3>
+            <ol className="space-y-1.5 text-xs text-slate-400">
+              <li><span className="text-primary-400 font-bold">1.</span> Read the problem carefully above.</li>
+              <li><span className="text-primary-400 font-bold">2.</span> Open VS Code or <span className="text-white font-semibold">vscode.dev</span> online.</li>
+              <li><span className="text-primary-400 font-bold">3.</span> Write and save your solution file(s).</li>
+              <li><span className="text-primary-400 font-bold">4.</span> Upload a <strong className="text-white">single file</strong> (e.g. <code className="text-primary-300">solution.py</code>) or a whole <strong className="text-white">project folder</strong>.</li>
+              <li><span className="text-primary-400 font-bold">5.</span> Click <span className="text-primary-400 font-bold">"View Project"</span> to preview your submission.</li>
+            </ol>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 
-    setTimeout(() => {
-      const tests = problemConfig.testCases[language] || problemConfig.testCases.javascript;
-      const publicTests = tests.filter(t => t.isPublic !== false);
-      const privateTests = tests.filter(t => t.isPublic === false);
+  // ── Right Panel: REVIEW MODE ────────────────────────────────────────────────
+  //  Shows the submitted file structure directly (embedded inline)
 
-      let publicPassedCount = 0;
-      let privatePassedCount = 0;
+  if (isReviewMode) {
+    return (
+      <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col font-sans text-slate-800">
+        {/* Full-screen explorer modal (optional "expand") */}
+        {showFullExplorer && uploadedStorageUrl && (
+          <FileExplorerViewer storageUrl={uploadedStorageUrl} onClose={() => setShowFullExplorer(false)} />
+        )}
 
-      // 1. PUBLIC TEST CASES
-      logs.push('\n--- 🟢 PUBLIC TEST CASES ---');
-      publicTests.forEach((test, idx) => {
-        try {
-          let actualResult: any;
-          if (language === 'javascript') {
-            if (problemId === 'pp1') {
-              const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
-              const userFn = fn();
-              actualResult = userFn ? userFn(...test.input) : undefined;
-            } else if (problemId === 'pp3') {
-              const fn = new Function(`${code}\n return typeof reverseString === 'function' ? reverseString : (typeof reverse_string === 'function' ? reverse_string : null);`);
-              const userFn = fn();
-              actualResult = userFn ? userFn(...test.input) : undefined;
-            } else {
-              const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
-              actualResult = fn();
-            }
-          } else {
-            if (problemId === 'pp1') {
-              const nums = test.input[0];
-              const target = test.input[1];
-              const res: number[] = [];
-              for (let i = 0; i < nums.length; i++) {
-                for (let j = i + 1; j < nums.length; j++) {
-                  if (nums[i] + nums[j] === target) { res.push(i, j); break; }
-                }
-                if (res.length > 0) break;
-              }
-              actualResult = res;
-            } else if (problemId === 'pp3') {
-              actualResult = String(test.input[0]).split('').reverse().join('');
-            } else {
-              actualResult = "Hello World";
-            }
-          }
+        {/* Header */}
+        <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm">
+          <div className="flex items-center gap-3">
+            <button onClick={() => navigate('practice')} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="font-bold text-slate-900 text-base">{problemConfig.title}</h1>
+                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                  problemConfig.difficulty === 'Easy'
+                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
+                    : 'bg-amber-50 text-amber-700 border-amber-200/70'
+                }`}>{problemConfig.difficulty}</span>
+                <span className="px-2 py-0.5 rounded bg-purple-50 text-[#7c3aed] border border-purple-200/70 text-[10px] font-bold flex items-center gap-1">
+                  <Lock className="w-3 h-3" /> Submitted
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 mt-0.5">Practice Lab • {problemConfig.category}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            {uploadedStorageUrl && (
+              <Button size="sm" onClick={() => setShowFullExplorer(true)} leftIcon={<Eye className="w-4 h-4" />}
+                className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs px-3 shadow-xs">
+                Expand View
+              </Button>
+            )}
+            <Button size="sm" variant="secondary" onClick={() => navigate('practice')}
+              className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs">
+              Back to Practice
+            </Button>
+          </div>
+        </div>
 
-          const isMatch = JSON.stringify(actualResult) === JSON.stringify(test.expected);
-          if (isMatch) publicPassedCount++;
+        {/* Layout: Left = Question | Right = File Structure */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Collapsed sidebar */}
+          {!isPanelOpen && (
+            <div className="w-12 bg-slate-100 border-r border-slate-200 flex flex-col items-center py-4 gap-4 shrink-0">
+              <button onClick={() => setIsPanelOpen(true)}
+                className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+          )}
 
-          logs.push(`[${isMatch ? 'PASS ✅' : 'FAIL ❌'}] ${test.name || `Case ${idx+1}`}: Input: ${test.displayInput} | Expected: ${test.displayExpected} | Actual: ${JSON.stringify(actualResult)}`);
+          {LeftPanel}
 
-          results.push({
-            id: idx + 1,
-            name: test.name || `Public Case ${idx + 1}`,
-            input: test.displayInput,
-            expected: test.displayExpected,
-            actual: JSON.stringify(actualResult),
-            passed: isMatch,
-            isPublic: true
-          });
-        } catch (err: any) {
-          logs.push(`[FAIL ❌] ${test.name || `Case ${idx+1}`}: Error: ${err.message}`);
-          results.push({
-            id: idx + 1,
-            name: test.name || `Public Case ${idx + 1}`,
-            input: test.displayInput,
-            expected: test.displayExpected,
-            error: err.message,
-            passed: false,
-            isPublic: true
-          });
-        }
-      });
+          {/* Right: Submitted File Structure */}
+          <div className="flex-1 flex flex-col overflow-hidden bg-white">
+            {reviewBundle ? (
+              <>
+                {/* File tree header */}
+                <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+                  <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <FolderOpen className="w-4 h-4 text-yellow-500" />
+                    <span className="font-extrabold text-slate-800">{reviewBundle.projectName}</span>
+                    <span>•</span>
+                    <span>{reviewBundle.totalFiles} file{reviewBundle.totalFiles !== 1 ? 's' : ''}</span>
+                  </div>
+                  <span className="text-[10px] text-[#7c3aed] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-50 border border-purple-200/80">
+                    Read Only
+                  </span>
+                </div>
 
-      // 2. PRIVATE / HIDDEN TEST CASES (Only evaluate if public tests passed)
-      logs.push('\n--- 🔒 PRIVATE TEST CASES (HIDDEN EVALUATION) ---');
-      if (publicPassedCount < publicTests.length) {
-        logs.push('⚠️ Private test cases locked. Fix public test failures first to unlock private test evaluation.');
-      } else {
-        privateTests.forEach((test, idx) => {
-          try {
-            let actualResult: any;
-            if (language === 'javascript') {
-              if (problemId === 'pp1') {
-                const fn = new Function(`${code}\n return typeof twoSum === 'function' ? twoSum : null;`);
-                const userFn = fn();
-                actualResult = userFn ? userFn(...test.input) : undefined;
-              } else if (problemId === 'pp3') {
-                const fn = new Function(`${code}\n return typeof reverseString === 'function' ? reverseString : (typeof reverse_string === 'function' ? reverse_string : null);`);
-                const userFn = fn();
-                actualResult = userFn ? userFn(...test.input) : undefined;
-              } else {
-                const fn = new Function(`${code}\n return typeof helloWorld === 'function' ? helloWorld() : (typeof hello_world === 'function' ? hello_world() : null);`);
-                actualResult = fn();
-              }
-            } else {
-              if (problemId === 'pp1') {
-                const nums = test.input[0];
-                const target = test.input[1];
-                const res: number[] = [];
-                for (let i = 0; i < nums.length; i++) {
-                  for (let j = i + 1; j < nums.length; j++) {
-                    if (nums[i] + nums[j] === target) { res.push(i, j); break; }
-                  }
-                  if (res.length > 0) break;
-                }
-                actualResult = res;
-              } else if (problemId === 'pp3') {
-                actualResult = String(test.input[0]).split('').reverse().join('');
-              } else {
-                actualResult = "Hello World";
-              }
-            }
+                {/* Inline FileExplorerViewer (not fullscreen) */}
+                <div className="flex-1 overflow-hidden">
+                  <FileExplorerViewer
+                    storageUrl={uploadedStorageUrl!}
+                    onClose={() => {}}
+                    inline
+                  />
+                </div>
+              </>
+            ) : (
+              <div className="flex-1 flex items-center justify-center flex-col gap-4 text-center p-8 bg-slate-50">
+                <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs">
+                  <FolderOpen className="w-8 h-8 text-slate-400" />
+                </div>
+                <div>
+                  <p className="text-slate-800 font-bold">No project files found</p>
+                  <p className="text-slate-500 text-xs mt-1">This submission may not have file data available</p>
+                </div>
+                <Button size="sm" onClick={() => navigate('practice')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">
+                  Back to Practice
+                </Button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
-            const isMatch = JSON.stringify(actualResult) === JSON.stringify(test.expected);
-            if (isMatch) privatePassedCount++;
-
-            logs.push(`[${isMatch ? 'PASS ✅' : 'FAIL ❌'}] ${test.name || `Hidden Case ${idx+1}`}: Input: ${test.displayInput} | Expected: ${test.displayExpected} | Actual: ${JSON.stringify(actualResult)}`);
-
-            results.push({
-              id: publicTests.length + idx + 1,
-              name: test.name || `Hidden Case ${idx + 1}`,
-              input: test.displayInput,
-              expected: test.displayExpected,
-              actual: JSON.stringify(actualResult),
-              passed: isMatch,
-              isPublic: false
-            });
-          } catch (err: any) {
-            logs.push(`[FAIL ❌] ${test.name || `Hidden Case ${idx+1}`}: Error: ${err.message}`);
-            results.push({
-              id: publicTests.length + idx + 1,
-              name: test.name || `Hidden Case ${idx + 1}`,
-              input: test.displayInput,
-              expected: test.displayExpected,
-              error: err.message,
-              passed: false,
-              isPublic: false
-            });
-          }
-        });
-      }
-
-      const totalPassed = publicPassedCount + privatePassedCount;
-      const totalCount = tests.length;
-
-      logs.push('\n--- 📊 EVALUATION SUMMARY ---');
-      logs.push(`Public Test Cases:  ${publicPassedCount}/${publicTests.length} Passed`);
-      logs.push(`Private Test Cases: ${privatePassedCount}/${privateTests.length} Passed`);
-
-      if (totalPassed === totalCount) {
-        logs.push('🎉 ALL TEST CASES PASSED (PUBLIC & PRIVATE)! Ready to submit assignment.');
-      } else {
-        logs.push(`⚠️ Result: ${totalPassed}/${totalCount} total cases passed.`);
-      }
-
-      setTerminalOutput(logs);
-      setTestResults(results);
-      setIsRunning(false);
-      setActiveTab('testcases');
-    }, 450);
-  };
-
-  // Submit Assignment Handler
-  const handleSubmit = () => {
-    setIsSubmitting(true);
-
-    setTimeout(() => {
-      // Save submission data to localStorage
-      const submissionData = {
-        code,
-        language,
-        timestamp: new Date().toISOString(),
-        solved: true
-      };
-      
-      localStorage.setItem(`submission_${problemId}`, JSON.stringify(submissionData));
-      setIsSubmitting(false);
-      setIsSubmittedSuccess(true);
-    }, 600);
-  };
+  // ── Right Panel: SOLVE MODE ─────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#0e131f] flex flex-col font-sans text-slate-100">
-      
-      {/* ── Top Header Navigation ── */}
-      <div className="h-14 bg-[#161c2e] border-b border-slate-800 flex items-center justify-between px-4 shrink-0 shadow-md">
+    <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col font-sans text-slate-800">
+
+      {/* Header */}
+      <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
-          <button 
-            onClick={() => navigate('practice')}
-            className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition-all border border-slate-700/50"
-            title="Back to Practice Lab"
-          >
+          <button onClick={() => navigate('practice')} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="font-bold text-white text-base tracking-tight">{problemConfig.title}</h1>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                problemConfig.difficulty === 'Easy' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-              }`}>
-                {problemConfig.difficulty}
-              </span>
-              {isReviewMode && (
-                <span className="px-2 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 text-[10px] font-bold flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Submitted (Read-Only)
-                </span>
-              )}
+              <h1 className="font-bold text-slate-900 text-base">{problemConfig.title}</h1>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+                problemConfig.difficulty === 'Easy'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
+                  : 'bg-amber-50 text-amber-700 border-amber-200/70'
+              }`}>{problemConfig.difficulty}</span>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">Practice Lab • VS Code Environment</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Practice Lab • {problemConfig.category}</p>
           </div>
         </div>
-
-        {/* Right Actions Header */}
         <div className="flex items-center gap-3">
-          {/* Language Selector */}
-          <div className="flex items-center bg-slate-900 border border-slate-700/80 rounded-xl px-2.5 py-1">
-            <FileCode className="w-3.5 h-3.5 text-blue-400 mr-2" />
-            <select
-              value={language}
-              onChange={(e) => handleLanguageChange(e.target.value as any)}
-              disabled={isReviewMode}
-              className="bg-transparent text-xs font-semibold text-slate-200 outline-none cursor-pointer disabled:opacity-60"
-            >
-              <option value="javascript" className="bg-slate-900 text-white">JavaScript (Node.js)</option>
-              <option value="python" className="bg-slate-900 text-white">Python 3</option>
-            </select>
-          </div>
-
-          {!isReviewMode ? (
-            <>
-              {/* 1. RUN CODE BUTTON */}
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={runCodeOnly}
-                isLoading={isRunningCode}
-                leftIcon={<Play className="w-4 h-4 text-emerald-400 fill-emerald-400" />}
-                className="bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-emerald-500/30 shadow-sm px-2.5 sm:px-3 text-xs"
-              >
-                <span>Run</span><span className="hidden sm:inline"> Code</span>
-              </Button>
-
-              {/* 2. RUN TESTS BUTTON */}
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={runTests}
-                isLoading={isRunning}
-                leftIcon={<Sparkles className="w-4 h-4 text-indigo-400" />}
-                className="bg-slate-800 hover:bg-slate-700 text-indigo-200 border border-indigo-500/30 shadow-sm px-2.5 sm:px-3 text-xs"
-              >
-                <span>Run</span><span className="hidden sm:inline"> Tests</span>
-              </Button>
-
-              {/* 3. SUBMIT ASSIGNMENT BUTTON */}
-              <Button
-                size="sm"
-                variant="primary"
-                onClick={handleSubmit}
-                isLoading={isSubmitting}
-                leftIcon={<CheckCircle2 className="w-4 h-4" />}
-                className="bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)] px-2.5 sm:px-3 text-xs"
-              >
-                <span>Submit</span><span className="hidden sm:inline"> Assignment</span>
-              </Button>
-            </>
-          ) : (
-            <Button
-              size="sm"
-              variant="secondary"
-              onClick={() => navigate('practice')}
-              className="bg-slate-800 text-slate-200 hover:bg-slate-700 border border-slate-700 text-xs"
-            >
-              Return<span className="hidden sm:inline"> to Practice</span>
-            </Button>
-          )}
+          <Button size="sm" variant="secondary" onClick={() => navigate('practice')}
+            className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs">
+            Back to Practice
+          </Button>
         </div>
       </div>
 
-      {/* ── Main Canvas Split Layout ── */}
-      <div className="flex-1 flex overflow-hidden relative">
-        
-        {/* Collapsed Vertical Sidebar Bar (Appears when question panel is hidden) */}
+      {/* Full-screen explorer modal */}
+      {showFullExplorer && uploadedStorageUrl && (
+        <FileExplorerViewer storageUrl={uploadedStorageUrl} onClose={() => setShowFullExplorer(false)} />
+      )}
+
+      {/* Main layout */}
+      <div className="flex-1 flex overflow-hidden">
         {!isPanelOpen && (
-          <div className="w-12 bg-[#161c2e] border-r border-slate-800 flex flex-col items-center py-4 gap-6 shrink-0 shadow-xl z-20 animate-fade-in">
-            {/* Expand / Show Button */}
-            <button
-              type="button"
-              onClick={() => setIsPanelOpen(true)}
-              className="p-2 rounded-xl bg-slate-800 hover:bg-blue-600 text-slate-400 hover:text-white transition-all border border-slate-700/60 shadow-sm group"
-              title="Expand Question Panel"
-            >
-              <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-white" />
-            </button>
-
-            <div className="w-full h-px bg-slate-800/80 my-1" />
-
-            {/* Vertical Option 1: Question Description */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('problem');
-                setIsPanelOpen(true);
-              }}
-              className="flex flex-col items-center gap-2 p-2 rounded-xl hover:bg-slate-800/80 text-slate-400 hover:text-blue-400 transition-all group cursor-pointer"
-              title="Open Question Description"
-            >
-              <BookOpen className="w-4 h-4 text-slate-400 group-hover:text-blue-400 shrink-0" />
-              <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-extrabold uppercase tracking-widest text-slate-400 group-hover:text-blue-300 py-1">
-                Question
-              </span>
-            </button>
-
-            {/* Vertical Option 2: Test Cases */}
-            <button
-              type="button"
-              onClick={() => {
-                setActiveTab('testcases');
-                setIsPanelOpen(true);
-              }}
-              className="flex flex-col items-center gap-2 p-2 rounded-xl hover:bg-slate-800/80 text-slate-400 hover:text-indigo-400 transition-all group cursor-pointer"
-              title="Open Test Cases"
-            >
-              <CheckCircle2 className="w-4 h-4 text-slate-400 group-hover:text-indigo-400 shrink-0" />
-              <span className="[writing-mode:vertical-lr] rotate-180 text-[11px] font-extrabold uppercase tracking-widest text-slate-400 group-hover:text-indigo-300 py-1">
-                Test Cases
-              </span>
+          <div className="w-12 bg-slate-100 border-r border-slate-200 flex flex-col items-center py-4 gap-4 shrink-0">
+            <button onClick={() => setIsPanelOpen(true)}
+              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
+              <ChevronRight className="w-4 h-4" />
             </button>
           </div>
         )}
 
-        {/* Left Side: Problem Description & Test Results Drawer */}
-        <div className={`transition-all duration-300 ease-in-out bg-[#121725] border-r border-slate-800 flex flex-col shrink-0 overflow-hidden ${
-          isPanelOpen ? 'w-full sm:w-[420px]' : 'w-0 border-r-0 opacity-0 pointer-events-none'
-        }`}>
-          
-          {/* Left Panel Tabs */}
-          <div className="flex items-center border-b border-slate-800 bg-[#161c2e] px-2 justify-between">
-            <div className="flex items-center">
-              <button
-                onClick={() => setActiveTab('problem')}
-                className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-                  activeTab === 'problem' 
-                    ? 'border-blue-500 text-blue-400 bg-slate-800/40' 
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <BookOpen className="w-3.5 h-3.5" /> Description
-              </button>
+        {LeftPanel}
 
-              <button
-                onClick={() => setActiveTab('testcases')}
-                className={`px-4 py-3 text-xs font-bold transition-all border-b-2 flex items-center gap-2 ${
-                  activeTab === 'testcases' 
-                    ? 'border-blue-500 text-blue-400 bg-slate-800/40' 
-                    : 'border-transparent text-slate-400 hover:text-slate-200'
-                }`}
-              >
-                <CheckCircle2 className="w-3.5 h-3.5" /> Test Cases {testResults.length > 0 && `(${testResults.filter(r => r.passed).length}/${testResults.length})`}
-              </button>
-            </div>
+        {/* Right: Upload area */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 p-6 sm:p-10">
+          <div className="max-w-2xl mx-auto space-y-6">
 
-            {/* Dedicated Hide Button on Right Side of Left Panel Header */}
-            <button
-              type="button"
-              onClick={() => setIsPanelOpen(false)}
-              className="mr-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white text-xs font-bold transition-all border border-slate-700/60 active:scale-95 cursor-pointer shrink-0"
-              title="Hide Question Panel"
-            >
-              <ChevronLeft className="w-3.5 h-3.5 text-slate-400" />
-              <span>Hide</span>
-            </button>
-          </div>
+            {/* ── SUBMITTED STATE: hide upload, show submission card ── */}
+            {uploadedStorageUrl ? (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
 
-          {/* Left Tab Content */}
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar text-slate-300">
-            {activeTab === 'problem' ? (
-              <>
-                <div>
-                  <h2 className="text-xl font-extrabold text-white mb-2">{problemConfig.title}</h2>
-                  <p className="text-xs text-slate-400 leading-relaxed whitespace-pre-line">
-                    {problemConfig.description}
+                {/* Big success icon */}
+                <div className="w-20 h-20 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shadow-sm">
+                  <CheckCircle2 className="w-10 h-10 text-[#7c3aed]" />
+                </div>
+
+                {/* Heading */}
+                <div className="text-center">
+                  <h2 className="text-2xl font-black text-slate-900 mb-2">Solution Submitted!</h2>
+                  <p className="text-sm text-slate-500">
+                    Your solution for <span className="text-slate-900 font-extrabold">{problemConfig.title}</span> has been submitted successfully.
                   </p>
                 </div>
 
-                {/* Examples */}
-                <div className="space-y-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">Examples</h3>
-                  {problemConfig.examples.map((ex, idx) => (
-                    <div key={idx} className="p-4 rounded-xl bg-slate-900/80 border border-slate-800 space-y-1.5 font-mono text-xs">
-                      <p className="font-bold text-slate-400 text-[10px] uppercase">Example {idx + 1}:</p>
-                      <p><span className="text-blue-400">Input:</span> {ex.input}</p>
-                      <p><span className="text-emerald-400">Output:</span> {ex.output}</p>
-                      {ex.explanation && <p className="text-slate-500 text-[11px] font-sans mt-1">{ex.explanation}</p>}
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between gap-2 pb-1 border-b border-slate-800">
-                  <div>
-                    <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-300">
-                      Test Suite Results ({testResults.length}/10)
-                    </h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">3 Public Cases • 7 Private Hidden Cases</p>
-                  </div>
-                  {!isReviewMode && (
-                    <Button size="xs" variant="secondary" onClick={runTests} isLoading={isRunning} className="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700">
-                      Re-run Tests
-                    </Button>
+                {/* File metadata */}
+                <div className="flex items-center gap-2 flex-wrap justify-center">
+                  {uploadedProjectName && (
+                    <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-bold text-slate-700 shadow-3xs">
+                      <FolderOpen className="w-3.5 h-3.5 text-yellow-500" />
+                      {uploadedProjectName}
+                    </span>
+                  )}
+                  {uploadedFileCount > 0 && (
+                    <span className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-600 shadow-3xs">
+                      {uploadedFileCount} file{uploadedFileCount !== 1 ? 's' : ''}
+                    </span>
+                  )}
+                  {uploadedTotalSize > 0 && (
+                    <span className="px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-xs font-mono font-bold text-slate-600 shadow-3xs">
+                      {formatBytes(uploadedTotalSize)}
+                    </span>
                   )}
                 </div>
 
-                {testResults.length === 0 ? (
-                  <div className="p-8 text-center bg-slate-900/50 rounded-2xl border border-slate-800 text-slate-500 space-y-2">
-                    <Play className="w-8 h-8 mx-auto text-blue-400" />
-                    <p className="text-xs font-bold text-slate-300">No Tests Executed Yet</p>
-                    <p className="text-[11px] text-slate-400">
-                      Click <strong>"Run Code"</strong> for quick public test output or <strong>"Run Tests"</strong> to evaluate all 10 test cases (3 Public + 7 Private).
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-5">
-                    
-                    {/* 🟢 PUBLIC TEST CASES SECTION (3 CASES) */}
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
-                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                          Public Test Cases ({testResults.filter(r => r.isPublic !== false).filter(r => r.passed).length}/3)
-                        </span>
-                        <span className="text-[10px] font-extrabold bg-emerald-950/60 text-emerald-400 border border-emerald-800/60 px-2 py-0.5 rounded-full">
-                          VISIBLE
-                        </span>
-                      </div>
-
-                      {testResults.filter(r => r.isPublic !== false).map((tc) => (
-                        <div 
-                          key={tc.id} 
-                          className={`p-4 rounded-xl border transition-all ${
-                            tc.passed 
-                              ? 'bg-emerald-950/20 border-emerald-500/30' 
-                              : 'bg-rose-950/20 border-rose-500/30'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs font-bold text-slate-200">{tc.name || `Public Test ${tc.id}`}</span>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 ${
-                              tc.passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                            }`}>
-                              {tc.passed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                              {tc.passed ? 'PASSED' : 'FAILED'}
-                            </span>
-                          </div>
-
-                          <div className="font-mono text-xs space-y-1 text-slate-300 bg-slate-950/60 p-3 rounded-lg border border-slate-800">
-                            <p><span className="text-slate-500">Input:</span> {tc.input}</p>
-                            <p><span className="text-slate-500">Expected:</span> <span className="text-emerald-400 font-bold">{tc.expected}</span></p>
-                            {tc.actual && <p><span className="text-slate-500">Actual:</span> <span className={tc.passed ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold'}>{tc.actual}</span></p>}
-                            {tc.error && <p className="text-rose-400 text-[11px]">Error: {tc.error}</p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                    {/* 🔒 PRIVATE HIDDEN TEST CASES SECTION (7 CASES) */}
-                    <div className="space-y-3 pt-2 border-t border-slate-800">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                          <Lock className="w-3.5 h-3.5 text-indigo-400" />
-                          Private Hidden Test Cases ({testResults.filter(r => r.isPublic === false).filter(r => r.passed).length}/7)
-                        </span>
-                        <span className="text-[10px] font-extrabold bg-indigo-950/60 text-indigo-300 border border-indigo-800/60 px-2 py-0.5 rounded-full">
-                          EVALUATION
-                        </span>
-                      </div>
-
-                      {testResults.filter(r => r.isPublic === false).map((tc) => (
-                        <div 
-                          key={tc.id} 
-                          className={`p-3.5 rounded-xl border transition-all ${
-                            tc.passed 
-                              ? 'bg-indigo-950/20 border-indigo-500/30' 
-                              : 'bg-slate-900/60 border-slate-800'
-                          }`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <Lock className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
-                              <span className="text-xs font-bold text-slate-200">{tc.name || `Hidden Case ${tc.id}`}</span>
-                            </div>
-                            <span className={`px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 ${
-                              tc.passed ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
-                            }`}>
-                              {tc.passed ? <Check className="w-3 h-3" /> : <X className="w-3 h-3" />}
-                              {tc.passed ? 'VERIFIED' : 'FAILED'}
-                            </span>
-                          </div>
-
-                          <div className="font-mono text-[11px] mt-2 space-y-1 text-slate-400 bg-slate-950/40 p-2.5 rounded-lg border border-slate-800/60">
-                            <p><span className="text-slate-500">Input:</span> {tc.input}</p>
-                            <p><span className="text-slate-500">Expected:</span> <span className="text-indigo-300">{tc.expected}</span></p>
-                            {tc.actual && <p><span className="text-slate-500">Actual:</span> <span className={tc.passed ? 'text-indigo-300' : 'text-rose-400'}>{tc.actual}</span></p>}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Right Side: Monaco Editor & Interactive Terminal */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#1e1e1e]">
-          
-          {/* Editor Header Bar */}
-          <div className="h-10 bg-[#252526] border-b border-[#333333] flex items-center justify-between px-4 shrink-0">
-            <div className="flex items-center gap-2">
-              <span className="px-3 py-1 bg-[#1e1e1e] border-t-2 border-blue-500 text-slate-200 text-xs font-mono font-medium flex items-center gap-2 rounded-t-sm">
-                <FileCode className="w-3.5 h-3.5 text-blue-400" />
-                {problemId}.{language === 'javascript' ? 'js' : 'py'}
-              </span>
-            </div>
-
-            {!isReviewMode && (
-              <button 
-                onClick={resetCode}
-                className="text-xs text-slate-400 hover:text-slate-200 flex items-center gap-1.5 transition-colors"
-                title="Reset code template"
-              >
-                <RotateCcw className="w-3 h-3" /> Reset Template
-              </button>
-            )}
-          </div>
-
-          {/* Monaco Editor Container */}
-          <div className="flex-1 relative overflow-hidden">
-            <Editor
-              height="100%"
-              language={language}
-              theme="vs-dark"
-              value={code}
-              onChange={(val) => !isReviewMode && setCode(val || '')}
-              options={{
-                minimap: { enabled: false },
-                fontSize: 14,
-                fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, monospace",
-                lineHeight: 1.6,
-                padding: { top: 16 },
-                readOnly: isReviewMode,
-                scrollBeyondLastLine: false,
-                smoothScrolling: true,
-                cursorBlinking: 'smooth',
-                renderLineHighlight: 'all',
-                automaticLayout: true,
-              }}
-              loading={
-                <div className="flex items-center justify-center h-full text-slate-400 bg-[#1e1e1e]">
-                  <RefreshCw className="w-6 h-6 animate-spin mr-2 text-blue-500" />
-                  Loading Monaco VS Code Editor...
+                {/* Action buttons */}
+                <div className="flex gap-3 flex-wrap justify-center">
+                  <button
+                    onClick={() => setShowFullExplorer(true)}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold transition-all shadow-sm"
+                  >
+                    <Eye className="w-5 h-5" />
+                    View Submitted Files
+                  </button>
+                  <button
+                    onClick={() => navigate('practice')}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all border border-slate-200 shadow-3xs"
+                  >
+                    <ArrowLeft className="w-5 h-5" />
+                    Back to Practice
+                  </button>
                 </div>
-              }
-            />
-          </div>
 
-          {/* Bottom Interactive Online Compiler Console */}
-          <div className={`bg-[#181818] border-t border-[#333333] flex flex-col shrink-0 transition-all duration-300 ${
-            terminalExpanded ? 'h-80' : 'h-48'
-          }`}>
-            {/* Compiler Console Tab Bar */}
-            <div className="h-9 bg-[#252526] border-b border-[#333333] flex items-center px-4 justify-between shrink-0">
-              <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={() => setBottomTab('terminal')}
-                  className={`px-3 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors border-b-2 ${
-                    bottomTab === 'terminal' ? 'border-emerald-500 text-emerald-400 bg-slate-800/40' : 'border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <Terminal className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Terminal Output</span>
-                </button>
+                {/* Submitted lock note */}
+                <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white border border-slate-200 text-xs text-slate-500 shadow-3xs">
+                  <Lock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                  Submission locked — you can review your files anytime from Practice History
+                </div>
 
-                <button
-                  type="button"
-                  onClick={() => setBottomTab('customInput')}
-                  className={`px-3 py-1.5 text-xs font-mono font-bold flex items-center gap-1.5 transition-colors border-b-2 ${
-                    bottomTab === 'customInput' ? 'border-blue-500 text-blue-400 bg-slate-800/40' : 'border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  <FileCode className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Custom Input / Testcase</span>
-                </button>
               </div>
 
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setTerminalExpanded(!terminalExpanded)}
-                  className="text-[11px] font-mono text-slate-400 hover:text-white transition-colors"
-                >
-                  {terminalExpanded ? 'Minimize Console' : 'Expand Console'}
-                </button>
-                <span className="text-[10px] text-slate-500 font-mono hidden sm:inline">VS Code Integrated Compiler</span>
-              </div>
-            </div>
-
-            {/* Console Body */}
-            {bottomTab === 'terminal' ? (
-              <div className="flex-1 p-4 font-mono text-xs text-emerald-400 overflow-y-auto space-y-1 custom-scrollbar whitespace-pre-wrap selection:bg-blue-500/40">
-                {terminalOutput.length === 0 ? (
-                  <div className="text-slate-500 space-y-1">
-                    <p className="font-bold text-slate-400">&gt; Online Compiler Ready.</p>
-                    <p>• Click <strong>"Run Code"</strong> to compile public test cases & stdout logs.</p>
-                    <p>• Click <strong>"Run Tests"</strong> to evaluate all 10 test cases (3 Public + 7 Private).</p>
-                    <p>• Select <strong>"Custom Input"</strong> tab above to enter custom compiler inputs.</p>
-                  </div>
-                ) : (
-                  terminalOutput.map((line, i) => (
-                    <div key={i} className={line.startsWith('❌') ? 'text-rose-400' : line.startsWith('🎉') ? 'text-emerald-300 font-bold' : ''}>
-                      {line}
-                    </div>
-                  ))
-                )}
-              </div>
             ) : (
-              <div className="flex-1 p-4 flex flex-col overflow-y-auto space-y-4 custom-scrollbar bg-[#141414]">
-                {/* Input Textarea & Run Action */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-mono text-slate-300 font-bold flex items-center gap-1.5">
-                      <span>Custom Test Input:</span>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setCustomInputText('nums = [10, 20, 30], target = 50')}
-                        className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400"
-                      >
-                        Sample 1
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setCustomInputText('nums = [3, 2, 4], target = 6')}
-                        className="text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-slate-400"
-                      >
-                        Sample 2
-                      </button>
-                    </div>
-                  </div>
+              /* ── UPLOAD FLOW: before submission ── */
+              <>
+                <div>
+                  <h2 className="text-xl font-black text-slate-900">Submit Your Solution</h2>
+                  <p className="text-sm text-slate-500 mt-1">Code in your local VS Code or <strong className="text-slate-800">vscode.dev</strong>, then upload your file or folder here.</p>
+                </div>
 
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={customInputText}
-                      onChange={(e) => setCustomInputText(e.target.value)}
-                      className="flex-1 bg-[#1e1e1e] border border-slate-700 rounded-xl px-3 py-2 font-mono text-xs text-slate-200 outline-none focus:border-blue-500 transition-colors"
-                      placeholder="nums = [10, 20, 30], target = 50"
-                    />
-                    <Button
-                      size="sm"
-                      variant="primary"
-                      onClick={runCustomInput}
-                      isLoading={isRunningCode}
-                      leftIcon={<Play className="w-3.5 h-3.5" />}
-                      className="bg-blue-600 hover:bg-blue-500 shrink-0"
-                    >
-                      Run Custom Input
-                    </Button>
+                {/* Step 1: Open VS Code */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                      <span className="text-base font-black text-[#7c3aed]">1</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-slate-900 mb-1">Open VS Code & Write Your Solution</h3>
+                      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                        Work in your local VS Code or open the browser-based <strong className="text-slate-700">vscode.dev</strong> — no installation needed.
+                      </p>
+                      <a href="https://vscode.dev" target="_blank" rel="noopener noreferrer"
+                        className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm">
+                        <MonitorSmartphone className="w-4 h-4" />
+                        Open vscode.dev
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    </div>
                   </div>
                 </div>
 
-                {/* Custom Execution Output Card */}
-                {lastCustomResult && (
-                  <div className="p-4 rounded-2xl bg-slate-950 border border-slate-800 space-y-3 shadow-lg animate-fade-in">
-                    <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                      <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        Custom Execution Finished
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-400">⚡ Time: {lastCustomResult.timeMs}</span>
+                {/* Step 2: Upload */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-2xs">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                      <span className="text-base font-black text-[#7c3aed]">2</span>
                     </div>
+                    <div className="flex-1">
+                      <h3 className="text-sm font-bold text-slate-900 mb-1">Upload Your Solution</h3>
+                      <p className="text-xs text-slate-500 mb-4 leading-relaxed">
+                        Upload a <strong className="text-slate-700">single file</strong> (e.g. <code className="text-primary-600 font-mono bg-slate-50 px-1 py-0.5 rounded border border-slate-200">solution.py</code>)
+                        or a complete <strong className="text-slate-700">project folder</strong>.
+                      </p>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 font-mono text-xs">
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Custom Input</span>
-                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-200 mt-1">
-                          {lastCustomResult.input}
-                        </div>
-                      </div>
+                      {/* Hidden input (folder or file) */}
+                      <input ref={folderInputRef} type="file"
+                        /* @ts-ignore */
+                        webkitdirectory="" directory="" multiple
+                        className="hidden" onChange={handleFolderInput}
+                      />
+                      <input ref={fileInputRef} type="file"
+                        accept={SINGLE_FILE_EXTS.join(',')}
+                        className="hidden" onChange={handleSingleFileInput}
+                      />
 
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Returned Output</span>
-                        <div className="p-2.5 rounded-lg bg-slate-900 border border-emerald-500/40 text-emerald-400 font-bold mt-1">
-                          {lastCustomResult.actual}
-                        </div>
-                      </div>
-                    </div>
-
-                    {lastCustomResult.stdout && lastCustomResult.stdout.length > 0 && (
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Stdout Logs (console.log):</span>
-                        <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 text-slate-300 font-mono text-xs space-y-1 mt-1">
-                          {lastCustomResult.stdout.map((log, lIdx) => (
-                            <div key={lIdx} className="flex items-center gap-2">
-                              <span className="text-slate-600 font-bold">&gt;</span>
-                              <span>{log}</span>
+                      {/* 1 Single Unified Upload Zone */}
+                      <div
+                        onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                        onDragLeave={() => setIsDragging(false)}
+                        onDrop={handleDrop}
+                        onClick={() => folderInputRef.current?.click()}
+                        className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
+                          isDragging
+                            ? 'border-[#7c3aed] bg-purple-50/30 scale-[1.01]'
+                            : 'border-slate-300 bg-slate-50/50 hover:border-[#7c3aed]/60 hover:bg-purple-50/5'
+                        }`}
+                      >
+                        {isProcessing ? (
+                          <div className="space-y-4 py-4 max-w-sm mx-auto">
+                            <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mx-auto shadow-2xs">
+                              <div className="w-7 h-7 border-3 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
                             </div>
-                          ))}
-                        </div>
+                            <div>
+                              <p className="text-sm font-black text-slate-900">Uploading Solution...</p>
+                              {processingFileName && (
+                                <p className="text-xs font-semibold text-[#7c3aed] mt-0.5 font-mono truncate">
+                                  {processingFileName}
+                                </p>
+                              )}
+                              <p className="text-xs text-slate-500 mt-1 font-medium">{uploadStatusText}</p>
+                            </div>
+                            {/* Progress bar */}
+                            <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
+                              <div
+                                className="bg-[#7c3aed] h-full transition-all duration-300 rounded-full"
+                                style={{ width: `${uploadProgress}%` }}
+                              />
+                            </div>
+                            <p className="text-[11px] font-bold text-slate-400 font-mono">{uploadProgress}% complete</p>
+                          </div>
+                        ) : (
+                          <div className="space-y-4">
+                            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto transition-all bg-white border border-slate-200 shadow-3xs ${
+                              isDragging ? 'border-[#7c3aed]/50 text-[#7c3aed]' : 'text-[#7c3aed]'
+                            }`}>
+                              <Upload className="w-7 h-7 text-[#7c3aed]" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-extrabold text-slate-900">
+                                {isDragging ? 'Drop solution here!' : 'Drag & Drop your solution file or folder'}
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1">Accepts single code files (.py, .js, .java, etc.) or full project folders</p>
+                            </div>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  folderInputRef.current?.click();
+                                }}
+                                className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
+                              >
+                                <Upload className="w-4 h-4" />
+                                Browse File / Folder
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
+                    </div>
                   </div>
-                )}
-              </div>
+                </div>
+
+              </>
             )}
+
           </div>
-
         </div>
-
       </div>
-
-      {/* ── Submission Modal ── */}
-      {isSubmittedSuccess && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="p-6 sm:p-8 rounded-3xl bg-slate-900 border border-slate-800 max-w-md w-full text-center space-y-5 shadow-2xl">
-            <div className="w-16 h-16 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto shadow-lg">
-              <Award className="w-8 h-8" />
-            </div>
-            <div>
-              <h3 className="text-xl font-bold text-white mb-1">Assignment Submitted!</h3>
-              <p className="text-xs text-slate-400">
-                Your solution for <span className="text-slate-200 font-semibold">{problemConfig.title}</span> has been stored in local memory.
-              </p>
-            </div>
-            <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700 text-left text-xs space-y-1">
-              <p className="text-slate-400">Stored in localStorage:</p>
-              <p className="font-mono text-blue-400 truncate">submission_{problemId}</p>
-            </div>
-            <Button
-              fullWidth
-              variant="primary"
-              onClick={() => {
-                setIsSubmittedSuccess(false);
-                navigate('practice');
-              }}
-              className="bg-blue-600 hover:bg-blue-500"
-            >
-              Back to Practice Lab
-            </Button>
-          </div>
-        </div>
-      )}
-
     </div>
   );
 }

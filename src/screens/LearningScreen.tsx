@@ -76,7 +76,8 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
       role: 'Corporate Communications Director'
     },
-    actionText: 'Start Soft Skills Unit'
+    actionText: 'Start Soft Skills Unit',
+    targetRoute: 'course'
   },
 
   // ════════ 3. APTITUDE & REASONING (EXACTLY 1 COURSE) ════════
@@ -98,7 +99,8 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
       role: 'Aptitude & GATE Specialist'
     },
-    actionText: 'Solve Aptitude Tests'
+    actionText: 'Solve Aptitude Tests',
+    targetRoute: 'course'
   },
 
   // ════════ 4. PORTFOLIO (EXACTLY 1 COURSE) ════════
@@ -120,7 +122,8 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
       role: 'Senior UI/UX Engineer'
     },
-    actionText: 'Build Portfolio'
+    actionText: 'Build Portfolio',
+    targetRoute: 'course'
   },
 
   // ════════ 5. RESUME (EXACTLY 1 COURSE) ════════
@@ -142,7 +145,8 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
       role: 'Senior Talent Acquisition Lead'
     },
-    actionText: 'Download ATS Templates'
+    actionText: 'Download ATS Templates',
+    targetRoute: 'course'
   },
 
   // ════════ 6. LINKEDIN (EXACTLY 1 COURSE) ════════
@@ -164,7 +168,8 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
       role: 'LinkedIn Top Voice & Recruiter'
     },
-    actionText: 'Audit LinkedIn Profile'
+    actionText: 'Audit LinkedIn Profile',
+    targetRoute: 'course'
   }
 ];
 
@@ -515,10 +520,9 @@ export function LearningScreen() {
                     </div>
 
                     {/* Instructor Info */}
-                    <div className="flex items-center gap-3 pt-2">
-                      <Avatar src={item.instructor.avatar} name={item.instructor.name} size="sm" />
+                    <div className="flex items-center gap-1 pt-1">
                       <div className="min-w-0 flex-1">
-                        <p className="text-xs font-bold text-slate-900 truncate">{item.instructor.name}</p>
+                        <p className="text-xs font-extrabold text-slate-850 truncate">Instructor: {item.instructor.name}</p>
                         <p className="text-[10px] font-semibold text-slate-500 truncate">{item.instructor.role}</p>
                       </div>
                     </div>
