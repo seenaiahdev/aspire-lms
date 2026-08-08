@@ -169,7 +169,9 @@ export function WorkspaceScreen() {
           : file.name;
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
 
-        if (file.size < 1024 * 512) {
+        const isCodeExt = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css', 'json', 'md', 'txt', 'go', 'rb', 'php', 'kt', 'swift', 'rs'].includes(ext);
+
+        if (file.size < 1024 * 200 && isCodeExt) {
           const reader = new FileReader();
           reader.onload = (e) => {
             projectFiles.push({
@@ -187,7 +189,7 @@ export function WorkspaceScreen() {
           projectFiles.push({
             path: relativePath,
             name: file.name,
-            content: '// Binary or oversized file — cannot preview',
+            content: `// Binary or large file (${(file.size / 1024).toFixed(1)} KB) — preview omitted`,
             size: file.size,
             language: 'text',
           });

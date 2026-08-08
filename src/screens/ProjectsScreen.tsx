@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
   FolderGit2, Star, Clock, CheckCircle2, MessageCircle, Download,
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
+  Upload, FolderOpen, Eye, Lock,
 } from 'lucide-react';
 import { projects } from '@/data/mock';
 import { Toast } from '@/components/ui/Toast';
@@ -13,6 +14,16 @@ import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { cn } from '@/lib/utils';
+import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
+
+const SKIP_DIRS = ['node_modules', '.git', '.next', 'dist', 'build', '__pycache__', '.DS_Store', 'venv', '.venv'];
+const SINGLE_FILE_EXTS = ['.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c', '.cs', '.go', '.rb', '.php', '.kt', '.swift', '.rs', '.html', '.css', '.txt', '.md'];
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+}
 
 const VSCODE_WORKSPACE_PATH = 'c:/Users/Seenaiah/Downloads/lms/project';
 
@@ -119,8 +130,139 @@ export function ProjectsScreen() {
   });
 
   const [toastVisible, setToastVisible] = useState(false);
-  const [touched, setTouched] = useState(false);
-  const [draftLink, setDraftLink] = useState('');
+
+  // Interactive File Explorer Modal state
+  const [showExplorer, setShowExplorer] = useState(false);
+  const [explorerUrl, setExplorerUrl] = useState<string>('');
+
+  // Upload processing state
+  const [isDragging, setIsDragging] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStatusText, setUploadStatusText] = useState('');
+  const [processingFileName, setProcessingFileName] = useState('');
+
+  const folderInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const processFileList = useCallback(async (files: File[], targetProjectId: string) => {
+    if (!files || files.length === 0) return;
+
+    setIsProcessing(true);
+    setUploadProgress(15);
+    setUploadStatusText('Scanning project files...');
+
+    const firstItem = files[0];
+    const nameCandidate = firstItem?.webkitRelativePath?.split('/')[0] || firstItem?.name || 'Project Solution';
+    setProcessingFileName(nameCandidate);
+
+    const projectFiles: ProjectFile[] = [];
+    const langMap: Record<string, string> = {
+      ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
+      py: 'python', java: 'java', cpp: 'cpp', c: 'c', cs: 'csharp',
+      html: 'html', css: 'css', json: 'json', md: 'markdown', txt: 'text',
+      go: 'go', rb: 'ruby', php: 'php', kt: 'kotlin', swift: 'swift',
+      rs: 'rust',
+    };
+
+    const readers = files.map((file) =>
+      new Promise<void>((resolve) => {
+        const relativePath = file.webkitRelativePath
+          ? file.webkitRelativePath.split('/').slice(1).join('/')
+          : file.name;
+        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+
+        const isCodeExt = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css', 'json', 'md', 'txt', 'go', 'rb', 'php', 'kt', 'swift', 'rs'].includes(ext);
+
+        if (file.size < 1024 * 200 && isCodeExt) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            projectFiles.push({
+              path: relativePath,
+              name: file.name,
+              content: (e.target?.result as string) ?? '',
+              size: file.size,
+              language: langMap[ext] ?? 'text',
+            });
+            resolve();
+          };
+          reader.onerror = () => resolve();
+          reader.readAsText(file);
+        } else {
+          projectFiles.push({
+            path: relativePath,
+            name: file.name,
+            content: `// Binary or large file (${(file.size / 1024).toFixed(1)} KB) — preview omitted`,
+            size: file.size,
+            language: 'text',
+          });
+          resolve();
+        }
+      })
+    );
+
+    await Promise.all(readers);
+
+    setUploadProgress(50);
+    setUploadStatusText(`Packaging ${projectFiles.length} file${projectFiles.length !== 1 ? 's' : ''}...`);
+    await new Promise((r) => setTimeout(r, 350));
+
+    setUploadProgress(85);
+    setUploadStatusText('Generating database link & saving submission...');
+    await new Promise((r) => setTimeout(r, 450));
+
+    const totalSize = projectFiles.reduce((s, f) => s + f.size, 0);
+    const projectName = nameCandidate;
+
+    const storageUrl = saveBundleToStorage({
+      projectName,
+      totalFiles: projectFiles.length,
+      totalSize,
+      uploadedAt: new Date().toISOString(),
+      storageUrl: '',
+      files: projectFiles,
+    });
+
+    const updatedDriveLinks = { ...driveLinks, [targetProjectId]: storageUrl };
+    setDriveLinks(updatedDriveLinks);
+    localStorage.setItem('projectDriveLinks', JSON.stringify(updatedDriveLinks));
+
+    const updatedProjects = projectsState.map((p: any) =>
+      p.id === targetProjectId ? { ...p, status: 'submitted' } : p
+    );
+    setProjectsState(updatedProjects);
+    localStorage.setItem('projectsState', JSON.stringify(updatedProjects));
+
+    setUploadProgress(100);
+    setIsProcessing(false);
+    setSubTab('submitted');
+    setToastVisible(true);
+  }, [driveLinks, projectsState]);
+
+  const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>, projectId: string) => {
+    if (!e.target.files?.length) return;
+    const fileArray = Array.from(e.target.files).filter((f) => {
+      const parts = (f.webkitRelativePath || f.name).split('/');
+      return !parts.some((p) => SKIP_DIRS.includes(p));
+    });
+    processFileList(fileArray, projectId);
+  }, [processFileList]);
+
+  const handleSingleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>, projectId: string) => {
+    if (!e.target.files?.length) return;
+    processFileList(Array.from(e.target.files), projectId);
+  }, [processFileList]);
+
+  const handleDrop = useCallback((e: React.DragEvent, projectId: string) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (!e.dataTransfer.files?.length) return;
+    const fileArray = Array.from(e.dataTransfer.files).filter((f) => {
+      const parts = (f.webkitRelativePath || f.name).split('/');
+      return !parts.some((p) => SKIP_DIRS.includes(p));
+    });
+    processFileList(fileArray, projectId);
+  }, [processFileList]);
 
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
@@ -195,26 +337,7 @@ export function ProjectsScreen() {
     return () => window.removeEventListener('popstate', syncProjectRoute);
   }, [effectiveProjects]);
 
-  useEffect(() => {
-    if (selectedProject) {
-      setDraftLink(driveLinks[selectedProject.id] || '');
-    } else {
-      setDraftLink('');
-    }
-  }, [selectedProject, driveLinks]);
-
   const isSaved = selectedProject ? Boolean(driveLinks[selectedProject.id]) : false;
-
-  const isValidLink = (() => {
-    const v = draftLink.trim();
-    if (!v) return false;
-    try {
-      const u = new URL(v);
-      return Boolean(u.protocol && u.hostname);
-    } catch {
-      return false;
-    }
-  })();
 
   const openProjectDetail = (projectId: string) => {
     setSelectedProjectId(projectId);
@@ -227,32 +350,15 @@ export function ProjectsScreen() {
     window.history.pushState({}, '', '/projects');
   };
 
-  const saveDriveLink = () => {
-    if (!selectedProject) return;
-    const trimmed = draftLink.trim();
-    try {
-      new URL(trimmed);
-      const updatedDriveLinks = { ...driveLinks, [selectedProject.id]: trimmed };
-      setDriveLinks(updatedDriveLinks);
-      localStorage.setItem('projectDriveLinks', JSON.stringify(updatedDriveLinks));
-
-      const updatedProjects = projectsState.map((p: any) =>
-        p.id === selectedProject.id ? { ...p, status: 'submitted' } : p
-      );
-      setProjectsState(updatedProjects);
-      localStorage.setItem('projectsState', JSON.stringify(updatedProjects));
-
-      setSubTab('submitted');
-      setToastVisible(true);
-      setTouched(false);
-    } catch {
-      setTouched(true);
-    }
-  };
-
   if (selectedProject && selectedGuide) {
     return (
       <div className="space-y-6 pb-12 animate-fade-in font-sans">
+        {showExplorer && explorerUrl && (
+          <FileExplorerViewer
+            storageUrl={explorerUrl}
+            onClose={() => setShowExplorer(false)}
+          />
+        )}
         {toastVisible && (
           <Toast message="Project submitted — we'll notify you when feedback arrives." onClose={() => setToastVisible(false)} position="top-right" />
         )}
@@ -440,45 +546,124 @@ export function ProjectsScreen() {
 
         </div>
 
-        {/* Submission Link Bar */}
-        <Card className="p-6 border border-slate-200/90 shadow-sm rounded-[2rem] bg-white">
-          <div className="grid gap-4 lg:grid-cols-[1fr_auto_auto] items-center">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-slate-400">Project Submission Link</p>
-              <div className="mt-1 flex items-center gap-2 text-xs font-medium text-slate-600">
-                <Link2 className="w-4 h-4 text-[#7c3aed]" />
-                <span>Paste your Google Drive or GitHub repository link below.</span>
-              </div>
-            </div>
+        {/* Hidden inputs */}
+        <input ref={folderInputRef} type="file"
+          /* @ts-ignore */
+          webkitdirectory="" directory="" multiple
+          className="hidden" onChange={(e) => handleFolderInput(e, selectedProject.id)}
+        />
+        <input ref={fileInputRef} type="file"
+          accept={SINGLE_FILE_EXTS.join(',')}
+          className="hidden" onChange={(e) => handleSingleFileInput(e, selectedProject.id)}
+        />
 
-            <div className="min-w-0 w-full lg:w-[320px]">
-              <input
-                value={draftLink}
-                onChange={(e) => { setDraftLink(e.target.value); setTouched(true); }}
-                placeholder="https://drive.google.com/..."
-                readOnly={isSaved}
-                disabled={isSaved}
-                className={cn(
-                  "w-full rounded-xl px-4 py-2.5 text-xs font-semibold outline-none transition border",
-                  isSaved 
-                    ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-                    : isValidLink 
-                    ? 'border-emerald-300 bg-emerald-50/50 text-slate-900' 
-                    : 'border-slate-200 focus:border-[#7c3aed] bg-white'
-                )}
-              />
-            </div>
-            {isSaved ? (
-              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-500 text-white font-extrabold text-xs shadow-sm">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Submitted & Saved</span>
+        {/* Project Solution Submission Area */}
+        <Card className="p-6 sm:p-8 border border-slate-200/90 shadow-sm rounded-[2rem] bg-white">
+          {driveLinks[selectedProject.id] ? (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-2">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                  <CheckCircle2 className="w-7 h-7 text-[#7c3aed]" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-extrabold text-slate-900 text-base">Project Solution Submitted</h3>
+                    <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase">
+                      Submitted
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 font-medium">
+                    Your project code bundle is stored and ready for mentor review.
+                  </p>
+                </div>
               </div>
-            ) : (
-              <Button onClick={saveDriveLink} disabled={!isValidLink} className="bg-[#7c3aed] text-white font-extrabold text-xs" leftIcon={<CheckCircle2 className="w-4 h-4" />}>
-                Submit Project
-              </Button>
-            )}
-          </div>
+
+              <div className="flex items-center gap-3 shrink-0">
+                <Button
+                  onClick={() => {
+                    setExplorerUrl(driveLinks[selectedProject.id]);
+                    setShowExplorer(true);
+                  }}
+                  className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs"
+                  leftIcon={<Eye className="w-4 h-4" />}
+                >
+                  View Submitted Files
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-base font-extrabold text-slate-900">Submit Your Project Solution</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Upload your completed single code file or full project folder.
+                </p>
+              </div>
+
+              <div
+                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                onDragLeave={() => setIsDragging(false)}
+                onDrop={(e) => handleDrop(e, selectedProject.id)}
+                onClick={() => folderInputRef.current?.click()}
+                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
+                  isDragging
+                    ? 'border-[#7c3aed] bg-purple-50/30 scale-[1.01]'
+                    : 'border-slate-300 bg-slate-50/50 hover:border-[#7c3aed]/60 hover:bg-purple-50/5'
+                }`}
+              >
+                {isProcessing ? (
+                  <div className="space-y-4 py-4 max-w-sm mx-auto">
+                    <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mx-auto shadow-2xs">
+                      <div className="w-7 h-7 border-3 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-900">Uploading Project...</p>
+                      {processingFileName && (
+                        <p className="text-xs font-semibold text-[#7c3aed] mt-0.5 font-mono truncate">
+                          {processingFileName}
+                        </p>
+                      )}
+                      <p className="text-xs text-slate-500 mt-1 font-medium">{uploadStatusText}</p>
+                    </div>
+                    <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
+                      <div
+                        className="bg-[#7c3aed] h-full transition-all duration-300 rounded-full"
+                        style={{ width: `${uploadProgress}%` }}
+                      />
+                    </div>
+                    <p className="text-[11px] font-bold text-slate-400 font-mono">{uploadProgress}% complete</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto transition-all bg-white border border-slate-200 shadow-3xs ${
+                      isDragging ? 'border-[#7c3aed]/50 text-[#7c3aed]' : 'text-[#7c3aed]'
+                    }`}>
+                      <Upload className="w-7 h-7 text-[#7c3aed]" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-900">
+                        {isDragging ? 'Drop project here!' : 'Drag & Drop your project file or folder'}
+                      </p>
+                      <p className="text-xs text-slate-500 mt-1">Accepts single code files (.py, .js, .java, etc.) or full project folders</p>
+                    </div>
+                    <div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          folderInputRef.current?.click();
+                        }}
+                        className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Browse File / Folder
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </Card>
       </div>
     );
@@ -486,6 +671,12 @@ export function ProjectsScreen() {
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
+      {showExplorer && explorerUrl && (
+        <FileExplorerViewer
+          storageUrl={explorerUrl}
+          onClose={() => setShowExplorer(false)}
+        />
+      )}
       
       {/* Header */}
       <div className="pb-2">
@@ -603,10 +794,26 @@ export function ProjectsScreen() {
                       <Clock className="w-4 h-4 text-slate-400" />
                       Due {p.dueDate}
                     </span>
-                    <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
-                      <span>Open Brief</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {driveLinks[p.id] && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setExplorerUrl(driveLinks[p.id]);
+                            setShowExplorer(true);
+                          }}
+                          className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200/80 font-extrabold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>View Files</span>
+                        </button>
+                      )}
+                      <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
+                        <span>Open Brief</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   </div>
                 </Card>
               ))

@@ -462,21 +462,70 @@ export function FileExplorerViewer({ storageUrl, onClose, inline = false }: File
 }
 
 
-// ── Storage Utilities (used by WorkspaceScreen to save bundles) ───────────────
+// ── Storage Utilities (with QuotaExceededError protection) ─────────────────────
+
+const inMemoryBlobs = new Map<string, ProjectBundle>();
 
 export function saveBundleToStorage(bundle: ProjectBundle): string {
   const blobKey = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   const storageUrl = `https://storage.lms.dev/blobs/${blobKey}`;
-  const bundleWithUrl = { ...bundle, storageUrl };
-  localStorage.setItem(`lms_blob_${blobKey}`, JSON.stringify(bundleWithUrl));
+  const bundleWithUrl: ProjectBundle = { ...bundle, storageUrl };
+
+  // Always keep copy in memory store for instant access
+  inMemoryBlobs.set(blobKey, bundleWithUrl);
+
+  const key = `lms_blob_${blobKey}`;
+  const serialized = JSON.stringify(bundleWithUrl);
+
+  try {
+    localStorage.setItem(key, serialized);
+  } catch (err) {
+    console.warn('localStorage quota exceeded. Pruning old blobs...');
+    
+    // Clean up old lms_blob_ items to free up storage
+    try {
+      const blobKeys: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('lms_blob_')) {
+          blobKeys.push(k);
+        }
+      }
+      
+      // Delete oldest half of blob items
+      blobKeys.slice(0, Math.max(1, Math.floor(blobKeys.length / 2))).forEach((k) => {
+        localStorage.removeItem(k);
+      });
+
+      // Retry saving
+      localStorage.setItem(key, serialized);
+    } catch (retryErr) {
+      console.warn('Stored in memory fallback store only (quota full).');
+    }
+  }
+
   return storageUrl;
 }
 
 export function loadBundleFromStorage(storageUrl: string): ProjectBundle | null {
   try {
     const blobKey = storageUrl.split('/').pop();
+    if (!blobKey) return null;
+
+    // Check memory store first
+    if (inMemoryBlobs.has(blobKey)) {
+      return inMemoryBlobs.get(blobKey)!;
+    }
+
+    // Check localStorage
     const raw = localStorage.getItem(`lms_blob_${blobKey}`);
-    return raw ? JSON.parse(raw) : null;
+    if (raw) {
+      const parsed: ProjectBundle = JSON.parse(raw);
+      inMemoryBlobs.set(blobKey, parsed);
+      return parsed;
+    }
+
+    return null;
   } catch {
     return null;
   }
