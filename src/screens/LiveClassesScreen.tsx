@@ -3,7 +3,7 @@ import {
   Radio, Calendar, Users, Play, Pause, ArrowRight, Clock, Video, MessageCircle, 
   FileText, Hand, Users2, BarChart3, Download, Mic, MicOff, VideoOff, 
   Monitor, PhoneOff, Send, Volume2, Maximize2, HelpCircle, BellRing, CheckCircle2, X, Bell,
-  SkipBack, SkipForward, Bookmark, CalendarX
+  SkipBack, SkipForward, Bookmark, CalendarX, Lock
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { liveClasses } from '@/data/mock';
@@ -94,16 +94,38 @@ export function LiveClassesScreen() {
           displayList.map((cls) => {
             const isReminderSet = reminders[cls.id];
             return (
-              <Card key={cls.id} className="overflow-hidden group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white">
+              <Card key={cls.id} className="relative overflow-hidden group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white">
+                {cls.status === 'completed' && (
+                  <div 
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    className="absolute inset-0 bg-[#090b14]/75 backdrop-blur-md z-30 flex flex-col items-center justify-center select-none cursor-not-allowed rounded-2xl p-4 text-center"
+                  >
+                    <div className="space-y-3">
+                      <div className="w-14 h-14 rounded-full border border-slate-700/80 bg-[#0c0f1d] flex items-center justify-center shadow-2xl mx-auto">
+                        <Lock className="w-5 h-5 text-slate-400 stroke-[1.8]" />
+                      </div>
+                      <div className="inline-block px-3.5 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-200 text-[10px] font-black uppercase tracking-widest">
+                        COMING SOON
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <div 
-                  className="relative h-44 overflow-hidden cursor-pointer"
-                  onClick={() => {
-                    if (cls.status === 'ongoing') navigate('classroom', { id: cls.id });
-                    else if (cls.status === 'completed') navigate('recording', { id: cls.id });
+                  className={cn(
+                    "relative h-44 overflow-hidden",
+                    cls.status === 'completed' ? "cursor-not-allowed" : "cursor-pointer"
+                  )}
+                  onClick={(e) => {
+                    if (cls.status === 'completed') {
+                      e.preventDefault();
+                      e.stopPropagation();
+                    } else if (cls.status === 'ongoing') {
+                      navigate('classroom', { id: cls.id });
+                    }
                   }}
                 >
                   <img src={cls.thumbnail} alt={cls.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
                   
                   {cls.status === 'ongoing' && (
                     <div className="absolute top-3 left-3">
@@ -117,11 +139,19 @@ export function LiveClassesScreen() {
                     </div>
                   )}
                   {cls.status === 'completed' && (
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="w-14 h-14 rounded-full bg-white/90 backdrop-blur-md flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform cursor-pointer border border-white/50">
-                        <Play className="w-6 h-6 text-[#7c3aed] fill-[#7c3aed] ml-1" />
+                    <>
+                      {/* Top Right Locked Status badge */}
+                      <div className="absolute top-3 right-3 bg-slate-900/95 border border-slate-700/80 px-2.5 py-1 rounded-xl backdrop-blur-md flex items-center gap-1.5 shadow-md">
+                        <Lock className="w-3.5 h-3.5 text-purple-300" />
+                        <span className="text-[9px] font-black text-purple-250 tracking-wider uppercase">Locked</span>
                       </div>
-                    </div>
+                      {/* Circular lock icon overlay in center of thumbnail */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="w-14 h-14 rounded-full bg-[#0c0f1d]/90 border border-slate-700/85 flex items-center justify-center shadow-2xl">
+                          <Lock className="w-5 h-5 text-slate-400 stroke-[1.8]" />
+                        </div>
+                      </div>
+                    </>
                   )}
                   <div className="absolute bottom-4 left-4 right-4 z-10">
                     <p className="text-white font-extrabold text-base sm:text-lg leading-tight mb-0.5 drop-shadow-md">{cls.title}</p>
@@ -154,10 +184,11 @@ export function LiveClassesScreen() {
                   </button>
                 ) : cls.status === 'completed' ? (
                   <button 
-                    onClick={() => navigate('recording', { id: cls.id })}
-                    className="w-full py-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] text-xs font-extrabold transition-all flex items-center justify-center gap-2 border border-purple-100 shadow-2xs active:scale-95 cursor-pointer"
+                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                    className="w-full py-3 rounded-xl bg-purple-50/40 text-[#7c3aed]/40 text-xs font-extrabold flex items-center justify-center gap-2 border border-purple-100/30 cursor-not-allowed select-none"
+                    disabled
                   >
-                    <Play className="w-4 h-4 fill-[#7c3aed]" /> Watch Recording
+                    <Lock className="w-4 h-4 text-[#7c3aed]/40" /> Watch Recording (Locked)
                   </button>
                 ) : (
                   <button 

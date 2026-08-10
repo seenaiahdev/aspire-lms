@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { 
   Play, Pause, Volume2, Maximize2, Settings, ArrowLeft, Calendar, Clock, 
   Users, Download, FileText, Bookmark, MessageCircle, Send, CheckCircle2, 
-  SkipBack, SkipForward, Radio, Share2, Sparkles, ShieldCheck
+  SkipBack, SkipForward, Radio, Share2, Sparkles, ShieldCheck, Lock
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { liveClasses } from '@/data/mock';
+import { liveClasses, currentUser } from '@/data/mock';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
@@ -14,6 +14,7 @@ export function RecordingScreen() {
   const { navigate, params } = useNav();
   const recording = liveClasses.find((c) => c.id === params.id) || liveClasses.find((c) => c.status === 'completed') || liveClasses[3];
   
+  const [isLocked, setIsLocked] = useState(true);
   const [playing, setPlaying] = useState(true);
   const [tab, setTab] = useState('overview');
   const [isBookmarked, setIsBookmarked] = useState(false);
@@ -84,6 +85,37 @@ export function RecordingScreen() {
           
           {/* ULTRA-PREMIUM MODERN VIDEO PLAYER CONTAINER */}
           <div className="relative aspect-video w-full rounded-[2.2rem] overflow-hidden bg-[#090b14] shadow-2xl border border-slate-800/80 shrink-0 group">
+            
+            {/* Brand Purple Glass Lock Overlay */}
+            {isLocked && (
+              <div className="absolute inset-0 bg-[#090b14]/85 backdrop-blur-md flex items-center justify-center z-40 p-4 sm:p-6 select-none animate-fade-in">
+                <div className="w-full max-w-sm rounded-[2rem] bg-white border border-slate-200/80 p-6 sm:p-7 text-center shadow-2xl space-y-5 animate-scale-in">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-155 flex items-center justify-center text-[#7c3aed] mx-auto shadow-2xs">
+                    <Lock className="w-6 h-6 stroke-[2.2]" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl leading-tight">Recording Locked</h3>
+                    <p className="text-slate-500 text-xs font-semibold leading-relaxed mt-2">
+                      Please complete your active practice lab assignments or unlock this unit to watch this recorded class.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-2 pt-2">
+                    <button
+                      onClick={() => setIsLocked(false)}
+                      className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all shadow-md active:scale-95 cursor-pointer"
+                    >
+                      Unlock Unit
+                    </button>
+                    <button
+                      onClick={() => navigate('practice')}
+                      className="w-full py-3 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-extrabold transition-all border border-slate-200 active:scale-95 cursor-pointer"
+                    >
+                      Go to Practice Lab
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             
             {/* Ambient Background & Image */}
             <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-[#0e122b] to-[#1c1236]" />
