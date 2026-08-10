@@ -39,8 +39,8 @@ const learningItems: LearningItem[] = [
     id: 'c1',
     category: 'courses',
     categoryLabel: 'Courses',
-    title: 'Advanced Full-Stack React & Next.js Masterclass',
-    subtitle: 'Build production-ready web apps with React 19, Server Components, and Tailwind CSS.',
+    title: 'Full-Stack Web Development',
+    subtitle: 'Build modern, responsive web applications using HTML, CSS, JavaScript, React, and Node.js.',
     thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80',
     level: 'Intermediate',
     duration: '24 hours',
@@ -53,7 +53,7 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
       role: 'Staff Frontend Architect'
     },
-    actionText: 'Continue Course',
+    actionText: 'Go to Course',
     targetRoute: 'course'
   },
 
@@ -62,8 +62,8 @@ const learningItems: LearningItem[] = [
     id: 's1',
     category: 'soft_skills',
     categoryLabel: 'Communication or Soft Skills',
-    title: 'Executive Workplace Communication & Speaking',
-    subtitle: 'Master vocal clarity, team presentations, email etiquette, and persuasive leadership.',
+    title: 'Professional Communication & Soft Skills',
+    subtitle: 'Learn professional email writing, technical speaking, group discussions, and interview skills.',
     thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80',
     level: 'Beginner',
     duration: '10 hours',
@@ -76,7 +76,7 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
       role: 'Corporate Communications Director'
     },
-    actionText: 'Start Soft Skills Unit',
+    actionText: 'View Soft Skills',
     targetRoute: 'course'
   },
 
@@ -85,8 +85,8 @@ const learningItems: LearningItem[] = [
     id: 'a1',
     category: 'aptitude',
     categoryLabel: 'Aptitude & Resounding',
-    title: 'Quantitative Aptitude Masterclass for Tech Interviews',
-    subtitle: 'Solve speed math, probability, permutations, profit & loss, and time-distance problems.',
+    title: 'Quantitative Aptitude & Logical Reasoning',
+    subtitle: 'Master numerical problem solving, mental math, logical charts, and coding test puzzles.',
     thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
     level: 'Intermediate',
     duration: '18 hours',
@@ -99,7 +99,7 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
       role: 'Aptitude & GATE Specialist'
     },
-    actionText: 'Solve Aptitude Tests',
+    actionText: 'Start Aptitude Test',
     targetRoute: 'course'
   },
 
@@ -108,8 +108,8 @@ const learningItems: LearningItem[] = [
     id: 'r1',
     category: 'resume',
     categoryLabel: 'Resume',
-    title: 'ATS-Optimized Tech Resume Masterclass',
-    subtitle: 'Pass automated recruiter scanners with impact metrics, action verbs, and clean single-column templates.',
+    title: 'Technical Resume Building',
+    subtitle: 'Step-by-step guidance to write professional resumes and format templates for job applications.',
     thumbnail: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80',
     level: 'Beginner',
     duration: '5 hours',
@@ -122,7 +122,7 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
       role: 'Senior Talent Acquisition Lead'
     },
-    actionText: 'Download ATS Templates',
+    actionText: 'Manage Resumes',
     targetRoute: 'course'
   },
 
@@ -131,8 +131,8 @@ const learningItems: LearningItem[] = [
     id: 'p1',
     category: 'portfolio',
     categoryLabel: 'Portfolio',
-    title: 'Full-Stack Developer Portfolio Blueprint',
-    subtitle: 'Design and deploy a breathtaking portfolio with interactive 3D elements, dark mode, and case studies.',
+    title: 'Personal Portfolio & Capstone Projects',
+    subtitle: 'Design, develop, and host your personal portfolio to showcase your practical coding labs.',
     thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
     level: 'Intermediate',
     duration: '12 hours',
@@ -145,7 +145,7 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
       role: 'Senior UI/UX Engineer'
     },
-    actionText: 'Build Portfolio',
+    actionText: 'Create Portfolio',
     targetRoute: 'course'
   },
 
@@ -154,8 +154,8 @@ const learningItems: LearningItem[] = [
     id: 'l1',
     category: 'linkedin',
     categoryLabel: 'LinkedIn',
-    title: 'LinkedIn Personal Branding & Tech Recruiter Magnet',
-    subtitle: 'Optimize your headline, about summary, skills, and SEO keywords so recruiters message you directly.',
+    title: 'LinkedIn Optimization & Networking',
+    subtitle: 'Complete guide to setting up your LinkedIn profile, listing skills, and connecting with tech mentors.',
     thumbnail: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?auto=format&fit=crop&w=800&q=80',
     level: 'Beginner',
     duration: '7 hours',
@@ -168,7 +168,7 @@ const learningItems: LearningItem[] = [
       avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
       role: 'LinkedIn Top Voice & Recruiter'
     },
-    actionText: 'Audit LinkedIn Profile',
+    actionText: 'Optimize Profile',
     targetRoute: 'course'
   }
 ];
