@@ -61,7 +61,7 @@ const learningItems: LearningItem[] = [
   {
     id: 's1',
     category: 'soft_skills',
-    categoryLabel: 'Communication / Soft Skills',
+    categoryLabel: 'Communication or Soft Skills',
     title: 'Executive Workplace Communication & Speaking',
     subtitle: 'Master vocal clarity, team presentations, email etiquette, and persuasive leadership.',
     thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80',
@@ -84,7 +84,7 @@ const learningItems: LearningItem[] = [
   {
     id: 'a1',
     category: 'aptitude',
-    categoryLabel: 'Aptitude & Reasoning',
+    categoryLabel: 'Aptitude & Resounding',
     title: 'Quantitative Aptitude Masterclass for Tech Interviews',
     subtitle: 'Solve speed math, probability, permutations, profit & loss, and time-distance problems.',
     thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
@@ -103,30 +103,7 @@ const learningItems: LearningItem[] = [
     targetRoute: 'course'
   },
 
-  // ════════ 4. PORTFOLIO (EXACTLY 1 COURSE) ════════
-  {
-    id: 'p1',
-    category: 'portfolio',
-    categoryLabel: 'Portfolio',
-    title: 'Full-Stack Developer Portfolio Blueprint',
-    subtitle: 'Design and deploy a breathtaking portfolio with interactive 3D elements, dark mode, and case studies.',
-    thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
-    level: 'Intermediate',
-    duration: '12 hours',
-    lessonsCount: 16,
-    enrolledCount: '1.9k enrolled',
-    rating: 4.9,
-    progress: 90,
-    instructor: {
-      name: 'Alex Morgan',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
-      role: 'Senior UI/UX Engineer'
-    },
-    actionText: 'Build Portfolio',
-    targetRoute: 'course'
-  },
-
-  // ════════ 5. RESUME (EXACTLY 1 COURSE) ════════
+  // ════════ 4. RESUME (EXACTLY 1 COURSE) ════════
   {
     id: 'r1',
     category: 'resume',
@@ -146,6 +123,29 @@ const learningItems: LearningItem[] = [
       role: 'Senior Talent Acquisition Lead'
     },
     actionText: 'Download ATS Templates',
+    targetRoute: 'course'
+  },
+
+  // ════════ 5. PORTFOLIO (EXACTLY 1 COURSE) ════════
+  {
+    id: 'p1',
+    category: 'portfolio',
+    categoryLabel: 'Portfolio',
+    title: 'Full-Stack Developer Portfolio Blueprint',
+    subtitle: 'Design and deploy a breathtaking portfolio with interactive 3D elements, dark mode, and case studies.',
+    thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
+    level: 'Intermediate',
+    duration: '12 hours',
+    lessonsCount: 16,
+    enrolledCount: '1.9k enrolled',
+    rating: 4.9,
+    progress: 90,
+    instructor: {
+      name: 'Alex Morgan',
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      role: 'Senior UI/UX Engineer'
+    },
+    actionText: 'Build Portfolio',
     targetRoute: 'course'
   },
 
@@ -419,10 +419,10 @@ export function LearningScreen() {
             {[
               { id: 'all', label: 'All' },
               { id: 'courses', label: 'Courses' },
-              { id: 'soft_skills', label: 'Communication / Soft Skills' },
-              { id: 'aptitude', label: 'Aptitude & Reasoning' },
-              { id: 'portfolio', label: 'Portfolio' },
+              { id: 'soft_skills', label: 'Communication or Soft Skills' },
+              { id: 'aptitude', label: 'Aptitude & Resounding' },
               { id: 'resume', label: 'Resume' },
+              { id: 'portfolio', label: 'Portfolio' },
               { id: 'linkedin', label: 'LinkedIn' },
             ].map((tab) => {
               const isActive = activeTab === tab.id;
