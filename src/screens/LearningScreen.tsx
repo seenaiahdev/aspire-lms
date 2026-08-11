@@ -39,18 +39,18 @@ const learningItems: LearningItem[] = [
     id: 'c1',
     category: 'courses',
     categoryLabel: 'Courses',
-    title: 'Full-Stack Web Development',
-    subtitle: 'Build modern, responsive web applications using HTML, CSS, JavaScript, React, and Node.js.',
+    title: 'Fullstack Python + DSA',
+    subtitle: 'Master Python, Advanced Backend Architectures, Frontend Technologies, and DSA Interview Prep',
     thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80',
     level: 'Intermediate',
-    duration: '24 hours',
-    lessonsCount: 42,
-    enrolledCount: '2.4k enrolled',
-    rating: 4.9,
-    progress: 78,
+    duration: '162 hours',
+    lessonsCount: 90,
+    enrolledCount: '0 enrolled',
+    rating: 0,
+    progress: 0,
     instructor: {
-      name: 'Sara Khan',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=150&q=80',
+      name: 'Venkata Sai',
+      avatar: '',
       role: 'Staff Frontend Architect'
     },
     actionText: 'Go to Course',
@@ -68,12 +68,12 @@ const learningItems: LearningItem[] = [
     level: 'Beginner',
     duration: '10 hours',
     lessonsCount: 18,
-    enrolledCount: '1.5k enrolled',
-    rating: 4.9,
-    progress: 60,
+    enrolledCount: '0 enrolled',
+    rating: 0,
+    progress: 0,
     instructor: {
-      name: 'Elena Rostova',
-      avatar: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?auto=format&fit=crop&w=150&q=80',
+      name: 'Priya Reddy',
+      avatar: '',
       role: 'Corporate Communications Director'
     },
     actionText: 'View Soft Skills',
@@ -91,12 +91,12 @@ const learningItems: LearningItem[] = [
     level: 'Intermediate',
     duration: '18 hours',
     lessonsCount: 30,
-    enrolledCount: '3.4k enrolled',
-    rating: 4.8,
-    progress: 80,
+    enrolledCount: '0 enrolled',
+    rating: 0,
+    progress: 0,
     instructor: {
-      name: 'Prof. Rajesh Kumar',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=150&q=80',
+      name: 'Ramesh Naidu',
+      avatar: '',
       role: 'Aptitude & GATE Specialist'
     },
     actionText: 'Start Aptitude Test',
@@ -116,10 +116,10 @@ const learningItems: LearningItem[] = [
     lessonsCount: 9,
     enrolledCount: '4.2k enrolled',
     rating: 5.0,
-    progress: 100,
+    progress: 0,
     instructor: {
-      name: 'Jessica Alba',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      name: 'Lakshmi Devi',
+      avatar: '',
       role: 'Senior Talent Acquisition Lead'
     },
     actionText: 'Manage Resumes',
@@ -139,10 +139,10 @@ const learningItems: LearningItem[] = [
     lessonsCount: 16,
     enrolledCount: '1.9k enrolled',
     rating: 4.9,
-    progress: 90,
+    progress: 0,
     instructor: {
-      name: 'Alex Morgan',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80',
+      name: 'Karthik Varma',
+      avatar: '',
       role: 'Senior UI/UX Engineer'
     },
     actionText: 'Create Portfolio',
@@ -162,10 +162,10 @@ const learningItems: LearningItem[] = [
     lessonsCount: 12,
     enrolledCount: '3.6k enrolled',
     rating: 4.9,
-    progress: 85,
+    progress: 0,
     instructor: {
-      name: 'Sophia Williams',
-      avatar: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?auto=format&fit=crop&w=150&q=80',
+      name: 'Anusha Goud',
+      avatar: '',
       role: 'LinkedIn Top Voice & Recruiter'
     },
     actionText: 'Optimize Profile',
@@ -470,17 +470,36 @@ export function LearningScreen() {
                               item.level === 'Intermediate' ? 'bg-[#fffbeb] text-[#b45309] border-amber-200/80' :
                               'bg-[#fff1f2] text-[#be123c] border-rose-200/80';
 
+              const isLocked = item.category !== 'courses';
+
               return (
                 <div
                   key={item.id}
                   onClick={() => {
+                    if (isLocked) return;
                     if (item.targetRoute) navigate(item.targetRoute as any, { id: item.id });
                   }}
                   className={cn(
-                    "overflow-hidden rounded-[1.8rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 group cursor-pointer flex justify-between",
-                    view === 'grid' ? "flex-col" : "flex-col sm:flex-row items-stretch h-auto sm:h-52"
+                    "relative overflow-hidden rounded-[1.8rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 group flex justify-between",
+                    view === 'grid' ? "flex-col" : "flex-col sm:flex-row items-stretch h-auto sm:h-52",
+                    isLocked ? "cursor-not-allowed" : "cursor-pointer"
                   )}
                 >
+                  {isLocked && (
+                    <div 
+                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      className="absolute inset-0 bg-[#090b14]/75 backdrop-blur-md z-30 flex flex-col items-center justify-center select-none cursor-not-allowed rounded-[1.8rem] p-4 text-center"
+                    >
+                      <div className="space-y-3">
+                        <div className="w-14 h-14 rounded-full border border-slate-700/80 bg-[#0c0f1d] flex items-center justify-center shadow-2xl mx-auto">
+                          <Lock className="w-5 h-5 text-slate-400 stroke-[1.8]" />
+                        </div>
+                        <div className="inline-block px-3.5 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-200 text-[10px] font-black uppercase tracking-widest">
+                          COMING SOON
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   {/* Thumbnail Banner */}
                   <div className={cn("relative overflow-hidden shrink-0 bg-slate-900", view === 'grid' ? "h-48 w-full" : "h-48 sm:h-full w-full sm:w-72")}>
                     <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />

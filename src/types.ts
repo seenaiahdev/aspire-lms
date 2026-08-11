@@ -32,7 +32,7 @@ export interface Course {
   students: number;
   duration: string;
   lessons: number;
-  modules: Module[];
+  stages: Stage[];
   progress: number;
   tags: string[];
   description: string;
@@ -52,9 +52,16 @@ export interface Instructor {
   bio: string;
 }
 
+export interface Stage {
+  id: ID;
+  title: string;
+  modules: Module[];
+}
+
 export interface Module {
   id: ID;
   title: string;
+  duration?: string;
   lessons: Lesson[];
 }
 

@@ -28,54 +28,342 @@ export const currentUser: User = {
 
 const instructors: Instructor[] = [
   {
-    id: 'i1', name: 'Dr. Priya Nair', title: 'Senior ML Engineer, ex-Google',
-    avatar: 'https://i.pravatar.cc/200?img=45', rating: 4.9, students: 12400,
-    courses: 8, bio: '10+ years building production ML systems at scale.',
+    id: 'i1', name: 'Kavitha Chowdary', title: 'Senior ML Engineer, ex-Google',
+    avatar: '', rating: 0, students: 0,
+    courses: 0, bio: '10+ years building production ML systems at scale.',
   },
   {
-    id: 'i2', name: 'Rohan Mehta', title: 'Staff Engineer, ex-Amazon',
-    avatar: 'https://i.pravatar.cc/200?img=33', rating: 4.8, students: 8900,
-    courses: 5, bio: 'Distributed systems expert and passionate educator.',
+    id: 'i2', name: 'Srinivas Rao', title: 'Staff Engineer, ex-Amazon',
+    avatar: '', rating: 0, students: 0,
+    courses: 0, bio: 'Distributed systems expert and passionate educator.',
   },
   {
-    id: 'i3', name: 'Sara Khan', title: 'Frontend Architect, ex-Stripe',
-    avatar: 'https://i.pravatar.cc/200?img=47', rating: 4.95, students: 15600,
-    courses: 6, bio: 'Design systems and performance optimization specialist.',
+    id: 'i3', name: 'Venkata Sai', title: 'Frontend Architect, ex-Stripe',
+    avatar: '', rating: 0, students: 0,
+    courses: 0, bio: 'Design systems and performance optimization specialist.',
   },
 ];
 
 export const courses: Course[] = [
   {
     id: 'c1',
-    title: 'Full-Stack Web Development with React',
-    subtitle: 'Build production-grade applications from scratch',
+    title: 'Fullstack Python + DSA',
+    subtitle: 'Master Python, Advanced Backend Architectures, Frontend Technologies, and DSA Interview Prep',
     category: 'Web Development',
     level: 'Intermediate',
     instructor: instructors[2],
     thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1467232004584-a247de7d3faa?w=1200&q=80',
-    rating: 4.9, reviews: 1240, students: 8400, duration: '42h', lessons: 96,
-    progress: 68,
-    tags: ['React', 'TypeScript', 'Node.js', 'PostgreSQL'],
-    description: 'Master modern full-stack development by building real-world applications. Learn React 18, server-side rendering, API design, authentication, and deployment.',
+    rating: 0, reviews: 0, students: 0, duration: '162 hours', lessons: 90,
+    progress: 0,
+    tags: ['Python', 'Django', 'React', 'DSA'],
+    description: 'Master fullstack development and DSA using Python. Build modern client-server architectures, containerize with Docker, deploy to the cloud, and solve complex algorithms.',
     price: 0, enrolled: true, updatedAt: '2 days ago',
-    modules: [
-      { id: 'm1', title: 'Foundations', lessons: [
-        { id: 'l1', title: 'Course Introduction', duration: '8:24', type: 'video', completed: true, preview: true },
-        { id: 'l2', title: 'React 18 Core Concepts', duration: '24:15', type: 'video', completed: true, preview: false },
-        { id: 'l3', title: 'JSX & Components Deep Dive', duration: '18:42', type: 'video', completed: true, preview: false },
-        { id: 'l4', title: 'State Management Patterns', duration: '32:10', type: 'video', completed: true, preview: false },
-      ]},
-      { id: 'm2', title: 'Building the Backend', lessons: [
-        { id: 'l5', title: 'REST API Design', duration: '28:30', type: 'video', completed: true, preview: false },
-        { id: 'l6', title: 'Authentication & Authorization', duration: '35:20', type: 'video', completed: false, preview: false },
-        { id: 'l7', title: 'Database Modeling', duration: '22:18', type: 'reading', completed: false, preview: false },
-      ]},
-      { id: 'm3', title: 'Advanced Patterns', lessons: [
-        { id: 'l8', title: 'Performance Optimization', duration: '30:45', type: 'video', completed: false, preview: false },
-        { id: 'l9', title: 'Testing Strategies', duration: '26:12', type: 'video', completed: false, preview: false },
-        { id: 'l10', title: 'Capstone Project Brief', duration: '15:00', type: 'project', completed: false, preview: false },
-      ]},
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      // ════════ STAGE 1: FRONT END + REPOSITORY ════════
+      {
+        id: 'm1_git',
+        title: 'Git & GitHub Version Control',
+        duration: '5h', lessons: [
+          { id: 'l_git_1', title: 'Introduction to Version Control & Git Architecture', duration: '1h 15m', type: 'video', completed: false, preview: true },
+          { id: 'l_git_2', title: 'Git Commands: init, add, commit, push, pull', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_git_3', title: 'Branching Strategy, Merge Conflicts & GitHub PRs', duration: '1h 20m', type: 'video', completed: false, preview: false },
+          { id: 'l_git_4', title: 'Collaboration on GitHub & Team Workflow Lab', duration: '0:40m', type: 'project', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_html',
+        title: 'HTML5 & Web Architecture',
+        duration: '6h', lessons: [
+          { id: 'l_html_1', title: 'Web Architecture & Client-Server Communication', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_html_2', title: 'HTML5 Document Structure & Semantic Elements', duration: '1h 30m', type: 'reading', completed: false, preview: false },
+          { id: 'l_html_3', title: 'HTML Forms, Input Types, & Client-Side Validation', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_html_4', title: 'Tables, Media Tags, & Document Head Elements', duration: '1h 30m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_css_fund',
+        title: 'CSS3 Fundamentals & Box Model',
+        duration: '5h', lessons: [
+          { id: 'l_css_1', title: 'CSS Syntax, Rules, and Element/Class/ID Selectors', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_css_2', title: 'The CSS Box Model: Margin, Padding, Border, Content', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_css_3', title: 'CSS Styling: Colors, Typography, and Backgrounds', duration: '1h 45m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_css_adv',
+        title: 'Advanced CSS Layouts & Responsive Design',
+        duration: '5h', lessons: [
+          { id: 'l_css_adv_1', title: 'Flexbox Architecture & Practical Alignments', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_css_adv_2', title: 'CSS Grid System & Multi-Column Layouts', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_css_adv_3', title: 'Positioning Strategies: Relative, Absolute, Fixed, Sticky', duration: '1h 30m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_bootstrap',
+        title: 'Bootstrap 5 Framework',
+        duration: '4h', lessons: [
+          { id: 'l_boot_1', title: 'Bootstrap 5 Grid System & Responsive Utilities', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_boot_2', title: 'Bootstrap Components: Navbars, Modals, Cards, Forms', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_js_ess',
+        title: 'JavaScript Essentials & Control Flow',
+        duration: '5h', lessons: [
+          { id: 'l_js_1', title: 'JS Setup, Variables (var, let, const), & Data Types', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_js_2', title: 'Operators, Expressions, and Conditional Statements', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_js_3', title: 'Loops: for, while, forEach, & Iterations', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_js_func',
+        title: 'JavaScript Functions, Objects & Arrays',
+        duration: '6h', lessons: [
+          { id: 'l_js_func_1', title: 'Function Declarations, Expressions, & Arrow Functions', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_js_func_2', title: 'Advanced Array Methods (map, filter, reduce)', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_js_func_3', title: 'Object Manipulation & Higher-Order Functions', duration: '2h 00m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_dom',
+        title: 'DOM Manipulation & Event Handling',
+        duration: '5h', lessons: [
+          { id: 'l_dom_1', title: 'Selecting and Modifying DOM Elements Dynamically', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_dom_2', title: 'Event Listeners, Bubbling, and Delegation Patterns', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_dom_3', title: 'Interactive Form Validation & Dynamic HTML Creation', duration: '1h 45m', type: 'project', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm1_es6',
+        title: 'Modern ES6+ & Asynchronous JS',
+        duration: '5h', lessons: [
+          { id: 'l_es6_1', title: 'Destructuring, Spread/Rest Operators, and Modules', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_es6_2', title: 'Promises, Async/Await, and Fetch API Integration', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_es6_3', title: 'Handling JSON Data & REST API Consumptions', duration: '1h 30m', type: 'video', completed: false, preview: false },
+        ]
+      },
+
+        ]
+      },
+      {
+        id: 's2',
+        title: 'Stage 2: Backend + DSA',
+        modules: [
+      {
+        id: 'm2_py_fund',
+        title: 'Python Programming Fundamentals',
+        duration: '6h', lessons: [
+          { id: 'l_py_1', title: 'Python Setup, Variables, Data Types, & Control Flow', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_py_2', title: 'Functions, Variable Scope & Program Layouts', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_py_3', title: 'Built-in Data Structures: Lists, Tuples, Sets, Dicts', duration: '2h 30m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_py_adv',
+        title: 'Advanced Python & Exception Handling',
+        duration: '5h', lessons: [
+          { id: 'l_py_adv_1', title: 'Decorators, Generators, and Iterators in Python', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_py_adv_2', title: 'File I/O, Error Handling (try-except-finally)', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_py_adv_3', title: 'Context Managers & Designing Custom Exceptions', duration: '1h 30m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_oop',
+        title: 'Object-Oriented Programming (OOP)',
+        duration: '6h', lessons: [
+          { id: 'l_oop_1', title: 'Classes, Objects, and Constructor Methods (__init__)', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_oop_2', title: 'Inheritance, Polymorphism, and Encapsulation', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_oop_3', title: 'Abstraction Concepts & Dunder (Magic) Methods', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_sql',
+        title: 'SQL & Relational Databases (MySQL)',
+        duration: '6h', lessons: [
+          { id: 'l_sql_1', title: 'RDBMS Concepts & SQL Data Definition Language (DDL)', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_sql_2', title: 'Data Manipulation Language (DML) & Basic Queries', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_sql_3', title: 'Filtering, Aggregations, and GROUP BY Clauses', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_sql_adv',
+        title: 'Advanced SQL & PostgreSQL Integration',
+        duration: '5h', lessons: [
+          { id: 'l_sql_adv_1', title: 'SQL Joins (Inner, Left, Right, Full) & Subqueries', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_sql_adv_2', title: 'Database Indexing, Transactions (ACID), and Keys', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_sql_adv_3', title: 'PostgreSQL Environment Setup & Shell Commands', duration: '1h 30m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_django_setup',
+        title: 'Django Framework Setup & Architecture',
+        duration: '5h', lessons: [
+          { id: 'l_django_1', title: 'Django MVT Architecture & Project Initialization', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_2', title: 'Django Views, Routing, Settings, & Request Lifecycle', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_3', title: 'Creating Custom Apps & Directory Architecture', duration: '1h 45m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_django_temp',
+        title: 'Django Templates & Static Files Setup',
+        duration: '5h', lessons: [
+          { id: 'l_django_temp_1', title: 'Django Template Language (DTL): Filters & Tags', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_temp_2', title: 'Template Inheritance & Static Files Configuration', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_temp_3', title: 'Handling Media Uploads & File Management', duration: '1h 45m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_django_models',
+        title: 'Django Models & Database ORM',
+        duration: '6h', lessons: [
+          { id: 'l_django_mod_1', title: 'Model Fields & Database Relationship Types', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_mod_2', title: 'Django ORM Queries: Filters, Lookups, & Excludes', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_mod_3', title: 'Migrations Management & Django Admin Customization', duration: '2h 00m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_django_forms',
+        title: 'Django Forms, Authentication & Auth',
+        duration: '6h', lessons: [
+          { id: 'l_django_forms_1', title: 'Django Forms, ModelForms, & CSRF Protection', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_forms_2', title: 'User Authentication: Login, Logout, & Registration', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_django_forms_3', title: 'Permission Management & Custom User Models', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_drf_core',
+        title: 'Django REST Framework (DRF) Core',
+        duration: '6h', lessons: [
+          { id: 'l_drf_1', title: 'REST API Architecture & Serializer Basics', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_drf_2', title: 'ModelSerializers & Handling Relationships', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_drf_3', title: 'Function-Based Views vs Class-Based APIViews', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_drf_adv',
+        title: 'DRF Advanced: ViewSets, JWT Auth & Testing',
+        duration: '6h', lessons: [
+          { id: 'l_drf_adv_1', title: 'ViewSets, Routers, and Custom DRF Permissions', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_drf_adv_2', title: 'JWT Authentication Setup & Token Validation', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_drf_adv_3', title: 'API Testing with Postman & Unit Tests', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_redis',
+        title: 'Redis Caching & AWS S3 Cloud Storage',
+        duration: '5h', lessons: [
+          { id: 'l_redis_1', title: 'Redis Caching for Django Views & Database Queries', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_redis_2', title: 'Integrating AWS S3 / Cloudinary for Media Files', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_redis_3', title: 'Production Cache Configuration & CDN Integration', duration: '1h 30m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_dsa1',
+        title: 'Data Structures using Python - Part 1',
+        duration: '6h', lessons: [
+          { id: 'l_dsa1_1', title: 'Array Operations & Multidimensional Matrices', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_dsa1_2', title: 'Linked Lists: Singly, Doubly, and Circular', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_dsa1_3', title: 'Stacks, Queues, and Big-O Complexity Analysis', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm2_dsa2',
+        title: 'Data Structures & Algorithms - Part 2',
+        duration: '6h', lessons: [
+          { id: 'l_dsa2_1', title: 'Trees, Binary Search Trees (BST), & Traversals', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_dsa2_2', title: 'Recursion, Linear Search, and Binary Search', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_dsa2_3', title: 'Sorting Algorithms: Bubble, Quick, and Merge Sort', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+
+        ]
+      },
+      {
+        id: 's3',
+        title: 'Stage 3: AI',
+        modules: [
+      {
+        id: 'm3_ai',
+        title: 'Introduction to AI, Prompt Engineering & LLMs',
+        duration: '5h', lessons: [
+          { id: 'l_ai_1', title: 'Ecosystem: AI vs ML vs DL vs LLMs', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_ai_2', title: 'Google Gemini & OpenAI API Setup and Access', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_ai_3', title: 'Prompt Engineering Strategies & Few-Shot Prompting', duration: '2h 00m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm3_langchain',
+        title: 'AI Integration with Python & LangChain',
+        duration: '6h', lessons: [
+          { id: 'l_lang_1', title: 'LangChain Framework Basics & Prompt Templates', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_lang_2', title: 'Chains, Memory, & Django Backend Integrations', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_lang_3', title: 'Building Intelligent AI Chatbots with Custom Knowledge', duration: '2h 00m', type: 'project', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm3_docker',
+        title: 'Docker Containerization & Cloud Deployment',
+        duration: '5h', lessons: [
+          { id: 'l_dock_1', title: 'Docker Concepts, Installation & Core Commands', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_dock_2', title: 'Dockerfile creation & Containerizing Django/DB', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_dock_3', title: 'Docker Compose & Deploying Full Stack App to Cloud', duration: '1h 45m', type: 'video', completed: false, preview: false },
+        ]
+      },
+
+        ]
+      },
+      {
+        id: 's4',
+        title: 'Stage 4: Career Launchpad',
+        modules: [
+      {
+        id: 'm4_sysdesign',
+        title: 'System Design & Software Architecture',
+        duration: '5h', lessons: [
+          { id: 'l_sys_1', title: 'System Design Fundamentals: HLD vs LLD', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_sys_2', title: 'Load Balancing, Database Sharding & Caching', duration: '1h 45m', type: 'video', completed: false, preview: false },
+          { id: 'l_sys_3', title: 'Scalable Architecture & High Availability Designs', duration: '1h 45m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm4_cap1',
+        title: 'Capstone Project Mentoring & Review - 1',
+        duration: '4h', lessons: [
+          { id: 'l_cap1_1', title: 'Project Scope Finalization & Architecture Validation', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_cap1_2', title: 'Database Schema Design & DRF API Contract Review', duration: '2h 00m', type: 'project', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm4_cap2',
+        title: 'Capstone Project Development & Mentoring - 2',
+        duration: '5h', lessons: [
+          { id: 'l_cap2_1', title: 'Frontend-Backend API Integrations & State Setup', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_cap2_2', title: 'AI Feature Tuning, Security Auditing, & Optimization', duration: '3h 00m', type: 'video', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm4_portfolio',
+        title: 'Resume Building, LinkedIn & GitHub Portfolio',
+        duration: '4h', lessons: [
+          { id: 'l_port_1', title: 'Creating ATS-Compliant Tech Resume Profiles', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_port_2', title: 'GitHub Repo Presentation, Readme Designs, & LinkedIn', duration: '2h 00m', type: 'reading', completed: false, preview: false },
+        ]
+      },
+      {
+        id: 'm4_mock',
+        title: 'Mock Technical Interviews & Valedictory',
+        duration: '4h', lessons: [
+          { id: 'l_mock_1', title: 'DSA Live Coding Problem Solving Practices', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_mock_2', title: 'Technical HR Mock Interviews & Prep Guides', duration: '2h 00m', type: 'video', completed: false, preview: false },
+        ]
+      }
+        ]
+      }
     ],
   },
   {
@@ -88,16 +376,22 @@ export const courses: Course[] = [
     thumbnail: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=1200&q=80',
     rating: 4.8, reviews: 890, students: 5200, duration: '36h', lessons: 78,
-    progress: 34,
+    progress: 0,
     tags: ['Python', 'TensorFlow', 'Neural Networks'],
     description: 'Start your ML journey with intuitive explanations and hands-on projects. Build your first models and understand the math behind them.',
     price: 0, enrolled: true, updatedAt: '5 days ago',
-    modules: [
-      { id: 'm1', title: 'ML Basics', lessons: [
-        { id: 'l1', title: 'What is Machine Learning?', duration: '12:00', type: 'video', completed: true, preview: true },
-        { id: 'l2', title: 'Linear Regression', duration: '28:00', type: 'video', completed: true, preview: false },
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      { id: 'm1', title: 'ML Basics', duration: '5h', lessons: [
+        { id: 'l1', title: 'What is Machine Learning?', duration: '12:00', type: 'video', completed: false, preview: true },
+        { id: 'l2', title: 'Linear Regression', duration: '28:00', type: 'video', completed: false, preview: false },
         { id: 'l3', title: 'Classification Basics', duration: '25:30', type: 'video', completed: false, preview: false },
       ]},
+        ]
+      }
     ],
   },
   {
@@ -110,15 +404,21 @@ export const courses: Course[] = [
     thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=1200&q=80',
     rating: 4.9, reviews: 2100, students: 11200, duration: '28h', lessons: 54,
-    progress: 12,
+    progress: 0,
     tags: ['Architecture', 'Scalability', 'Microservices'],
     description: 'Learn to design systems that handle millions of users. Covers caching, load balancing, databases, and real-world case studies.',
     price: 0, enrolled: true, updatedAt: '1 week ago',
-    modules: [
-      { id: 'm1', title: 'Core Concepts', lessons: [
-        { id: 'l1', title: 'Scalability Fundamentals', duration: '20:00', type: 'video', completed: true, preview: true },
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      { id: 'm1', title: 'Core Concepts', duration: '5h', lessons: [
+        { id: 'l1', title: 'Scalability Fundamentals', duration: '20:00', type: 'video', completed: false, preview: true },
         { id: 'l2', title: 'Load Balancing', duration: '18:30', type: 'video', completed: false, preview: false },
       ]},
+        ]
+      }
     ],
   },
   {
@@ -135,7 +435,13 @@ export const courses: Course[] = [
     tags: ['Algorithms', 'Data Structures', 'Interview Prep'],
     description: 'Comprehensive DSA course with 300+ problems, pattern-based learning, and mock interview practice.',
     price: 0, enrolled: false, updatedAt: '3 days ago',
-    modules: [],
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [],
+      }
+    ],
   },
   {
     id: 'c5',
@@ -151,7 +457,13 @@ export const courses: Course[] = [
     tags: ['AWS', 'Docker', 'Kubernetes', 'CI/CD'],
     description: 'Master AWS services, containerization, and infrastructure as code. Includes real-world deployment projects.',
     price: 0, enrolled: false, updatedAt: '1 week ago',
-    modules: [],
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [],
+      }
+    ],
   },
   {
     id: 'c6',
@@ -166,7 +478,13 @@ export const courses: Course[] = [
     progress: 0,
     tags: ['Figma', 'Design Systems', 'User Research'],
     price: 0, enrolled: false, updatedAt: '4 days ago',
-    modules: [],
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [],
+      }
+    ],
   },
   {
     id: 's1',
@@ -178,16 +496,22 @@ export const courses: Course[] = [
     thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=1200&q=80',
     rating: 4.9, reviews: 340, students: 1500, duration: '10h', lessons: 18,
-    progress: 60,
+    progress: 0,
     tags: ['Speaking', 'Writing', 'Leadership'],
     description: 'Practical communication guide for engineers. Learn how to write concise emails, present your engineering ideas to executives, and lead sprint planning meetings with high confidence.',
     price: 0, enrolled: true, updatedAt: '1 day ago',
-    modules: [
-      { id: 'm1', title: 'Foundations of Communication', lessons: [
-        { id: 'l1', title: 'Introduction to Executive Communication', duration: '10:15', type: 'video', completed: true, preview: true },
-        { id: 'l2', title: 'Speaking with Authority & Clarity', duration: '15:20', type: 'video', completed: true, preview: false },
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      { id: 'm1', title: 'Foundations of Communication', duration: '5h', lessons: [
+        { id: 'l1', title: 'Introduction to Executive Communication', duration: '10:15', type: 'video', completed: false, preview: true },
+        { id: 'l2', title: 'Speaking with Authority & Clarity', duration: '15:20', type: 'video', completed: false, preview: false },
         { id: 'l3', title: 'Presenting Technical Architecture', duration: '12:45', type: 'video', completed: false, preview: false },
       ]}
+        ]
+      }
     ],
   },
   {
@@ -200,16 +524,22 @@ export const courses: Course[] = [
     thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=1200&q=80',
     rating: 4.8, reviews: 890, students: 3400, duration: '18h', lessons: 30,
-    progress: 80,
+    progress: 0,
     tags: ['Aptitude', 'Math', 'Interviews'],
     description: 'Learn speed math shortcuts, shortcut formulas, probability, combinations, and analytical reasoning techniques commonly asked in top tech screening rounds.',
     price: 0, enrolled: true, updatedAt: '3 days ago',
-    modules: [
-      { id: 'm1', title: 'Number Systems & Math', lessons: [
-        { id: 'l1', title: 'Speed Math Techniques', duration: '15:00', type: 'video', completed: true, preview: true },
-        { id: 'l2', title: 'Ratio & Proportions Shortcuts', duration: '20:10', type: 'video', completed: true, preview: false },
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      { id: 'm1', title: 'Number Systems & Math', duration: '5h', lessons: [
+        { id: 'l1', title: 'Speed Math Techniques', duration: '15:00', type: 'video', completed: false, preview: true },
+        { id: 'l2', title: 'Ratio & Proportions Shortcuts', duration: '20:10', type: 'video', completed: false, preview: false },
         { id: 'l3', title: 'Probability Rules', duration: '22:15', type: 'video', completed: false, preview: false },
       ]}
+        ]
+      }
     ],
   },
   {
@@ -222,15 +552,21 @@ export const courses: Course[] = [
     thumbnail: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=1200&q=80',
     rating: 4.9, reviews: 450, students: 1900, duration: '12h', lessons: 16,
-    progress: 90,
+    progress: 0,
     tags: ['Next.js', 'Framer Motion', 'Tailwind CSS'],
     description: 'Build a premium engineering portfolio site. Includes case studies of your projects, contact forms, interactive project grids, and search engine optimization.',
     price: 0, enrolled: true, updatedAt: '5 days ago',
-    modules: [
-      { id: 'm1', title: 'Design & Set Up', lessons: [
-        { id: 'l1', title: 'Portfolio Architecture & UX Design', duration: '14:24', type: 'video', completed: true, preview: true },
-        { id: 'l2', title: 'Adding Framer Motion Animations', duration: '24:45', type: 'video', completed: true, preview: false },
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      { id: 'm1', title: 'Design & Set Up', duration: '5h', lessons: [
+        { id: 'l1', title: 'Portfolio Architecture & UX Design', duration: '14:24', type: 'video', completed: false, preview: true },
+        { id: 'l2', title: 'Adding Framer Motion Animations', duration: '24:45', type: 'video', completed: false, preview: false },
       ]}
+        ]
+      }
     ],
   },
   {
@@ -243,15 +579,21 @@ export const courses: Course[] = [
     thumbnail: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=1200&q=80',
     rating: 5.0, reviews: 760, students: 4200, duration: '5h', lessons: 9,
-    progress: 100,
+    progress: 0,
     tags: ['Resume', 'Career', 'Tech Jobs'],
     description: 'Write a high-performance tech resume that matches ATS scanner algorithms, highlights metrics, and gets you interview callbacks.',
     price: 0, enrolled: true, updatedAt: '2 days ago',
-    modules: [
-      { id: 'm1', title: 'ATS Rules', lessons: [
-        { id: 'l1', title: 'ATS Scanners Explained', duration: '12:00', type: 'video', completed: true, preview: true },
-        { id: 'l2', title: 'Action Verbs & Key Metrics', duration: '18:40', type: 'video', completed: true, preview: false },
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      { id: 'm1', title: 'ATS Rules', duration: '5h', lessons: [
+        { id: 'l1', title: 'ATS Scanners Explained', duration: '12:00', type: 'video', completed: false, preview: true },
+        { id: 'l2', title: 'Action Verbs & Key Metrics', duration: '18:40', type: 'video', completed: false, preview: false },
       ]}
+        ]
+      }
     ],
   },
   {
@@ -264,15 +606,21 @@ export const courses: Course[] = [
     thumbnail: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?w=800&q=80',
     banner: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?w=1200&q=80',
     rating: 4.9, reviews: 540, students: 3600, duration: '7h', lessons: 12,
-    progress: 85,
+    progress: 0,
     tags: ['LinkedIn', 'Branding', 'Networking'],
     description: 'Grow your LinkedIn personal brand, write search-optimized headlines, and get inbound recruiter requests.',
     price: 0, enrolled: true, updatedAt: '4 days ago',
-    modules: [
-      { id: 'm1', title: 'Profile Setup', lessons: [
-        { id: 'l1', title: 'LinkedIn Profile SEO Audit', duration: '14:10', type: 'video', completed: true, preview: true },
-        { id: 'l2', title: 'Writing Recruiter-Friendly Summaries', duration: '22:15', type: 'video', completed: true, preview: false },
+    stages: [
+      {
+        id: 's1',
+        title: 'Stage 1',
+        modules: [
+      { id: 'm1', title: 'Profile Setup', duration: '5h', lessons: [
+        { id: 'l1', title: 'LinkedIn Profile SEO Audit', duration: '14:10', type: 'video', completed: false, preview: true },
+        { id: 'l2', title: 'Writing Recruiter-Friendly Summaries', duration: '22:15', type: 'video', completed: false, preview: false },
       ]}
+        ]
+      }
     ],
   }
 ];

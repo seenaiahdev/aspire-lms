@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Play, Pause, Volume2, VolumeX, Maximize, Settings, ArrowLeft, ArrowRight,
   CheckCircle2, FileText, MessageCircle, Download, Bookmark,
   PenLine, List, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Video, RotateCcw,
-  SkipBack, SkipForward, Maximize2,
+  SkipBack, SkipForward, Maximize2, Lock,
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { courses } from '@/data/mock';
@@ -13,6 +13,67 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tabs } from '@/components/ui/Tabs';
 import { cn } from '@/lib/utils';
+
+function SidebarModuleAccordion({ mod, course, currentLesson, navigate }: any) {
+  const [isOpen, setIsOpen] = useState(
+    mod.lessons.some((l: any) => l.id === currentLesson?.id)
+  );
+  return (
+    <div className="space-y-1.5 border border-slate-100 p-2 rounded-xl">
+      <button 
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between px-1 mb-1 group cursor-pointer"
+      >
+        <h4 className={cn("text-[11px] font-bold uppercase tracking-wider transition-colors", isOpen ? "text-[#7c3aed]" : "text-slate-700 group-hover:text-[#7c3aed]")}>{mod.title}</h4>
+        <div className="flex items-center gap-2">
+          {mod.duration && <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">{mod.duration}</span>}
+          {isOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#7c3aed]" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#7c3aed]" />}
+        </div>
+      </button>
+      {isOpen && (
+        <div className="space-y-1.5 animate-fade-in pt-1">
+          {mod.lessons.map((lesson: any, li: number) => {
+            const isCurrent = lesson.id === currentLesson?.id;
+            const isLocked = !lesson.completed && !lesson.preview;
+            return (
+              <button
+                key={lesson.id}
+                onClick={(e) => {
+                  if (isLocked) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    return;
+                  }
+                  navigate('lesson', { id: course.id, lesson: lesson.id });
+                }}
+                className={cn(
+                  'w-full flex items-center gap-2.5 p-2 rounded-xl transition-all text-left border',
+                  isCurrent 
+                    ? 'bg-purple-50 border-purple-200 text-[#7c3aed] shadow-2xs font-extrabold' 
+                    : isLocked
+                      ? 'bg-slate-50 opacity-60 cursor-not-allowed border-transparent text-slate-400'
+                      : 'bg-white hover:bg-slate-50 border-transparent text-slate-700'
+                )}
+              >
+                <div className={cn(
+                  'w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black',
+                  lesson.completed ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                  isCurrent ? 'bg-[#7c3aed] text-white' : 'bg-slate-100 text-slate-400',
+                )}>
+                  {lesson.completed ? <CheckCircle2 className="w-3.5 h-3.5" /> : (isLocked ? <Lock className="w-3.5 h-3.5 opacity-50" /> : li + 1)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={cn('text-xs line-clamp-1', isCurrent ? 'font-black text-[#7c3aed]' : 'font-semibold text-slate-800')}>{lesson.title}</p>
+                  <p className="text-[10px] font-medium text-slate-400">{lesson.duration}</p>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export function LessonScreen() {
   const { navigate, params } = useNav();
@@ -32,17 +93,28 @@ export function LessonScreen() {
     setExpandedModules((prev) => ({ ...prev, [idx]: !prev[idx] }));
   };
 
-  const allLessons = course.modules.flatMap((m: any) => m.lessons);
-  const currentIdx = allLessons.findIndex((l: any) => l.id === params.lesson) || 0;
-  const currentLesson = allLessons[currentIdx] || allLessons[0];
-  const prevLesson = currentIdx > 0 ? allLessons[currentIdx - 1] : null;
-  const nextLesson = currentIdx < allLessons.length - 1 ? allLessons[currentIdx + 1] : null;
+  const allLessons = course.stages?.flatMap((s: any) => s.modules).flatMap((m: any) => m.lessons) || [];
+  const currentIdx = allLessons.findIndex((l: any) => l.id === params.lesson);
+  const safeCurrentIdx = currentIdx !== -1 ? currentIdx : 0;
+  const currentLesson = allLessons[safeCurrentIdx];
+  const prevLesson = safeCurrentIdx > 0 ? allLessons[safeCurrentIdx - 1] : null;
+  const nextLesson = safeCurrentIdx < allLessons.length - 1 ? allLessons[safeCurrentIdx + 1] : null;
+
+  const currentStageIndex = course.stages?.findIndex((s: any) => 
+    s.modules.some((m: any) => m.lessons.some((l: any) => l.id === currentLesson?.id))
+  );
+  
+  useEffect(() => {
+    if (currentStageIndex !== undefined && currentStageIndex !== -1) {
+      setExpandedModules((prev) => ({ ...prev, [currentStageIndex]: true }));
+    }
+  }, [currentStageIndex]);
 
   return (
     <div className="h-[calc(100vh-5.5rem)] flex flex-col lg:flex-row gap-6 overflow-hidden font-sans pb-2 relative">
       
       {/* Left Area: Sized Video Player + Notes Tabs */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto lg:overflow-hidden space-y-4 pr-1">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto space-y-4 pr-1 pb-6">
         
         {/* Modern High-End Video Player Container (Matches Reference UI) */}
         <div className="relative aspect-video max-h-[380px] xl:max-h-[440px] w-full rounded-[2.2rem] overflow-hidden bg-[#0a0d18] shadow-2xl border border-slate-800 shrink-0 group">
@@ -76,16 +148,13 @@ export function LessonScreen() {
             </div>
           </div>
 
-          {/* Center Play Button Overlay */}
-          <div className="absolute inset-0 flex items-center justify-center z-20">
-            <button
-              onClick={() => setPlaying(!playing)}
-              className="w-16 h-16 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center group/play hover:bg-white/25 transition-all shadow-2xl border border-white/20 active:scale-95 cursor-pointer"
-            >
-              <div className="w-12 h-12 rounded-full bg-white text-slate-950 flex items-center justify-center shadow-lg group-hover/play:scale-110 transition-transform">
-                {playing ? <Pause className="w-5 h-5 fill-slate-950 text-slate-950" /> : <Play className="w-5 h-5 fill-slate-950 text-slate-950 ml-0.5" />}
-              </div>
-            </button>
+          {/* Center Video Coming Soon Overlay */}
+          <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-3">
+            <div className="px-5 py-2.5 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-2.5 pointer-events-none">
+              <Video className="w-4 h-4 text-purple-300" />
+              <span className="text-white font-extrabold text-sm tracking-wide">Video Coming Soon</span>
+            </div>
+            <p className="text-white/60 text-[11px] font-bold tracking-wider uppercase">Content in Production</p>
           </div>
 
           {/* Bottom Player Controls Dock (Matches Reference Design) */}
@@ -150,7 +219,7 @@ export function LessonScreen() {
           <div>
             <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
-                {course.modules[0].title}
+                {course.stages?.[currentStageIndex >= 0 ? currentStageIndex : 0]?.title || 'Module'}
               </span>
               <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-extrabold">
                 Lesson {currentIdx + 1} of {allLessons.length}
@@ -184,17 +253,25 @@ export function LessonScreen() {
             </Button>
             <Button
               size="sm"
-              onClick={() => nextLesson ? navigate('lesson', { id: course.id, lesson: nextLesson.id }) : navigate('course', { id: course.id })}
+              onClick={() => {
+                if (nextLesson) {
+                  if (!nextLesson.completed && !nextLesson.preview) return;
+                  navigate('lesson', { id: course.id, lesson: nextLesson.id });
+                } else {
+                  navigate('course', { id: course.id });
+                }
+              }}
+              disabled={nextLesson && !nextLesson.completed && !nextLesson.preview}
               rightIcon={nextLesson ? <ArrowRight className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
-              className="rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md"
+              className="rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {nextLesson ? 'Next Lesson' : 'Complete Course'}
             </Button>
           </div>
         </div>
 
-        {/* Flexible Tabs & Note Taking Area (Scrollable inner box) */}
-        <div className="flex-1 flex flex-col min-h-0 bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden p-4">
+        {/* Flexible Tabs & Note Taking Area */}
+        <div className="flex flex-col bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden p-4 shrink-0 min-h-[350px]">
           
           {/* Custom Tabs Bar */}
           <div className="flex items-center gap-2 border-b border-slate-100 pb-2 shrink-0">
@@ -223,66 +300,39 @@ export function LessonScreen() {
           {/* Tab Content Box */}
           <div className="flex-1 overflow-y-auto pt-3">
             {tab === 'notes' && (
-              <div className="flex flex-col h-full justify-between space-y-3">
-                <textarea
-                  placeholder="Take notes while you learn... Type here."
-                  className="w-full flex-1 min-h-[100px] text-xs font-semibold text-slate-800 focus:outline-none resize-none bg-transparent"
-                  defaultValue={`Key takeaways from this lesson:
-- useCallback memoizes the function reference
-- useMemo memoizes the return value
-- Use them when passing callbacks to optimized child components
-- Don't overuse - only when there's a measurable performance benefit`}
-                />
-                <div className="flex justify-between items-center pt-2 border-t border-slate-100 shrink-0">
-                  <p className="text-[11px] font-semibold text-slate-400">Auto-saved 2 min ago</p>
-                  <button className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-extrabold text-xs flex items-center gap-1.5 border border-purple-100 transition-colors">
-                    <Bookmark className="w-3.5 h-3.5" /> Save Note
-                  </button>
-                </div>
+              <div className="flex flex-col h-full justify-center items-center text-center py-4">
+                <PenLine className="w-8 h-8 text-slate-200 mb-2" />
+                <h4 className="text-xs font-bold text-slate-800">Your notes will appear here</h4>
+                <p className="text-[10px] text-slate-500 mt-1">Start typing below to save notes for this lesson.</p>
               </div>
             )}
 
             {tab === 'transcript' && (
-              <div className="space-y-2 max-h-[160px] overflow-y-auto">
-                {[
-                  { time: '0:00', text: 'Welcome back. In this lesson, we are going to dive deep into React hooks.' },
-                  { time: '0:24', text: 'Hooks were introduced in React 16.8 and they changed how we write components.' },
-                  { time: '1:12', text: 'The most important hooks to understand are useState and useEffect.' },
-                  { time: '2:30', text: 'Let me show you a practical example of how useState works.' },
-                  { time: '4:15', text: 'Now let us look at useEffect and how it handles side effects.' },
-                ].map((t, i) => (
-                  <div key={i} className="flex gap-3 hover:bg-purple-50/50 p-2 rounded-xl transition-colors cursor-pointer">
-                    <span className="text-xs text-[#7c3aed] font-mono font-bold shrink-0 w-10">{t.time}</span>
-                    <p className="text-xs font-medium text-slate-700">{t.text}</p>
-                  </div>
-                ))}
+              <div className="flex flex-col h-full justify-center items-center text-center py-4">
+                <FileText className="w-8 h-8 text-slate-200 mb-2" />
+                <h4 className="text-xs font-bold text-slate-800">Transcript unavailable</h4>
+                <p className="text-[10px] text-slate-500 mt-1">This lesson does not have a transcript yet.</p>
               </div>
             )}
 
             {tab === 'resources' && (
-              <div className="space-y-2">
-                {['Lesson Slides.pdf', 'Code Examples.zip', 'Cheatsheet.pdf'].map((r, i) => (
-                  <div key={i} className="flex items-center gap-3 p-2.5 rounded-xl bg-slate-50 hover:bg-purple-50/50 border border-slate-100 transition-colors cursor-pointer">
-                    <FileText className="w-4 h-4 text-[#7c3aed]" />
-                    <span className="flex-1 text-xs font-bold text-slate-800">{r}</span>
-                    <Download className="w-4 h-4 text-slate-400" />
-                  </div>
-                ))}
+              <div className="flex flex-col h-full justify-center items-center text-center py-4">
+                <Download className="w-8 h-8 text-slate-200 mb-2" />
+                <h4 className="text-xs font-bold text-slate-800">No resources attached</h4>
+                <p className="text-[10px] text-slate-500 mt-1">Check back later for downloadable files.</p>
               </div>
             )}
 
             {tab === 'discussion' && (
               <div className="space-y-3">
                 <div className="flex gap-3">
-                  <Avatar src="https://i.pravatar.cc/200?img=12" name="Aarav" size="sm" />
+                  <Avatar name="New Student" size="sm" />
                   <input className="flex-1 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-semibold focus:border-[#7c3aed] outline-none" placeholder="Ask a question about this lesson..." />
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 flex gap-3">
-                  <Avatar src="https://i.pravatar.cc/200?img=15" name="Karan" size="sm" />
-                  <div>
-                    <span className="text-xs font-bold text-slate-900">Karan Patel</span>
-                    <p className="text-xs font-medium text-slate-600 mt-0.5">At 4:15, why did you use useState instead of useReducer?</p>
-                  </div>
+                <div className="flex flex-col items-center text-center py-6 border-t border-slate-100 mt-4">
+                  <MessageCircle className="w-8 h-8 text-slate-200 mb-2" />
+                  <h4 className="text-xs font-bold text-slate-800">No discussions yet</h4>
+                  <p className="text-[10px] text-slate-500 mt-1">Be the first to start a conversation.</p>
                 </div>
               </div>
             )}
@@ -340,54 +390,31 @@ export function LessonScreen() {
 
           {/* Accordion Module Cards List */}
           <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            {course.modules.map((mod: any, mi: number) => {
-              const isModuleOpen = expandedModules[mi] ?? (mi === 0);
+            {course.stages?.map((stage: any, si: number) => {
+              const isStageOpen = expandedModules[si] ?? (si === 0);
+              const stageLessons = stage.modules.flatMap((m: any) => m.lessons);
               return (
-                <div key={mod.id} className="rounded-xl border border-slate-100 overflow-hidden shadow-2xs">
-                  {/* Module Header Card Toggle */}
+                <div key={stage.id} className="rounded-xl border border-slate-100 overflow-hidden shadow-2xs">
+                  {/* Stage Header Card Toggle */}
                   <button
-                    onClick={() => toggleModule(mi)}
+                    onClick={() => toggleModule(si)}
                     className="w-full p-3 bg-slate-50 hover:bg-purple-50/40 flex items-center justify-between transition-colors text-left"
                   >
                     <p className="text-xs font-extrabold text-slate-800 line-clamp-1">
-                      {mi + 1}. {mod.title}
+                      {si + 1}. {stage.title}
                     </p>
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-extrabold text-slate-400">{mod.lessons.length} lessons</span>
-                      {isModuleOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
+                      <span className="text-[10px] font-extrabold text-slate-400">{stageLessons.length} lessons</span>
+                      {isStageOpen ? <ChevronUp className="w-3.5 h-3.5 text-slate-400" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-400" />}
                     </div>
                   </button>
 
-                  {/* Module Lessons Accordion Drawer */}
-                  {isModuleOpen && (
-                    <div className="p-2 space-y-1.5 bg-white border-t border-slate-100 animate-fade-in">
-                      {mod.lessons.map((lesson: any, li: number) => {
-                        const isCurrent = lesson.id === currentLesson.id;
-                        return (
-                          <button
-                            key={lesson.id}
-                            onClick={() => navigate('lesson', { id: course.id, lesson: lesson.id })}
-                            className={cn(
-                              'w-full flex items-center gap-2.5 p-2 rounded-xl transition-all text-left border',
-                              isCurrent 
-                                ? 'bg-purple-50 border-purple-200 text-[#7c3aed] shadow-2xs font-extrabold' 
-                                : 'bg-white hover:bg-slate-50 border-transparent text-slate-700'
-                            )}
-                          >
-                            <div className={cn(
-                              'w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black',
-                              lesson.completed ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
-                              isCurrent ? 'bg-[#7c3aed] text-white' : 'bg-slate-100 text-slate-400',
-                            )}>
-                              {lesson.completed ? <CheckCircle2 className="w-3.5 h-3.5" /> : li + 1}
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className={cn('text-xs line-clamp-1', isCurrent ? 'font-black text-[#7c3aed]' : 'font-semibold text-slate-800')}>{lesson.title}</p>
-                              <p className="text-[10px] font-medium text-slate-400">{lesson.duration}</p>
-                            </div>
-                          </button>
-                        );
-                      })}
+                  {/* Stage Modules Drawer */}
+                  {isStageOpen && (
+                    <div className="p-2 space-y-3 bg-white border-t border-slate-100 animate-fade-in">
+                      {stage.modules.map((mod: any, mi: number) => (
+                        <SidebarModuleAccordion key={mod.id} mod={mod} course={course} currentLesson={currentLesson} navigate={navigate} />
+                      ))}
                     </div>
                   )}
                 </div>
