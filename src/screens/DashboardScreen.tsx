@@ -6,7 +6,9 @@ import {
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { currentUser } from '@/data/mock';
+import { currentUser, liveClasses } from '@/data/mock';
+import { cn } from '@/lib/utils';
+import { OnboardingTour } from '@/components/ui/OnboardingTour';
 
 // Struct for Daily 2-3 Python Topics
 interface PythonTopic {
@@ -605,6 +607,20 @@ export function DashboardScreen() {
 
   // ════════════════ DASHBOARD (2-COLUMN GRID: SCHEDULE ON LEFT, STATS ON RIGHT) ════════════════
   
+  const formatTime = (isoString: string) => {
+    try {
+      const d = new Date(isoString);
+      if (isNaN(d.getTime())) return isoString;
+      
+      const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      
+      return `${dateStr}, ${timeStr}`;
+    } catch {
+      return isoString;
+    }
+  };
+
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good Morning';
@@ -612,8 +628,11 @@ export function DashboardScreen() {
     return 'Good Evening';
   };
 
+  const [runTour, setRunTour] = useState(true);
+
   return (
-    <div className="font-sans animate-fade-in space-y-6">
+    <div className="font-sans animate-fade-in space-y-6 relative">
+      <OnboardingTour run={runTour} onFinish={() => setRunTour(false)} />
 
       {/* Greeting Header */}
       <div className="flex items-center gap-2 px-1">
@@ -628,7 +647,7 @@ export function DashboardScreen() {
         <div className="lg:col-span-8 border border-slate-200/80 shadow-sm rounded-[2rem] overflow-visible bg-white p-6 sm:p-7 space-y-6">
           
           {/* Top Header Row: "Your Schedule" & "Calendar" Button with Floating Popover */}
-          <div className="flex items-center justify-between relative z-20">
+          <div id="tour-schedule" className="flex items-center justify-between relative z-20">
             <div>
               <h2 className="font-extrabold text-slate-900 text-xl sm:text-2xl tracking-tight flex items-center gap-2">
                 <span>Your Schedule</span>
@@ -794,7 +813,7 @@ export function DashboardScreen() {
           </div>
 
           {/* ════════ SCHEDULE CLASSES FEED (EXACTLY 2 CARDS: LIVE & UPCOMING WITH DIRECT ROUTING) ════════ */}
-          <div className="space-y-4">
+          <div id="tour-live-classes" className="space-y-4">
             
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
               <div className="flex items-center gap-2">
@@ -823,86 +842,62 @@ export function DashboardScreen() {
                 </div>
               </div>
             ) : (
-              /* Exactly 2 Interactive Cards (Card 1: Live Now -> Classroom, Card 2: Upcoming -> Live Classes Tab) */
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                
-                {/* CARD 1: LIVE NOW CLASS (Advanced React Patterns Workshop) */}
-                <div 
-                  onClick={() => navigate('classroom', { id: 'lc1' })}
-                  className="p-5 rounded-[1.5rem] border border-purple-200/90 bg-white hover:border-[#7c3aed] shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between ring-1 ring-purple-100 relative overflow-hidden"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-4">
-                      <span className="px-3 py-1 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80" />
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                {liveClasses.filter(c => c.status === 'ongoing' || c.status === 'upcoming').slice(0, 2).map((cls, idx) => (
+                  <div 
+                    key={cls.id}
+                    onClick={() => navigate(cls.status === 'ongoing' ? 'classroom' : 'live', cls.status === 'ongoing' ? { id: cls.id } : { tab: 'upcoming' })}
+                    className={cn(
+                      "p-5 rounded-[1.5rem] bg-white shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden",
+                      cls.status === 'ongoing' ? "border border-purple-200/90 hover:border-[#7c3aed] ring-1 ring-purple-100" : "border border-slate-200/90 hover:border-[#7c3aed]/60"
+                    )}
+                  >
+                    <div>
+                      <div className="flex items-center justify-between gap-2 mb-4">
+                        {cls.status === 'ongoing' ? (
+                          <span className="px-3 py-1 rounded-full bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-sm">
+                            <span className="relative flex h-2 w-2">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-80" />
+                              <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
+                            </span>
+                            <span>LIVE NOW</span>
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5 text-[#7c3aed]" />
+                            <span>UPCOMING CLASS</span>
+                          </span>
+                        )}
+
+                        <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          {formatTime(cls.scheduledAt)}{cls.status === 'ongoing' ? ` · ${cls.duration}` : ''}
                         </span>
-                        <span>LIVE NOW</span>
-                      </span>
+                      </div>
 
-                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        Today, 4:00 PM · 90 min
-                      </span>
+                      <h4 className="font-extrabold text-base text-slate-900 mb-1 group-hover:text-[#7c3aed] transition-colors leading-snug">
+                        {cls.title}
+                      </h4>
+                      <p className="text-xs font-bold text-slate-500 mb-4">{cls.course} · {cls.instructor.name}</p>
                     </div>
 
-                    <h4 className="font-extrabold text-base text-slate-900 mb-1 group-hover:text-[#7c3aed] transition-colors leading-snug">
-                      Advanced React Patterns Workshop
-                    </h4>
-                    <p className="text-xs font-bold text-slate-500 mb-4">Full-Stack Web Dev · Sara Khan</p>
-                  </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-[#7c3aed] group-hover:text-[#6d28d9] transition-colors inline-flex items-center gap-1.5">
-                      Join Live Class
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                    </span>
-                  </div>
-                </div>
-
-                {/* CARD 2: UPCOMING CLASS (Neural Networks Q&A Session) */}
-                <div 
-                  onClick={() => navigate('live', { tab: 'upcoming' })}
-                  className="p-5 rounded-[1.5rem] border border-slate-200/90 bg-white hover:border-[#7c3aed]/60 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between"
-                >
-                  <div>
-                    <div className="flex items-center justify-between gap-2 mb-4">
-                      <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                        <Clock className="w-3.5 h-3.5 text-[#7c3aed]" />
-                        <span>UPCOMING CLASS</span>
-                      </span>
-
-                      <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        Tomorrow, 2:00 PM
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-xs font-extrabold text-[#7c3aed] group-hover:text-[#6d28d9] transition-colors inline-flex items-center gap-1.5">
+                        {cls.status === 'ongoing' ? 'Join Live Class' : 'View & Set Reminder'}
+                        <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                       </span>
                     </div>
-
-                    <h4 className="font-extrabold text-base text-slate-900 mb-1 group-hover:text-[#7c3aed] transition-colors leading-snug">
-                      Neural Networks Q&A Session
-                    </h4>
-                    <p className="text-xs font-bold text-slate-500 mb-4">ML Fundamentals · Dr. Priya Nair</p>
                   </div>
-
-                  <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-xs font-extrabold text-[#7c3aed] group-hover:text-[#6d28d9] transition-colors inline-flex items-center gap-1.5">
-                      View & Set Reminder
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
-                    </span>
-                  </div>
-                </div>
-
+                ))}
               </div>
             )}
-
           </div>
 
         </div>
 
 
         {/* ════════ RIGHT SIDE (4 COLS): VERTICALLY STACKED STAT CARDS ════════ */}
-        <div className="lg:col-span-4 space-y-4">
+        <div id="tour-stats" className="lg:col-span-4 space-y-4">
           
           {/* Live Classes Card */}
           <div 
@@ -939,11 +934,11 @@ export function DashboardScreen() {
               </div>
               <div>
                 <p className="text-xs font-semibold text-slate-500">Overall Progress</p>
-                <p className="text-base font-extrabold text-slate-900">72% Completed</p>
+                <p className="text-base font-extrabold text-slate-900">0% Completed</p>
               </div>
             </div>
             <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
-              <div className="h-full bg-[#7c3aed] rounded-full transition-all duration-500" style={{ width: '72%' }} />
+              <div className="h-full bg-[#7c3aed] rounded-full transition-all duration-500" style={{ width: '0%' }} />
             </div>
           </div>
 
@@ -954,7 +949,7 @@ export function DashboardScreen() {
             </div>
             <div>
               <p className="text-xs text-slate-500 font-semibold">Modules Completed</p>
-              <p className="text-base font-extrabold text-slate-900 mt-0.5">4 of 6 Finished <span className="text-xs text-emerald-600 font-bold ml-1">(+2 this week)</span></p>
+              <p className="text-base font-extrabold text-slate-900 mt-0.5">0 of 1 Finished <span className="text-xs text-slate-400 font-normal ml-1">Ready to start!</span></p>
             </div>
           </div>
 

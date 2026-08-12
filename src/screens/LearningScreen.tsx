@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  Play, Star, Clock, BookOpen, Users, Filter, Grid3x3, List, ChevronRight,
-  Trophy, Zap, MapPin, CheckCircle2, Video, Code2, ClipboardCheck, X, Sparkles, Brain, Lock, ExternalLink, ChevronDown
+import { 
+  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal 
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
+import { courses } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -173,39 +173,13 @@ const learningItems: LearningItem[] = [
   }
 ];
 
-const topicDataMap: Record<string, { title: string; subtitle: string; modules: { letter: string; name: string; liveClass: string; lab: string; assessment: string }[] }> = {
-  'Python Programming Basics': {
-    title: 'Python Programming Basics',
-    subtitle: 'Master fundamental data structures, variable declarations, loops, and OOP concepts in Python 3.',
-    modules: [
-      { letter: 'V', name: 'Variables & Data Types', liveClass: 'Variables Live Workshop', lab: 'Variables Practice Lab', assessment: 'Variables Topic Quiz' },
-      { letter: 'F', name: 'Functions & OOP Concepts', liveClass: 'OOP Class Methods', lab: 'OOP Concepts Lab', assessment: 'OOP Assessment' },
-    ]
-  },
-  'ML Fundamentals & Scikit-Learn': {
-    title: 'ML Fundamentals & Scikit-Learn',
-    subtitle: 'Build supervised and unsupervised machine learning pipelines using Scikit-Learn and Pandas.',
-    modules: [
-      { letter: 'S', name: 'Supervised Learning & Regression', liveClass: 'Linear Regression Class', lab: 'Regression Lab', assessment: 'ML Fundamentals Quiz' },
-      { letter: 'M', name: 'Model Metrics & Hyperparameters', liveClass: 'Model Tuning Masterclass', lab: 'Hyperparameter Tuning Lab', assessment: 'Model Metrics Test' },
-    ]
-  },
-  'Data Structures & Algorithms': {
-    title: 'Data Structures & Algorithms',
-    subtitle: 'Deep-dive into algorithm complexity, binary trees, dynamic programming, and interview coding challenges.',
-    modules: [
-      { letter: 'A', name: 'Arrays, Strings & Pointers', liveClass: 'Two-Pointer Technique', lab: 'Array Problems Lab', assessment: 'DSA Practice Quiz' },
-      { letter: 'T', name: 'Trees & Graph Traversal', liveClass: 'DFS & BFS Graphs', lab: 'Graph Algorithms Lab', assessment: 'Trees Assessment' },
-    ]
-  }
-};
-
 export function LearningScreen() {
   const { navigate, route } = useNav();
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin'>('all');
+  const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
-  const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<string | null>(null);
+  const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<any | null>(null);
   const [expandedModule, setExpandedModule] = useState<number | null>(0);
 
   const filteredItems = learningItems.filter((item) => {
@@ -248,19 +222,20 @@ export function LearningScreen() {
                   <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/20 border border-white/20 text-xs font-black tracking-wider shadow-sm">
                     <BookOpen className="w-4 h-4" /> MILESTONE CURRICULUM ROADMAP
                   </span>
-                  <h3 className="font-bold text-lg sm:text-xl text-white/95 leading-relaxed">
-                    Master core engineering fundamentals, advanced AI models, and real-world project deployments.
+                  <h3 className="font-extrabold text-xl sm:text-2xl text-white/95 leading-snug">
+                    {courses[0].title}
                   </h3>
+                  <p className="text-white/80 text-sm sm:text-base font-medium">
+                    {courses[0].subtitle}
+                  </p>
                 </div>
                 
                 <div className="flex items-center gap-3 shrink-0">
                   <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/20 border border-white/20 text-sm font-bold shadow-sm">
                     <Trophy className="w-4 h-4 text-amber-300" />
-                    <span>4 / 12 Completed</span>
-                  </div>
-                  <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/20 border border-white/20 text-sm font-bold shadow-sm">
-                    <Zap className="w-4 h-4 text-emerald-300" />
-                    <span>Level 3 Unlocked</span>
+                    <span>
+                      0 / {courses[0].stages?.reduce((acc, stage) => acc + (stage.modules?.length || 0), 0) || 0} Modules Completed
+                    </span>
                   </div>
                 </div>
               </div>
@@ -268,137 +243,187 @@ export function LearningScreen() {
               <div className="space-y-2 pt-2">
                 <div className="flex items-center justify-between text-xs font-extrabold text-white">
                   <span>Overall Track Completion</span>
-                  <span>45%</span>
+                  <span>0%</span>
                 </div>
                 <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                  <div className="h-full bg-white rounded-full w-[45%]" />
+                  <div className="h-full bg-white rounded-full w-[0%]" />
                 </div>
               </div>
             </div>
           </div>
 
           {/* 2. Vertical Stage Timeline Roadmap */}
-          <div className="relative pl-12 space-y-8 before:absolute before:left-[22px] before:top-8 before:bottom-8 before:w-1 before:bg-purple-200/60 before:rounded-full">
+          <div className="relative pl-12 space-y-8">
             
-            {/* Stage 1 */}
+            {courses[0].stages?.map((stage: any, stageIdx: number) => {
+              const isLocked = stageIdx > 0;
+              const isCurrent = stageIdx === 0;
+
+              return (
+                <div key={stage.id} className={cn("relative group", isLocked && "opacity-70")}>
+                  {/* Timeline Dot */}
+                  <div className={cn(
+                    "absolute -left-[40px] top-8 w-8 h-8 rounded-full border-[3px] flex items-center justify-center z-10",
+                    isCurrent ? "bg-white border-[#7c3aed] shadow-[0_0_15px_rgba(124,58,237,0.3)]" : 
+                    isLocked ? "bg-slate-50 border-slate-300" : "bg-white border-purple-400 shadow-sm"
+                  )}>
+                    <div className={cn(
+                      "rounded-full",
+                      isCurrent ? "w-2.5 h-2.5 bg-[#7c3aed] animate-pulse" : 
+                      isLocked ? "w-2 h-2 bg-slate-300" : "w-2.5 h-2.5 bg-purple-400"
+                    )} />
+                  </div>
+
+                  {/* Line segment connecting to next stage/node */}
+                  <div className="absolute left-[-26px] top-[64px] h-full w-1 bg-purple-200/60 rounded-full z-0" />
+
+                  {/* Stage Card */}
+                  <div className={cn(
+                    "p-6 rounded-[2rem] border transition-all space-y-4",
+                    isLocked ? "bg-slate-50 border-slate-200/80" : "bg-white border-slate-200/90 shadow-md hover:shadow-lg"
+                  )}>
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3.5">
+                        <div className={cn(
+                          "w-12 h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0",
+                          isLocked ? "bg-slate-200 text-slate-500 shadow-none" : "bg-[#7c3aed] text-white"
+                        )}>
+                          {isLocked ? <Lock className="w-6 h-6" /> : <Brain className="w-6 h-6" />}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className={cn(
+                              "px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider",
+                              isLocked ? "bg-slate-200 text-slate-500" : "bg-purple-50 text-[#7c3aed] border border-purple-100"
+                            )}>
+                              STAGE 0{stageIdx + 1}
+                            </span>
+                            {!isLocked && <span className="text-xs font-semibold text-slate-500">Phase {stageIdx + 1}</span>}
+                          </div>
+                          <h3 className={cn(
+                            "font-extrabold text-lg sm:text-xl mt-0.5",
+                            isLocked ? "text-slate-700" : "text-slate-900"
+                          )}>
+                            {stage.title}
+                          </h3>
+                        </div>
+                      </div>
+
+                      {isCurrent && (
+                        <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-bold flex items-center gap-1.5 w-fit">
+                          <span className="w-2 h-2 rounded-full bg-[#7c3aed] animate-pulse" />
+                          IN PROGRESS
+                        </span>
+                      )}
+                      {isLocked && (
+                        <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs font-bold">
+                          LOCKED
+                        </span>
+                      )}
+                      {!isCurrent && !isLocked && (
+                        <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold w-fit">
+                          AVAILABLE
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Modules List inside Stage */}
+                    {!isLocked && stage.modules && (
+                      <div className="pt-2 space-y-3">
+                        {stage.modules.map((mod: any, modIdx: number) => {
+                          const videos = mod.lessons?.filter((l: any) => !!l.video).length || 0;
+                          const practices = mod.lessons?.filter((l: any) => !!l.practice).length || 0;
+                          const assessments = mod.lessons?.filter((l: any) => !!l.assessment).length || 0;
+                          const coding = 0; // We merged coding into practices for now
+
+                          // A module is locked if any previous module has incomplete lessons
+                          const isModLocked = modIdx > 0 && stage.modules.slice(0, modIdx).some((prevMod: any) => prevMod.lessons?.some((l: any) => !l.completed));
+
+                          return (
+                            <button
+                              key={mod.id}
+                              disabled={isModLocked}
+                              onClick={() => { 
+                                if(!isModLocked) {
+                                  setSelectedTopicDrawer(mod); 
+                                  if (mod.lessons?.[0]) setActiveAccordion(mod.lessons[0].id);
+                                }
+                              }}
+                              className={cn(
+                                "w-full sm:w-[500px] p-4 rounded-2xl border shadow-sm flex items-center justify-between transition-all group/btn",
+                                isModLocked 
+                                  ? "bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed" 
+                                  : "bg-white hover:bg-slate-50 text-slate-900 hover:shadow-md active:scale-95 border-slate-200"
+                              )}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className={cn(
+                                  "w-10 h-10 rounded-full flex items-center justify-center shrink-0 border",
+                                  isModLocked ? "bg-slate-200 border-slate-300" : "bg-purple-50 border-purple-100"
+                                )}>
+                                  <Layers className={cn("w-5 h-5", isModLocked ? "text-slate-400" : "text-[#7c3aed]")} />
+                                </div>
+                                <div className="text-left">
+                                  <h4 className={cn("font-extrabold text-sm leading-tight transition-colors", isModLocked ? "text-slate-500" : "text-slate-900 group-hover/btn:text-[#7c3aed]")}>
+                                    {mod.title}
+                                  </h4>
+                                  <div className={cn("flex items-center gap-2 mt-1 flex-wrap", isModLocked && "opacity-60")}>
+                                    {videos > 0 && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1"><Video className="w-3 h-3"/> {videos} Video{videos > 1 ? 's' : ''}</span>}
+                                    {coding > 0 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100/50 flex items-center gap-1"><Code2 className="w-3 h-3"/> {coding} Coding</span>}
+                                    {practices > 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/50 flex items-center gap-1"><Terminal className="w-3 h-3"/> {practices} Practice{practices > 1 ? 's' : ''}</span>}
+                                    {assessments > 0 && <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded border border-primary-100/50 flex items-center gap-1"><ClipboardCheck className="w-3 h-3"/> {assessments} Quiz</span>}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className={cn(
+                                "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
+                                isModLocked ? "bg-slate-200" : "bg-slate-100 group-hover/btn:bg-purple-100"
+                              )}>
+                                {isModLocked ? (
+                                  <Lock className="w-4 h-4 text-slate-400" />
+                                ) : (
+                                  <ChevronRight className="w-4 h-4 text-slate-400 group-hover/btn:text-[#7c3aed]" />
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Final Celebration Node */}
             <div className="relative group">
-              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full bg-white border-[3px] border-[#7c3aed] shadow-[0_0_15px_rgba(124,58,237,0.3)] flex items-center justify-center z-10">
-                <div className="w-2.5 h-2.5 rounded-full bg-[#7c3aed] animate-pulse" />
+              {/* Timeline Dot */}
+              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full border-[3px] bg-amber-50 border-amber-300 flex items-center justify-center z-10 shadow-sm">
+                <Trophy className="w-4 h-4 text-amber-500" />
               </div>
 
-              <div className="p-6 rounded-[2rem] bg-white border border-slate-200/90 shadow-md space-y-4 hover:shadow-lg transition-all">
+              {/* Stage Card */}
+              <div className="p-6 rounded-[2rem] border bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-400 text-white shadow-lg space-y-4 opacity-50 grayscale transition-all">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-[#7c3aed] text-white flex items-center justify-center shadow-md shrink-0">
-                      <Brain className="w-6 h-6" />
+                    <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center shadow-md shrink-0">
+                      <CheckCircle2 className="w-6 h-6 text-white" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
-                          STAGE 01
+                        <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-white/20 border border-white/30 text-white shadow-xs">
+                          COURSE COMPLETION
                         </span>
-                        <span className="text-xs font-semibold text-slate-500">Phase 1 • Core Mastery</span>
                       </div>
-                      <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl mt-0.5">
-                        Stage 1: Python & Core Fundamentals
+                      <h3 className="font-extrabold text-lg sm:text-xl mt-0.5 text-white">
+                        {courses[0].title} Certification
                       </h3>
+                      <p className="text-sm font-medium text-white/90 mt-1">
+                        Complete all modules and assignments to unlock your verified certificate.
+                      </p>
                     </div>
                   </div>
-
-                  <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-bold flex items-center gap-1.5 w-fit">
-                    <span className="w-2 h-2 rounded-full bg-[#7c3aed] animate-pulse" />
-                    IN PROGRESS
-                  </span>
-                </div>
-
-                {/* Subtopic Button Pill (Brand Purple) */}
-                <div className="pt-2">
-                  <button
-                    onClick={() => setSelectedTopicDrawer('Python Programming Basics')}
-                    className="w-full sm:w-[450px] p-4 rounded-2xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-between group/btn border border-purple-500"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                        <Clock className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="text-left">
-                        <h4 className="font-extrabold text-base leading-tight">Python Programming Basics</h4>
-                        <p className="text-[11px] font-semibold text-purple-100 mt-0.5">Click to view subtopics</p>
-                      </div>
-                    </div>
-                    <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center shrink-0 group-hover/btn:bg-white/30 transition-colors">
-                      <ChevronRight className="w-4 h-4 text-white" />
-                    </div>
-                  </button>
-                </div>
-              </div>
-            </div>
-
-
-            {/* Stage 2 */}
-            <div className="relative group">
-              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full bg-white border-[3px] border-purple-400 shadow-sm flex items-center justify-center z-10">
-                <div className="w-2.5 h-2.5 rounded-full bg-purple-400" />
-              </div>
-
-              <div className="p-6 rounded-[2rem] bg-white border border-slate-200/90 shadow-md space-y-4 hover:shadow-lg transition-all">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-[#7c3aed] text-white flex items-center justify-center shadow-md shrink-0">
-                      <Brain className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
-                          STAGE 02
-                        </span>
-                        <span className="text-xs font-semibold text-slate-500">Phase 2 • Core Mastery</span>
-                      </div>
-                      <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl mt-0.5">
-                        Stage 2: Machine Learning & AI Models
-                      </h3>
-                    </div>
-                  </div>
-
-                  <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 text-xs font-bold w-fit">
-                    AVAILABLE
-                  </span>
-                </div>
-
-                <div className="pt-2">
-                  <button
-                    onClick={() => setSelectedTopicDrawer('ML Fundamentals & Scikit-Learn')}
-                    className="w-full sm:w-auto px-5 py-3 rounded-2xl bg-slate-100 hover:bg-purple-50 text-slate-900 hover:text-[#7c3aed] font-extrabold text-xs border border-slate-200 transition-all flex items-center justify-between sm:justify-start gap-4"
-                  >
-                    <span>ML Fundamentals & Scikit-Learn</span>
-                    <ChevronRight className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-
-            {/* Stage 3 */}
-            <div className="relative opacity-70">
-              <div className="absolute -left-[40px] top-8 w-8 h-8 rounded-full bg-slate-50 border-[3px] border-slate-300 flex items-center justify-center z-10">
-                <div className="w-2 h-2 rounded-full bg-slate-300" />
-              </div>
-
-              <div className="p-6 rounded-[2rem] bg-slate-50 border border-slate-200/80 space-y-2">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-slate-200 text-slate-500 flex items-center justify-center shrink-0">
-                      <Lock className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">STAGE 03 • Advanced</span>
-                      <h3 className="font-bold text-slate-700 text-base">
-                        Stage 3: Advanced AI & Cloud Deployment
-                      </h3>
-                    </div>
-                  </div>
-
-                  <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs font-bold">
+                  <span className="px-3 py-1 rounded-full bg-black/10 border border-white/20 text-white text-xs font-bold w-fit shadow-xs">
                     LOCKED
                   </span>
                 </div>
@@ -488,7 +513,7 @@ export function LearningScreen() {
                   {isLocked && (
                     <div 
                       onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      className="absolute inset-0 bg-[#090b14]/75 backdrop-blur-md z-30 flex flex-col items-center justify-center select-none cursor-not-allowed rounded-[1.8rem] p-4 text-center"
+                      className="absolute inset-0 bg-[#090b14]/75 backdrop-blur-md z-20 flex flex-col items-center justify-center select-none cursor-not-allowed rounded-[1.8rem] p-4 text-center"
                     >
                       <div className="space-y-3">
                         <div className="w-14 h-14 rounded-full border border-slate-700/80 bg-[#0c0f1d] flex items-center justify-center shadow-2xl mx-auto">
@@ -569,14 +594,7 @@ export function LearningScreen() {
 
       {/* ════════ DYNAMIC TOPIC CATALOG SIDE DRAWER / MODAL ════════ */}
       {selectedTopicDrawer && (() => {
-        const topicInfo = topicDataMap[selectedTopicDrawer] || {
-          title: selectedTopicDrawer,
-          subtitle: 'Tailored learning modules and recorded sessions designed specifically for your growth path.',
-          modules: [
-            { letter: 'V', name: 'Variables & Data Types', liveClass: 'Live Class', lab: 'Practice Lab', assessment: 'Assessment' },
-            { letter: 'F', name: 'Functions & OOP Concepts', liveClass: 'OOP Workshop', lab: 'OOP Lab', assessment: 'OOP Assessment' },
-          ]
-        };
+        const mod = selectedTopicDrawer;
 
         return createPortal(
           <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex justify-end animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) setSelectedTopicDrawer(null); }}>
@@ -586,13 +604,13 @@ export function LearningScreen() {
               <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4 bg-slate-50/50">
                 <div>
                   <h3 className="font-extrabold text-xl text-slate-900">
-                    {topicInfo.title}
+                    {mod.title}
                   </h3>
                   <span className="inline-block mt-1 px-2.5 py-0.5 rounded-lg bg-indigo-50 text-[#3b52a4] text-[10px] font-black uppercase tracking-wider border border-indigo-100">
-                    TOPIC CATALOG
+                    MODULE DETAILS
                   </span>
                   <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-                    {topicInfo.subtitle}
+                    Complete all lessons, practices, and assessments in this module to proceed to the next stage of your curriculum.
                   </p>
                 </div>
 
@@ -608,118 +626,133 @@ export function LearningScreen() {
               <div className="p-6 flex-1 overflow-y-auto space-y-4">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-500 border-b border-slate-100 pb-2">
                   <span>LEARNING PATH</span>
-                  <span>{topicInfo.modules.length} modules</span>
+                  <span>{mod.lessons?.length || 0} items</span>
                 </div>
 
-                {topicInfo.modules.map((mod, idx) => {
-                  const isExpanded = expandedModule === idx;
-                  
-                  return (
-                  <div key={idx} className={cn("rounded-2xl border overflow-hidden shadow-sm transition-all", isExpanded ? "border-[#7c3aed]" : "border-slate-200")}>
-                    <button
-                      onClick={() => setExpandedModule(isExpanded ? null : idx)}
-                      className={cn(
-                        "w-full p-4 flex items-center justify-between gap-3 transition-colors",
-                        isExpanded ? "bg-[#7c3aed] text-white" : "bg-white hover:bg-slate-50 text-slate-900"
-                      )}
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className={cn(
-                          "w-7 h-7 rounded-lg font-black text-xs flex items-center justify-center",
-                          isExpanded ? "bg-white/20 text-white" : "bg-purple-50 text-[#7c3aed]"
-                        )}>
-                          {mod.letter}
-                        </span>
-                        <span className="font-extrabold text-sm">{mod.name}</span>
-                      </div>
-                      <div className={cn(
-                        "w-6 h-6 rounded-md flex items-center justify-center transition-colors",
-                        isExpanded ? "bg-white/20 text-white" : "bg-slate-100 text-slate-400"
+                <div className="space-y-3">
+                  {mod.lessons?.map((lesson: any, idx: number) => {
+                    const isLessonLocked = idx > 0 && mod.lessons.slice(0, idx).some((l: any) => !l.completed);
+                    const isExpanded = activeAccordion === lesson.id;
+
+                    return (
+                      <div key={lesson.id} className={cn("rounded-2xl border transition-all overflow-hidden bg-white", 
+                        isLessonLocked ? "border-slate-100 opacity-75" : 
+                        isExpanded ? "border-purple-200 shadow-md ring-4 ring-purple-50/50" : "border-slate-200 shadow-sm hover:border-purple-200 hover:shadow-md"
                       )}>
-                        <ChevronDown className={cn("w-4 h-4 transition-transform duration-200", isExpanded && "rotate-180")} />
+                        <button
+                          onClick={() => { if(!isLessonLocked) setActiveAccordion(isExpanded ? null : lesson.id); }}
+                          disabled={isLessonLocked}
+                          className={cn("w-full p-4 flex items-center justify-between text-left transition-colors", isExpanded && !isLessonLocked ? "bg-purple-50/30" : "hover:bg-slate-50")}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs shrink-0", isLessonLocked ? "bg-slate-200 text-slate-400" : isExpanded ? "bg-[#7c3aed] text-white shadow-md shadow-purple-500/20" : "bg-purple-100 text-[#7c3aed]")}>
+                              {idx + 1}
+                            </div>
+                            <div>
+                              <h4 className={cn("font-bold text-sm leading-tight pr-4 transition-colors", isLessonLocked ? "text-slate-500" : isExpanded ? "text-[#7c3aed]" : "text-slate-900")}>
+                                {lesson.title}
+                              </h4>
+                            </div>
+                          </div>
+                          <div className="shrink-0">
+                            {isLessonLocked ? (
+                              <Lock className="w-4 h-4 text-slate-400" />
+                            ) : (
+                              <div className={cn("w-6 h-6 rounded-full flex items-center justify-center transition-colors", isExpanded ? "bg-purple-100" : "bg-slate-100")}>
+                                <ChevronDown className={cn("w-4 h-4 transition-transform", isExpanded ? "text-[#7c3aed] rotate-180" : "text-slate-500")} />
+                              </div>
+                            )}
+                          </div>
+                        </button>
+
+                        {isExpanded && !isLessonLocked && (
+                          <div className="p-3 pt-4 space-y-3 bg-slate-50 border-t border-purple-100/50">
+                            {/* VIDEO ITEM */}
+                            {lesson.video && (
+                              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-200 transition-all flex items-center justify-between gap-3">
+                                <div className="flex items-start gap-3">
+                                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white flex items-center justify-center shrink-0 shadow-sm shadow-purple-500/20">
+                                    <Video className="w-4 h-4" />
+                                  </div>
+                                  <div>
+                                    <span className="text-[10px] font-extrabold uppercase text-[#7c3aed] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                                      VIDEO LESSON
+                                    </span>
+                                    <h4 className="font-bold text-slate-900 text-sm mt-1 leading-tight">{lesson.title}</h4>
+                                    <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                      <Clock className="w-3 h-3" /> {lesson.video.duration}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button onClick={() => { setSelectedTopicDrawer(null); navigate('lesson'); }} className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all">
+                                  <span>WATCH</span><ExternalLink className="w-3 h-3" />
+                                </button>
+                              </div>
+                            )}
+
+                            {/* PRACTICE ITEM */}
+                            {lesson.practice && (
+                              <div className={cn("p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3", !lesson.video?.completed ? "opacity-60" : "hover:shadow-md hover:border-purple-200")}>
+                                <div className="flex items-start gap-3">
+                                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm", !lesson.video?.completed ? "bg-slate-200 text-slate-400" : "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-amber-500/20")}>
+                                    {!lesson.video?.completed ? <Lock className="w-4 h-4" /> : <Code2 className="w-4 h-4" />}
+                                  </div>
+                                  <div>
+                                    <span className={cn("text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border", !lesson.video?.completed ? "text-slate-500 bg-slate-100 border-slate-200" : "text-amber-600 bg-amber-50 border-amber-100")}>
+                                      PRACTICAL LAB
+                                    </span>
+                                    <h4 className={cn("font-bold text-sm mt-1 leading-tight", !lesson.video?.completed ? "text-slate-500" : "text-slate-900")}>{lesson.title} Practice</h4>
+                                    <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                      <Clock className="w-3 h-3" /> {lesson.practice.duration}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button 
+                                  disabled={!lesson.video?.completed}
+                                  onClick={() => { setSelectedTopicDrawer(null); navigate('practice'); }} 
+                                  className={cn("px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all", !lesson.video?.completed ? "bg-slate-100 text-slate-400 shadow-none" : "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95")}
+                                >
+                                  <span>{!lesson.video?.completed ? 'LOCKED' : 'SOLVE'}</span>
+                                  {!lesson.video?.completed ? <Lock className="w-3 h-3"/> : <ExternalLink className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            )}
+
+                            {/* ASSESSMENT ITEM */}
+                            {lesson.assessment && (
+                              <div className={cn("p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "opacity-60" : "hover:shadow-md hover:border-purple-200")}>
+                                <div className="flex items-start gap-3">
+                                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "bg-slate-200 text-slate-400" : "bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-primary-500/20")}>
+                                    {!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? <Lock className="w-4 h-4" /> : <ClipboardCheck className="w-4 h-4" />}
+                                  </div>
+                                  <div>
+                                    <span className={cn("text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "text-slate-500 bg-slate-100 border-slate-200" : "text-primary-600 bg-primary-50 border-primary-100")}>
+                                      ASSESSMENT
+                                    </span>
+                                    <h4 className={cn("font-bold text-sm mt-1 leading-tight", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "text-slate-500" : "text-slate-900")}>{lesson.title} Quiz</h4>
+                                    <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                      <Clock className="w-3 h-3" /> {lesson.assessment.duration}
+                                    </span>
+                                  </div>
+                                </div>
+                                <button 
+                                  disabled={!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice))}
+                                  onClick={() => { setSelectedTopicDrawer(null); navigate('assignments'); }} 
+                                  className={cn("px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "bg-slate-100 text-slate-400 shadow-none" : "bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95")}
+                                >
+                                  <span>{!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? 'LOCKED' : 'TAKE'}</span>
+                                  {!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? <Lock className="w-3 h-3"/> : <ExternalLink className="w-3 h-3" />}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    </button>
-
-                    {isExpanded && (
-                      <div className="p-4 bg-white space-y-3 border-t border-slate-100 animate-fade-in">
-                        
-                        {/* Live Class */}
-                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-[#7c3aed] text-white flex items-center justify-center shrink-0 shadow-sm">
-                              <Video className="w-4.5 h-4.5" />
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-extrabold text-[#7c3aed] uppercase bg-purple-50 px-1.5 py-0.5 rounded">LIVE CLASS</span>
-                              <h4 className="font-bold text-slate-900 text-xs mt-0.5">{mod.liveClass}</h4>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => { setSelectedTopicDrawer(null); navigate('live'); }}
-                            className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-2xs flex items-center gap-1 transition-all"
-                          >
-                            <span>JOIN</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
-                        </div>
-
-                        {/* Practice Lab */}
-                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-amber-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                              <Code2 className="w-4.5 h-4.5" />
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-extrabold text-amber-600 uppercase bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/50">PRACTICAL LAB</span>
-                              <h4 className="font-bold text-slate-900 text-xs mt-0.5">{mod.lab}</h4>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => { setSelectedTopicDrawer(null); navigate('practice'); }}
-                            className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-extrabold text-xs shadow-2xs flex items-center gap-1 transition-all"
-                          >
-                            <span>VIEW</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
-                        </div>
-
-                        {/* Assessment */}
-                        <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-xl bg-primary-500 text-white flex items-center justify-center shrink-0 shadow-sm">
-                              <ClipboardCheck className="w-4.5 h-4.5" />
-                            </div>
-                            <div>
-                              <span className="text-[10px] font-extrabold text-primary-500 uppercase bg-primary-50 px-1.5 py-0.5 rounded">ASSESSMENT</span>
-                              <h4 className="font-bold text-slate-900 text-xs mt-0.5">{mod.assessment}</h4>
-                            </div>
-                          </div>
-
-                          <button
-                            onClick={() => { setSelectedTopicDrawer(null); navigate('assignments'); }}
-                            className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-2xs flex items-center gap-1 transition-all"
-                          >
-                            <span>TAKE</span>
-                            <ExternalLink className="w-3 h-3" />
-                          </button>
-                        </div>
-
-                      </div>
-                    )}
-                  </div>
-                )})}
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Ask AI Tutor Floating Button */}
-              <div className="p-4 border-t border-slate-100 bg-slate-50 shrink-0">
-                <button className="w-full py-3 px-4 rounded-2xl bg-[#101537] hover:bg-[#1e2761] text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all">
-                  <Sparkles className="w-4 h-4 text-amber-300" />
-                  <span>Ask AI Tutor</span>
-                  <span className="px-1.5 py-0.5 rounded bg-amber-400/20 text-amber-300 text-[10px]">PRO</span>
-                </button>
-              </div>
 
             </div>
           </div>,

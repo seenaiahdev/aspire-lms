@@ -71,7 +71,7 @@ export function Sidebar() {
         </div>
 
         {/* Nav Items */}
-        <nav className="flex-1 overflow-y-auto py-6 px-3 space-y-1.5 scrollbar-hide">
+        <nav id="tour-sidebar" className="flex-1 overflow-y-auto py-6 px-3 space-y-1.5 scrollbar-hide">
           <div className={cn("px-4 mb-3 transition-opacity duration-300 whitespace-nowrap overflow-hidden", sidebarOpen ? "opacity-100" : "opacity-0 lg:group-hover/sidebar:opacity-100")}>
             <span className="text-[10px] font-black text-slate-400 tracking-widest uppercase">Learning Hub</span>
           </div>

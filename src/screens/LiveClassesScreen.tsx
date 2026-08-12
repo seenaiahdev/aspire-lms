@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import { 
-  Radio, Calendar, Users, Play, Pause, ArrowRight, Clock, Video, MessageCircle, 
+  Radio, Calendar, Users, Play, Pause, ArrowRight, ChevronRight, Clock, Video, MessageCircle, 
   FileText, Hand, Users2, BarChart3, Download, Mic, MicOff, VideoOff, 
   Monitor, PhoneOff, Send, Volume2, Maximize2, HelpCircle, BellRing, CheckCircle2, X, Bell,
   SkipBack, SkipForward, Bookmark, CalendarX, Lock
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { liveClasses } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -14,6 +13,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { cn } from '@/lib/utils';
+import { liveClasses } from '@/data/mock';
 
 export function LiveClassesScreen() {
   const { navigate, params } = useNav();
@@ -250,12 +250,7 @@ export function LiveClassroomScreen() {
   const [isMuted, setIsMuted] = useState(false);
   const [isVideoOff, setIsVideoOff] = useState(false);
   const [isHandRaised, setIsHandRaised] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { name: 'Ishita', avatar: 'https://i.pravatar.cc/200?img=20', msg: 'Great explanation on custom hooks!', time: '2m' },
-    { name: 'Karan', avatar: 'https://i.pravatar.cc/200?img=15', msg: 'Can you show that useMemo example once again?', time: '5m' },
-    { name: 'Dr. Priya', avatar: cls.instructor.avatar, msg: 'Sure! Let me switch to the live code editor slide.', time: '4m', mentor: true },
-    { name: 'Neha', avatar: 'https://i.pravatar.cc/200?img=31', msg: 'This performance optimization trick is brilliant!', time: '3m' },
-  ]);
+  const [chatMessages, setChatMessages] = useState<{name: string, avatar: string, msg: string, time: string, mentor?: boolean}[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [votedPollOption, setVotedPollOption] = useState<number | null>(null);
 
@@ -278,23 +273,20 @@ export function LiveClassroomScreen() {
             className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 transition-colors shrink-0"
             title="Back to Live Classes"
           >
-            <ArrowRight className="w-4 h-4 rotate-180" />
+            <ChevronRight className="w-5 h-5 rotate-180" />
           </button>
-
           <div>
-            <div className="flex items-center gap-2 mb-0.5">
-              <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-rose-500 text-white text-[10px] font-black uppercase tracking-wider shadow-xs">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 animate-ping" />
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
-                </span>
-                LIVE NOW
+            <div className="flex items-center gap-2 mb-1">
+              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-500 text-white flex items-center gap-1.5 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
               </span>
-              <span className="text-xs font-extrabold text-slate-500 flex items-center gap-1">
-                <Users className="w-3.5 h-3.5 text-[#7c3aed]" /> {cls.participants} Students Attending
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                <Users2 className="w-3.5 h-3.5" /> 0 Students Attending
               </span>
             </div>
-            <h2 className="font-extrabold text-lg sm:text-xl text-slate-900 tracking-tight">{cls.title}</h2>
+            <h1 className="font-extrabold text-lg sm:text-xl text-slate-900 leading-tight">
+              {cls.title}
+            </h1>
           </div>
         </div>
 
@@ -315,37 +307,42 @@ export function LiveClassroomScreen() {
         <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
           
           {/* Main Video View Container */}
-          <div className="relative rounded-[2.2rem] overflow-hidden bg-[#0c0f1d] shadow-2xl flex-1 border border-slate-800 group">
+          <div className="relative rounded-[2.2rem] overflow-hidden bg-[#0c0f1d] shadow-2xl flex-1 border border-slate-800 flex items-center justify-center group">
             
             {/* Tech Background Image Overlay */}
             <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-[#101537] to-[#1e1438]" />
-            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-40 mix-blend-luminosity" />
-            <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-slate-950/70" />
+            <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-10 mix-blend-luminosity" />
+            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
 
-            {/* Video Top Bar Overlay (Instructor Info + Quality Chip) */}
+            {/* Waiting State Content */}
+            <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-4 p-6">
+              <div className="w-20 h-20 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center relative shadow-2xl">
+                <div className="absolute inset-0 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
+                <Video className="w-8 h-8 text-slate-500" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-xl text-white">Starts soon, please wait...</h3>
+                <p className="text-sm font-semibold text-slate-400 mt-2 max-w-md mx-auto">
+                  The host has not started the broadcast yet. You're in the waiting room.
+                </p>
+              </div>
+            </div>
+
+            {/* Video Top Bar Overlay (Instructor Info) */}
             <div className="absolute top-0 left-0 right-0 p-4 sm:p-5 flex items-center justify-between z-20 bg-gradient-to-b from-slate-950/90 via-slate-950/40 to-transparent">
               <div className="flex items-center gap-3">
-                <Avatar src={cls.instructor.avatar} name={cls.instructor.name} size="sm" className="ring-2 ring-purple-400" />
+                <Avatar src={cls.instructor.avatar} name={cls.instructor.name} size="sm" className="ring-2 ring-purple-400/50 grayscale opacity-75" />
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-white text-sm font-black">{cls.instructor.name}</p>
-                    <span className="px-1.5 py-0.5 rounded bg-[#7c3aed] text-white text-[9px] font-black uppercase tracking-wider">
+                    <p className="text-white/80 text-sm font-black">{cls.instructor.name}</p>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-black uppercase tracking-wider">
                       HOST
                     </span>
                   </div>
-                  <p className="text-emerald-400 text-xs font-bold flex items-center gap-1.5 mt-0.5">
-                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" /> Speaking now...
+                  <p className="text-amber-400/80 text-xs font-bold flex items-center gap-1.5 mt-0.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400/80" /> Waiting for host...
                   </p>
                 </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="px-2.5 py-1 rounded-lg bg-slate-900/90 text-white text-[10px] font-black tracking-wider border border-slate-700 backdrop-blur-md">
-                  HD 1080p · 60fps
-                </span>
-                <button className="w-9 h-9 rounded-xl bg-slate-900/80 backdrop-blur-md border border-slate-700/80 flex items-center justify-center text-white hover:bg-slate-800 transition-all">
-                  <Maximize2 className="w-4 h-4" />
-                </button>
               </div>
             </div>
 
@@ -354,68 +351,20 @@ export function LiveClassroomScreen() {
               <div className="flex items-center justify-between">
                 
                 {/* Control Action Buttons */}
-                <div className="flex items-center gap-2 sm:gap-3">
-                  {/* Mute Mic */}
-                  <button 
-                    onClick={() => setIsMuted(!isMuted)}
-                    className={cn(
-                      "p-3 rounded-2xl font-extrabold text-xs transition-all flex items-center justify-center border backdrop-blur-md active:scale-95 shadow-md",
-                      isMuted 
-                        ? "bg-rose-500 text-white border-rose-400" 
-                        : "bg-slate-900/80 text-white border-slate-700/80 hover:bg-slate-800"
-                    )}
-                    title={isMuted ? "Unmute Mic" : "Mute Mic"}
-                  >
-                    {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                <div className="flex items-center gap-2 sm:gap-3 opacity-50 pointer-events-none">
+                  <button className="p-3 rounded-2xl font-extrabold text-xs flex items-center justify-center border backdrop-blur-md bg-slate-900/80 text-white border-slate-700/80">
+                    <MicOff className="w-5 h-5" />
                   </button>
-
-                  {/* Toggle Camera */}
-                  <button 
-                    onClick={() => setIsVideoOff(!isVideoOff)}
-                    className={cn(
-                      "p-3 rounded-2xl font-extrabold text-xs transition-all flex items-center justify-center border backdrop-blur-md active:scale-95 shadow-md",
-                      isVideoOff 
-                        ? "bg-rose-500 text-white border-rose-400" 
-                        : "bg-slate-900/80 text-white border-slate-700/80 hover:bg-slate-800"
-                    )}
-                    title={isVideoOff ? "Turn On Camera" : "Turn Off Camera"}
-                  >
-                    {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                  <button className="p-3 rounded-2xl font-extrabold text-xs flex items-center justify-center border backdrop-blur-md bg-slate-900/80 text-white border-slate-700/80">
+                    <VideoOff className="w-5 h-5" />
                   </button>
-
-                  {/* Raise Hand */}
-                  <button 
-                    onClick={() => setIsHandRaised(!isHandRaised)}
-                    className={cn(
-                      "px-3.5 py-3 rounded-2xl font-extrabold text-xs transition-all flex items-center gap-2 border backdrop-blur-md active:scale-95 shadow-md",
-                      isHandRaised 
-                        ? "bg-[#7c3aed] text-white border-purple-400" 
-                        : "bg-slate-900/80 text-white border-slate-700/80 hover:bg-slate-800"
-                    )}
-                    title="Raise Hand"
-                  >
+                  <button className="px-3.5 py-3 rounded-2xl font-extrabold text-xs flex items-center gap-2 border backdrop-blur-md bg-slate-900/80 text-white border-slate-700/80">
                     <Hand className="w-5 h-5" />
-                    <span className="hidden sm:inline">{isHandRaised ? "Hand Raised" : "Raise Hand"}</span>
+                    <span className="hidden sm:inline">Raise Hand</span>
                   </button>
                 </div>
 
-                {/* Quick Emoji Reaction Pills */}
-                <div className="flex items-center gap-1.5 bg-slate-900/80 border border-slate-700/80 p-1.5 rounded-2xl backdrop-blur-md">
-                  {['👍', '❤️', '🔥', '👏', '🎉'].map((emoji, i) => (
-                    <button 
-                      key={i} 
-                      onClick={() => {
-                        setChatMessages((prev) => [
-                          ...prev,
-                          { name: 'Aarav Sharma', avatar: 'https://i.pravatar.cc/200?img=12', msg: emoji, time: 'Just now' }
-                        ]);
-                      }}
-                      className="w-8 h-8 rounded-xl hover:bg-white/20 flex items-center justify-center text-sm transition-transform active:scale-125"
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
+
 
               </div>
             </div>
@@ -426,22 +375,11 @@ export function LiveClassroomScreen() {
           <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs shrink-0 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users2 className="w-4 h-4 text-[#7c3aed]" />
-              <h3 className="font-extrabold text-slate-900 text-xs">Active Students ({cls.participants})</h3>
+              <h3 className="font-extrabold text-slate-900 text-xs">Active Students (0)</h3>
             </div>
             
             <div className="flex items-center gap-1.5">
-              {Array.from({ length: 8 }).map((_, i) => (
-                <Avatar 
-                  key={i} 
-                  src={`https://i.pravatar.cc/200?img=${i + 15}`} 
-                  name={`Student ${i + 1}`} 
-                  size="xs" 
-                  className={cn("ring-2 ring-white shadow-2xs", i === 0 ? "ring-2 ring-emerald-500" : "")} 
-                />
-              ))}
-              <div className="w-7 h-7 rounded-full bg-purple-50 border border-purple-100 text-[#7c3aed] font-black text-[10px] flex items-center justify-center ring-2 ring-white shadow-2xs">
-                +{cls.participants - 8}
-              </div>
+              <span className="text-xs font-semibold text-slate-400 italic">Waiting for students to join...</span>
             </div>
           </div>
 
@@ -455,7 +393,6 @@ export function LiveClassroomScreen() {
             <div className="flex items-center gap-1">
               {[
                 { id: 'chat', label: 'Chat', icon: MessageCircle, count: chatMessages.length },
-                { id: 'polls', label: 'Polls', icon: BarChart3 },
                 { id: 'notes', label: 'Notes', icon: FileText },
               ].map((t) => (
                 <button
@@ -484,6 +421,12 @@ export function LiveClassroomScreen() {
           <div className="flex-1 overflow-y-auto p-4 space-y-3">
             {tab === 'chat' && (
               <div className="space-y-3">
+                {chatMessages.length === 0 && (
+                  <div className="text-center py-10">
+                    <MessageCircle className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                    <p className="text-xs font-semibold text-slate-400">No messages yet. Be the first to say hello!</p>
+                  </div>
+                )}
                 {chatMessages.map((c, i) => (
                   <div key={i} className={cn("flex gap-2.5 p-2.5 rounded-xl transition-colors", c.mentor ? "bg-purple-50/70 border border-purple-100" : "hover:bg-slate-50")}>
                     <Avatar src={c.avatar} name={c.name} size="sm" className="shrink-0" />
@@ -504,57 +447,15 @@ export function LiveClassroomScreen() {
               </div>
             )}
 
-            {tab === 'polls' && (
-              <div className="space-y-4">
-                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200/80">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="px-2 py-0.5 rounded bg-purple-50 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider border border-purple-100">
-                      LIVE POLL
-                    </span>
-                    <span className="text-xs font-extrabold text-slate-400">102 votes</span>
-                  </div>
-                  <p className="text-xs font-extrabold text-slate-900 mb-3">Which topic should we cover in detail next?</p>
-                  <div className="space-y-2">
-                    {[
-                      { option: 'Advanced Hooks & Custom Hooks', pct: 45 },
-                      { option: 'Context API & State Patterns', pct: 30 },
-                      { option: 'Performance Profiling & Memo', pct: 25 },
-                    ].map((opt, i) => (
-                      <button
-                        key={i}
-                        onClick={() => setVotedPollOption(i)}
-                        className={cn(
-                          "w-full relative overflow-hidden rounded-xl border p-3 text-left transition-all",
-                          votedPollOption === i 
-                            ? "border-[#7c3aed] bg-purple-50/80 ring-1 ring-[#7c3aed]" 
-                            : "border-slate-200 bg-white hover:border-purple-200"
-                        )}
-                      >
-                        <div className="relative z-10 flex items-center justify-between">
-                          <span className="text-xs font-bold text-slate-800">{opt.option}</span>
-                          <span className="text-xs font-black text-[#7c3aed]">{opt.pct}%</span>
-                        </div>
-                        <div className="absolute top-0 left-0 bottom-0 bg-purple-100/60 transition-all" style={{ width: `${opt.pct}%` }} />
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
             {tab === 'notes' && (
               <div className="flex flex-col h-full space-y-2">
                 <textarea 
                   className="w-full flex-1 min-h-[160px] text-xs font-semibold text-slate-800 focus:outline-none resize-none bg-transparent placeholder:text-slate-400 leading-relaxed" 
                   placeholder="Take notes during the live class..." 
-                  defaultValue={`Key takeaways from today's live session:
-- useCallback memoizes function signatures
-- useMemo memoizes computed calculations
-- Avoid over-optimizing without measuring profiling performance`} 
+                  defaultValue={``} 
                 />
                 <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-400">Auto-saved 1 min ago</span>
-                  <span className="text-xs font-black text-[#7c3aed]">Saved to Notebook</span>
+                  <span className="text-[10px] font-bold text-slate-400">All notes saved locally</span>
                 </div>
               </div>
             )}

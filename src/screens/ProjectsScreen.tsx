@@ -14,6 +14,7 @@ import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { cn } from '@/lib/utils';
+import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 
 const SKIP_DIRS = ['node_modules', '.git', '.next', 'dist', 'build', '__pycache__', '.DS_Store', 'venv', '.venv'];
@@ -292,18 +293,12 @@ export function ProjectsScreen() {
   }, [effectiveProjects, mainCategory]);
 
   const filtered = useMemo(() => {
-    if (mainCategory === 'templates') return [];
-    return categoryProjects.filter((p: any) => {
-      if (subTab === 'assigned') return p.status === 'assigned';
-      if (subTab === 'submitted') return p.status === 'submitted' || p.status === 'completed';
-      if (subTab === 'feedback') return p.status === 'feedback';
-      return true;
-    });
+    return []; // For now, all projects tabs are empty
   }, [categoryProjects, mainCategory, subTab]);
 
-  const assignedCount = categoryProjects.filter((p: any) => p.status === 'assigned').length;
-  const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted' || p.status === 'completed').length;
-  const feedbackCount = categoryProjects.filter((p: any) => p.status === 'feedback').length;
+  const assignedCount = 0;
+  const submittedCount = 0;
+  const feedbackCount = 0;
 
   const selectedProject = useMemo(
     () => effectiveProjects.find((p: any) => p.id === selectedProjectId) || null,
@@ -744,18 +739,17 @@ export function ProjectsScreen() {
               filtered.map((p) => (
                 <Card 
                   key={p.id} 
-                  hover 
-                  className="group p-6 cursor-pointer rounded-[2rem] border border-slate-200/90 bg-white shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between"
-                  onClick={() => openProjectDetail(p.id)}
+                  className="group p-6 cursor-not-allowed rounded-[2rem] border border-slate-200/90 bg-white shadow-sm flex flex-col justify-between relative overflow-hidden"
                 >
+                  <LockedOverlay title={p.title} type="LOCKED PROJECT" />
                   <div>
                     <div className="flex items-start justify-between mb-4 gap-3">
                       <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
-                          <FolderGit2 className="w-6 h-6 text-[#7c3aed]" />
+                        <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                          <FolderGit2 className="w-6 h-6 text-slate-400" />
                         </div>
                         <div>
-                          <h3 className="font-extrabold text-slate-900 text-base leading-snug group-hover:text-[#7c3aed] transition-colors">{p.title}</h3>
+                          <h3 className="font-extrabold text-slate-900 text-base leading-snug">{p.title}</h3>
                           <p className="text-xs font-bold text-slate-500 mt-0.5">{p.course}</p>
                         </div>
                       </div>
@@ -795,20 +789,6 @@ export function ProjectsScreen() {
                       Due {p.dueDate}
                     </span>
                     <div className="flex items-center gap-2">
-                      {driveLinks[p.id] && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setExplorerUrl(driveLinks[p.id]);
-                            setShowExplorer(true);
-                          }}
-                          className="px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200/80 font-extrabold text-xs flex items-center gap-1.5 transition-all cursor-pointer"
-                        >
-                          <Eye className="w-3.5 h-3.5" />
-                          <span>View Files</span>
-                        </button>
-                      )}
                       <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
                         <span>Open Brief</span>
                         <ArrowRight className="w-3.5 h-3.5" />
@@ -833,7 +813,8 @@ export function ProjectsScreen() {
             { title: 'Python Data Science Pipeline', desc: 'Pandas, NumPy, and Scikit-Learn data cleaning and visualization notebook setup.' },
             { title: 'Docker Microservices Dev Setup', desc: 'Multi-container Docker Compose configuration for React, Node, Redis, and PostgreSQL.' }
           ].map((t, i) => (
-            <Card key={i} className="p-6 bg-white border border-slate-200/90 rounded-[2rem] shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+            <Card key={i} className="p-6 bg-white border border-slate-200/90 rounded-[2rem] shadow-sm flex flex-col justify-between relative overflow-hidden cursor-not-allowed">
+              <LockedOverlay title={t.title} type="LOCKED TEMPLATE" />
               <div>
                 <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mb-4">
                   <Code2 className="w-6 h-6 text-[#7c3aed]" />
@@ -844,14 +825,11 @@ export function ProjectsScreen() {
               <Button
                 size="sm"
                 fullWidth
-                leftIcon={<Download className="w-4 h-4" />}
-                className="bg-[#7c3aed] text-white font-extrabold text-xs shadow-xs"
-                onClick={() => {
-                  triggerFileDownload(t.title);
-                  setToastVisible(true);
-                }}
+                disabled
+                leftIcon={<Lock className="w-4 h-4" />}
+                className="bg-slate-200 text-slate-500 font-extrabold text-xs shadow-xs cursor-not-allowed"
               >
-                Download Starter Kit
+                Locked
               </Button>
             </Card>
           ))}

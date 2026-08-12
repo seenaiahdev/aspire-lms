@@ -26,69 +26,69 @@ export interface SwagReward {
 const swagRewardsList: SwagReward[] = [
   {
     id: 'r1',
-    name: 'Laptop Backpack',
-    category: 'Merchandise',
-    description: 'Laptop Backpack',
-    currentXp: 1200,
+    name: 'Locked Reward (Coming Soon)',
+    category: 'Locked',
+    description: 'Locked Reward',
+    currentXp: 0,
     requiredXp: 1200,
-    isUnlocked: true, // UNLOCKED DEMO ITEM 🎉
-    productImage: aspireBackpackImg,
-    tag: 'UNLOCKED DEMO',
+    isUnlocked: false,
+    productImage: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80',
+    tag: '0% COMPLETED',
   },
   {
     id: 'r2',
-    name: 'Metallic Gel Pen Set',
-    category: 'Stationery',
-    description: 'Metallic Gel Pen Set',
-    currentXp: 585,
+    name: 'Locked Reward (Coming Soon)',
+    category: 'Locked',
+    description: 'Locked Reward',
+    currentXp: 0,
     requiredXp: 750,
-    isUnlocked: false, // Locked 78%
+    isUnlocked: false,
     productImage: 'https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?auto=format&fit=crop&w=800&q=80',
-    tag: '78% COMPLETED',
+    tag: '0% COMPLETED',
   },
   {
     id: 'r3',
-    name: 'Insulated Water Bottle',
-    category: 'Drinkware',
-    description: 'Insulated Water Bottle',
-    currentXp: 850,
+    name: 'Locked Reward (Coming Soon)',
+    category: 'Locked',
+    description: 'Locked Reward',
+    currentXp: 0,
     requiredXp: 1000,
-    isUnlocked: false, // Locked 85%
+    isUnlocked: false,
     productImage: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=800&q=80',
-    tag: '85% COMPLETED',
+    tag: '0% COMPLETED',
   },
   {
     id: 'r4',
-    name: 'Developer Coffee Mug',
-    category: 'Office',
-    description: 'Developer Coffee Mug',
-    currentXp: 1200,
+    name: 'Locked Reward (Coming Soon)',
+    category: 'Locked',
+    description: 'Locked Reward',
+    currentXp: 0,
     requiredXp: 2000,
-    isUnlocked: false, // Locked 60%
+    isUnlocked: false,
     productImage: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80',
-    tag: '60% COMPLETED',
+    tag: '0% COMPLETED',
   },
   {
     id: 'r5',
-    name: 'iPad Air 11"',
-    category: 'Tech Gear',
-    description: 'iPad Air 11"',
-    currentXp: 2000,
+    name: 'Locked Reward (Coming Soon)',
+    category: 'Locked',
+    description: 'Locked Reward',
+    currentXp: 0,
     requiredXp: 5000,
-    isUnlocked: false, // Locked 40%
-    productImage: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80',
-    tag: '40% COMPLETED',
+    isUnlocked: false,
+    productImage: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
+    tag: '0% COMPLETED',
   },
   {
     id: 'r6',
-    name: 'Developer Hoodie',
-    category: 'Apparel',
-    description: 'Developer Hoodie',
-    currentXp: 1500,
+    name: 'Locked Reward (Coming Soon)',
+    category: 'Locked',
+    description: 'Locked Reward',
+    currentXp: 0,
     requiredXp: 3000,
-    isUnlocked: false, // Locked 50%
-    productImage: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
-    tag: '50% COMPLETED',
+    isUnlocked: false,
+    productImage: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80',
+    tag: '0% COMPLETED',
   }
 ];
 
@@ -172,7 +172,7 @@ export function RewardsScreen() {
         <div className="flex items-center gap-3 shrink-0">
           <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white font-black text-xs shadow-md flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-white" />
-            <span>2,850 Total Student XP</span>
+            <span>0 Total Student XP</span>
           </div>
         </div>
       </div>
@@ -187,7 +187,7 @@ export function RewardsScreen() {
           </div>
           <div>
             <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} Reward Unlocked</p>
-            <p className="text-xs font-extrabold text-[#7c3aed]">Ready to Claim (Demo Backpack)</p>
+            <p className="text-xs font-extrabold text-[#7c3aed]">Ready to Claim</p>
           </div>
         </Card>
 
@@ -214,8 +214,7 @@ export function RewardsScreen() {
           return (
             <Card
               key={reward.id}
-              className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer min-h-[380px]"
-              onClick={() => setSelectedReward(reward)}
+              className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]"
             >
               
               {/* ── CARD CONTENT (BLURRED IF LOCKED) ── */}
@@ -298,18 +297,7 @@ export function RewardsScreen() {
                       {reward.name}
                     </h4>
 
-                    <p className="text-xs font-semibold text-slate-300 leading-relaxed">
-                      Earn {reward.requiredXp - reward.currentXp} more XP to unlock this official AspireNext merchandise item
-                    </p>
                   </div>
-
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedReward(reward); }}
-                    className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Lock className="w-4 h-4 text-purple-200" />
-                    <span>View Locked Product Details</span>
-                  </button>
 
                 </div>
               )}

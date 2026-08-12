@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Bell, Palette, Shield, Link2, Check, Camera, Github, Linkedin } from 'lucide-react';
+import { User, Bell, Palette, Shield, Link2, Check, Camera, Github, Linkedin, Globe } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { currentUser } from '@/data/mock';
@@ -11,6 +11,50 @@ export function SettingsScreen() {
   const [notifications, setNotifications] = useState({
     assignments: true, live: true, community: false, placement: true, weekly: true,
   });
+  const [privacy, setPrivacy] = useState({
+    publicProfile: true, leaderboard: true, activityStatus: false,
+  });
+  const [connectedApps, setConnectedApps] = useState({
+    github: true, linkedin: false, portfolio: false,
+  });
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const [profileForm, setProfileForm] = useState({
+    name: currentUser.name,
+    email: currentUser.email,
+    program: currentUser.program,
+    semester: currentUser.semester,
+    bio: currentUser.bio || '',
+  });
+
+  const handleSaveProfile = () => {
+    currentUser.name = profileForm.name;
+    currentUser.email = profileForm.email;
+    currentUser.program = profileForm.program;
+    currentUser.semester = profileForm.semester;
+    currentUser.bio = profileForm.bio;
+    
+    setToastMessage('Profile details updated successfully.');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleSaveNotifications = () => {
+    setToastMessage('Notification preferences updated successfully.');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleSavePrivacy = () => {
+    setToastMessage('Privacy settings updated successfully.');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const toggleConnection = (app: 'github' | 'linkedin' | 'portfolio') => {
+    const isConnected = connectedApps[app];
+    setConnectedApps({ ...connectedApps, [app]: !isConnected });
+    const appName = app === 'github' ? 'GitHub' : app === 'linkedin' ? 'LinkedIn' : 'Portfolio';
+    setToastMessage(`${appName} ${isConnected ? 'disconnected' : 'connected'} successfully.`);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const sections = [
     { id: 'profile', label: 'Profile Details', icon: User },
@@ -101,21 +145,37 @@ export function SettingsScreen() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Full Name</label>
-                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.name} />
+                    <input 
+                      value={profileForm.name} 
+                      onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Email Address</label>
-                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.email} />
+                    <input 
+                      value={profileForm.email} 
+                      onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Program</label>
-                    <input className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" defaultValue={currentUser.program} />
+                    <input 
+                      value={profileForm.program} 
+                      onChange={(e) => setProfileForm({ ...profileForm, program: e.target.value })}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
+                    />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Semester</label>
-                    <select className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 appearance-none">
-                      <option>Semester {currentUser.semester}</option>
-                      <option>Semester {currentUser.semester + 1}</option>
+                    <select 
+                      value={profileForm.semester}
+                      onChange={(e) => setProfileForm({ ...profileForm, semester: Number(e.target.value) })}
+                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 appearance-none"
+                    >
+                      <option value={currentUser.semester}>Semester {currentUser.semester}</option>
+                      <option value={currentUser.semester + 1}>Semester {currentUser.semester + 1}</option>
                     </select>
                   </div>
                 </div>
@@ -123,16 +183,29 @@ export function SettingsScreen() {
                 <div className="space-y-1.5">
                   <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bio & Tagline</label>
                   <textarea 
+                    value={profileForm.bio}
+                    onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
                     className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 min-h-[100px] resize-none" 
-                    defaultValue={currentUser.bio} 
                   />
                 </div>
 
                 <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
-                  <button className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all">
+                  <button 
+                    onClick={() => setProfileForm({
+                      name: currentUser.name,
+                      email: currentUser.email,
+                      program: currentUser.program,
+                      semester: currentUser.semester,
+                      bio: currentUser.bio || '',
+                    })}
+                    className="px-6 py-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-all"
+                  >
                     Cancel
                   </button>
-                  <button className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2">
+                  <button 
+                    onClick={handleSaveProfile}
+                    className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2"
+                  >
                     <Check className="w-4 h-4" /> Save Details
                   </button>
                 </div>
@@ -162,6 +235,15 @@ export function SettingsScreen() {
                     </div>
                   ))}
                 </div>
+
+                <div className="flex justify-end pt-4 border-t border-slate-100">
+                  <button 
+                    onClick={handleSaveNotifications}
+                    className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2"
+                  >
+                    <Check className="w-4 h-4" /> Save Preferences
+                  </button>
+                </div>
               </CardBody>
             </Card>
           )}
@@ -182,22 +264,31 @@ export function SettingsScreen() {
                       <p className="text-sm font-extrabold text-slate-800">Public Profile</p>
                       <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Allow other students to view your profile</p>
                     </div>
-                    <Toggle active={true} onClick={() => {}} />
+                    <Toggle active={privacy.publicProfile} onClick={() => setPrivacy({ ...privacy, publicProfile: !privacy.publicProfile })} />
                   </div>
                   <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100">
                     <div>
                       <p className="text-sm font-extrabold text-slate-800">Leaderboard Visibility</p>
                       <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Display your name and rank on global charts</p>
                     </div>
-                    <Toggle active={true} onClick={() => {}} />
+                    <Toggle active={privacy.leaderboard} onClick={() => setPrivacy({ ...privacy, leaderboard: !privacy.leaderboard })} />
                   </div>
                   <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100">
                     <div>
                       <p className="text-sm font-extrabold text-slate-800">Activity Status</p>
                       <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Show when you are currently online</p>
                     </div>
-                    <Toggle active={false} onClick={() => {}} />
+                    <Toggle active={privacy.activityStatus} onClick={() => setPrivacy({ ...privacy, activityStatus: !privacy.activityStatus })} />
                   </div>
+                </div>
+
+                <div className="flex justify-end pt-4 border-t border-slate-100">
+                  <button 
+                    onClick={handleSavePrivacy}
+                    className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2"
+                  >
+                    <Check className="w-4 h-4" /> Save Preferences
+                  </button>
                 </div>
               </CardBody>
             </Card>
@@ -207,36 +298,82 @@ export function SettingsScreen() {
             <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden">
               <CardBody className="p-6 sm:p-8 space-y-6">
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg">Connected Apps</h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-1">Link your external accounts for seamless logins and integrations.</p>
+                  <h3 className="font-extrabold text-slate-900 text-lg">Connected Accounts</h3>
+                  <p className="text-xs font-semibold text-slate-500 mt-1">Link your external accounts for easier login and integration.</p>
                 </div>
 
                 <div className="space-y-4 pt-4">
-                  {[
-                    { name: 'GitHub', desc: 'Sync repositories and code stats', icon: Github, connected: true, color: 'text-slate-800' },
-                    { name: 'LinkedIn', desc: 'Showcase your certificates automatically', icon: Linkedin, connected: true, color: 'text-blue-600' },
-                    { name: 'Discord', desc: 'Connect to community servers', icon: Link2, connected: false, color: 'text-[#5865F2]' },
-                  ].map((acc) => (
-                    <div key={acc.name} className="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:border-purple-100 transition-colors group bg-white">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-slate-50 border border-slate-200/60 flex items-center justify-center shrink-0 shadow-2xs group-hover:scale-105 transition-transform">
-                          <acc.icon className={cn("w-6 h-6", acc.color)} />
-                        </div>
-                        <div>
-                          <p className="text-sm font-extrabold text-slate-900">{acc.name}</p>
-                          <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{acc.desc}</p>
-                        </div>
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-all", connectedApps.github ? "bg-black text-white" : "bg-slate-200 text-slate-500")}>
+                        <Github className="w-5 h-5" />
                       </div>
-                      <button className={cn(
-                        "px-4 py-2 rounded-xl text-xs font-extrabold transition-all border",
-                        acc.connected 
-                          ? "bg-white border-slate-200 text-rose-600 hover:bg-rose-50 hover:border-rose-200" 
-                          : "bg-purple-50 border-purple-100 text-[#7c3aed] hover:bg-[#7c3aed] hover:text-white"
-                      )}>
-                        {acc.connected ? 'Disconnect' : 'Connect'}
-                      </button>
+                      <div>
+                        <p className="text-sm font-extrabold text-slate-800">GitHub</p>
+                        <p className={cn("text-[11px] font-semibold mt-0.5 flex items-center gap-1", connectedApps.github ? "text-emerald-600" : "text-slate-500")}>
+                          {connectedApps.github ? <><Check className="w-3 h-3" /> Connected</> : 'Not connected'}
+                        </p>
+                      </div>
                     </div>
-                  ))}
+                    <button 
+                      onClick={() => toggleConnection('github')}
+                      className={cn("text-xs font-extrabold px-3 py-1.5 rounded-lg border transition-colors", 
+                        connectedApps.github 
+                          ? "text-slate-500 hover:text-slate-700 hover:bg-slate-100 border-transparent" 
+                          : "text-[#7c3aed] hover:text-[#6d28d9] bg-purple-50 border-purple-100"
+                      )}
+                    >
+                      {connectedApps.github ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-all", connectedApps.linkedin ? "bg-[#0077b5] text-white" : "bg-slate-200 text-slate-500")}>
+                        <Linkedin className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-extrabold text-slate-800">LinkedIn</p>
+                        <p className={cn("text-[11px] font-semibold mt-0.5 flex items-center gap-1", connectedApps.linkedin ? "text-emerald-600" : "text-slate-500")}>
+                          {connectedApps.linkedin ? <><Check className="w-3 h-3" /> Connected</> : 'Not connected'}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => toggleConnection('linkedin')}
+                      className={cn("text-xs font-extrabold px-3 py-1.5 rounded-lg border transition-colors", 
+                        connectedApps.linkedin 
+                          ? "text-slate-500 hover:text-slate-700 hover:bg-slate-100 border-transparent" 
+                          : "text-[#7c3aed] hover:text-[#6d28d9] bg-purple-50 border-purple-100"
+                      )}
+                    >
+                      {connectedApps.linkedin ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100 transition-all">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("w-10 h-10 rounded-full flex items-center justify-center transition-all", connectedApps.portfolio ? "bg-emerald-600 text-white" : "bg-slate-200 text-slate-500")}>
+                        <Globe className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-extrabold text-slate-800">Portfolio</p>
+                        <p className={cn("text-[11px] font-semibold mt-0.5 flex items-center gap-1", connectedApps.portfolio ? "text-emerald-600" : "text-slate-500")}>
+                          {connectedApps.portfolio ? <><Check className="w-3 h-3" /> Connected</> : 'Not connected'}
+                        </p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => toggleConnection('portfolio')}
+                      className={cn("text-xs font-extrabold px-3 py-1.5 rounded-lg border transition-colors", 
+                        connectedApps.portfolio 
+                          ? "text-slate-500 hover:text-slate-700 hover:bg-slate-100 border-transparent" 
+                          : "text-[#7c3aed] hover:text-[#6d28d9] bg-purple-50 border-purple-100"
+                      )}
+                    >
+                      {connectedApps.portfolio ? 'Disconnect' : 'Connect'}
+                    </button>
+                  </div>
                 </div>
               </CardBody>
             </Card>
@@ -244,6 +381,18 @@ export function SettingsScreen() {
 
         </div>
       </div>
+      
+      {/* Settings Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-slide-up">
+          <div className="bg-white text-slate-900 px-5 py-3 rounded-2xl shadow-xl border border-slate-200/60 font-semibold text-sm flex items-center gap-3">
+            <div className="w-7 h-7 rounded-full bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+              <Check className="w-4 h-4 text-emerald-600" />
+            </div>
+            {toastMessage}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

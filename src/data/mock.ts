@@ -69,82 +69,74 @@ export const courses: Course[] = [
         id: 'm1_git',
         title: 'Git & GitHub Version Control',
         duration: '5h', lessons: [
-          { id: 'l_git_1', title: 'Introduction to Version Control & Git Architecture', duration: '1h 15m', type: 'video', completed: false, preview: true },
-          { id: 'l_git_2', title: 'Git Commands: init, add, commit, push, pull', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_git_3', title: 'Branching Strategy, Merge Conflicts & GitHub PRs', duration: '1h 20m', type: 'video', completed: false, preview: false },
-          { id: 'l_git_4', title: 'Collaboration on GitHub & Team Workflow Lab', duration: '0:40m', type: 'project', completed: false, preview: false },
+          { id: 'l_git_1', title: 'Introduction to Version Control & Git Architecture', completed: false, video: { duration: '1h 15m', completed: false, preview: true }, assessment: { duration: '15m', completed: false } },
+          { id: 'l_git_2', title: 'Git Commands: init, add, commit, push, pull', completed: false, video: { duration: '1h 45m', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_git_3', title: 'Branching Strategy, Merge Conflicts & GitHub PRs', completed: false, video: { duration: '1h 20m', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
       {
         id: 'm1_html',
         title: 'HTML5 & Web Architecture',
         duration: '6h', lessons: [
-          { id: 'l_html_1', title: 'Web Architecture & Client-Server Communication', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_html_2', title: 'HTML5 Document Structure & Semantic Elements', duration: '1h 30m', type: 'reading', completed: false, preview: false },
-          { id: 'l_html_3', title: 'HTML Forms, Input Types, & Client-Side Validation', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_html_4', title: 'Tables, Media Tags, & Document Head Elements', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_html_1', title: 'Web Architecture & Client-Server Communication', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '45m', completed: false }, assessment: { duration: '15m', completed: false } },
+          { id: 'l_html_2', title: 'HTML5 Document Structure & Semantic Elements', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h 00m', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_html_3', title: 'HTML Forms, Input Types, & Client-Side Validation', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '45m', completed: false }, assessment: { duration: '20m', completed: false } },
         ]
       },
       {
         id: 'm1_css_fund',
         title: 'CSS3 Fundamentals & Box Model',
         duration: '5h', lessons: [
-          { id: 'l_css_1', title: 'CSS Syntax, Rules, and Element/Class/ID Selectors', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_css_2', title: 'The CSS Box Model: Margin, Padding, Border, Content', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_css_3', title: 'CSS Styling: Colors, Typography, and Backgrounds', duration: '1h 45m', type: 'reading', completed: false, preview: false },
+          { id: 'l_css_1', title: 'CSS Syntax, Rules, and Element/Class/ID Selectors', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_css_2', title: 'The CSS Box Model: Margin, Padding, Border, Content', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
       {
         id: 'm1_css_adv',
         title: 'Advanced CSS Layouts & Responsive Design',
         duration: '5h', lessons: [
-          { id: 'l_css_adv_1', title: 'Flexbox Architecture & Practical Alignments', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_css_adv_2', title: 'CSS Grid System & Multi-Column Layouts', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_css_adv_3', title: 'Positioning Strategies: Relative, Absolute, Fixed, Sticky', duration: '1h 30m', type: 'reading', completed: false, preview: false },
+          { id: 'l_css_adv_1', title: 'Flexbox Architecture & Practical Alignments', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_css_adv_2', title: 'CSS Grid System & Multi-Column Layouts', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
       {
         id: 'm1_bootstrap',
         title: 'Bootstrap 5 Framework',
         duration: '4h', lessons: [
-          { id: 'l_boot_1', title: 'Bootstrap 5 Grid System & Responsive Utilities', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_boot_2', title: 'Bootstrap Components: Navbars, Modals, Cards, Forms', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_boot_1', title: 'Bootstrap 5 Grid System & Responsive Utilities', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
       {
         id: 'm1_js_ess',
         title: 'JavaScript Essentials & Control Flow',
         duration: '5h', lessons: [
-          { id: 'l_js_1', title: 'JS Setup, Variables (var, let, const), & Data Types', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_js_2', title: 'Operators, Expressions, and Conditional Statements', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_js_3', title: 'Loops: for, while, forEach, & Iterations', duration: '2h 00m', type: 'video', completed: false, preview: false },
+          { id: 'l_js_1', title: 'JS Setup, Variables, & Data Types', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_js_2', title: 'Operators, Expressions, and Conditional Statements', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_js_3', title: 'Loops: for, while, forEach, & Iterations', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
       {
         id: 'm1_js_func',
         title: 'JavaScript Functions, Objects & Arrays',
         duration: '6h', lessons: [
-          { id: 'l_js_func_1', title: 'Function Declarations, Expressions, & Arrow Functions', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_js_func_2', title: 'Advanced Array Methods (map, filter, reduce)', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_js_func_3', title: 'Object Manipulation & Higher-Order Functions', duration: '2h 00m', type: 'reading', completed: false, preview: false },
+          { id: 'l_js_func_1', title: 'Function Declarations, Expressions, & Arrow Functions', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
+          { id: 'l_js_func_2', title: 'Advanced Array Methods (map, filter, reduce)', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
       {
         id: 'm1_dom',
         title: 'DOM Manipulation & Event Handling',
         duration: '5h', lessons: [
-          { id: 'l_dom_1', title: 'Selecting and Modifying DOM Elements Dynamically', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_dom_2', title: 'Event Listeners, Bubbling, and Delegation Patterns', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_dom_3', title: 'Interactive Form Validation & Dynamic HTML Creation', duration: '1h 45m', type: 'project', completed: false, preview: false },
+          { id: 'l_dom_1', title: 'Selecting and Modifying DOM Elements Dynamically', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_dom_2', title: 'Event Listeners, Bubbling, and Delegation Patterns', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
       {
         id: 'm1_es6',
         title: 'Modern ES6+ & Asynchronous JS',
         duration: '5h', lessons: [
-          { id: 'l_es6_1', title: 'Destructuring, Spread/Rest Operators, and Modules', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_es6_2', title: 'Promises, Async/Await, and Fetch API Integration', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_es6_3', title: 'Handling JSON Data & REST API Consumptions', duration: '1h 30m', type: 'video', completed: false, preview: false },
+          { id: 'l_es6_1', title: 'Destructuring, Spread/Rest Operators, and Modules', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
+          { id: 'l_es6_2', title: 'Promises, Async/Await, and Fetch API Integration', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
         ]
       },
 
@@ -634,12 +626,79 @@ export const assignments: Assignment[] = [
   { id: 'a6', title: 'Linear Regression Implementation', course: 'ML Fundamentals', courseId: 'c2', dueDate: 'Submitted Jul 30', status: 'submitted', maxGrade: 100, description: 'Implement linear regression with gradient descent.', attachments: 2 },
 ];
 
+const c1 = courses[0];
+const allLessons = c1.stages?.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) || [];
+const previewLesson = allLessons.find((l: any) => l.preview);
+const previewIndex = allLessons.indexOf(previewLesson);
+const nextLesson = previewIndex !== -1 && previewIndex + 1 < allLessons.length ? allLessons[previewIndex + 1] : null;
+const prevLesson = previewIndex > 0 ? allLessons[previewIndex - 1] : null;
+
 export const liveClasses: LiveClass[] = [
-  { id: 'lc1', title: 'Advanced React Patterns Workshop', course: 'Full-Stack Web Dev', instructor: instructors[2], scheduledAt: 'Today, 4:00 PM', duration: '90 min', status: 'ongoing', participants: 142, thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=800&q=80' },
-  { id: 'lc2', title: 'Neural Networks Q&A Session', course: 'ML Fundamentals', instructor: instructors[0], scheduledAt: 'Tomorrow, 2:00 PM', duration: '60 min', status: 'upcoming', participants: 89, thumbnail: 'https://images.unsplash.com/photo-1555949963-ff9fe0c870eb?w=800&q=80' },
-  { id: 'lc3', title: 'System Design: Twitter Case Study', course: 'System Design', instructor: instructors[1], scheduledAt: 'Aug 6, 6:00 PM', duration: '120 min', status: 'upcoming', participants: 210, thumbnail: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=800&q=80' },
-  { id: 'lc4', title: 'Intro to Cloud Architecture', course: 'Cloud Architecture', instructor: instructors[1], scheduledAt: 'Jul 30', duration: '90 min', status: 'completed', participants: 178, thumbnail: 'https://images.unsplash.com/photo-1544197150-b99a580bb7a8?auto=format&fit=crop&w=800&q=80', recordingUrl: '#' },
+  {
+    id: 'lc1',
+    title: 'Live Workshop: Introduction to Version Control & Git Architecture',
+    course: 'Fullstack Python + DSA',
+    instructor: instructors[1], // Srinivas Rao
+    scheduledAt: new Date().toISOString(), // Use current time for "Live"
+    duration: '120m',
+    status: 'ongoing',
+    participants: 1240,
+    thumbnail: 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&q=80' // GitHub/Code themed
+  },
+  {
+    id: 'lc2',
+    title: 'Upcoming: Git Commands: init, add, commit, push, pull',
+    course: 'Fullstack Python + DSA',
+    instructor: instructors[0], // Kavitha Chowdary
+    scheduledAt: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
+    duration: '90m',
+    status: 'upcoming',
+    participants: 856,
+    thumbnail: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?w=800&q=80' // Web Dev themed
+  }
 ];
+
+if (previewLesson) {
+  liveClasses.push({
+    id: previewLesson.id,
+    title: previewLesson.title,
+    course: c1.title,
+    instructor: instructors[2],
+    status: 'ongoing',
+    scheduledAt: 'Today, 4:00 PM',
+    duration: previewLesson.duration || '90 min',
+    participants: 142,
+    thumbnail: 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?auto=format&fit=crop&w=800&q=80',
+  });
+}
+
+if (nextLesson) {
+  liveClasses.push({
+    id: nextLesson.id,
+    title: nextLesson.title,
+    course: c1.title,
+    instructor: instructors[2],
+    status: 'upcoming',
+    scheduledAt: 'Tomorrow, 2:00 PM',
+    duration: nextLesson.duration || '60 min',
+    participants: 89,
+    thumbnail: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=800&q=80',
+  });
+}
+
+if (prevLesson) {
+  liveClasses.push({
+    id: prevLesson.id,
+    title: prevLesson.title,
+    course: c1.title,
+    instructor: instructors[2],
+    status: 'completed',
+    scheduledAt: 'Yesterday, 10:00 AM',
+    duration: prevLesson.duration || '45 min',
+    participants: 215,
+    thumbnail: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?auto=format&fit=crop&w=800&q=80',
+  });
+}
 
 export const quizzes: Quiz[] = [
   { id: 'q1', title: 'React Hooks Deep Dive', course: 'Full-Stack Web Dev', questions: 20, duration: '30 min', status: 'upcoming', maxScore: 100, dueDate: 'Aug 5', difficulty: 'Medium' },
@@ -712,11 +771,7 @@ export const communityPosts: CommunityPost[] = [
 ];
 
 export const scheduleItems: ScheduleItem[] = [
-  { id: 's1', title: 'Advanced React Patterns', type: 'class', date: 'Today', time: '4:00 PM', duration: '90 min', course: 'Full-Stack Web Dev', location: 'Online' },
-  { id: 's2', title: 'REST API Assignment Due', type: 'assignment', date: 'Tomorrow', time: '11:59 PM', duration: '', course: 'Full-Stack Web Dev' },
-  { id: 's3', title: 'Neural Networks Q&A', type: 'class', date: 'Tomorrow', time: '2:00 PM', duration: '60 min', course: 'ML Fundamentals', location: 'Online' },
-  { id: 's4', title: 'React Hooks Quiz', type: 'exam', date: 'Aug 5', time: '10:00 AM', duration: '30 min', course: 'Full-Stack Web Dev' },
-  { id: 's5', title: 'Hackathon 2024', type: 'event', date: 'Aug 8', time: '9:00 AM', duration: '48 hours', location: 'Main Campus' },
+  { id: 's1', title: 'Python Basics Live Class', type: 'class', date: 'Today', time: '4:00 PM', duration: '90 min', course: 'Fullstack Python + DSA', location: 'Live Session' },
 ];
 
 export const practiceProblems: PracticeProblem[] = [

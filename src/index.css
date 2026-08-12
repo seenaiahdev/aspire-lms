@@ -104,6 +104,11 @@
   100% { transform: rotate(0.0deg) }
 }
 
+@keyframes point-left {
+  0%, 100% { transform: translateX(0); }
+  50% { transform: translateX(-25%); }
+}
+
 @layer components {
   .card {
     @apply bg-white rounded-2xl shadow-soft border border-ink-100;
@@ -187,4 +192,8 @@
   .animate-delay-200 { animation-delay: 0.2s; }
   .animate-delay-300 { animation-delay: 0.3s; }
   .animate-delay-500 { animation-delay: 0.5s; }
+
+  .animate-point-left {
+    animation: point-left 1s ease-in-out infinite;
+  }
 }

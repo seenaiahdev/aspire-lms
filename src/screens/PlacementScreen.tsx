@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Sparkles, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap
+  Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Sparkles, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock
 } from 'lucide-react';
 import { jobOpportunities } from '@/data/mock';
 import { Card } from '@/components/ui/Card';
@@ -133,7 +133,7 @@ function TechStackSvg({ name, className = "w-4 h-4" }: { name: string; className
 export function PlacementScreen() {
   const [activeFilter, setActiveFilter] = useState<'open' | 'applied' | 'closed' | 'all'>('open');
   const [searchQuery, setSearchQuery] = useState('');
-  const [jobsList, setJobsList] = useState(jobOpportunities);
+  const [jobsList, setJobsList] = useState<typeof jobOpportunities>([]);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -348,9 +348,11 @@ export function PlacementScreen() {
           </div>
         ) : (
           <div className="p-12 text-center bg-white rounded-[2rem] border border-slate-200 space-y-2">
-            <Briefcase className="w-10 h-10 text-slate-300 mx-auto" />
-            <h3 className="font-extrabold text-slate-800 text-base">No Jobs Found</h3>
-            <p className="text-xs text-slate-500">There are no job listings matching your search filter.</p>
+            <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200">
+              <Lock className="w-8 h-8 text-slate-400" />
+            </div>
+            <h3 className="font-extrabold text-slate-800 text-base">Placement Hub Locked</h3>
+            <p className="text-xs font-medium text-slate-500">Complete your courses and certifications to unlock job opportunities.</p>
           </div>
         )}
       </div>

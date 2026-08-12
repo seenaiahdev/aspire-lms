@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye } from 'lucide-react';
+import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock } from 'lucide-react';
 import { practiceProblems } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
+import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
 
@@ -64,8 +65,8 @@ export function PracticeScreen() {
     setProblems(updatedProblems);
   }, []);
 
-  const filtered = problems.filter((p) => !p.solved && (difficulty === 'all' ? true : p.difficulty === difficulty));
-  const solved = problems.filter((p) => p.solved).length;
+  const filtered: typeof problems = []; // Force empty state for new user
+  const solved = 0;
 
   return (
     <div className="space-y-6">
@@ -77,10 +78,10 @@ export function PracticeScreen() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Solved Problems', value: `${solved} / ${problems.length}`, icon: CheckCircle2 },
-          { label: 'Current Streak', value: '7 Days', icon: Flame },
-          { label: 'Total Points', value: `${problems.filter(p => p.solved).reduce((s, p) => s + p.points, 0)} XP`, icon: Zap },
-          { label: 'Success Rate', value: problems.length > 0 ? `${Math.round((solved / problems.length) * 100)}%` : '0%', icon: TrendingUp },
+          { label: 'Solved Problems', value: `0`, icon: CheckCircle2 },
+          { label: 'Current Streak', value: '0 Days', icon: Flame },
+          { label: 'Total Points', value: `0 XP`, icon: Zap },
+          { label: 'Success Rate', value: '0%', icon: TrendingUp },
         ].map((s, i) => (
           <Card key={i} className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
@@ -127,25 +128,24 @@ export function PracticeScreen() {
           {filtered.length === 0 ? (
             <Card>
               <CardBody className="text-center py-12">
-                <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4 border border-purple-100">
-                  <CheckCircle2 className="w-8 h-8 text-[#7c3aed]" />
+                <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200">
+                  <Lock className="w-8 h-8 text-slate-400" />
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1">All Problems Completed!</h3>
-                <p className="text-xs font-medium text-slate-500 mb-4">You have solved all available coding problems in this section.</p>
-                <Button className="bg-[#7c3aed] text-white" onClick={() => setTab('history')}>View Submitted Problems</Button>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1">Coding Problems Locked</h3>
+                <p className="text-xs font-medium text-slate-500 mb-2">Complete course modules to unlock coding challenges.</p>
               </CardBody>
             </Card>
           ) : (
             <Card className="border border-slate-200/90 shadow-sm overflow-hidden bg-white rounded-2xl">
               <div className="divide-y divide-slate-100">
-                {filtered.map((p) => (
-                  <div key={p.id} className="flex items-center gap-4 p-4 hover:bg-slate-50/80 transition-colors group cursor-pointer">
+                {filtered.slice(0, 3).map((p) => (
+                  <div key={p.id} className="flex items-center gap-4 p-4 transition-colors group cursor-not-allowed grayscale-[0.2] opacity-60 bg-slate-50">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border bg-slate-100 text-slate-400 border-slate-200">
                       <Code2 className="w-5 h-5 text-slate-400" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-slate-900 text-sm group-hover:text-[#7c3aed] transition-colors">{p.title}</h3>
+                        <h3 className="font-bold text-slate-600 text-sm">{p.title}</h3>
                         <DifficultyBadge difficulty={p.difficulty} />
                       </div>
                       <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
@@ -156,10 +156,11 @@ export function PracticeScreen() {
                     </div>
                     <Button 
                       size="sm" 
-                      className="font-extrabold transition-all shadow-xs bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white hover:brightness-110"
-                      onClick={() => navigate('workspace', { id: p.id, mode: 'solve' })}
+                      disabled
+                      className="font-extrabold transition-all shadow-xs bg-slate-200 text-slate-500 cursor-not-allowed"
                     >
-                      Solve
+                      <Lock className="w-3.5 h-3.5 mr-1" />
+                      Locked
                     </Button>
                   </div>
                 ))}
@@ -172,92 +173,15 @@ export function PracticeScreen() {
       {/* ── History Tab ── */}
       {tab === 'history' && (
         <div className="space-y-4">
-          {problems.filter(p => p.solved).length === 0 ? (
-            <Card>
-              <CardBody className="text-center py-12">
-                <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4 border border-purple-100">
-                  <CheckCircle2 className="w-8 h-8 text-[#7c3aed]" />
-                </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1">No Completed Problems Yet</h3>
-                <p className="text-xs font-medium text-slate-500 mb-4">Start solving coding problems to see your submitted solutions here.</p>
-                <Button className="bg-[#7c3aed] text-white font-extrabold" onClick={() => setTab('problems')}>Solve Problems</Button>
-              </CardBody>
-            </Card>
-          ) : (
-            <Card className="border border-slate-200/90 shadow-sm bg-white rounded-2xl overflow-hidden">
-              <div className="divide-y divide-slate-100">
-                {problems.filter(p => p.solved).map((p) => {
-                  let submissionData: any = null;
-                  try {
-                    const raw = localStorage.getItem(`submission_${p.id}`);
-                    if (raw) submissionData = JSON.parse(raw);
-                  } catch {}
-
-                  const isProjectUpload = !!submissionData?.storageUrl;
-                  const timeDiff = submissionData?.timestamp
-                    ? new Date().getTime() - new Date(submissionData.timestamp).getTime()
-                    : null;
-                  const daysAgo = timeDiff ? Math.floor(timeDiff / (1000 * 60 * 60 * 24)) : null;
-                  const hoursAgo = timeDiff ? Math.floor(timeDiff / (1000 * 60 * 60)) : null;
-                  const timeAgoText = daysAgo != null
-                    ? daysAgo > 0
-                      ? `${daysAgo} day${daysAgo !== 1 ? 's' : ''} ago`
-                      : hoursAgo && hoursAgo > 0
-                      ? `${hoursAgo} hour${hoursAgo !== 1 ? 's' : ''} ago`
-                      : 'Just now'
-                    : null;
-
-                  return (
-                    <div key={p.id} className="flex items-center gap-4 p-4 hover:bg-slate-50/80 transition-colors">
-                      {/* Icon */}
-                      <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border bg-purple-50 text-[#7c3aed] border-purple-100">
-                        {isProjectUpload
-                          ? <FolderOpen className="w-5 h-5 text-[#7c3aed]" />
-                          : <CheckCircle2 className="w-5 h-5 text-[#7c3aed]" />
-                        }
-                      </div>
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1 flex-wrap">
-                          <h3 className="font-bold text-slate-900 text-sm">{p.title}</h3>
-                          <DifficultyBadge difficulty={p.difficulty} />
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider border bg-purple-50 text-[#7c3aed] border-purple-100">
-                            {isProjectUpload ? 'Uploaded' : 'Submitted'}
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-3 text-xs font-medium text-slate-500 flex-wrap">
-                          <span>{p.category}</span>
-                          {isProjectUpload && submissionData?.fileCount && (
-                            <span className="flex items-center gap-1">
-                              <FolderOpen className="w-3 h-3 text-slate-400" />
-                              {submissionData.fileCount} file{submissionData.fileCount !== 1 ? 's' : ''}
-                            </span>
-                          )}
-                          {timeAgoText && (
-                            <span className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3 text-slate-400" />
-                              {timeAgoText}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Action Button — always navigates to workspace review */}
-                      <Button
-                        size="sm"
-                        className="font-extrabold shrink-0 bg-[#7c3aed] hover:bg-[#6d28d9] text-white shadow-xs"
-                        onClick={() => navigate('workspace', { id: p.id, mode: 'review' })}
-                        leftIcon={isProjectUpload ? <Eye className="w-3.5 h-3.5" /> : undefined}
-                      >
-                        {isProjectUpload ? 'View' : 'Review'}
-                      </Button>
-                    </div>
-                  );
-                })}
+          <Card>
+            <CardBody className="text-center py-12">
+              <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4 border border-purple-100">
+                <CheckCircle2 className="w-8 h-8 text-[#7c3aed]" />
               </div>
-            </Card>
-          )}
+              <h3 className="font-extrabold text-slate-900 text-base mb-1">No Completed Problems Yet</h3>
+              <p className="text-xs font-medium text-slate-500 mb-2">Start solving coding problems to see your submitted solutions here.</p>
+            </CardBody>
+          </Card>
         </div>
       )}
     </div>

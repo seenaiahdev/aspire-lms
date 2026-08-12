@@ -68,10 +68,10 @@ export interface Module {
 export interface Lesson {
   id: ID;
   title: string;
-  duration: string;
-  type: 'video' | 'reading' | 'quiz' | 'project';
-  completed: boolean;
-  preview: boolean;
+  video?: { duration: string; completed: boolean; preview?: boolean };
+  practice?: { duration: string; completed: boolean };
+  assessment?: { duration: string; completed: boolean };
+  completed?: boolean;
 }
 
 export interface Assignment {

@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle } from 'lucide-react';
+import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle, Lock } from 'lucide-react';
 import { resources as initialResources } from '@/data/mock';
 import { Card } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Toast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 import { triggerFileDownload } from '@/lib/downloadHelper';
+import { LockedOverlay } from '@/components/ui/LockedOverlay';
 
 const typeIcons: Record<string, any> = {
   pdf: FileText,
@@ -110,8 +111,9 @@ export function ResourcesScreen() {
           return (
             <Card
               key={r.id}
-              className="p-5 group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white flex flex-col justify-between"
+              className="p-5 group border border-slate-200/90 shadow-sm bg-white flex flex-col justify-between relative overflow-hidden cursor-not-allowed"
             >
+              <LockedOverlay title={r.title} type="LOCKED RESOURCE" />
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div
@@ -127,7 +129,7 @@ export function ResourcesScreen() {
                   </span>
                 </div>
 
-                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg mb-1 line-clamp-1 group-hover:text-primary-600 transition-colors">
+                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg mb-1 line-clamp-1">
                   {r.title}
                 </h3>
                 <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-4">

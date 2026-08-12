@@ -1,13 +1,16 @@
 import { useState, useEffect } from 'react';
 import {
   FileText, Clock, Upload, CheckCircle2, AlertCircle, Star, Paperclip, ArrowRight, X,
-  HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Compass, RotateCcw, Eye
+  HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Compass, RotateCcw, Eye, Lock
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { Button } from '@/components/ui/Button';
+import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { Modal } from '@/components/ui/Modal';
 import { QuizzesScreen } from '@/screens/QuizzesScreen';
+import { cn } from '@/lib/utils';
 
 // Struct for MCQ Questions
 interface MCQQuestion {
@@ -53,190 +56,93 @@ interface PythonTask {
   };
 }
 
-// Comprehensive Python MCQ Assessments Data
-const pythonAssignments: PythonTask[] = [
+// Comprehensive Course Assessments Data
+const courseAssignments: PythonTask[] = [
   {
     id: '1',
-    slug: 'variables-in-python-quiz',
+    slug: 'git-architecture-quiz',
     type: 'mcq',
-    title: 'Variables & Data Types Assessment',
-    category: 'Variables & Types',
+    title: 'Git Architecture & Version Control Assessment',
+    category: 'Version Control',
     difficulty: 'Beginner',
     xp: 100,
-    timeEstimate: '8 mins',
-    description: 'Test your knowledge on Python variable declaration, memory allocation, type casting, and variable swapping.',
-    status: 'pending',
-    attemptsCount: 2,
-    passedCount: 1,
-    failedCount: 1,
-    bestScorePercentage: 100,
-    attemptHistory: [
-      {
-        id: 1,
-        label: 'Attempt 1',
-        score: 60,
-        status: 'Failed',
-        date: '2025-09-03',
-        reviewSummary: 'Missed variable naming rules and the second swap question. Review tuple unpacking and reserved keywords.',
-      },
-      {
-        id: 2,
-        label: 'Attempt 2',
-        score: 100,
-        status: 'Passed',
-        date: '2025-09-05',
-        reviewSummary: 'Perfect attempt. All questions answered correctly.',
-      },
-    ],
+    timeEstimate: '15 mins',
+    description: 'Test your understanding of Git architecture, local vs remote repositories, and the staging area.',
+    status: 'locked',
+    attemptsCount: 0,
+    passedCount: 0,
+    failedCount: 0,
+    bestScorePercentage: 0,
+    attemptHistory: [],
     mcqQuestions: [
       {
         id: 1,
-        question: 'Which of the following is a valid variable declaration in Python?',
-        options: ['1st_student = "Aarav"', 'student-name = "Aarav"', '_student_name = "Aarav"', 'class = "Aarav"'],
-        correctIndex: 2,
-        explanation: 'Variable names in Python can start with an underscore or letter, but cannot start with numbers, contain hyphens, or use reserved keywords like class.',
+        question: 'What is the primary difference between Git and GitHub?',
+        options: ['Git is a local tool, GitHub is a cloud hosting service', 'They are the exact same thing', 'Git is for Windows, GitHub is for Mac', 'Git is a cloud service, GitHub is a CLI tool'],
+        correctIndex: 0,
+        explanation: 'Git is the version control system that runs locally on your machine, whereas GitHub is a cloud-based hosting service for Git repositories.',
       },
       {
         id: 2,
-        question: 'What is the output of swapping variables using tuple unpacking in Python?',
-        codeSnippet: `a = 10\nb = 20\na, b = b, a\nprint(a, b)`,
-        options: ['10 20', '20 10', '10 10', '20 20'],
+        question: 'Which area holds the files before they are committed to the repository?',
+        options: ['Working Directory', 'Staging Area', 'Local Repository', 'Remote Repository'],
         correctIndex: 1,
-        explanation: 'Python allows 1-line variable swapping using tuple unpacking (a, b = b, a), which results in a = 20 and b = 10.',
-      },
-      {
-        id: 3,
-        question: 'What will type(x) and type(y) evaluate to in the code below?',
-        codeSnippet: `x = 5\ny = "5"`,
-        options: ['<class "int"> and <class "str">', '<class "str"> and <class "int">', '<class "int"> and <class "int">', '<class "float"> and <class "str">'],
-        correctIndex: 0,
-        explanation: 'x is an integer primitive (int) while y is wrapped in quotes, making it a string (str).',
-      },
-      {
-        id: 4,
-        question: 'What happens when you try to concatenate a string and an integer directly?',
-        codeSnippet: `age = 22\nprint("Age: " + age)`,
-        options: ['Prints "Age: 22"', 'Prints "Age: age"', 'Raises TypeError', 'Prints None'],
-        correctIndex: 2,
-        explanation: 'In Python, string concatenation with + requires explicit type casting with str(age), otherwise a TypeError is raised.',
-      },
+        explanation: 'The Staging Area (or Index) is where you format and review a commit before actually committing it to the local repository.',
+      }
     ],
   },
   {
     id: '2',
-    slug: 'control-flow-loops-quiz',
+    slug: 'git-commands-quiz',
     type: 'mcq',
-    title: 'Control Flow & Loop Logic Assessment',
-    category: 'Control Flow',
+    title: 'Git Commands: init, add, commit Assessment',
+    category: 'Version Control',
     difficulty: 'Beginner',
     xp: 120,
-    timeEstimate: '10 mins',
-    description: 'Test your understanding of if-elif-else branches, range(), for loops, while loops, and break/continue statements.',
-    status: 'pending',
-    attemptsCount: 1,
-    passedCount: 1,
+    timeEstimate: '20 mins',
+    description: 'Verify your knowledge of foundational Git commands for tracking and committing files.',
+    status: 'locked',
+    attemptsCount: 0,
+    passedCount: 0,
     failedCount: 0,
-    bestScorePercentage: 100,
-    attemptHistory: [
-      {
-        id: 1,
-        label: 'Attempt 1',
-        score: 100,
-        status: 'Passed',
-        date: '2025-09-12',
-        reviewSummary: 'Mastered loop boundaries and break conditions.',
-      },
-    ],
+    bestScorePercentage: 0,
+    attemptHistory: [],
     mcqQuestions: [
       {
         id: 1,
-        question: 'What will list(range(1, 10, 2)) produce in Python?',
-        options: ['[1, 2, 3, 4, 5, 6, 7, 8, 9, 10]', '[1, 3, 5, 7, 9]', '[2, 4, 6, 8, 10]', '[1, 3, 5, 7]'],
+        question: 'Which command initializes a new Git repository?',
+        options: ['git start', 'git init', 'git new', 'git create'],
         correctIndex: 1,
-        explanation: 'range(start, stop, step) begins at 1, increments by 2, and stops before reaching 10, resulting in [1, 3, 5, 7, 9].',
-      },
-      {
-        id: 2,
-        question: 'What is the output of the following loop with a break statement?',
-        codeSnippet: `for i in range(5):\n    if i == 3:\n        break\n    print(i, end=" ")`,
-        options: ['0 1 2 3 4', '0 1 2 3', '0 1 2', '1 2 3'],
-        correctIndex: 2,
-        explanation: 'When i reaches 3, the break statement immediately terminates loop execution, printing only 0 1 2.',
-      },
+        explanation: 'git init is used to create a new, empty Git repository or reinitialize an existing one.',
+      }
     ],
   },
   {
     id: '3',
-    slug: 'python-functions-scope-quiz',
+    slug: 'html5-structure-quiz',
     type: 'mcq',
-    title: 'Functions, Scopes & Lambda Assessment',
-    category: 'Functions',
-    difficulty: 'Intermediate',
-    xp: 120,
-    timeEstimate: '10 mins',
-    description: 'Master function parameters, local vs global scope rules, and 1-line anonymous lambda functions.',
-    status: 'pending',
-    attemptsCount: 0,
-    passedCount: 0,
-    failedCount: 0,
-    bestScorePercentage: 0,
-    mcqQuestions: [
-      {
-        id: 1,
-        question: 'What will be printed by the following code?',
-        codeSnippet: `square = lambda x: x ** 2\nprint(square(5))`,
-        options: ['10', '25', '52', 'TypeError'],
-        correctIndex: 1,
-        explanation: 'The lambda function computes 5 ** 2 which equals 25.',
-      },
-      {
-        id: 2,
-        question: 'What data structure does *args pack positional arguments into inside a function?',
-        options: ['List', 'Dictionary', 'Tuple', 'Set'],
-        correctIndex: 2,
-        explanation: '*args gathers variable positional arguments into an immutable Tuple.',
-      },
-      {
-        id: 3,
-        question: 'What keyword is used inside a function to modify a variable declared outside the function scope?',
-        options: ['extern', 'global', 'public', 'static'],
-        correctIndex: 1,
-        explanation: 'The `global` keyword explicitly grants permission to modify variables defined in the global namespace.',
-      },
-    ],
-  },
-  {
-    id: '4',
-    slug: 'python-oop-concepts-quiz',
-    type: 'mcq',
-    title: 'Object-Oriented Programming (OOP) Assessment',
-    category: 'OOP',
-    difficulty: 'Intermediate',
+    title: 'HTML5 Semantic Elements Assessment',
+    category: 'Web Architecture',
+    difficulty: 'Beginner',
     xp: 150,
-    timeEstimate: '12 mins',
-    description: 'Assess your knowledge of classes, __init__ constructor, self reference, inheritance, and encapsulation.',
-    status: 'pending',
+    timeEstimate: '15 mins',
+    description: 'Assess your knowledge of modern HTML5 semantic elements and document structuring.',
+    status: 'locked',
     attemptsCount: 0,
     passedCount: 0,
     failedCount: 0,
     bestScorePercentage: 0,
+    attemptHistory: [],
     mcqQuestions: [
       {
         id: 1,
-        question: 'What is the primary purpose of self in Python class methods?',
-        options: ['It is a reserved system keyword for creating threads', 'It refers to the current instance of the class', 'It imports external libraries', 'It converts methods to static functions'],
-        correctIndex: 1,
-        explanation: 'self represents the instance of the class, allowing access to instance attributes and methods.',
-      },
-      {
-        id: 2,
-        question: 'Which magic method is called automatically when a new object instance is instantiated?',
-        options: ['__new__', '__init__', '__start__', '__create__'],
-        correctIndex: 1,
-        explanation: 'The __init__ method acts as the initializer/constructor for object instances in Python.',
-      },
+        question: 'Which HTML5 element is specifically designed for the main navigation menu?',
+        options: ['<header>', '<section>', '<nav>', '<aside>'],
+        correctIndex: 2,
+        explanation: 'The <nav> element represents a section of a page whose purpose is to provide navigation links.',
+      }
     ],
-  },
+  }
 ];
 
 // ════════════════ CUSTOM CONFETTI ANIMATION ════════════════
@@ -309,7 +215,7 @@ export function AssignmentsScreen() {
   const [confirmQuizAction, setConfirmQuizAction] = useState<'submit' | 'exit' | null>(null);
 
   // Filter Tasks
-  const filteredTasks = pythonAssignments.filter((t) => {
+  const filteredTasks = courseAssignments.filter((t) => {
     if (filterTab === 'pending') return t.status === 'pending';
     if (filterTab === 'completed') return t.status === 'completed';
     return true;
@@ -407,7 +313,7 @@ export function AssignmentsScreen() {
       const isReview = parts[2] === 'review';
       const reviewAttemptId = parts[3] ? Number(parts[3]) : undefined;
       const isAttemptsView = parts[1] === 'attempts';
-      const match = pythonAssignments.find((t) => t.slug === slug || t.id === slug);
+      const match = courseAssignments.find((t) => t.slug === slug || t.id === slug);
       if (match) {
         setSelectedDetailTask(match);
         setShowAttemptsOnLeft(isAttemptsView);
@@ -1171,16 +1077,24 @@ export function AssignmentsScreen() {
           {/* Tasks List Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {filteredTasks.map((task) => {
+              const isLocked = task.status === 'locked';
               return (
                 <Card
                   key={task.id}
-                  hover
-                  onClick={() => openDetailTaskWithRoute(task)}
-                  className="p-5 rounded-3xl border border-slate-200/90 shadow-2xs hover:shadow-md hover:border-primary-500 transition-all duration-300 group cursor-pointer bg-white"
+                  hover={!isLocked}
+                  onClick={() => !isLocked && openDetailTaskWithRoute(task)}
+                  className={cn(
+                    "p-5 rounded-3xl border shadow-2xs transition-all duration-300 relative overflow-hidden bg-white border-slate-200/90 hover:shadow-md hover:border-primary-500 group",
+                    isLocked ? "cursor-not-allowed" : "cursor-pointer"
+                  )}
                 >
+                  {isLocked && <LockedOverlay title={task.title} type="LOCKED ASSESSMENT" />}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-1 rounded-xl text-xs font-black border bg-primary-50 text-primary-700 border-primary-100">
+                      <span className={cn(
+                        "px-2.5 py-1 rounded-xl text-xs font-black border",
+                        isLocked ? "bg-slate-100 text-slate-500 border-slate-200" : "bg-primary-50 text-primary-700 border-primary-100"
+                      )}>
                         MCQ ASSESSMENT
                       </span>
 
@@ -1189,12 +1103,15 @@ export function AssignmentsScreen() {
                       </span>
                     </div>
 
-                    <span className="text-xs font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">
+                    <span className={cn(
+                      "text-xs font-bold px-2.5 py-0.5 rounded-md border",
+                      isLocked ? "bg-slate-100 text-slate-400 border-slate-200" : "text-amber-700 bg-amber-50 border-amber-200"
+                    )}>
                       +{task.xp} XP
                     </span>
                   </div>
 
-                  <h3 className="font-extrabold text-slate-900 text-base mb-1.5 group-hover:text-[#3b52a4] transition-colors">
+                  <h3 className="font-extrabold text-base mb-1.5 transition-colors text-slate-900 group-hover:text-[#3b52a4]">
                     {task.title}
                   </h3>
                   <p className="text-xs text-slate-500 leading-relaxed mb-4 line-clamp-2">
@@ -1214,7 +1131,7 @@ export function AssignmentsScreen() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1 font-bold text-[#3b52a4] group-hover:translate-x-1 transition-transform">
+                    <div className="flex items-center gap-1 font-bold transition-transform text-[#3b52a4] group-hover:translate-x-1">
                       <span>View Assessment Details</span>
                       <ArrowRight className="w-4 h-4" />
                     </div>

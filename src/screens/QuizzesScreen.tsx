@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2 } from 'lucide-react';
+import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock } from 'lucide-react';
 import { quizzes, leaderboard } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -11,6 +11,7 @@ import { BarChart } from '@/components/ui/Charts';
 import { Modal } from '@/components/ui/Modal';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
+import { LockedOverlay } from '@/components/ui/LockedOverlay';
 
 export function QuizzesScreen() {
   const { navigate } = useNav();
@@ -122,12 +123,13 @@ export function QuizzesScreen() {
       {tab === 'upcoming' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {quizzes.filter(q => q.status === 'upcoming').map((q) => (
-            <Card key={q.id} className="p-6 bg-white border border-slate-200/90 shadow-sm hover:shadow-lg transition-all rounded-[2rem] flex flex-col justify-between">
+            <Card key={q.id} className="p-6 bg-white border border-slate-200/90 rounded-[2rem] flex flex-col justify-between relative overflow-hidden cursor-not-allowed">
+              <LockedOverlay title={q.title} type="LOCKED QUIZ" />
               <div>
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center border border-purple-100 shrink-0">
-                      <ClipboardCheck className="w-6 h-6 text-[#7c3aed]" />
+                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0">
+                      <ClipboardCheck className="w-6 h-6 text-slate-400" />
                     </div>
                     <div>
                       <h3 className="font-extrabold text-slate-900 text-lg leading-snug">{q.title}</h3>
@@ -147,11 +149,11 @@ export function QuizzesScreen() {
               </div>
 
               <button 
-                onClick={() => setSelectedQuiz(q)}
-                className="w-full py-3 px-4 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2"
+                disabled
+                className="w-full py-3 px-4 rounded-2xl bg-slate-200 text-slate-500 font-extrabold text-xs flex items-center justify-center gap-2 cursor-not-allowed"
               >
-                <Play className="w-4 h-4 fill-current" />
-                <span>Start Assessment</span>
+                <Lock className="w-4 h-4 fill-current" />
+                <span>Locked</span>
               </button>
             </Card>
           ))}
@@ -160,60 +162,19 @@ export function QuizzesScreen() {
 
       {tab === 'results' && (
         <div className="space-y-4">
-          {quizzes.filter(q => q.status === 'attempted').map((q) => (
-            <Card key={q.id} className="p-5 bg-white border border-slate-200/90 rounded-[2rem] shadow-sm hover:shadow-md transition-shadow">
-              <div className="flex items-center gap-5">
-                <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
-                  <Award className="w-7 h-7 text-[#7c3aed]" />
-                </div>
-                <div className="flex-1">
-                  <h3 className="font-extrabold text-slate-900 text-base">{q.title}</h3>
-                  <p className="text-xs font-bold text-slate-500 mt-1">{q.course} • {q.dueDate}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-2xl font-black text-slate-900 tracking-tight">{q.score}<span className="text-sm font-bold text-slate-400">/{q.maxScore}</span></p>
-                  <span className="px-3 py-1 rounded-full bg-purple-100 text-[#7c3aed] text-[10px] font-black uppercase mt-1 inline-block">
-                    {(q.score ?? 0) >= 90 ? 'Excellent' : (q.score ?? 0) >= 70 ? 'Good' : 'Pass'}
-                  </span>
-                </div>
-              </div>
-            </Card>
-          ))}
+          <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
+            <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="font-extrabold text-slate-800 text-base">No Previous Results</h3>
+            <p className="text-xs text-slate-500 mt-1">You haven't completed any quizzes yet.</p>
+          </Card>
         </div>
       )}
 
       {tab === 'analytics' && (
-        <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm p-6 bg-white">
-          <CardBody>
-            <h3 className="font-extrabold text-slate-900 mb-1 text-lg">Quiz Performance Over Time</h3>
-            <p className="text-xs font-semibold text-slate-500 mb-8">Your scores across recent quizzes</p>
-            <BarChart
-              data={[
-                { label: 'Q1', value: 78 },
-                { label: 'Q2', value: 88 },
-                { label: 'Q3', value: 94 },
-                { label: 'Q4', value: 85 },
-                { label: 'Q5', value: 92 },
-                { label: 'Q6', value: 96 },
-              ]}
-              height={200}
-              color="bg-gradient-to-t from-[#6d28d9] to-[#7c3aed]"
-            />
-            <div className="grid grid-cols-3 gap-4 mt-8 pt-6 border-t border-slate-100">
-              <div className="text-center">
-                <p className="text-2xl font-black text-slate-900">88.8</p>
-                <p className="text-xs font-bold text-slate-500">Average Score</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-black text-emerald-600">+18%</p>
-                <p className="text-xs font-bold text-slate-500">Improvement</p>
-              </div>
-              <div className="text-center">
-                <p className="text-2xl font-black text-slate-900">96</p>
-                <p className="text-xs font-bold text-slate-500">Best Score</p>
-              </div>
-            </div>
-          </CardBody>
+        <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm p-12 bg-white text-center">
+          <TrendingUp className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+          <h3 className="font-extrabold text-slate-800 text-base">Analytics Not Available</h3>
+          <p className="text-xs text-slate-500 mt-1">Complete quizzes to unlock performance analytics.</p>
         </Card>
       )}
 

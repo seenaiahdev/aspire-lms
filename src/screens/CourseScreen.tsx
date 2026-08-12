@@ -29,25 +29,28 @@ function ModuleAccordion({ mod, course, navigate }: { mod: any, course: any, nav
       <button 
         onClick={() => setIsOpen(!isOpen)}
         className={cn(
-          "w-full flex justify-between items-center px-2 py-3 text-left cursor-pointer rounded-xl transition-colors group",
-          isOpen ? "bg-purple-50/30" : "hover:bg-slate-50"
+          "w-full flex justify-between items-center px-3 py-3.5 text-left cursor-pointer rounded-xl transition-all duration-300 group",
+          isOpen ? "bg-purple-50/50 shadow-inner" : "hover:bg-slate-50"
         )}
       >
         <h4 className={cn("font-extrabold text-[15px] transition-colors", isOpen ? "text-[#7c3aed]" : "text-slate-800 group-hover:text-[#7c3aed]")}>{mod.title}</h4>
         <div className="flex items-center gap-3">
-          {mod.duration && <span className="text-[11px] font-extrabold text-slate-500 bg-slate-100 px-2 py-1 rounded-md">{mod.duration}</span>}
-          {isOpen ? <ChevronUp className="w-4 h-4 text-slate-400 group-hover:text-[#7c3aed]" /> : <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-[#7c3aed]" />}
+          {mod.duration && <span className={cn("text-[11px] font-extrabold px-2.5 py-1 rounded-md transition-colors", isOpen ? "bg-white text-purple-600 shadow-sm" : "bg-slate-100 text-slate-500")}>{mod.duration}</span>}
+          {isOpen ? <ChevronUp className="w-4 h-4 text-[#7c3aed]" /> : <ChevronDown className="w-4 h-4 text-slate-400 group-hover:text-[#7c3aed]" />}
         </div>
       </button>
       {isOpen && (
-        <div className="space-y-1.5 pt-3 mt-1 border-t border-slate-50 animate-fade-in">
-          {mod.lessons.map((lesson: any) => {
-            const Icon = lessonIcons[lesson.type] || Play;
+        <div className="space-y-2 pt-3 mt-1 pb-1 animate-fade-in pl-1">
+          {mod.lessons.map((lesson: any, idx: number) => {
+            const Icon = Play; // Since type is removed, default to Play
+            const isPreview = lesson.video?.preview || lesson.preview;
+            const isLessonLocked = (idx > 0 && mod.lessons.slice(0, idx).some((l: any) => !l.completed)) && !isPreview;
+            
             return (
               <button
                 key={lesson.id}
                 onClick={(e) => {
-                  if (!lesson.completed && !lesson.preview) {
+                  if (isLessonLocked) {
                     e.preventDefault();
                     e.stopPropagation();
                     return;
@@ -55,10 +58,10 @@ function ModuleAccordion({ mod, course, navigate }: { mod: any, course: any, nav
                   navigate('lesson', { id: course.id, lesson: lesson.id });
                 }}
                 className={cn(
-                  "w-full flex items-center gap-3.5 p-3 rounded-xl border border-transparent transition-all group/lesson text-left",
-                  (!lesson.completed && !lesson.preview)
+                  "w-full flex items-center gap-3.5 p-3 rounded-xl border border-transparent transition-all duration-200 group/lesson text-left relative overflow-hidden",
+                  isLessonLocked
                     ? "opacity-60 cursor-not-allowed"
-                    : "hover:bg-purple-50/60 hover:border-purple-100 cursor-pointer"
+                    : "hover:bg-white hover:shadow-md hover:border-purple-100/50 hover:-translate-y-0.5 cursor-pointer z-10"
                 )}
               >
                 <div className={cn(
@@ -67,7 +70,7 @@ function ModuleAccordion({ mod, course, navigate }: { mod: any, course: any, nav
                 )}>
                   {lesson.completed ? (
                     <CheckCircle2 className="w-4.5 h-4.5" />
-                  ) : lesson.preview ? (
+                  ) : isPreview ? (
                     <Play className="w-4 h-4" />
                   ) : (
                     <Icon className="w-4 h-4" />
@@ -75,10 +78,10 @@ function ModuleAccordion({ mod, course, navigate }: { mod: any, course: any, nav
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={cn('text-sm font-bold', lesson.completed ? 'text-slate-500' : 'text-slate-900 group-hover/lesson:text-[#7c3aed] transition-colors')}>{lesson.title}</p>
-                  <p className="text-xs font-semibold text-slate-400 mt-0.5">{lesson.duration} · {lesson.type}</p>
+                  <p className="text-xs font-semibold text-slate-400 mt-0.5">{lesson.video?.duration || lesson.duration} · Video Lesson</p>
                 </div>
-                {!lesson.completed && !lesson.preview && <Lock className="w-4 h-4 text-slate-300" />}
-                {lesson.preview && <span className="px-2 py-0.5 rounded bg-purple-100 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider">Preview</span>}
+                {isLessonLocked && <Lock className="w-4 h-4 text-slate-300 ml-auto" />}
+                {isPreview && !lesson.completed && <span className="px-2.5 py-1 rounded-md bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] text-white text-[10px] font-black uppercase tracking-wider shadow-sm ml-auto">Preview</span>}
               </button>
             );
           })}

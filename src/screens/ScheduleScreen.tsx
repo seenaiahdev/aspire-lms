@@ -3,6 +3,7 @@ import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, Radio, FileText
 import { scheduleItems } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
+import { useNav } from '@/lib/nav';
 
 const typeConfig: Record<string, { color: string; icon: any; label: string }> = {
   class: { color: 'teal', icon: Radio, label: 'Live Class' },
@@ -43,6 +44,7 @@ function parseScheduleItemDate(item: { date: string; dateKey?: string }, today: 
 }
 
 export function ScheduleScreen() {
+  const { navigate } = useNav();
   const today = new Date();
   const [calendarDate, setCalendarDate] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<Date>(today);
@@ -92,6 +94,25 @@ export function ScheduleScreen() {
 
   const handleTaskFormChange = (field: keyof typeof taskForm, value: string) => {
     setTaskForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleItemClick = (type: string) => {
+    switch (type) {
+      case 'class':
+        navigate('live');
+        break;
+      case 'assignment':
+        navigate('assignments');
+        break;
+      case 'exam':
+        navigate('quizzes');
+        break;
+      case 'task':
+      case 'event':
+      default:
+        navigate('practice');
+        break;
+    }
   };
 
   const handleAddTask = (e: React.FormEvent<HTMLFormElement>) => {
@@ -354,11 +375,14 @@ export function ScheduleScreen() {
                     const cfg = typeConfig[item.type] || typeConfig.class;
                     const Icon = cfg.icon;
                     return (
-                      <div key={item.id} className="rounded-[1.8rem] border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div 
+                        key={item.id} 
+                        className="rounded-[1.8rem] border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                      >
                         <div className="flex items-start gap-4">
                           <button
                             onClick={() => toggleTaskCompletion(item.id)}
-                            className="h-11 w-11 rounded-2xl bg-white text-slate-600 border border-slate-200 flex items-center justify-center transition hover:bg-slate-100"
+                            className="h-11 w-11 rounded-2xl bg-white text-slate-600 border border-slate-200 flex items-center justify-center transition hover:bg-slate-100 shrink-0"
                             type="button"
                           >
                             ✓
@@ -369,10 +393,13 @@ export function ScheduleScreen() {
                             {item.course && <p className="mt-1 text-sm text-slate-500">{item.course}</p>}
                           </div>
                         </div>
-                        <div className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200">
+                        <button
+                          onClick={() => handleItemClick(item.type)}
+                          className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
+                        >
                           <Icon className="w-4 h-4 text-slate-500" />
                           {cfg.label}
-                        </div>
+                        </button>
                       </div>
                     );
                   })}
@@ -384,11 +411,14 @@ export function ScheduleScreen() {
                         const cfg = typeConfig[item.type] || typeConfig.class;
                         const Icon = cfg.icon;
                         return (
-                          <div key={item.id} className="rounded-[1.8rem] border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between opacity-80">
+                          <div 
+                            key={item.id} 
+                            className="rounded-[1.8rem] border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between opacity-80"
+                          >
                             <div className="flex items-start gap-4">
                               <button
                                 onClick={() => toggleTaskCompletion(item.id)}
-                                className="h-11 w-11 rounded-2xl bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe] flex items-center justify-center transition hover:bg-[#dbeafe]"
+                                className="h-11 w-11 rounded-2xl bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe] flex items-center justify-center transition hover:bg-[#dbeafe] shrink-0"
                                 type="button"
                               >
                                 ✓
@@ -398,10 +428,13 @@ export function ScheduleScreen() {
                                 <p className="mt-1 text-sm text-slate-500">{item.time}</p>
                               </div>
                             </div>
-                            <div className="inline-flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-4 py-2 text-sm font-semibold text-[#1d4ed8] border border-[#bfdbfe]">
+                            <button
+                              onClick={() => handleItemClick(item.type)}
+                              className="inline-flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-4 py-2 text-sm font-semibold text-[#1d4ed8] border border-[#bfdbfe] hover:bg-[#dbeafe] transition-all cursor-pointer"
+                            >
                               <Icon className="w-4 h-4" />
                               {cfg.label}
-                            </div>
+                            </button>
                           </div>
                         );
                       })}

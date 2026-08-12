@@ -3,7 +3,7 @@ import {
   Play, Pause, Volume2, VolumeX, Maximize, Settings, ArrowLeft, ArrowRight,
   CheckCircle2, FileText, MessageCircle, Download, Bookmark,
   PenLine, List, ChevronDown, ChevronUp, ChevronRight, ChevronLeft, Video, RotateCcw,
-  SkipBack, SkipForward, Maximize2, Lock,
+  SkipBack, SkipForward, Maximize2, Lock, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { courses } from '@/data/mock';
@@ -85,9 +85,21 @@ export function LessonScreen() {
     setTab(t);
     localStorage.setItem('aspire_lesson_tab', t);
   };
-  const [playing, setPlaying] = useState(true);
+  const [playing, setPlaying] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedModules, setExpandedModules] = useState<Record<number, boolean>>({ 0: true });
+
+  const [isBookmarked, setIsBookmarked] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [playbackSpeed, setPlaybackSpeed] = useState('1.0x');
+  const [quality, setQuality] = useState('1080p');
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const handleBookmark = () => {
+    setIsBookmarked(!isBookmarked);
+    setToastMessage(!isBookmarked ? 'Added to bookmarks' : 'Removed from bookmarks');
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const toggleModule = (idx: number) => {
     setExpandedModules((prev) => ({ ...prev, [idx]: !prev[idx] }));
@@ -116,6 +128,16 @@ export function LessonScreen() {
       {/* Left Area: Sized Video Player + Notes Tabs */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto space-y-4 pr-1 pb-6">
         
+        {/* Back Navigation (Outside Video) */}
+        <div>
+          <button 
+            onClick={() => navigate('course', { id: course.id })} 
+            className="text-slate-500 hover:text-slate-900 text-sm font-bold flex items-center gap-1.5 transition-colors w-fit group"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /> Back to Course
+          </button>
+        </div>
+
         {/* Modern High-End Video Player Container (Matches Reference UI) */}
         <div className="relative aspect-video max-h-[380px] xl:max-h-[440px] w-full rounded-[2.2rem] overflow-hidden bg-[#0a0d18] shadow-2xl border border-slate-800 shrink-0 group">
           {/* Rich Dark Background Image Overlay */}
@@ -127,24 +149,64 @@ export function LessonScreen() {
           <div className="absolute top-0 left-0 right-0 p-5 flex items-start justify-between z-30 bg-gradient-to-b from-slate-950/90 via-slate-950/40 to-transparent">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
-                <button 
-                  onClick={() => navigate('course', { id: course.id })} 
-                  className="text-white/80 hover:text-white text-xs font-bold flex items-center gap-1.5 bg-white/10 hover:bg-white/20 px-2.5 py-1 rounded-lg backdrop-blur-md transition-all mr-1"
-                >
-                  <ArrowLeft className="w-3.5 h-3.5" /> Back
-                </button>
                 <span className="text-white font-extrabold text-sm sm:text-base tracking-tight">{currentLesson.title}</span>
               </div>
-              <p className="text-slate-400 text-[11px] font-semibold tracking-wide ml-0.5">4K · Ultra HD · AspireLMS Masterclass</p>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-all">
-                <Bookmark className="w-4 h-4" />
+            <div className="flex items-center gap-2 relative">
+              <button 
+                onClick={handleBookmark}
+                className={cn(
+                  "w-8 h-8 rounded-xl backdrop-blur-md flex items-center justify-center transition-all",
+                  isBookmarked ? "bg-[#7c3aed] text-white shadow-lg" : "bg-white/10 hover:bg-white/20 text-white/90 hover:text-white"
+                )}
+              >
+                <Bookmark className={cn("w-4 h-4", isBookmarked && "fill-white")} />
               </button>
-              <button className="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 backdrop-blur-md flex items-center justify-center text-white/90 hover:text-white transition-all">
-                <Settings className="w-4 h-4" />
-              </button>
+              
+              <div className="relative">
+                <button 
+                  onClick={() => setShowSettings(!showSettings)}
+                  className={cn(
+                    "w-8 h-8 rounded-xl backdrop-blur-md flex items-center justify-center transition-all",
+                    showSettings ? "bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white/90 hover:text-white"
+                  )}
+                >
+                  <Settings className={cn("w-4 h-4 transition-transform duration-300", showSettings && "rotate-90")} />
+                </button>
+
+                {/* Settings Dropdown */}
+                {showSettings && (
+                  <div className="absolute right-0 top-10 w-48 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in text-white text-xs">
+                    <div className="p-2 border-b border-white/10">
+                      <p className="px-2 py-1 font-bold text-white/50 text-[10px] uppercase tracking-wider">Playback Speed</p>
+                      {['0.5x', '1.0x', '1.5x', '2.0x'].map(speed => (
+                        <button
+                          key={speed}
+                          onClick={() => { setPlaybackSpeed(speed); setShowSettings(false); }}
+                          className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                          <span>{speed}</span>
+                          {playbackSpeed === speed && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="p-2">
+                      <p className="px-2 py-1 font-bold text-white/50 text-[10px] uppercase tracking-wider">Quality</p>
+                      {['1080p', '720p', '480p'].map(q => (
+                        <button
+                          key={q}
+                          onClick={() => { setQuality(q); setShowSettings(false); }}
+                          className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-white/10 rounded-lg transition-colors"
+                        >
+                          <span>{q}</span>
+                          {quality === q && <Check className="w-3.5 h-3.5 text-purple-400" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -154,64 +216,35 @@ export function LessonScreen() {
               <Video className="w-4 h-4 text-purple-300" />
               <span className="text-white font-extrabold text-sm tracking-wide">Video Coming Soon</span>
             </div>
-            <p className="text-white/60 text-[11px] font-bold tracking-wider uppercase">Content in Production</p>
-          </div>
-
-          {/* Bottom Player Controls Dock (Matches Reference Design) */}
+          </div>          {/* Bottom Player Controls Dock - HIDDEN for "Coming Soon" state
           <div className="absolute bottom-0 left-0 right-0 p-5 z-30 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent space-y-3">
             
-            {/* Timeline Scrubber Bar with Timestamps at Both Ends */}
             <div className="flex items-center gap-3">
-              <span className="text-xs text-white/90 font-mono font-bold shrink-0">12:04</span>
-              
-              {/* White Progress Bar with Seeker Handle Dot */}
+              <span className="text-xs text-white/90 font-mono font-bold shrink-0">00:00</span>
               <div className="flex-1 h-1.5 rounded-full bg-white/25 overflow-hidden cursor-pointer group/bar relative">
-                <div className="h-full rounded-full bg-white relative" style={{ width: '42%' }}>
+                <div className="h-full rounded-full bg-white relative" style={{ width: '0%' }}>
                   <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white shadow-md border border-slate-900 cursor-pointer" />
                 </div>
               </div>
-
               <span className="text-xs text-white/70 font-mono font-semibold shrink-0">{currentLesson.duration}</span>
             </div>
 
-            {/* Controls Actions Row */}
             <div className="flex items-center justify-between pt-1">
               <div className="flex items-center gap-3.5">
-                {/* Skip Back 10s */}
-                <button className="text-white/80 hover:text-white transition-colors p-1" title="Rewind 10s">
-                  <SkipBack className="w-4 h-4 fill-white/80" />
-                </button>
-
-                {/* Main Circular Solid White Play/Pause Button */}
-                <button 
-                  onClick={() => setPlaying(!playing)} 
-                  className="w-9 h-9 rounded-full bg-white text-slate-950 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                >
+                <button className="text-white/80 hover:text-white transition-colors p-1" title="Rewind 10s"><SkipBack className="w-4 h-4 fill-white/80" /></button>
+                <button onClick={() => setPlaying(!playing)} className="w-9 h-9 rounded-full bg-white text-slate-950 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer">
                   {playing ? <Pause className="w-4 h-4 fill-slate-950 text-slate-950" /> : <Play className="w-4 h-4 fill-slate-950 text-slate-950 ml-0.5" />}
                 </button>
-
-                {/* Skip Forward 10s */}
-                <button className="text-white/80 hover:text-white transition-colors p-1" title="Forward 10s">
-                  <SkipForward className="w-4 h-4 fill-white/80" />
-                </button>
-
-                {/* Volume Button */}
-                <button className="text-white/80 hover:text-white transition-colors p-1 ml-1">
-                  <Volume2 className="w-4 h-4" />
-                </button>
+                <button className="text-white/80 hover:text-white transition-colors p-1" title="Forward 10s"><SkipForward className="w-4 h-4 fill-white/80" /></button>
+                <button className="text-white/80 hover:text-white transition-colors p-1 ml-1"><Volume2 className="w-4 h-4" /></button>
               </div>
-
               <div className="flex items-center gap-3">
-                <span className="text-[10px] font-black text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30">
-                  1.0x
-                </span>
-                <button className="text-white/80 hover:text-white transition-colors p-1">
-                  <Maximize2 className="w-4 h-4" />
-                </button>
+                <span className="text-[10px] font-black text-purple-300 bg-purple-500/20 px-2 py-0.5 rounded border border-purple-500/30">1.0x</span>
+                <button className="text-white/80 hover:text-white transition-colors p-1"><Maximize2 className="w-4 h-4" /></button>
               </div>
             </div>
-
           </div>
+          */}
         </div>
 
         {/* Lesson Header & Info */}
@@ -420,6 +453,18 @@ export function LessonScreen() {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
+          <div className="bg-white px-4 py-3 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
+              <Check className="w-3.5 h-3.5 text-emerald-600" />
+            </div>
+            <span className="text-sm font-bold text-slate-800">{toastMessage}</span>
           </div>
         </div>
       )}

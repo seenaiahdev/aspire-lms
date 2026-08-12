@@ -26,63 +26,62 @@ export interface CourseCertificate {
 const initialCertificates: CourseCertificate[] = [
   {
     id: 'c1',
-    courseTitle: 'Advanced Full-Stack React & Next.js Masterclass',
+    courseTitle: 'Master Fullstack Development and DSA using Python',
     categoryLabel: 'Courses',
     instructorName: 'Sara Khan',
     instructorRole: 'Staff Frontend Architect',
-    progress: 78,
+    progress: 0,
     verifyId: 'CERT-AN-7829-REACT',
     certificateBg: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80',
   },
   {
     id: 's1',
-    courseTitle: 'Executive Workplace Communication & Speaking',
-    categoryLabel: 'Communication / Soft Skills',
-    instructorName: 'Elena Rostova',
-    instructorRole: 'Corporate Communications Director',
-    progress: 60,
-    verifyId: 'CERT-AN-6012-COMM',
+    courseTitle: 'Locked Certificate (Coming Soon)',
+    categoryLabel: 'Locked',
+    instructorName: 'TBA',
+    instructorRole: 'Instructor',
+    progress: 0,
+    verifyId: 'CERT-LOCKED-1',
     certificateBg: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80',
   },
   {
     id: 'a1',
-    courseTitle: 'Quantitative Aptitude Masterclass for Tech Interviews',
-    categoryLabel: 'Aptitude & Reasoning',
-    instructorName: 'Prof. Rajesh Kumar',
-    instructorRole: 'Aptitude & GATE Specialist',
-    progress: 80,
-    verifyId: 'CERT-AN-8043-APT',
+    courseTitle: 'Locked Certificate (Coming Soon)',
+    categoryLabel: 'Locked',
+    instructorName: 'TBA',
+    instructorRole: 'Instructor',
+    progress: 0,
+    verifyId: 'CERT-LOCKED-2',
     certificateBg: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
   },
   {
     id: 'p1',
-    courseTitle: 'Full-Stack Developer Portfolio Blueprint',
-    categoryLabel: 'Portfolio',
-    instructorName: 'Alex Morgan',
-    instructorRole: 'Senior UI/UX Engineer',
-    progress: 90,
-    verifyId: 'CERT-AN-9011-PORT',
+    courseTitle: 'Locked Certificate (Coming Soon)',
+    categoryLabel: 'Locked',
+    instructorName: 'TBA',
+    instructorRole: 'Instructor',
+    progress: 0,
+    verifyId: 'CERT-LOCKED-3',
     certificateBg: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
   },
   {
     id: 'r1',
-    courseTitle: 'ATS-Optimized Tech Resume Masterclass',
-    categoryLabel: 'Resume',
-    instructorName: 'Jessica Alba',
-    instructorRole: 'Senior Talent Acquisition Lead',
-    progress: 100, // UNLOCKED 100%!
-    issuedDate: 'August 05, 2026',
-    verifyId: 'CERT-AN-1000-RESUME',
+    courseTitle: 'Locked Certificate (Coming Soon)',
+    categoryLabel: 'Locked',
+    instructorName: 'TBA',
+    instructorRole: 'Instructor',
+    progress: 0,
+    verifyId: 'CERT-LOCKED-4',
     certificateBg: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80',
   },
   {
     id: 'l1',
-    courseTitle: 'LinkedIn Personal Branding & Tech Recruiter Magnet',
-    categoryLabel: 'LinkedIn',
-    instructorName: 'Sophia Williams',
-    instructorRole: 'LinkedIn Top Voice & Recruiter',
-    progress: 85,
-    verifyId: 'CERT-AN-8594-LINKEDIN',
+    courseTitle: 'Locked Certificate (Coming Soon)',
+    categoryLabel: 'Locked',
+    instructorName: 'TBA',
+    instructorRole: 'Instructor',
+    progress: 0,
+    verifyId: 'CERT-LOCKED-5',
     certificateBg: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?auto=format&fit=crop&w=800&q=80',
   }
 ];
@@ -134,9 +133,10 @@ export function CertificatesScreen() {
   const [selectedCert, setSelectedCert] = useState<CourseCertificate | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const unlockedCount = certs.filter(c => c.progress >= 100).length;
-  const lockedCount = certs.filter(c => c.progress < 100).length;
-  const avgProgress = Math.round(certs.reduce((acc, c) => acc + c.progress, 0) / certs.length);
+  const activeCerts = certs.filter(c => c.id === 'c1');
+  const unlockedCount = activeCerts.filter(c => c.progress >= 100).length;
+  const lockedCount = activeCerts.filter(c => c.progress < 100).length;
+  const avgProgress = activeCerts.length > 0 ? Math.round(activeCerts.reduce((acc, c) => acc + c.progress, 0) / activeCerts.length) : 0;
 
   const handleDownload = (cert: CourseCertificate) => {
     triggerFileDownload(`AspireNext Certificate - ${cert.courseTitle}`);
@@ -176,7 +176,7 @@ export function CertificatesScreen() {
             <Award className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
           <div>
-            <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} / {certs.length}</p>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} / {activeCerts.length}</p>
             <p className="text-xs font-extrabold text-[#7c3aed]">Unlocked Certificates</p>
           </div>
         </Card>
@@ -214,8 +214,11 @@ export function CertificatesScreen() {
           return (
             <Card
               key={cert.id}
-              className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col justify-between group cursor-pointer min-h-[380px]"
-              onClick={() => setSelectedCert(cert)}
+              className={cn(
+                "relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]",
+                cert.id === 'c1' ? "hover:shadow-xl cursor-pointer" : ""
+              )}
+              onClick={cert.id === 'c1' ? () => setSelectedCert(cert) : undefined}
             >
               
               {/* ── CARD CONTENT (BLURRED IF LOCKED) ── */}
@@ -317,18 +320,22 @@ export function CertificatesScreen() {
                       {cert.courseTitle}
                     </h4>
 
-                    <p className="text-xs font-semibold text-slate-300 leading-relaxed">
-                      Complete 100% course in My Learning to unlock certificate
-                    </p>
+                    {cert.id === 'c1' && (
+                      <p className="text-xs font-semibold text-slate-300 leading-relaxed">
+                        Complete 100% course in My Learning to unlock certificate
+                      </p>
+                    )}
                   </div>
 
-                  <button
-                    onClick={(e) => { e.stopPropagation(); setSelectedCert(cert); }}
-                    className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
-                  >
-                    <Lock className="w-4 h-4 text-purple-200" />
-                    <span>Preview Locked Certificate</span>
-                  </button>
+                  {cert.id === 'c1' && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedCert(cert); }}
+                      className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                    >
+                      <Lock className="w-4 h-4 text-purple-200" />
+                      <span>Preview Locked Certificate</span>
+                    </button>
+                  )}
 
                 </div>
               )}

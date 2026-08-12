@@ -50,7 +50,7 @@ export function TopNav() {
   };
 
   return (
-    <header className="sticky top-0 z-30 h-16 bg-white border-b border-slate-200/90 text-slate-900 flex items-center justify-between px-4 lg:px-6 font-sans">
+    <header className="sticky top-0 z-40 h-16 bg-white border-b border-slate-200/90 text-slate-900 flex items-center justify-between px-4 lg:px-6 font-sans">
       <div className="flex items-center gap-3">
         <button
           onClick={() => setSidebarOpen(true)}
