@@ -43,7 +43,7 @@ const learningItems: LearningItem[] = [
     categoryLabel: 'Courses',
     title: 'Fullstack Python + DSA',
     subtitle: 'Master Python, Advanced Backend Architectures, Frontend Technologies, and DSA Interview Prep',
-    thumbnail: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80',
+    thumbnail: '/python-full-stack.png',
     level: 'Intermediate',
     duration: '162 hours',
     lessonsCount: 90,
