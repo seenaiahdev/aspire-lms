@@ -86,7 +86,7 @@ const learningItems: LearningItem[] = [
   {
     id: 'a1',
     category: 'aptitude',
-    categoryLabel: 'Aptitude & Resounding',
+    categoryLabel: 'Aptitude & Reasoning',
     title: 'Quantitative Aptitude & Logical Reasoning',
     subtitle: 'Master numerical problem solving, mental math, logical charts, and coding test puzzles.',
     thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
@@ -449,7 +449,7 @@ export function LearningScreen() {
               { id: 'all', label: 'All' },
               { id: 'courses', label: 'Courses' },
               { id: 'soft_skills', label: 'Communication or Soft Skills' },
-              { id: 'aptitude', label: 'Aptitude & Resounding' },
+              { id: 'aptitude', label: 'Aptitude & Reasoning' },
               { id: 'resume', label: 'Resume' },
               { id: 'portfolio', label: 'Portfolio' },
               { id: 'linkedin', label: 'LinkedIn' },

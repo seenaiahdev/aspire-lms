@@ -510,7 +510,7 @@ export const courses: Course[] = [
     id: 'a1',
     title: 'Quantitative Aptitude & Logical Reasoning',
     subtitle: 'Master numerical problem solving, mental math, logical charts, and coding test puzzles.',
-    category: 'Aptitude & Resounding',
+    category: 'Aptitude & Reasoning',
     level: 'Intermediate',
     instructor: instructors[0],
     thumbnail: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?w=800&q=80',
