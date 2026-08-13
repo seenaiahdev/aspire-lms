@@ -1,57 +1,37 @@
-import { useState, forwardRef } from 'react';
-import { Joyride, Step, TooltipRenderProps, STATUS, CallBackProps, EVENTS, BeaconRenderProps } from 'react-joyride';
-import { ChevronRight, Check, X, Pointer } from 'lucide-react';
+import { useEffect } from 'react';
+import { Joyride, Step, TooltipRenderProps, STATUS, CallBackProps, EVENTS } from 'react-joyride';
+import { ChevronRight, Check, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
+import { useTour } from '@/lib/TourContext';
 
 interface OnboardingTourProps {
-  run: boolean;
-  onFinish?: () => void;
+  /** Unique ID for this tour (e.g. 'dashboard', 'learning') */
+  tourId: string;
+  /** Steps to render in this tour */
+  steps: Step[];
+  /** Optional callback for step-specific side effects (e.g. opening sidebar) */
+  onStepChange?: (index: number, type: string) => void;
 }
 
-export function OnboardingTour({ run, onFinish }: OnboardingTourProps) {
-  const [steps] = useState<Step[]>([
-    {
-      target: '#tour-sidebar',
-      title: 'Navigation Menu',
-      content: 'This is your main navigation. Jump between your Dashboard, Courses, Practice Labs, and Settings here.',
-      disableBeacon: true,
-      placement: 'right',
-    },
-    {
-      target: '#tour-schedule',
-      title: 'Your Daily Schedule',
-      content: 'Check here every day for your learning tasks and curriculum schedule. You can use the calendar to look ahead or back.',
-      placement: 'bottom',
-    },
-    {
-      target: '#tour-live-classes',
-      title: 'Live & Upcoming Sessions',
-      content: 'Join your live instructor-led sessions directly from here. We will notify you when a class is about to start.',
-      placement: 'bottom',
-    },
-    {
-      target: '#tour-stats',
-      title: 'Track Your Progress',
-      content: 'Keep an eye on your overall course completion and modules finished. Consistency is key!',
-      placement: 'left',
-    }
-  ]);
-
+export function OnboardingTour({ tourId, steps, onStepChange }: OnboardingTourProps) {
+  const { shouldRunTour, markComplete } = useTour();
   const { setSidebarOpen } = useNav();
+
+  const run = shouldRunTour(tourId);
 
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, index, type } = data;
-    
-    // Open sidebar ONLY for the first step (index 0) so the tooltip points to the expanded menu
-    if (type === EVENTS.STEP_BEFORE) {
-      setSidebarOpen(index === 0);
+
+    // Let parent handle step-specific side effects
+    if (type === EVENTS.STEP_BEFORE || type === EVENTS.TOOLTIP) {
+      onStepChange?.(index, type);
     }
 
     const finishedStatuses: string[] = [STATUS.FINISHED, STATUS.SKIPPED];
     if (finishedStatuses.includes(status)) {
       setSidebarOpen(false);
-      if (onFinish) onFinish();
+      markComplete(tourId);
     }
   };
 
@@ -82,16 +62,23 @@ export function OnboardingTour({ run, onFinish }: OnboardingTourProps) {
         <p className="text-xs font-semibold text-slate-600 leading-relaxed mb-5">{step.content}</p>
         
         <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-          <div className="flex gap-1.5">
-            {steps.map((_, i) => (
-              <div 
-                key={i} 
-                className={cn(
-                  "w-1.5 h-1.5 rounded-full transition-all duration-300", 
-                  i === index ? "bg-[#7c3aed] w-4" : "bg-slate-200"
-                )} 
-              />
-            ))}
+          {/* Step indicator — compact counter for many steps, dots for few */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {steps.length <= 8 ? (
+              steps.map((_, i) => (
+                <div 
+                  key={i} 
+                  className={cn(
+                    "w-1.5 h-1.5 rounded-full transition-all duration-300", 
+                    i === index ? "bg-[#7c3aed] w-4" : i < index ? "bg-[#7c3aed]/40" : "bg-slate-200"
+                  )} 
+                />
+              ))
+            ) : (
+              <span className="text-[11px] font-bold text-slate-500">
+                <span className="text-[#7c3aed] font-extrabold">{index + 1}</span> / {steps.length}
+              </span>
+            )}
           </div>
           
           <div className="flex items-center gap-2">
@@ -100,7 +87,7 @@ export function OnboardingTour({ run, onFinish }: OnboardingTourProps) {
                 {...backProps} 
                 className="text-xs font-bold text-slate-500 hover:text-slate-900 px-3 py-1.5 transition-colors"
               >
-                Back
+              Back
               </button>
             )}
             <button
@@ -116,29 +103,18 @@ export function OnboardingTour({ run, onFinish }: OnboardingTourProps) {
     );
   };
 
-  const CustomBeacon = forwardRef<HTMLButtonElement, BeaconRenderProps>((props, ref) => {
-    return (
-      <button
-        ref={ref}
-        {...props}
-        className="animate-point-left p-2 flex items-center justify-center cursor-pointer"
-      >
-        <Pointer className="w-8 h-8 text-[#7c3aed] fill-[#7c3aed] -rotate-90 drop-shadow-lg" />
-      </button>
-    );
-  });
+  if (!run || steps.length === 0) return null;
 
   return (
     <Joyride
       steps={steps}
       run={run}
       continuous
-      scrollToFirstStep
       showProgress
       showSkipButton
+      disableScrolling={true}
       callback={handleJoyrideCallback}
       tooltipComponent={Tooltip}
-      beaconComponent={CustomBeacon}
       styles={{
         options: {
           zIndex: 10000,

@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { currentUser, liveClasses } from '@/data/mock';
 import { cn } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
+import { dashboardSteps } from '@/lib/tourSteps';
 
 // Struct for Daily 2-3 Python Topics
 interface PythonTopic {
@@ -628,11 +629,22 @@ export function DashboardScreen() {
     return 'Good Evening';
   };
 
-  const [runTour, setRunTour] = useState(true);
+  const { setSidebarOpen } = useNav();
+
+  const handleDashboardStepChange = (index: number, type: string) => {
+    // Open sidebar for step 0, close for others
+    setSidebarOpen(index === 0);
+    // Auto-open the profile dropdown for step 12 (the final Profile Menu step)
+    if (index === 12) {
+      setTimeout(() => window.dispatchEvent(new Event('tour:openProfile')), 100);
+    } else {
+      setTimeout(() => window.dispatchEvent(new Event('tour:closeProfile')), 100);
+    }
+  };
 
   return (
-    <div className="font-sans animate-fade-in space-y-6 relative">
-      <OnboardingTour run={runTour} onFinish={() => setRunTour(false)} />
+    <div className="font-sans space-y-6">
+      <OnboardingTour tourId="dashboard" steps={dashboardSteps} onStepChange={handleDashboardStepChange} />
 
       {/* Greeting Header */}
       <div className="flex items-center gap-2 px-1">
@@ -846,6 +858,7 @@ export function DashboardScreen() {
                 {liveClasses.filter(c => c.status === 'ongoing' || c.status === 'upcoming').slice(0, 2).map((cls, idx) => (
                   <div 
                     key={cls.id}
+                    id={`tour-class-card-${idx}`}
                     onClick={() => navigate(cls.status === 'ongoing' ? 'classroom' : 'live', cls.status === 'ongoing' ? { id: cls.id } : { tab: 'upcoming' })}
                     className={cn(
                       "p-5 rounded-[1.5rem] bg-white shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden",
@@ -901,6 +914,7 @@ export function DashboardScreen() {
           
           {/* Live Classes Card */}
           <div 
+            id="tour-stat-card-0"
             onClick={() => navigate('live')}
             className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:border-purple-200 hover:shadow-md transition-all flex items-center justify-between cursor-pointer group relative overflow-hidden"
           >
@@ -927,7 +941,7 @@ export function DashboardScreen() {
           </div>
 
           {/* Card 1: Overall Progress Bar */}
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all space-y-3">
+          <div id="tour-stat-card-1" className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all space-y-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
                 <Award className="w-5 h-5" />
@@ -943,7 +957,7 @@ export function DashboardScreen() {
           </div>
 
           {/* Card 2: Modules Finished */}
-          <div className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-4">
+          <div id="tour-stat-card-2" className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-4">
             <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
               <CheckCircle2 className="w-5 h-5" />
             </div>
@@ -955,6 +969,7 @@ export function DashboardScreen() {
 
           {/* Card 3: Schedule Tab Quick Access */}
           <div 
+            id="tour-stat-card-3"
             onClick={() => navigate('schedule')}
             className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:border-purple-200 hover:shadow-md transition-all flex items-center justify-between cursor-pointer group relative overflow-hidden"
           >

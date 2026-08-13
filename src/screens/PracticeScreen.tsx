@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock } from 'lucide-react';
 import { practiceProblems } from '@/data/mock';
+
+import { practiceSteps } from '@/lib/tourSteps';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -70,7 +72,8 @@ export function PracticeScreen() {
 
   return (
     <div className="space-y-6">
-      <div>
+
+      <div id="tour-practice-header">
         <h2 className="font-display font-bold text-2xl text-ink-900">Practice Lab</h2>
         <p className="text-ink-500 text-sm mt-1">Sharpen your skills with coding problems and challenges</p>
       </div>
@@ -95,20 +98,22 @@ export function PracticeScreen() {
         ))}
       </div>
 
-      <Tabs
-        variant="pills"
-        tabs={[
-          { id: 'problems', label: 'Coding Problems' },
-          { id: 'history', label: 'Completed & Submitted' },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
+      <div id="tour-practice-tabs">
+        <Tabs
+          variant="pills"
+          tabs={[
+            { id: 'problems', label: 'Coding Problems' },
+            { id: 'history', label: 'Completed & Submitted' },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
+      </div>
 
       {/* ── Problems Tab ── */}
       {tab === 'problems' && (
         <div className="space-y-4">
-          <div className="flex gap-2">
+          <div id="tour-practice-difficulty" className="flex gap-2">
             {['all', 'Easy', 'Medium', 'Hard'].map((d) => (
               <button
                 key={d}
@@ -138,8 +143,8 @@ export function PracticeScreen() {
           ) : (
             <Card className="border border-slate-200/90 shadow-sm overflow-hidden bg-white rounded-2xl">
               <div className="divide-y divide-slate-100">
-                {filtered.slice(0, 3).map((p) => (
-                  <div key={p.id} className="flex items-center gap-4 p-4 transition-colors group cursor-not-allowed grayscale-[0.2] opacity-60 bg-slate-50">
+                {filtered.slice(0, 3).map((p, index) => (
+                  <div key={p.id} id={index === 0 ? 'tour-practice-card-0' : undefined} className="flex items-center gap-4 p-4 transition-colors group cursor-not-allowed grayscale-[0.2] opacity-60 bg-slate-50">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border bg-slate-100 text-slate-400 border-slate-200">
                       <Code2 className="w-5 h-5 text-slate-400" />
                     </div>

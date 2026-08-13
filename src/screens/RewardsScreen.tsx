@@ -8,6 +8,8 @@ import { Toast } from '@/components/ui/Toast';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
+
+import { rewardsSteps } from '@/lib/tourSteps';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import aspireBackpackImg from '@/assests/media_1786109472875.jpg';
 
@@ -150,13 +152,14 @@ export function RewardsScreen() {
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
+
       
       {toastMessage && (
         <Toast message={toastMessage} onClose={() => setToastMessage(null)} position="top-right" />
       )}
 
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-[2rem] bg-white border border-slate-200/90 shadow-xs">
+      <div id="tour-rewards-header" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-[2rem] bg-white border border-slate-200/90 shadow-xs">
         <div>
           <span className="inline-block px-3 py-1 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider mb-2">
             STUDENT MERCHANDISE & SWAG STORE
@@ -169,7 +172,7 @@ export function RewardsScreen() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
+        <div id="tour-rewards-balance" className="flex items-center gap-3 shrink-0">
           <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white font-black text-xs shadow-md flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-white" />
             <span>0 Total Student XP</span>
@@ -207,13 +210,14 @@ export function RewardsScreen() {
 
       {/* ════════ PRODUCTS REWARDS GRID ════════ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {rewardsState.map((reward) => {
+        {rewardsState.map((reward, index) => {
           const progressPercent = Math.round((reward.currentXp / reward.requiredXp) * 100);
           const isClaimed = claimedId === reward.id;
 
           return (
             <Card
               key={reward.id}
+              id={index === 0 ? 'tour-rewards-card-0' : undefined}
               className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]"
             >
               

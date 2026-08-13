@@ -1,4 +1,6 @@
 import { useState } from 'react';
+
+import { liveClassesSteps } from '@/lib/tourSteps';
 import { 
   Radio, Calendar, Users, Play, Pause, ArrowRight, ChevronRight, Clock, Video, MessageCircle, 
   FileText, Hand, Users2, BarChart3, Download, Mic, MicOff, VideoOff, 
@@ -60,7 +62,8 @@ export function LiveClassesScreen() {
 
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12 relative">
-      <div className="flex items-center justify-between pb-2">
+
+      <div id="tour-live-header" className="flex items-center justify-between pb-2">
         <div>
           <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">Live Classes</h2>
           <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Join live sessions and watch recorded lectures.</p>
@@ -68,6 +71,7 @@ export function LiveClassesScreen() {
       </div>
 
       <Tabs
+        id="tour-live-tabs"
         variant="pills"
         tabs={[
           { id: 'upcoming', label: 'Upcoming & Live', badge: liveClasses.filter(c => c.status === 'ongoing').length },
@@ -91,10 +95,10 @@ export function LiveClassesScreen() {
             </div>
           </div>
         ) : (
-          displayList.map((cls) => {
+          displayList.map((cls, index) => {
             const isReminderSet = reminders[cls.id];
             return (
-              <Card key={cls.id} className="relative overflow-hidden group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white">
+              <Card key={cls.id} id={index === 0 ? 'tour-live-card-0' : undefined} className="relative overflow-hidden group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white">
                 {cls.status === 'completed' && (
                   <div 
                     onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}

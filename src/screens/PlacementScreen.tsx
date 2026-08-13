@@ -10,6 +10,8 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Toast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 
+import { placementSteps } from '@/lib/tourSteps';
+
 function TechStackSvg({ name, className = "w-4 h-4" }: { name: string; className?: string }) {
   const n = name.toLowerCase();
 
@@ -164,13 +166,14 @@ export function PlacementScreen() {
 
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12">
+
       
       {toastMessage && (
         <Toast message={toastMessage} onClose={() => setToastMessage(null)} position="top-right" />
       )}
 
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-[2rem] bg-white border border-slate-200/90 shadow-xs">
+      <div id="tour-placement-header" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-[2rem] bg-white border border-slate-200/90 shadow-xs">
         <div>
           <span className="inline-block px-3 py-1 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider mb-2">
             CAREER & PLACEMENT PORTAL
@@ -184,6 +187,7 @@ export function PlacementScreen() {
         </div>
 
         <SearchInput
+          id="tour-placement-search"
           value={searchQuery}
           onChange={setSearchQuery}
           placeholder="Search jobs, roles, location..."
@@ -245,6 +249,7 @@ export function PlacementScreen() {
       {/* Filter Tabs Row (4 Tabs: Open, Applied, Closed, All) */}
       <div className="border-b border-slate-200/80 pb-3">
         <Tabs
+          id="tour-placement-tabs"
           variant="pills"
           tabs={[
             { id: 'open', label: `Open Jobs (${openCount})` },
@@ -262,7 +267,7 @@ export function PlacementScreen() {
       <div>
         {filteredJobs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
-            {filteredJobs.map((job) => {
+            {filteredJobs.map((job, index) => {
               const isOpen = job.status === 'open';
               const isApplied = job.status === 'applied';
               const isClosed = job.status === 'closed';
@@ -270,6 +275,7 @@ export function PlacementScreen() {
               return (
                 <Card
                   key={job.id}
+                  id={index === 0 ? 'tour-placement-card-0' : undefined}
                   className="group p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm hover:shadow-xl hover:border-purple-200 transition-all duration-300 flex flex-col justify-between h-full cursor-pointer"
                   onClick={() => setSelectedJob(job)}
                 >

@@ -17,6 +17,8 @@ import { cn } from '@/lib/utils';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 
+import { projectsSteps } from '@/lib/tourSteps';
+
 const SKIP_DIRS = ['node_modules', '.git', '.next', 'dist', 'build', '__pycache__', '.DS_Store', 'venv', '.venv'];
 const SINGLE_FILE_EXTS = ['.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c', '.cs', '.go', '.rb', '.php', '.kt', '.swift', '.rs', '.html', '.css', '.txt', '.md'];
 
@@ -666,6 +668,7 @@ export function ProjectsScreen() {
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
+
       {showExplorer && explorerUrl && (
         <FileExplorerViewer
           storageUrl={explorerUrl}
@@ -674,7 +677,7 @@ export function ProjectsScreen() {
       )}
       
       {/* Header */}
-      <div className="pb-2">
+      <div className="pb-2" id="tour-projects-header">
         <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
           Projects Workflow
         </h2>
@@ -686,7 +689,7 @@ export function ProjectsScreen() {
 
 
       {/* ════════ 1. TOP-LEVEL CATEGORY TABS ════════ */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-slate-200">
+      <div id="tour-projects-filters" className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none border-b border-slate-200">
         {[
           { id: 'mini', label: 'Mini Projects' },
           { id: 'major', label: 'Major Projects' },
@@ -736,9 +739,10 @@ export function ProjectsScreen() {
                 </Card>
               </div>
             ) : (
-              filtered.map((p) => (
+              filtered.map((p, index) => (
                 <Card 
                   key={p.id} 
+                  id={index === 0 ? 'tour-projects-card-0' : undefined}
                   className="group p-6 cursor-not-allowed rounded-[2rem] border border-slate-200/90 bg-white shadow-sm flex flex-col justify-between relative overflow-hidden"
                 >
                   <LockedOverlay title={p.title} type="LOCKED PROJECT" />

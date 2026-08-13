@@ -5,6 +5,8 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
 
+import { scheduleSteps } from '@/lib/tourSteps';
+
 const typeConfig: Record<string, { color: string; icon: any; label: string }> = {
   class: { color: 'teal', icon: Radio, label: 'Live Class' },
   assignment: { color: 'amber', icon: FileText, label: 'Assignment' },
@@ -149,7 +151,8 @@ export function ScheduleScreen() {
 
   return (
     <div className="space-y-6 font-sans animate-fade-in">
-      <div className="flex flex-col gap-5 lg:flex-row lg:items-end justify-between p-6 rounded-[2rem] bg-gradient-to-r from-slate-950 via-[#1e3a8a] to-[#2563eb] text-white shadow-xl border border-white/10">
+
+      <div id="tour-schedule-header" className="flex flex-col gap-5 lg:flex-row lg:items-end justify-between p-6 rounded-[2rem] bg-gradient-to-r from-slate-950 via-[#1e3a8a] to-[#2563eb] text-white shadow-xl border border-white/10">
         <div className="max-w-2xl">
           <span className="inline-flex items-center rounded-full bg-white/10 px-3 py-1 text-xs uppercase tracking-[0.28em] text-slate-200">
             Smart Schedule
@@ -180,7 +183,7 @@ export function ScheduleScreen() {
 
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-5">
-          <Card className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
+          <Card id="tour-schedule-calendar" className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
             <CardBody className="p-5">
               <div className="flex items-center justify-between mb-5">
                 <div>
@@ -252,7 +255,7 @@ export function ScheduleScreen() {
             </CardBody>
           </Card>
 
-          <Card className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
+          <Card id="tour-schedule-filters" className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
             <CardBody className="p-5">
               <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Today summary</p>
               <div className="mt-4 grid gap-3">
@@ -353,7 +356,7 @@ export function ScheduleScreen() {
             </Card>
           )}
 
-          <Card className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
+          <Card id="tour-schedule-timeline" className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
             <CardBody className="p-5 space-y-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>

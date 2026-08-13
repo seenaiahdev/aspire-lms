@@ -1,4 +1,6 @@
 import { useState } from 'react';
+
+import { resourcesSteps } from '@/lib/tourSteps';
 import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle, Lock } from 'lucide-react';
 import { resources as initialResources } from '@/data/mock';
 import { Card } from '@/components/ui/Card';
@@ -62,6 +64,7 @@ export function ResourcesScreen() {
 
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12">
+
       {toastMessage && (
         <Toast
           message={toastMessage}
@@ -71,7 +74,7 @@ export function ResourcesScreen() {
       )}
 
       {/* Clean Top Header */}
-      <div className="pb-2">
+      <div id="tour-resources-header" className="pb-2">
         <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
           Resources
         </h2>
@@ -81,13 +84,14 @@ export function ResourcesScreen() {
       </div>
 
       <SearchInput
+        id="tour-resources-search"
         value={search}
         onChange={setSearch}
         placeholder="Search resources by title or category..."
         className="w-full sm:max-w-md"
       />
 
-      <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
+      <div id="tour-resources-filters" className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
         {['all', 'pdf', 'notes', 'cheatsheet', 'roadmap', 'template'].map((t) => (
           <button
             key={t}
@@ -105,12 +109,13 @@ export function ResourcesScreen() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((r) => {
+        {filtered.map((r, index) => {
           const Icon = typeIcons[r.type] || FileText;
           const color = typeColors[r.type] || typeColors.notes;
           return (
             <Card
               key={r.id}
+              id={index === 0 ? 'tour-resources-card-0' : undefined}
               className="p-5 group border border-slate-200/90 shadow-sm bg-white flex flex-col justify-between relative overflow-hidden cursor-not-allowed"
             >
               <LockedOverlay title={r.title} type="LOCKED RESOURCE" />

@@ -12,6 +12,8 @@ import { Modal } from '@/components/ui/Modal';
 import { QuizzesScreen } from '@/screens/QuizzesScreen';
 import { cn } from '@/lib/utils';
 
+import { assignmentsSteps } from '@/lib/tourSteps';
+
 // Struct for MCQ Questions
 interface MCQQuestion {
   id: number;
@@ -1008,10 +1010,11 @@ export function AssignmentsScreen() {
   // ════════════════ 3. MAIN ASSIGNMENTS & PRACTICE HUB (CARDS GRID) ════════════════
   return (
     <div className="space-y-6 font-sans animate-fade-in">
+
       
       {/* Clean Top Header */}
       <div className="space-y-4">
-        <div>
+        <div id="tour-assignments-header">
           <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
             Practice Hub
           </h2>
@@ -1021,7 +1024,7 @@ export function AssignmentsScreen() {
         </div>
 
         {/* 2 MAIN TABS: ASSESSMENTS | QUIZZES (ALIGNED LEFT AT START) */}
-        <div className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 w-fit">
+        <div id="tour-assignments-tabs" className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 w-fit">
           <button
             type="button"
             onClick={() => setMainPracticeTab('assessments')}
@@ -1053,7 +1056,7 @@ export function AssignmentsScreen() {
       ) : (
         <>
           {/* Sub-Filter Tabs for Assessments */}
-          <div className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-md">
+          <div id="tour-assignments-filters" className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-md">
             {[
               { id: 'all', label: 'All Assessments' },
               { id: 'pending', label: 'Pending' },
@@ -1076,10 +1079,11 @@ export function AssignmentsScreen() {
 
           {/* Tasks List Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredTasks.map((task) => {
+            {filteredTasks.map((task, index) => {
               const isLocked = task.status === 'locked';
               return (
                 <Card
+                  id={index === 0 ? 'tour-assignments-card-0' : undefined}
                   key={task.id}
                   hover={!isLocked}
                   onClick={() => !isLocked && openDetailTaskWithRoute(task)}

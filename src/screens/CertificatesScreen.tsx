@@ -10,6 +10,8 @@ import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 
+import { certificationsSteps } from '@/lib/tourSteps';
+
 export interface CourseCertificate {
   id: string;
   courseTitle: string;
@@ -152,13 +154,14 @@ export function CertificatesScreen() {
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
+
       
       {toastMessage && (
         <Toast message={toastMessage} onClose={() => setToastMessage(null)} position="top-right" />
       )}
 
       {/* Clean Top Header */}
-      <div className="pb-2">
+      <div id="tour-certs-header" className="pb-2">
         <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
           AspireNext Course Certificates
         </h2>
@@ -208,12 +211,13 @@ export function CertificatesScreen() {
 
       {/* ════════ CERTIFICATE CARDS GRID (EXACTLY 6 CARDS MATCHING MY LEARNING) ════════ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {certs.map((cert) => {
+        {certs.map((cert, index) => {
           const isUnlocked = cert.progress >= 100;
 
           return (
             <Card
               key={cert.id}
+              id={index === 0 ? 'tour-certs-card-0' : undefined}
               className={cn(
                 "relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]",
                 cert.id === 'c1' ? "hover:shadow-xl cursor-pointer" : ""

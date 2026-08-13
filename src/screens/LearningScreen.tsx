@@ -11,6 +11,8 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 
+import { learningSteps } from '@/lib/tourSteps';
+
 export interface LearningItem {
   id: string;
   category: 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin';
@@ -191,10 +193,11 @@ export function LearningScreen() {
   });
 
   return (
-    <div className="space-y-6 font-sans animate-fade-in pb-12">
+    <div className="space-y-6 font-sans pb-12">
+
       
       {/* Clean Top Header */}
-      <div className="pb-2">
+      <div id="tour-learning-header" className="pb-2">
         <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
           {route === 'milestones' ? 'Milestones Roadmap' : 'My Learning'}
         </h2>
@@ -440,7 +443,7 @@ export function LearningScreen() {
         <div className="space-y-6 animate-fade-in">
           
           {/* CATEGORY PILL TABS BAR */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200/80">
+          <div id="tour-learning-filters" className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200/80">
             {[
               { id: 'all', label: 'All' },
               { id: 'courses', label: 'Courses' },
@@ -470,7 +473,9 @@ export function LearningScreen() {
 
           {/* SEARCH & VIEW SWITCHER ROW */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <SearchInput value={search} onChange={setSearch} placeholder="Search learning modules..." className="w-full sm:w-80" />
+            <div id="tour-learning-search" className="w-full sm:w-80">
+              <SearchInput value={search} onChange={setSearch} placeholder="Search learning modules..." className="w-full" />
+            </div>
             
             <div className="flex items-center gap-3">
               <span className="text-xs font-bold text-slate-500">
@@ -490,7 +495,7 @@ export function LearningScreen() {
 
           {/* CARDS GRID / LIST */}
           <div className={cn("grid gap-6", view === 'grid' ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3" : "grid-cols-1")}>
-            {filteredItems.map((item) => {
+            {filteredItems.map((item, index) => {
               const levelBg = item.level === 'Beginner' ? 'bg-[#f0fdf4] text-[#15803d] border-emerald-200/80' :
                               item.level === 'Intermediate' ? 'bg-[#fffbeb] text-[#b45309] border-amber-200/80' :
                               'bg-[#fff1f2] text-[#be123c] border-rose-200/80';
@@ -500,6 +505,7 @@ export function LearningScreen() {
               return (
                 <div
                   key={item.id}
+                  id={index === 0 ? 'tour-learning-course-0' : undefined}
                   onClick={() => {
                     if (isLocked) return;
                     if (item.targetRoute) navigate(item.targetRoute as any, { id: item.id });
