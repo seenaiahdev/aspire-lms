@@ -42,16 +42,8 @@ export function ResourcesScreen() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const handleDownload = (id: string, title: string) => {
-    // 1. Trigger actual browser file download
-    triggerFileDownload(title, id);
-
-    // 2. Increment download count in local state
-    setResourcesList((prev) =>
-      prev.map((r) => (r.id === id ? { ...r, downloads: r.downloads + 1 } : r))
-    );
-
-    // 3. Show success toast notification
-    setToastMessage(`Downloading "${title}"... Check your downloads folder.`);
+    setToastMessage(`🔒 Locked: "${title}" will be available when you reach this module.`);
+    setTimeout(() => setToastMessage(null), 3000);
   };
 
   const filtered = resourcesList.filter((r) => {
@@ -116,9 +108,9 @@ export function ResourcesScreen() {
             <Card
               key={r.id}
               id={index === 0 ? 'tour-resources-card-0' : undefined}
-              className="p-5 group border border-slate-200/90 shadow-sm bg-white flex flex-col justify-between relative overflow-hidden cursor-not-allowed"
+              onClick={() => handleDownload(r.id, r.title)}
+              className="p-5 group border border-slate-200/90 shadow-sm bg-white flex flex-col justify-between relative overflow-hidden cursor-not-allowed opacity-90 grayscale-[15%]"
             >
-              <LockedOverlay title={r.title} type="LOCKED RESOURCE" />
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div
@@ -157,10 +149,13 @@ export function ResourcesScreen() {
 
                 <button
                   type="button"
-                  onClick={() => handleDownload(r.id, r.title)}
-                  className="w-full py-2.5 rounded-xl bg-slate-50 hover:bg-primary-50 hover:text-primary-600 text-slate-700 text-xs font-extrabold transition-all flex items-center justify-center gap-2 border border-slate-200 hover:border-primary-200 active:scale-[0.98]"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload(r.id, r.title);
+                  }}
+                  className="w-full py-2.5 rounded-xl bg-slate-200/50 text-slate-500 font-extrabold text-xs flex items-center justify-center gap-2 cursor-not-allowed"
                 >
-                  <Download className="w-4 h-4 text-primary-600" /> Download Resource
+                  <Lock className="w-4 h-4" /> Coming Soon
                 </button>
               </div>
             </Card>

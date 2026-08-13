@@ -6,7 +6,8 @@ import {
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { currentUser, liveClasses } from '@/data/mock';
+import { liveClasses } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { cn } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
@@ -245,6 +246,7 @@ const getDefaultTopicsForDate = (dayNum: number): PythonTopic[] => {
 };
 
 export function DashboardScreen() {
+  const { user: currentUser } = useUser();
   const { navigate } = useNav();
 
   // Real-time System Today Date

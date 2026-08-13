@@ -183,6 +183,7 @@ export function LearningScreen() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<any | null>(null);
   const [expandedModule, setExpandedModule] = useState<number | null>(0);
+  const [lockedToast, setLockedToast] = useState(false);
 
   const filteredItems = learningItems.filter((item) => {
     const matchesTab = activeTab === 'all' || item.category === activeTab;
@@ -507,42 +508,28 @@ export function LearningScreen() {
                   key={item.id}
                   id={index === 0 ? 'tour-learning-course-0' : undefined}
                   onClick={() => {
-                    if (isLocked) return;
+                    if (isLocked) {
+                      setLockedToast(true);
+                      setTimeout(() => setLockedToast(false), 3000);
+                      return;
+                    }
                     if (item.targetRoute) navigate(item.targetRoute as any, { id: item.id });
                   }}
                   className={cn(
                     "relative overflow-hidden rounded-[1.8rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 group flex justify-between",
                     view === 'grid' ? "flex-col" : "flex-col sm:flex-row items-stretch h-auto sm:h-52",
-                    isLocked ? "cursor-not-allowed" : "cursor-pointer"
+                    isLocked ? "cursor-not-allowed opacity-90 grayscale-[15%]" : "cursor-pointer"
                   )}
                 >
-                  {isLocked && (
-                    <div 
-                      onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                      className="absolute inset-0 bg-[#090b14]/75 backdrop-blur-md z-20 flex flex-col items-center justify-center select-none cursor-not-allowed rounded-[1.8rem] p-4 text-center"
-                    >
-                      <div className="space-y-3">
-                        <div className="w-14 h-14 rounded-full border border-slate-700/80 bg-[#0c0f1d] flex items-center justify-center shadow-2xl mx-auto">
-                          <Lock className="w-5 h-5 text-slate-400 stroke-[1.8]" />
-                        </div>
-                        <div className="inline-block px-3.5 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-200 text-[10px] font-black uppercase tracking-widest">
-                          COMING SOON
-                        </div>
-                      </div>
-                    </div>
-                  )}
                   {/* Thumbnail Banner */}
                   <div className={cn("relative overflow-hidden shrink-0 bg-slate-900", view === 'grid' ? "h-48 w-full" : "h-48 sm:h-full w-full sm:w-72")}>
                     <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />
                     <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                     
-                    {/* Category & Level Badges */}
-                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between gap-2 z-10">
+                    {/* Category Badges */}
+                    <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
                       <span className="px-3 py-1 rounded-full bg-white/95 backdrop-blur-md text-slate-900 text-xs font-extrabold shadow-sm border border-slate-200/60">
                         {item.categoryLabel}
-                      </span>
-                      <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider shadow-sm border ${levelBg}`}>
-                        {item.level}
                       </span>
                     </div>
 
@@ -584,8 +571,8 @@ export function LearningScreen() {
                         <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5 text-slate-400" />{item.lessonsCount} lessons</span>
                       </div>
 
-                      <span className="text-xs font-extrabold text-[#7c3aed] group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
-                        {item.actionText} →
+                      <span className={cn("text-xs font-extrabold transition-transform flex items-center gap-1", isLocked ? "text-slate-400" : "text-[#7c3aed] group-hover:translate-x-0.5")}>
+                        {isLocked ? <><Lock className="w-3.5 h-3.5 mb-0.5"/> Coming Soon</> : <>{item.actionText} →</>}
                       </span>
                     </div>
                   </div>
@@ -765,6 +752,21 @@ export function LearningScreen() {
           document.body
         );
       })()}
+
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">This module is currently locked.</p>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { User, Bell, Palette, Shield, Link2, Check, Camera, Github, Linkedin, Globe } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
-import { currentUser } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { cn } from '@/lib/utils';
 
 export function SettingsScreen() {
+  const { user: currentUser, updateUser } = useUser();
   const [section, setSection] = useState('profile');
   const [theme, setTheme] = useState('light');
   const [notifications, setNotifications] = useState({
@@ -28,11 +29,13 @@ export function SettingsScreen() {
   });
 
   const handleSaveProfile = () => {
-    currentUser.name = profileForm.name;
-    currentUser.email = profileForm.email;
-    currentUser.program = profileForm.program;
-    currentUser.semester = profileForm.semester;
-    currentUser.bio = profileForm.bio;
+    updateUser({
+      name: profileForm.name,
+      email: profileForm.email,
+      program: profileForm.program,
+      semester: profileForm.semester,
+      bio: profileForm.bio,
+    });
     
     setToastMessage('Profile details updated successfully.');
     setTimeout(() => setToastMessage(null), 3000);

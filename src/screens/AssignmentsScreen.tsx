@@ -199,6 +199,7 @@ const ConfettiBurst = () => {
 export function AssignmentsScreen() {
   const { navigate } = useNav();
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
+  const [lockedToast, setLockedToast] = useState(false);
   const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'completed'>('all');
 
   // Currently Selected Task for Pre-Start Quiz Details Modal
@@ -1078,21 +1079,36 @@ export function AssignmentsScreen() {
           </div>
 
           {/* Tasks List Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredTasks.map((task, index) => {
+          {filteredTasks.length === 0 ? (
+            <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
+                <CheckCircle2 className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No Assessments Found</h3>
+              <p className="text-sm font-medium text-slate-500">You don't have any {filterTab} assessments at the moment.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {filteredTasks.map((task, index) => {
               const isLocked = task.status === 'locked';
               return (
                 <Card
                   id={index === 0 ? 'tour-assignments-card-0' : undefined}
                   key={task.id}
                   hover={!isLocked}
-                  onClick={() => !isLocked && openDetailTaskWithRoute(task)}
+                  onClick={() => {
+                    if (isLocked) {
+                      setLockedToast(true);
+                      setTimeout(() => setLockedToast(false), 3000);
+                      return;
+                    }
+                    openDetailTaskWithRoute(task);
+                  }}
                   className={cn(
-                    "p-5 rounded-3xl border shadow-2xs transition-all duration-300 relative overflow-hidden bg-white border-slate-200/90 hover:shadow-md hover:border-primary-500 group",
-                    isLocked ? "cursor-not-allowed" : "cursor-pointer"
+                    "p-5 rounded-3xl border shadow-2xs transition-all duration-300 relative overflow-hidden bg-white border-slate-200/90 group",
+                    isLocked ? "cursor-not-allowed opacity-90 grayscale-[15%] bg-slate-50" : "cursor-pointer hover:shadow-md hover:border-primary-500"
                   )}
                 >
-                  {isLocked && <LockedOverlay title={task.title} type="LOCKED ASSESSMENT" />}
                   <div className="flex items-start justify-between gap-3 mb-3">
                     <div className="flex items-center gap-2">
                       <span className={cn(
@@ -1135,16 +1151,41 @@ export function AssignmentsScreen() {
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1 font-bold transition-transform text-[#3b52a4] group-hover:translate-x-1">
-                      <span>View Assessment Details</span>
-                      <ArrowRight className="w-4 h-4" />
+                    <div className={cn("flex items-center gap-1 font-bold transition-transform", isLocked ? "text-slate-400" : "text-[#3b52a4] group-hover:translate-x-1")}>
+                      {isLocked ? (
+                        <>
+                          <Lock className="w-3.5 h-3.5 mb-0.5" />
+                          <span>Coming Soon</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>View Assessment Details</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
                     </div>
                   </div>
                 </Card>
               );
             })}
-          </div>
+            </div>
+          )}
         </>
+      )}
+
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">This assessment is currently locked.</p>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

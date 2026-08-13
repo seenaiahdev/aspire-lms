@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock } from 'lucide-react';
+import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar } from 'lucide-react';
 import { quizzes, leaderboard } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -16,6 +16,7 @@ import { LockedOverlay } from '@/components/ui/LockedOverlay';
 export function QuizzesScreen() {
   const { navigate } = useNav();
   const [tab, setTab] = useState('upcoming');
+  const [lockedToast, setLockedToast] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<any>(() => {
     try {
       const saved = localStorage.getItem('preExamQuiz');
@@ -122,41 +123,75 @@ export function QuizzesScreen() {
 
       {tab === 'upcoming' && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {quizzes.filter(q => q.status === 'upcoming').map((q) => (
-            <Card key={q.id} className="p-6 bg-white border border-slate-200/90 rounded-[2rem] flex flex-col justify-between relative overflow-hidden cursor-not-allowed">
-              <LockedOverlay title={q.title} type="LOCKED QUIZ" />
-              <div>
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3.5">
-                    <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0">
-                      <ClipboardCheck className="w-6 h-6 text-slate-400" />
-                    </div>
-                    <div>
-                      <h3 className="font-extrabold text-slate-900 text-lg leading-snug">{q.title}</h3>
-                      <p className="text-xs font-bold text-slate-500 mt-0.5">{q.course}</p>
+          {quizzes.filter(q => q.status === 'upcoming').map((q) => {
+            const isLocked = true; // All upcoming quizzes are locked for now
+            return (
+              <Card 
+                key={q.id} 
+                onClick={() => {
+                  if (isLocked) {
+                    setLockedToast(true);
+                    setTimeout(() => setLockedToast(false), 3000);
+                    return;
+                  }
+                  // setSelectedQuiz(q)
+                }}
+                className={cn(
+                  "p-6 bg-white border border-slate-200/60 rounded-[2rem] flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all duration-300",
+                  isLocked ? "cursor-not-allowed opacity-90 grayscale-[15%] bg-slate-50/50 hover:border-slate-300" : "cursor-pointer hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-300"
+                )}
+              >
+                <div>
+                  <div className="flex items-start justify-between mb-5">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center border border-indigo-100/50 shadow-sm shrink-0">
+                        <ClipboardCheck className="w-6 h-6 text-indigo-600" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-[17px] leading-snug mb-1 group-hover:text-indigo-700 transition-colors">{q.title}</h3>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-500">{q.course}</span>
+                          <span className="w-1 h-1 rounded-full bg-slate-300" />
+                          <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <DifficultyBadge difficulty={q.difficulty} />
+                  
+                  <div className="flex items-center gap-5 text-[13px] font-semibold text-slate-500 mb-6 pt-5 border-t border-slate-100">
+                    <span className="flex items-center gap-1.5"><Compass className="w-4 h-4 text-indigo-400" />{q.questions} questions</span>
+                    <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-emerald-500" />{q.duration}</span>
+                    <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-rose-400" />Due {q.dueDate}</span>
+                  </div>
                 </div>
-                
-                <div className="flex items-center gap-3 text-xs font-semibold text-slate-500 mb-6 p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <span className="flex items-center gap-1.5"><Compass className="w-4 h-4 text-slate-400" />{q.questions} questions</span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-slate-400" />{q.duration}</span>
-                  <span>•</span>
-                  <span>Due {q.dueDate}</span>
-                </div>
-              </div>
 
-              <button 
-                disabled
-                className="w-full py-3 px-4 rounded-2xl bg-slate-200 text-slate-500 font-extrabold text-xs flex items-center justify-center gap-2 cursor-not-allowed"
-              >
-                <Lock className="w-4 h-4 fill-current" />
-                <span>Locked</span>
-              </button>
-            </Card>
-          ))}
+                <button 
+                  onClick={(e) => {
+                    if (isLocked) {
+                      e.stopPropagation();
+                      setLockedToast(true);
+                      setTimeout(() => setLockedToast(false), 3000);
+                    }
+                  }}
+                  className={cn(
+                    "w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border",
+                    isLocked 
+                      ? "bg-slate-50 border-slate-200 text-slate-400 cursor-not-allowed group-hover:bg-white group-hover:shadow-sm" 
+                      : "bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20"
+                  )}
+                >
+                  {isLocked ? (
+                    <>
+                      <Lock className="w-4 h-4 mb-0.5" />
+                      <span>Coming Soon</span>
+                    </>
+                  ) : (
+                    <span>Start Quiz</span>
+                  )}
+                </button>
+              </Card>
+            )
+          })}
         </div>
       )}
 
@@ -512,6 +547,22 @@ export function QuizzesScreen() {
         </div>,
         document.body
       )}
+
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">This quiz is currently locked.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { NavProvider, useNav } from '@/lib/nav';
 import { TourProvider } from '@/lib/TourContext';
+import { UserProvider } from '@/lib/UserContext';
 import { AppShell } from '@/components/layout/AppShell';
 
 import { SplashScreen } from '@/screens/auth/SplashScreen';
@@ -84,9 +85,11 @@ function Router() {
 function App() {
   return (
     <NavProvider>
-      <TourProvider>
-        <Router />
-      </TourProvider>
+      <UserProvider>
+        <TourProvider>
+          <Router />
+        </TourProvider>
+      </UserProvider>
     </NavProvider>
   );
 }

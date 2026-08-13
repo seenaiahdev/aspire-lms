@@ -135,7 +135,7 @@ function TechStackSvg({ name, className = "w-4 h-4" }: { name: string; className
 export function PlacementScreen() {
   const [activeFilter, setActiveFilter] = useState<'open' | 'applied' | 'closed' | 'all'>('open');
   const [searchQuery, setSearchQuery] = useState('');
-  const [jobsList, setJobsList] = useState<typeof jobOpportunities>([]);
+  const [jobsList, setJobsList] = useState<typeof jobOpportunities>(jobOpportunities);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -276,8 +276,11 @@ export function PlacementScreen() {
                 <Card
                   key={job.id}
                   id={index === 0 ? 'tour-placement-card-0' : undefined}
-                  className="group p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm hover:shadow-xl hover:border-purple-200 transition-all duration-300 flex flex-col justify-between h-full cursor-pointer"
-                  onClick={() => setSelectedJob(job)}
+                  className="group p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm flex flex-col justify-between h-full cursor-not-allowed opacity-90 grayscale-[15%]"
+                  onClick={() => {
+                    setToastMessage(`🔒 Locked: Job applications will unlock in Stage 4.`);
+                    setTimeout(() => setToastMessage(null), 3000);
+                  }}
                 >
                   {/* Top: Logo (Hover), Company, Status */}
                   <div>
@@ -294,8 +297,8 @@ export function PlacementScreen() {
                       </div>
                       
                       {isOpen && (
-                        <span className="px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-[10px] font-black uppercase tracking-wider border border-amber-100">
-                          Hiring in Progress
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider border border-emerald-100">
+                          Apply Now
                         </span>
                       )}
                       {isApplied && (
@@ -330,7 +333,7 @@ export function PlacementScreen() {
                       </div>
                       <div className="flex items-center gap-2">
                         <Calendar className="w-4 h-4 text-[#7c3aed] shrink-0" />
-                        <span className="truncate">Apply by 2025-11-20</span>
+                        <span className="truncate">Apply by Sep 30, 2026</span>
                       </div>
                     </div>
                   </div>
@@ -340,12 +343,13 @@ export function PlacementScreen() {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        setSelectedJob(job);
+                        setToastMessage(`🔒 Locked: Job applications will unlock in Stage 4.`);
+                        setTimeout(() => setToastMessage(null), 3000);
                       }}
-                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-xs transition-all active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                      className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-200/50 text-slate-500 font-extrabold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-not-allowed"
                     >
-                      <span>View Details</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
+                      <Lock className="w-3.5 h-3.5" />
+                      <span>Apply Now</span>
                     </button>
                   </div>
                 </Card>
@@ -382,11 +386,11 @@ export function PlacementScreen() {
                     <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{selectedJob.company}</span>
                     <span className={cn(
                       "px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border",
-                      selectedJob.status === 'open' ? "bg-amber-50 text-amber-700 border-amber-100" :
+                      selectedJob.status === 'open' ? "bg-emerald-50 text-emerald-700 border-emerald-100" :
                       selectedJob.status === 'applied' ? "bg-purple-50 text-[#7c3aed] border-purple-100" :
                       "bg-rose-50 text-rose-600 border-rose-100"
                     )}>
-                      {selectedJob.status === 'open' ? 'Hiring in Progress' : selectedJob.status === 'applied' ? 'Applied' : 'Closed'}
+                      {selectedJob.status === 'open' ? 'Apply Now' : selectedJob.status === 'applied' ? 'Applied' : 'Closed'}
                     </span>
                   </div>
 

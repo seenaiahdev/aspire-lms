@@ -1,7 +1,7 @@
 import { GraduationCap, X, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { navItems, type Route } from '@/lib/routes';
 import { useNav } from '@/lib/nav';
-import { currentUser } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import * as Icons from 'lucide-react';
@@ -27,7 +27,8 @@ function MilestoneRoadmapIcon({ className = "w-5 h-5" }: { className?: string })
 }
 
 export function Sidebar() {
-  const { route, navigate, logout, sidebarOpen, setSidebarOpen } = useNav();
+  const { user: currentUser } = useUser();
+  const { sidebarOpen, setSidebarOpen, route, navigate, logout } = useNav();
 
   return (
     <>

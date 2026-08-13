@@ -1,0 +1,21 @@
+# Aspire LMS - Test Case Matrix
+
+| Test ID | Module | Test Scenario | Preconditions | Steps | Expected Result | Actual Result | Status | Severity | Evidence |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| **L001** | Login | Valid login credentials | User is on login page | 1. Enter any 10-digit number.<br>2. Click Login.<br>3. Enter any 4-digit OTP.<br>4. Click Verify. | User should successfully authenticate and reach the dashboard. | User successfully navigates to dashboard. | PASS | - | - |
+| **L002** | Login | Incorrect username/email | User is on login page | 1. Enter invalid/unregistered number.<br>2. Click Login. | Clear and useful error message indicating user not found. | Application accepts ANY 10-digit number and proceeds to OTP step. No backend validation occurs. | FAIL | High | Code Audit: `LoginScreen.tsx` |
+| **L003** | Login | Incorrect password (OTP) | User is at OTP step | 1. Enter incorrect OTP.<br>2. Click Verify. | Clear error message indicating invalid OTP. | Application accepts ANY 4-digit OTP and logs the user in. | FAIL | High | Code Audit: `LoginScreen.tsx` |
+| **L004** | Login | Both fields empty | User is on login page | 1. Leave mobile number empty.<br>2. Click Login. | Validation should prevent submission and explain required fields. | Form does not submit. Input is validated for length. | PASS | - | - |
+| **L012** | Login | Repeated login attempts | User is on login page | 1. Enter 10-digit number.<br>2. Rapidly click Login multiple times. | Only one request is sent. Button should disable. | Button disables (`isSubmitting` state) preventing duplicate submits. | PASS | - | - |
+| **L016** | General | Refresh page after login | User is logged in (dashboard) | 1. Press F5 / Refresh browser. | Application should remain logged in and stay on dashboard. | Application briefly loads `SplashScreen` then correctly redirects to the active route via `localStorage`. | PASS | - | - |
+| **L019** | Auth | Bypass Login Flow | User is NOT logged in | 1. Navigate directly to `/dashboard` in URL bar. | User should be redirected to login page. | `nav.tsx` correctly detects lack of `aspire_logged_in` in `localStorage` and redirects to login. | PASS | - | - |
+| **D001** | Dashboard | Verify Dashboard loads | User is on Dashboard | 1. Observe UI. | No broken images, missing text, or overlapping elements. | Dashboard loads with mocked data correctly. | PASS | - | - |
+| **N001** | Navigation | Sidebar Links | User is on Dashboard | 1. Click 'My Learning'. | Navigate to `/learning` | Navigates to `/learning` correctly. | PASS | - | - |
+| **C001** | Course | Verify Course Details | User is on `/course` | 1. Observe course title, description, modules. | Data displays correctly. | Data displays correctly using frontend mock data. | PASS | - | - |
+| **C002** | Course | Lesson Progression | User is on `/lesson` | 1. Click Next/Previous. | Navigates between lessons correctly. | Navigation relies on static routes and mock data. Works within the mock constraints. | PASS | - | - |
+| **C003** | Course | Progress Persistence | User has completed a lesson | 1. Complete lesson.<br>2. Refresh page. | Lesson remains completed. | Progress is NOT persisted because there is no backend integration. | BLOCKED | Medium | - |
+| **V001** | Video | Video Player Controls | User is on a lesson with video | 1. Play, pause, seek, volume. | Standard HTML5 video controls work as expected. | Video plays successfully from local assets. | PASS | - | - |
+| **Q001** | Quiz | Submit Quiz | User is on `/quizzes` | 1. Select options.<br>2. Click Submit. | Score is calculated and displayed. | Quiz functionality is fully mocked. No answers are actually saved to a database. | BLOCKED | Medium | - |
+| **R001** | Responsive | Mobile Viewport | Viewport set to 375x812 | 1. Open Dashboard.<br>2. Open Sidebar. | Layout adjusts. No horizontal scrolling. | Tailwind classes successfully adapt the layout. Sidebar uses a bottom nav or hamburger menu. | PASS | - | - |
+
+> **Note:** Many functional test cases (persistence, data validation, quiz grading, user specific profiles) are marked as **FAIL** or **BLOCKED** due to the application being a Frontend-Only static mockup using `localStorage` for state management and mocked static data for content.

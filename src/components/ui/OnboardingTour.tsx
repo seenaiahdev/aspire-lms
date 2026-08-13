@@ -20,6 +20,13 @@ export function OnboardingTour({ tourId, steps, onStepChange }: OnboardingTourPr
 
   const run = shouldRunTour(tourId);
 
+  // If the user navigates away (unmounting the tour), mark it complete so it doesn't keep coming back
+  useEffect(() => {
+    return () => {
+      markComplete(tourId);
+    };
+  }, [tourId, markComplete]);
+
   const handleJoyrideCallback = (data: CallBackProps) => {
     const { status, index, type } = data;
 

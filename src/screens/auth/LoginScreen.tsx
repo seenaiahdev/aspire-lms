@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Zap, Users } from 'lucide-react';
+import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
@@ -128,10 +128,10 @@ export function LoginScreen() {
               <span className="text-[9px] sm:text-xs font-semibold text-white">Interactive Labs</span>
             </div>
 
-            {/* Label 2: Top-Right — 100% Placement */}
-            <div className="flex absolute -top-2 -right-5 sm:top-3 sm:-right-4 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6s_ease-in-out_infinite_1s] hover:scale-105 transition-transform z-20">
-              <Zap className="w-3 h-3 sm:w-4 sm:h-4 text-amber-300" />
-              <span className="text-[9px] sm:text-xs font-semibold text-white">100% Placement</span>
+            {/* Label 2: Top-Right — 100% Placement Assistance */}
+            <div className="flex absolute -top-2 -right-16 sm:top-3 sm:-right-24 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6s_ease-in-out_infinite_1s] hover:scale-105 transition-transform z-20">
+              <Briefcase className="w-3 h-3 sm:w-4 sm:h-4 text-amber-300" />
+              <span className="text-[9px] sm:text-xs font-semibold text-white">100% Placement Assistance</span>
             </div>
 
             {/* Label 3: Bottom-Right — Goal Driven */}
@@ -140,10 +140,10 @@ export function LoginScreen() {
               <span className="text-[9px] sm:text-xs font-semibold text-white">Goal Driven</span>
             </div>
 
-            {/* Label 4: Bottom-Left — 50K+ Learners */}
-            <div className="flex absolute -bottom-2 -left-3 sm:bottom-3 sm:-left-4 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20">
+            {/* Label 4: Bottom-Left — 1-on-1 Mentorship */}
+            <div className="flex absolute -bottom-2 -left-8 sm:bottom-3 sm:-left-12 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20">
               <Users className="w-3 h-3 sm:w-4 sm:h-4 text-sky-200" />
-              <span className="text-[9px] sm:text-xs font-semibold text-white">50K+ Learners</span>
+              <span className="text-[9px] sm:text-xs font-semibold text-white">1-on-1 Mentorship</span>
             </div>
 
           </div>

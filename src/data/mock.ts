@@ -62,7 +62,7 @@ export const courses: Course[] = [
     stages: [
       {
         id: 's1',
-        title: 'Stage 1',
+        title: 'Stage 1: Frontend & Programming Foundations',
         modules: [
       // ════════ STAGE 1: FRONT END + REPOSITORY ════════
       {
@@ -277,7 +277,7 @@ export const courses: Course[] = [
       },
       {
         id: 's3',
-        title: 'Stage 3: AI',
+        title: 'Stage 3: AI, Integration & Deployment',
         modules: [
       {
         id: 'm3_ai',
@@ -643,7 +643,7 @@ export const liveClasses: LiveClass[] = [
     duration: '120m',
     status: 'ongoing',
     participants: 1240,
-    thumbnail: 'https://images.unsplash.com/photo-1618401471353-b98afee0b2eb?w=800&q=80' // GitHub/Code themed
+    thumbnail: 'https://images.unsplash.com/photo-1618401479427-c8ef9465fbe1?w=800&q=80' // Realistic GitHub interface and code
   },
   {
     id: 'lc2',
@@ -654,7 +654,7 @@ export const liveClasses: LiveClass[] = [
     duration: '90m',
     status: 'upcoming',
     participants: 856,
-    thumbnail: 'https://images.unsplash.com/photo-1542831371-29b0f74f9713?w=800&q=80' // Web Dev themed
+    thumbnail: 'https://images.unsplash.com/photo-1555099962-4199c345e5dd?w=800&q=80' // Realistic terminal window
   }
 ];
 
@@ -701,28 +701,21 @@ if (prevLesson) {
 }
 
 export const quizzes: Quiz[] = [
-  { id: 'q1', title: 'React Hooks Deep Dive', course: 'Full-Stack Web Dev', questions: 20, duration: '30 min', status: 'upcoming', maxScore: 100, dueDate: 'Aug 5', difficulty: 'Medium' },
-  { id: 'q2', title: 'ML Basics Assessment', course: 'ML Fundamentals', questions: 15, duration: '25 min', status: 'attempted', score: 88, maxScore: 100, dueDate: 'Jul 28', difficulty: 'Easy' },
-  { id: 'q3', title: 'Scalability Concepts', course: 'System Design', questions: 25, duration: '40 min', status: 'upcoming', maxScore: 100, dueDate: 'Aug 10', difficulty: 'Hard' },
-  { id: 'q4', title: 'API Design Quiz', course: 'Full-Stack Web Dev', questions: 18, duration: '25 min', status: 'attempted', score: 94, maxScore: 100, dueDate: 'Jul 20', difficulty: 'Medium' },
+  { id: 'q1', title: 'Git & GitHub Basics Quiz', course: 'Version Control', questions: 15, duration: '20 min', status: 'upcoming', maxScore: 100, dueDate: 'Aug 5', difficulty: 'Beginner' },
+  { id: 'q2', title: 'HTML5 Semantic Elements Quiz', course: 'Web Architecture', questions: 20, duration: '25 min', status: 'upcoming', maxScore: 100, dueDate: 'Aug 10', difficulty: 'Beginner' },
+  { id: 'q3', title: 'CSS3 Box Model Test', course: 'CSS3 Fundamentals', questions: 25, duration: '30 min', status: 'upcoming', maxScore: 100, dueDate: 'Aug 15', difficulty: 'Beginner' },
 ];
 
 export const projects: Project[] = [
   // ════════ MINI PROJECTS ════════
-  { id: 'p1', title: 'Login & Signup Welcome Page', course: 'Full-Stack Web Dev', projectType: 'mini', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Build a simple login and signup page that validates input and shows a welcome message after submit.', dueDate: 'Aug 20' },
-  { id: 'p4', title: 'Personal Portfolio Page', course: 'Full-Stack Web Dev', projectType: 'mini', status: 'assigned', difficulty: 'Beginner', skills: ['HTML', 'CSS', 'JavaScript'], description: 'Create a responsive personal portfolio page showcasing projects, skills, and contact info.', dueDate: 'Aug 30' },
-  { id: 'p5', title: 'Interactive Weather & News Dashboard', course: 'Frontend Engineering', projectType: 'mini', status: 'submitted', difficulty: 'Beginner', skills: ['React', 'Tailwind CSS', 'REST API'], description: 'Fetch and display real-time weather forecasts and top tech news using public APIs.', dueDate: 'Jul 28' },
-  { id: 'p6', title: 'CLI Task & Note Manager', course: 'Python Basics', projectType: 'mini', status: 'feedback', difficulty: 'Beginner', skills: ['Python', 'JSON', 'CLI'], description: 'A command-line tool to add, complete, and search personal tasks with file persistence.', mentorFeedback: 'Clean command line interface! Great error handling for invalid input files.', grade: 92, dueDate: 'Jul 15' },
+  { id: 'proj-s1', title: 'Semantic Web Page Layout', course: 'Stage 1: Web Architecture', projectType: 'mini', status: 'assigned', difficulty: 'Beginner', skills: ['HTML5', 'CSS3', 'Git'], description: 'Construct a fully semantic single-page layout using modern HTML5 tags and CSS Flexbox.', dueDate: 'Aug 20' },
+  { id: 'proj-s2', title: 'Django REST API & Redis Cache', course: 'Stage 2: Backend & DSA', projectType: 'mini', status: 'assigned', difficulty: 'Intermediate', skills: ['Python', 'Django', 'Redis'], description: 'Build a robust Django REST API with JWT authentication and Redis caching for database queries.', dueDate: 'Sep 10' },
 
   // ════════ MAJOR PROJECTS ════════
-  { id: 'p2', title: 'Image Classification & Inference Web App', course: 'ML Fundamentals', projectType: 'major', status: 'submitted', difficulty: 'Intermediate', skills: ['Python', 'TensorFlow', 'FastAPI', 'React'], description: 'Train a CNN model to classify images and deploy an interactive inference web dashboard.', dueDate: 'Aug 1' },
-  { id: 'p7', title: 'Full-Stack E-Commerce Storefront & Admin', course: 'Full-Stack Web Dev', projectType: 'major', status: 'assigned', difficulty: 'Intermediate', skills: ['Next.js', 'Node.js', 'MongoDB', 'Stripe'], description: 'Build an end-to-end shopping platform with cart management, admin dashboard, and Stripe payments.', dueDate: 'Sep 10' },
-  { id: 'p8', title: 'AI Resume Analyzer & Job Matcher API', course: 'AI Engineering', projectType: 'major', status: 'feedback', difficulty: 'Intermediate', skills: ['Python', 'OpenAI API', 'FastAPI', 'PostgreSQL'], description: 'Extract skills from resumes using LLMs and match candidate profiles to active tech job postings.', mentorFeedback: 'Outstanding prompt engineering and structured JSON outputs from Gemini API.', grade: 96, dueDate: 'Jul 20' },
+  { id: 'proj-s3', title: 'Intelligent AI Chatbot Integration', course: 'Stage 3: AI & Deployment', projectType: 'major', status: 'assigned', difficulty: 'Advanced', skills: ['Python', 'LangChain', 'OpenAI', 'Docker'], description: 'Develop an AI-powered chatbot using LangChain that references custom PDF documents, containerized with Docker.', dueDate: 'Oct 05' },
 
   // ════════ CAPSTONE PROJECTS ════════
-  { id: 'p3', title: 'Distributed Real-Time Chat & Streaming Engine', course: 'System Design', projectType: 'capstone', status: 'feedback', difficulty: 'Advanced', skills: ['System Architecture', 'WebSocket', 'Redis', 'Docker'], description: 'Design and document a fault-tolerant, multi-node real-time chat system with presence tracking.', mentorFeedback: 'Great architecture diagram! Consider adding more detail on message ordering and delivery guarantees.', grade: 89, dueDate: 'Jul 25' },
-  { id: 'p9', title: 'Enterprise LMS Platform & Course Management', course: 'Software Architecture', projectType: 'capstone', status: 'assigned', difficulty: 'Advanced', skills: ['Next.js 19', 'TypeScript', 'Prisma', 'PostgreSQL'], description: 'Complete LMS ecosystem supporting video streaming, interactive coding labs, and analytics.', dueDate: 'Oct 15' },
-  { id: 'p10', title: 'Cloud-Native Kubernetes & Microservices Deployment', course: 'DevOps & Cloud', projectType: 'capstone', status: 'submitted', difficulty: 'Advanced', skills: ['Docker', 'Kubernetes', 'AWS EKS', 'GitHub Actions'], description: 'Deploy a microservices cluster with automated CI/CD pipelines, Prometheus metrics, and Grafana dashboards.', dueDate: 'Aug 05' },
+  { id: 'proj-s4', title: 'Enterprise LMS Microservices Architecture', course: 'Stage 4: Career Launchpad', projectType: 'capstone', status: 'assigned', difficulty: 'Advanced', skills: ['System Design', 'React', 'Django', 'AWS'], description: 'Design and deploy a scalable Learning Management System using a microservices architecture, complete with HLD and LLD documentation.', dueDate: 'Nov 15' },
 ];
 
 export const notifications: Notification[] = [];
@@ -755,12 +748,13 @@ export const leaderboard: LeaderboardEntry[] = [
 ];
 
 export const resources: Resource[] = [
-  { id: 'r1', title: 'React Cheat Sheet 2024', type: 'cheatsheet', category: 'Web Dev', size: '2.4 MB', downloads: 3400, updatedAt: '2 days ago' },
-  { id: 'r2', title: 'System Design Roadmap', type: 'roadmap', category: 'System Design', size: '1.8 MB', downloads: 5600, updatedAt: '1 week ago' },
-  { id: 'r3', title: 'ML Math Notes', type: 'notes', category: 'AI & ML', size: '5.2 MB', downloads: 2100, updatedAt: '3 days ago' },
-  { id: 'r4', title: 'DSA Pattern Guide', type: 'pdf', category: 'DSA', size: '8.7 MB', downloads: 8900, updatedAt: '5 days ago' },
-  { id: 'r5', title: 'Project Proposal Template', type: 'template', category: 'General', size: '340 KB', downloads: 1200, updatedAt: '1 day ago' },
-  { id: 'r6', title: 'AWS Services Quick Reference', type: 'cheatsheet', category: 'Cloud', size: '3.1 MB', downloads: 4500, updatedAt: '1 week ago' },
+  { id: 'r1', title: 'HTML5 & CSS3 Flexbox Cheat Sheet', type: 'cheatsheet', category: 'Web Architecture', size: '1.2 MB', downloads: 3400, updatedAt: '2 days ago' },
+  { id: 'r2', title: 'Git & GitHub Workflow Guide', type: 'pdf', category: 'Version Control', size: '2.8 MB', downloads: 5600, updatedAt: '1 week ago' },
+  { id: 'r3', title: 'Python DSA Master Notes', type: 'notes', category: 'Backend & DSA', size: '5.2 MB', downloads: 2100, updatedAt: '3 days ago' },
+  { id: 'r4', title: 'Django REST Framework Auth Flow', type: 'roadmap', category: 'Backend & DSA', size: '3.7 MB', downloads: 8900, updatedAt: '5 days ago' },
+  { id: 'r5', title: 'LangChain Prompts Template', type: 'template', category: 'AI & Deployment', size: '340 KB', downloads: 1200, updatedAt: '1 day ago' },
+  { id: 'r6', title: 'Docker Compose Microservices Template', type: 'template', category: 'AI & Deployment', size: '1.1 MB', downloads: 4500, updatedAt: '1 week ago' },
+  { id: 'r7', title: 'System Design Interview Cheatsheet', type: 'cheatsheet', category: 'Career Launchpad', size: '4.5 MB', downloads: 8500, updatedAt: '2 weeks ago' },
 ];
 
 export const communityPosts: CommunityPost[] = [
@@ -775,20 +769,13 @@ export const scheduleItems: ScheduleItem[] = [
 ];
 
 export const practiceProblems: PracticeProblem[] = [
-  { id: 'pp1', title: 'Two Sum', difficulty: 'Easy', category: 'Arrays & Math', solved: false, attempts: 0, successRate: 89, points: 10 },
-  { id: 'pp2', title: 'Print Hello World', difficulty: 'Easy', category: 'Basics', solved: false, attempts: 0, successRate: 98, points: 5 },
-  { id: 'pp3', title: 'Reverse a String', difficulty: 'Easy', category: 'Strings', solved: false, attempts: 0, successRate: 95, points: 10 },
-  { id: 'pp4', title: 'Valid Palindrome', difficulty: 'Easy', category: 'Strings & Logic', solved: false, attempts: 0, successRate: 91, points: 15 },
-  { id: 'pp5', title: 'Find Maximum in Array', difficulty: 'Medium', category: 'Arrays & Search', solved: false, attempts: 0, successRate: 82, points: 20 },
+  { id: 'pp1', title: 'Write Semantic Elements for a Blog Post', difficulty: 'Easy', category: 'HTML5 Structure', solved: false, attempts: 0, successRate: 92, points: 10 },
+  { id: 'pp2', title: 'Create a Form with Client-Side Validation', difficulty: 'Medium', category: 'HTML5 Forms', solved: false, attempts: 0, successRate: 85, points: 15 },
+  { id: 'pp3', title: 'Apply Box Model Properties to a Card Layout', difficulty: 'Easy', category: 'CSS3 Box Model', solved: false, attempts: 0, successRate: 88, points: 15 },
 ];
 
 export const jobOpportunities: JobOpportunity[] = [
-  { id: 'j1', company: 'TechCorp Solutions', role: 'Frontend Engineer (React)', logo: 'https://api.dicebear.com/7.x/initials/svg?seed=TC&backgroundColor=10b981', location: 'Bangalore, India', type: 'Full-time', salary: '12-18 LPA', postedDate: '2 days ago', match: 92, skills: ['React', 'TypeScript', 'Tailwind'], status: 'open' },
-  { id: 'j2', company: 'DataFlow Systems', role: 'ML Engineer Intern', logo: 'https://api.dicebear.com/7.x/initials/svg?seed=DF&backgroundColor=0ea5e9', location: 'Remote', type: 'Internship', salary: '40k/month', postedDate: '5 days ago', match: 85, skills: ['Python', 'TensorFlow', 'Scikit-Learn'], status: 'applied' },
-  { id: 'j3', company: 'CloudSys Networks', role: 'Backend Developer (Node.js)', logo: 'https://api.dicebear.com/7.x/initials/svg?seed=CS&backgroundColor=f59e0b', location: 'Hyderabad, India', type: 'Full-time', salary: '10-15 LPA', postedDate: '1 week ago', match: 78, skills: ['Node.js', 'AWS', 'PostgreSQL'], status: 'open' },
-  { id: 'j4', company: 'StartupX Labs', role: 'Full-Stack Engineer', logo: 'https://api.dicebear.com/7.x/initials/svg?seed=SX&backgroundColor=8b5cf6', location: 'Remote', type: 'Full-time', salary: '14-20 LPA', postedDate: '1 week ago', match: 88, skills: ['React', 'Node.js', 'PostgreSQL'], status: 'applied' },
-  { id: 'j5', company: 'AI NextGen', role: 'AI / Data Scientist', logo: 'https://api.dicebear.com/7.x/initials/svg?seed=AN&backgroundColor=ec4899', location: 'Bangalore, India', type: 'Full-time', salary: '18-24 LPA', postedDate: '2 weeks ago', match: 95, skills: ['Python', 'PyTorch', 'NLP'], status: 'closed' },
-  { id: 'j6', company: 'CyberEdge Labs', role: 'DevOps Engineer', logo: 'https://api.dicebear.com/7.x/initials/svg?seed=CE&backgroundColor=6366f1', location: 'Pune, India', type: 'Full-time', salary: '11-16 LPA', postedDate: '3 weeks ago', match: 82, skills: ['Docker', 'Kubernetes', 'CI/CD'], status: 'closed' },
+  { id: 'j1', company: 'Amazon', role: 'SDE 1 - Fullstack (Python)', logo: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', location: 'Hyderabad, India', type: 'Full-time', salary: '20-28 LPA', postedDate: '1 day ago', match: 98, skills: ['Python', 'Django', 'AWS', 'DSA'], status: 'open' },
 ];
 
 export const announcements = [

@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { GraduationCap, Mail, MapPin, Calendar, Star, Award, Zap, Flame, TrendingUp, Github, Linkedin, Globe, Edit, ChevronRight } from 'lucide-react';
+import { certificates, badges, recentActivity } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { useNav } from '@/lib/nav';
-import { currentUser, certificates, badges, recentActivity } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -9,9 +10,8 @@ import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function ProfileScreen() {
+  const { user } = useUser();
   const { navigate } = useNav();
-
-  const user = currentUser;
   const activeActivity = [];
   const earnedBadges = [];
 

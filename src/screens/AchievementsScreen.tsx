@@ -1,5 +1,6 @@
 import { Trophy, Flame, Zap, Star, TrendingUp, TrendingDown, Minus, Lock, Sparkles } from 'lucide-react';
-import { badges, leaderboard, currentUser } from '@/data/mock';
+import { badges, leaderboard } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
@@ -15,6 +16,7 @@ const rarityConfig: Record<string, { ring: string; bg: string; text: string; lab
 };
 
 export function AchievementsScreen() {
+  const { user: currentUser } = useUser();
   const earned = badges.filter(b => b.earned);
   const totalXP = currentUser.xp;
 

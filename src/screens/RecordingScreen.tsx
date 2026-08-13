@@ -5,12 +5,14 @@ import {
   SkipBack, SkipForward, Radio, Share2, Sparkles, ShieldCheck, Lock
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { liveClasses, currentUser } from '@/data/mock';
+import { liveClasses } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 
 export function RecordingScreen() {
+  const { user: currentUser } = useUser();
   const { navigate, params } = useNav();
   const recording = liveClasses.find((c) => c.id === params.id) || liveClasses.find((c) => c.status === 'completed') || liveClasses[3];
   

@@ -1,11 +1,13 @@
 import { useState, useRef, useEffect } from 'react';
 import { Menu, Bell, LogOut, Flame, User, Settings, ChevronDown } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { notifications, currentUser } from '@/data/mock';
+import { notifications } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 
 export function TopNav() {
+  const { user: currentUser } = useUser();
   const { setSidebarOpen, navigate, logout, route, notificationsOpen, setNotificationsOpen } = useNav();
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);

@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Bot, X, Send, User, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { currentUser } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { useNav } from '@/lib/nav';
 
 interface Message {
@@ -21,6 +21,7 @@ const MOCK_RESPONSES = [
 ];
 
 export function AIChatbot() {
+  const { user: currentUser } = useUser();
   const { route } = useNav();
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([

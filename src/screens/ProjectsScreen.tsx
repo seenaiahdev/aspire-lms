@@ -112,6 +112,7 @@ const projectGuides: Record<string, ProjectGuide> = {
 export function ProjectsScreen() {
   const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone' | 'templates'>('mini');
   const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
+  const [lockedToast, setLockedToast] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>(() => {
@@ -122,17 +123,14 @@ export function ProjectsScreen() {
     }
   });
 
-  const [projectsState, setProjectsState] = useState<any[]>(() => {
-    try {
-      const raw = localStorage.getItem('projectsState');
-      const parsed = raw ? JSON.parse(raw) : projects;
-      return parsed;
-    } catch {
-      return projects;
-    }
-  });
+  const [projectsState, setProjectsState] = useState<any[]>(projects);
 
   const [toastVisible, setToastVisible] = useState(false);
+
+  // Sync state if mock data changed
+  useEffect(() => {
+    setProjectsState(projects);
+  }, [projects]);
 
   // Interactive File Explorer Modal state
   const [showExplorer, setShowExplorer] = useState(false);
@@ -295,12 +293,13 @@ export function ProjectsScreen() {
   }, [effectiveProjects, mainCategory]);
 
   const filtered = useMemo(() => {
-    return []; // For now, all projects tabs are empty
+    if (mainCategory === 'templates') return [];
+    return categoryProjects.filter((p: any) => p.status === subTab);
   }, [categoryProjects, mainCategory, subTab]);
 
-  const assignedCount = 0;
-  const submittedCount = 0;
-  const feedbackCount = 0;
+  const assignedCount = categoryProjects.filter((p: any) => p.status === 'assigned').length;
+  const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted').length;
+  const feedbackCount = categoryProjects.filter((p: any) => p.status === 'feedback').length;
 
   const selectedProject = useMemo(
     () => effectiveProjects.find((p: any) => p.id === selectedProjectId) || null,
@@ -739,14 +738,29 @@ export function ProjectsScreen() {
                 </Card>
               </div>
             ) : (
-              filtered.map((p, index) => (
-                <Card 
-                  key={p.id} 
-                  id={index === 0 ? 'tour-projects-card-0' : undefined}
-                  className="group p-6 cursor-not-allowed rounded-[2rem] border border-slate-200/90 bg-white shadow-sm flex flex-col justify-between relative overflow-hidden"
-                >
-                  <LockedOverlay title={p.title} type="LOCKED PROJECT" />
-                  <div>
+              filtered.map((p, index) => {
+                const isLocked = p.status === 'assigned';
+                return (
+                  <Card 
+                    key={p.id} 
+                    id={index === 0 ? 'tour-projects-card-0' : undefined}
+                    onClick={() => {
+                      if (isLocked) {
+                        setLockedToast(true);
+                        setTimeout(() => setLockedToast(false), 3000);
+                      } else {
+                        setSelectedProjectId(p.id);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    className={cn(
+                      "group p-6 rounded-[2rem] border shadow-sm flex flex-col justify-between relative overflow-hidden transition-all",
+                      isLocked 
+                        ? "cursor-not-allowed border-slate-200/60 bg-slate-50/50 opacity-90 grayscale-[15%]" 
+                        : "cursor-pointer border-slate-200/90 bg-white hover:border-slate-300"
+                    )}
+                  >
+                    <div>
                     <div className="flex items-start justify-between mb-4 gap-3">
                       <div className="flex items-center gap-3.5">
                         <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
@@ -757,7 +771,6 @@ export function ProjectsScreen() {
                           <p className="text-xs font-bold text-slate-500 mt-0.5">{p.course}</p>
                         </div>
                       </div>
-                      <DifficultyBadge difficulty={p.difficulty} />
                     </div>
 
                     <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{p.description}</p>
@@ -793,14 +806,22 @@ export function ProjectsScreen() {
                       Due {p.dueDate}
                     </span>
                     <div className="flex items-center gap-2">
-                      <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
-                        <span>Open Brief</span>
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
+                      {isLocked ? (
+                        <button className="px-4 py-2.5 rounded-xl bg-slate-200/50 text-slate-500 font-extrabold text-xs flex items-center gap-1.5 cursor-not-allowed">
+                          <Lock className="w-3.5 h-3.5" />
+                          <span>Coming Soon</span>
+                        </button>
+                      ) : (
+                        <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
+                          <span>View Details</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 </Card>
-              ))
+              )
+            })
             )}
           </div>
         </div>
@@ -810,15 +831,19 @@ export function ProjectsScreen() {
       {mainCategory === 'templates' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
           {[
-            { title: 'React 19 & Vite Starter Kit', desc: 'Production-ready React 19 boilerplate with Tailwind CSS, Lucide icons, and TypeScript.' },
-            { title: 'Node.js & Express REST API Template', desc: 'Pre-configured Express API starter with JWT auth, Zod validation, and Prisma ORM.' },
-            { title: 'ML & PyTorch Model Boilerplate', desc: 'Clean PyTorch training pipeline with Jupyter notebooks, dataset loaders, and FastAPI.' },
-            { title: 'Next.js SaaS Full-Stack Template', desc: 'Next.js Server Components starter with Stripe checkout and Supabase database.' },
-            { title: 'Python Data Science Pipeline', desc: 'Pandas, NumPy, and Scikit-Learn data cleaning and visualization notebook setup.' },
-            { title: 'Docker Microservices Dev Setup', desc: 'Multi-container Docker Compose configuration for React, Node, Redis, and PostgreSQL.' }
+            { title: 'Semantic HTML5 & CSS3 Starter', desc: 'A clean, dependency-free boilerplate with semantic layout structure and base CSS resets.' },
+            { title: 'Django + Redis Cache Boilerplate', desc: 'Pre-configured Django settings with Redis caching, DRF, and JWT auth setup.' },
+            { title: 'LangChain & Docker AI Template', desc: 'Containerized Python environment with LangChain memory and vector store configs.' },
+            { title: 'Microservices LMS Architecture', desc: 'Docker Compose setup with an Nginx API gateway and independent backend services.' }
           ].map((t, i) => (
-            <Card key={i} className="p-6 bg-white border border-slate-200/90 rounded-[2rem] shadow-sm flex flex-col justify-between relative overflow-hidden cursor-not-allowed">
-              <LockedOverlay title={t.title} type="LOCKED TEMPLATE" />
+            <Card 
+              key={i} 
+              onClick={() => {
+                setLockedToast(true);
+                setTimeout(() => setLockedToast(false), 3000);
+              }}
+              className="p-6 bg-slate-50/50 border border-slate-200/60 rounded-[2rem] shadow-sm flex flex-col justify-between relative overflow-hidden cursor-not-allowed opacity-90 grayscale-[15%]"
+            >
               <div>
                 <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mb-4">
                   <Code2 className="w-6 h-6 text-[#7c3aed]" />
@@ -826,17 +851,29 @@ export function ProjectsScreen() {
                 <h3 className="font-extrabold text-slate-900 text-base mb-1.5">{t.title}</h3>
                 <p className="text-xs font-medium text-slate-500 leading-relaxed mb-6">{t.desc}</p>
               </div>
-              <Button
-                size="sm"
-                fullWidth
-                disabled
-                leftIcon={<Lock className="w-4 h-4" />}
-                className="bg-slate-200 text-slate-500 font-extrabold text-xs shadow-xs cursor-not-allowed"
+              <button
+                className="w-full mt-6 py-3 px-4 rounded-xl bg-slate-200/50 text-slate-500 font-extrabold text-xs shadow-xs cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Locked
-              </Button>
+                <Lock className="w-4 h-4" />
+                <span>Coming Soon</span>
+              </button>
             </Card>
           ))}
+        </div>
+      )}
+
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">This content is currently locked.</p>
+            </div>
+          </div>
         </div>
       )}
 

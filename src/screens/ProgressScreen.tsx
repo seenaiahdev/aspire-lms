@@ -1,5 +1,6 @@
 import { TrendingUp, Clock, BookOpen, Award, Flame, BarChart3, Calendar } from 'lucide-react';
-import { currentUser, weeklyActivity, attendanceData, courses } from '@/data/mock';
+import { weeklyActivity, attendanceData, courses } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -7,6 +8,7 @@ import { ProgressRing } from '@/components/ui/ProgressRing';
 import { LineChart, DonutChart, BarChart } from '@/components/ui/Charts';
 
 export function ProgressScreen() {
+  const { user: currentUser } = useUser();
   const enrolled = courses.filter(c => c.enrolled);
 
   return (

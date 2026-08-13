@@ -32,6 +32,7 @@ export function PracticeScreen() {
   const [difficulty, setDifficulty] = useState('all');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [problems, setProblems] = useState(practiceProblems);
+  const [lockedToast, setLockedToast] = useState(false);
 
   // Load submissions from localStorage
   useEffect(() => {
@@ -67,7 +68,7 @@ export function PracticeScreen() {
     setProblems(updatedProblems);
   }, []);
 
-  const filtered: typeof problems = []; // Force empty state for new user
+  const filtered = problems.filter(p => difficulty === 'all' || p.difficulty === difficulty);
   const solved = 0;
 
   return (
@@ -136,21 +137,38 @@ export function PracticeScreen() {
                 <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200">
                   <Lock className="w-8 h-8 text-slate-400" />
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1">Coding Problems Locked</h3>
-                <p className="text-xs font-medium text-slate-500 mb-2">Complete course modules to unlock coding challenges.</p>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1">No Problems Found</h3>
+                <p className="text-xs font-medium text-slate-500 mb-2">Try changing your difficulty filter.</p>
               </CardBody>
             </Card>
           ) : (
             <Card className="border border-slate-200/90 shadow-sm overflow-hidden bg-white rounded-2xl">
               <div className="divide-y divide-slate-100">
-                {filtered.slice(0, 3).map((p, index) => (
-                  <div key={p.id} id={index === 0 ? 'tour-practice-card-0' : undefined} className="flex items-center gap-4 p-4 transition-colors group cursor-not-allowed grayscale-[0.2] opacity-60 bg-slate-50">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border bg-slate-100 text-slate-400 border-slate-200">
-                      <Code2 className="w-5 h-5 text-slate-400" />
+                {filtered.map((p, index) => {
+                  const isLocked = true; // All locked for this demonstration
+                  return (
+                  <div 
+                    key={p.id} 
+                    id={index === 0 ? 'tour-practice-card-0' : undefined} 
+                    onClick={() => {
+                      if (isLocked) {
+                        setLockedToast(true);
+                        setTimeout(() => setLockedToast(false), 3000);
+                        return;
+                      }
+                      navigate('workspace', { id: p.id });
+                    }}
+                    className={cn(
+                      "flex items-center gap-4 p-4 transition-colors group",
+                      isLocked ? "cursor-not-allowed opacity-90 grayscale-[15%] bg-slate-50" : "cursor-pointer bg-white hover:bg-slate-50"
+                    )}
+                  >
+                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border", isLocked ? "bg-slate-200 text-slate-400 border-slate-300" : "bg-purple-50 text-[#7c3aed] border-purple-100")}>
+                      <Code2 className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-bold text-slate-600 text-sm">{p.title}</h3>
+                        <h3 className={cn("font-bold text-sm", isLocked ? "text-slate-500" : "text-slate-900 group-hover:text-[#7c3aed]")}>{p.title}</h3>
                         <DifficultyBadge difficulty={p.difficulty} />
                       </div>
                       <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
@@ -161,14 +179,15 @@ export function PracticeScreen() {
                     </div>
                     <Button 
                       size="sm" 
-                      disabled
-                      className="font-extrabold transition-all shadow-xs bg-slate-200 text-slate-500 cursor-not-allowed"
+                      onClick={(e) => {
+                        if (isLocked) { e.stopPropagation(); setLockedToast(true); setTimeout(() => setLockedToast(false), 3000); }
+                      }}
+                      className={cn("font-extrabold transition-all shadow-xs", isLocked ? "bg-slate-200 text-slate-500 hover:bg-slate-200 cursor-not-allowed" : "")}
                     >
-                      <Lock className="w-3.5 h-3.5 mr-1" />
-                      Locked
+                      {isLocked ? <><Lock className="w-3.5 h-3.5 mr-1 mb-0.5" /> Coming Soon</> : "Solve"}
                     </Button>
                   </div>
-                ))}
+                )})}
               </div>
             </Card>
           )}
@@ -189,6 +208,22 @@ export function PracticeScreen() {
           </Card>
         </div>
       )}
+
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">This problem is currently locked.</p>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
