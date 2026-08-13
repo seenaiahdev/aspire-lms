@@ -24,6 +24,7 @@ const lessonIcons: Record<string, any> = {
 
 function ModuleAccordion({ mod, course, navigate }: { mod: any, course: any, navigate: any }) {
   const [isOpen, setIsOpen] = useState(false);
+  const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-2 sm:p-3 shadow-2xs">
       <button 
@@ -44,7 +45,8 @@ function ModuleAccordion({ mod, course, navigate }: { mod: any, course: any, nav
           {mod.lessons.map((lesson: any, idx: number) => {
             const Icon = Play; // Since type is removed, default to Play
             const isPreview = lesson.video?.preview || lesson.preview;
-            const isLessonLocked = (idx > 0 && mod.lessons.slice(0, idx).some((l: any) => !l.completed)) && !isPreview;
+            const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
+            const isLessonLocked = (globalIdx > 0 && allLessons.slice(0, globalIdx).some((l: any) => !l.completed)) && !isPreview;
             
             return (
               <button

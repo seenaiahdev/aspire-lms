@@ -18,6 +18,7 @@ function SidebarModuleAccordion({ mod, course, currentLesson, navigate }: any) {
   const [isOpen, setIsOpen] = useState(
     mod.lessons.some((l: any) => l.id === currentLesson?.id)
   );
+  const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
   return (
     <div className="space-y-1.5 border border-slate-100 p-2 rounded-xl">
       <button 
@@ -34,7 +35,9 @@ function SidebarModuleAccordion({ mod, course, currentLesson, navigate }: any) {
         <div className="space-y-1.5 animate-fade-in pt-1">
           {mod.lessons.map((lesson: any, li: number) => {
             const isCurrent = lesson.id === currentLesson?.id;
-            const isLocked = !lesson.completed && !lesson.preview;
+            const isPreview = lesson.video?.preview || lesson.preview;
+            const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
+            const isLocked = (globalIdx > 0 && allLessons.slice(0, globalIdx).some((l: any) => !l.completed)) && !isPreview;
             return (
               <button
                 key={lesson.id}
