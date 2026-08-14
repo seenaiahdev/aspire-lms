@@ -484,7 +484,7 @@ export function ScheduleScreen() {
                       {typeDropdownOpen && (
                         <>
                           <div className="fixed inset-0 z-40" onClick={() => setTypeDropdownOpen(false)} />
-                          <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200/90 rounded-xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto animate-fade-in">
+                          <div className="absolute left-0 right-0 bottom-full mb-1 bg-white border border-slate-200/90 rounded-xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto animate-fade-in">
                             {typeOptions.map((option) => {
                               const config = typeConfig[option.value];
                               const Icon = config ? config.icon : PlusCircle;
