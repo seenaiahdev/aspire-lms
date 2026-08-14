@@ -121,13 +121,6 @@ export function NotificationsDrawer() {
           )}
         </div>
 
-        {/* Drawer Footer */}
-        <div className="p-3.5 border-t border-slate-200/80 bg-slate-50/70 text-center">
-          <p className="text-[10px] font-semibold text-slate-500">
-            AspireNext Real-Time Alert System
-          </p>
-        </div>
-
       </aside>
     </>
   );
