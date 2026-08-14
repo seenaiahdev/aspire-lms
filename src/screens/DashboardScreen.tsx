@@ -681,7 +681,9 @@ export function DashboardScreen() {
 
               {/* ════════ FLOATING CALENDAR POPOVER POPUP (COMPACT FIT TO SCREEN) ════════ */}
               {showFullCalendar && (
-                <div className="absolute right-0 top-12 z-50 w-72 bg-white rounded-[1.5rem] p-4 shadow-2xl border border-slate-200/90 space-y-3 animate-scale-in">
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowFullCalendar(false)} />
+                  <div className="absolute right-0 top-12 z-50 w-72 bg-white rounded-[1.5rem] p-4 shadow-2xl border border-slate-200/90 space-y-3 animate-scale-in">
                   
                   {/* Header Month Switcher: < Aug 2026 > */}
                   <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
@@ -777,6 +779,7 @@ export function DashboardScreen() {
                   </div>
 
                 </div>
+                </>
               )}
             </div>
           </div>
