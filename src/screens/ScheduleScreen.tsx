@@ -30,7 +30,10 @@ const typeOptions = [
 ];
 
 function getDateKey(date: Date) {
-  return date.toISOString().slice(0, 10);
+  const yyyy = date.getFullYear();
+  const mm = String(date.getMonth() + 1).padStart(2, '0');
+  const dd = String(date.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
 }
 
 function formatTaskDateLabel(dateKey: string, today: Date) {
@@ -38,7 +41,7 @@ function formatTaskDateLabel(dateKey: string, today: Date) {
   const tomorrowKey = getDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
   if (dateKey === todayKey) return 'Today';
   if (dateKey === tomorrowKey) return 'Tomorrow';
-  const date = new Date(dateKey);
+  const date = new Date(dateKey + 'T00:00:00');
   return date.toLocaleString('default', { month: 'short', day: 'numeric' });
 }
 
@@ -46,7 +49,7 @@ function parseScheduleItemDate(item: { date: string; dateKey?: string }, today: 
   if (item.dateKey) return item.dateKey;
   if (item.date === 'Today') return getDateKey(today);
   if (item.date === 'Tomorrow') return getDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
-  const parsed = new Date(`${item.date} ${today.getFullYear()}`);
+  const parsed = new Date(`${item.date} ${today.getFullYear()} 00:00:00`);
   if (!Number.isNaN(parsed.getTime())) return getDateKey(parsed);
   return getDateKey(today);
 }
