@@ -105,7 +105,10 @@ export function LessonScreen() {
   };
 
   const toggleModule = (idx: number) => {
-    setExpandedModules((prev) => ({ ...prev, [idx]: !prev[idx] }));
+    setExpandedModules((prev) => {
+      const isOpen = !!prev[idx];
+      return { [idx]: !isOpen };
+    });
   };
 
   const allLessons = course.stages?.flatMap((s: any) => s.modules).flatMap((m: any) => m.lessons) || [];
