@@ -58,6 +58,7 @@ export function ScheduleScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   const [items, setItems] = useState(scheduleItems);
   const [showAddTask, setShowAddTask] = useState(false);
+  const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const handleToggleAddTask = () => {
     setShowAddTask((prev) => {
       const next = !prev;
@@ -325,16 +326,26 @@ export function ScheduleScreen() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-black text-slate-700 uppercase tracking-wide">Date</label>
-                    <input
-                      type="date"
-                      value={taskForm.date}
-                      min={new Date().toISOString().split('T')[0]}
-                      onChange={(e) => {
-                        handleTaskFormChange('date', e.target.value);
-                        setSelectedDate(new Date(e.target.value));
-                      }}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all"
-                    />
+                    <div className="relative">
+                      <input
+                        type="date"
+                        value={taskForm.date}
+                        min={new Date().toISOString().split('T')[0]}
+                        onClick={(e) => {
+                          try {
+                            (e.target as any).showPicker();
+                          } catch (err) {
+                            console.error(err);
+                          }
+                        }}
+                        onChange={(e) => {
+                          handleTaskFormChange('date', e.target.value);
+                          setSelectedDate(new Date(e.target.value));
+                        }}
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-10 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all cursor-pointer"
+                      />
+                      <CalendarIcon className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
@@ -349,15 +360,54 @@ export function ScheduleScreen() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-black text-slate-700 uppercase tracking-wide">Type</label>
-                    <select
-                      value={taskForm.type}
-                      onChange={(e) => handleTaskFormChange('type', e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all cursor-pointer"
-                    >
-                      {typeOptions.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setTypeDropdownOpen(!typeDropdownOpen)}
+                        className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all text-left cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          {(() => {
+                            const config = typeConfig[taskForm.type];
+                            const Icon = config ? config.icon : PlusCircle;
+                            return <Icon className="w-3.5 h-3.5 text-slate-400" />;
+                          })()}
+                          <span>{typeOptions.find(o => o.value === taskForm.type)?.label || 'Select type'}</span>
+                        </div>
+                        <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${typeDropdownOpen ? 'rotate-180' : ''}`} />
+                      </button>
+
+                      {typeDropdownOpen && (
+                        <>
+                          <div className="fixed inset-0 z-40" onClick={() => setTypeDropdownOpen(false)} />
+                          <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200/90 rounded-xl shadow-lg z-50 overflow-hidden max-h-60 overflow-y-auto animate-fade-in">
+                            {typeOptions.map((option) => {
+                              const config = typeConfig[option.value];
+                              const Icon = config ? config.icon : PlusCircle;
+                              return (
+                                <button
+                                  key={option.value}
+                                  type="button"
+                                  onClick={() => {
+                                    handleTaskFormChange('type', option.value);
+                                    setTypeDropdownOpen(false);
+                                  }}
+                                  className={cn(
+                                    "w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-xs font-bold transition-colors hover:bg-slate-50",
+                                    taskForm.type === option.value
+                                      ? "bg-purple-50/65 text-purple-700"
+                                      : "text-slate-700"
+                                  )}
+                                >
+                                  <Icon className={cn("w-3.5 h-3.5", taskForm.type === option.value ? "text-purple-600" : "text-slate-400")} />
+                                  <span>{option.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="space-y-1.5">
