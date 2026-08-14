@@ -106,8 +106,8 @@ export function LessonScreen() {
 
   const toggleModule = (idx: number) => {
     setExpandedModules((prev) => {
-      const isOpen = !!prev[idx];
-      return { [idx]: !isOpen };
+      const wasOpen = prev[idx];
+      return wasOpen ? {} : { [idx]: true };
     });
   };
 
@@ -124,7 +124,7 @@ export function LessonScreen() {
   
   useEffect(() => {
     if (currentStageIndex !== undefined && currentStageIndex !== -1) {
-      setExpandedModules((prev) => ({ ...prev, [currentStageIndex]: true }));
+      setExpandedModules({ [currentStageIndex]: true });
     }
   }, [currentStageIndex]);
 
@@ -454,7 +454,7 @@ export function LessonScreen() {
                     className="w-full p-3 bg-slate-50 hover:bg-purple-50/40 flex items-center justify-between transition-colors text-left"
                   >
                     <p className="text-xs font-extrabold text-slate-800 line-clamp-1">
-                      {si + 1}. {stage.title}
+                      {stage.title}
                     </p>
                     <div className="flex items-center gap-2 shrink-0">
                       <span className="text-[10px] font-extrabold text-slate-400">{stageLessons.length} lessons</span>

@@ -97,6 +97,7 @@ export function CourseScreen() {
   const { navigate, params } = useNav();
   const course = courses.find((c) => c.id === params.id) || courses[0];
   const [tab, setTab] = useState('modules');
+  const [openStageIndex, setOpenStageIndex] = useState<number | null>(0);
 
   return (
     <div className="space-y-6">
@@ -194,8 +195,9 @@ export function CourseScreen() {
                       return (
                       <AccordionItem
                         key={stage.id}
-                        title={`${i + 1}. ${stage.title}`}
-                        defaultOpen={i === 0}
+                        title={stage.title}
+                        isOpen={openStageIndex === i}
+                        onToggle={() => setOpenStageIndex(openStageIndex === i ? null : i)}
                         rightSlot={<span className="text-xs font-extrabold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">{stageLessons.length} lessons</span>}
                       >
                         <div className="space-y-4 pt-2">

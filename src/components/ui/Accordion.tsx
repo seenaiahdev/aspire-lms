@@ -8,25 +8,31 @@ interface AccordionItemProps {
   children: ReactNode;
   defaultOpen?: boolean;
   rightSlot?: ReactNode;
+  isOpen?: boolean;
+  onToggle?: () => void;
 }
 
-export function AccordionItem({ title, children, defaultOpen, rightSlot }: AccordionItemProps) {
-  const [open, setOpen] = useState(!!defaultOpen);
+export function AccordionItem({ title, children, defaultOpen, rightSlot, isOpen, onToggle }: AccordionItemProps) {
+  const [internalOpen, setInternalOpen] = useState(!!defaultOpen);
+
+  const isControlled = isOpen !== undefined;
+  const open = isControlled ? isOpen : internalOpen;
+  const toggle = isControlled ? onToggle : () => setInternalOpen(!internalOpen);
 
   return (
-    <div className="border-b border-ink-100 last:border-0">
+    <div className="border-b border-slate-100 last:border-0">
       <button
-        onClick={() => setOpen(!open)}
-        className="w-full flex items-center justify-between py-4 text-left group"
+        onClick={toggle}
+        className="w-full flex items-center justify-between py-4 text-left group cursor-pointer"
       >
         <div className="flex items-center gap-3">
           <ChevronDown
             className={cn(
-              'w-4 h-4 text-ink-400 transition-transform duration-200',
+              'w-4 h-4 text-slate-400 transition-transform duration-200',
               open && 'rotate-180',
             )}
           />
-          <span className="font-semibold text-ink-800 group-hover:text-primary-600 transition-colors">
+          <span className="font-extrabold text-[15px] text-slate-800 group-hover:text-purple-600 transition-colors">
             {title}
           </span>
         </div>

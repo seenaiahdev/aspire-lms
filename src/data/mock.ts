@@ -62,7 +62,7 @@ export const courses: Course[] = [
     stages: [
       {
         id: 's1',
-        title: 'Frontend & Programming Foundations',
+        title: 'Stage 1: Frontend & Programming Foundations',
         modules: [
           // ════════ STAGE 1: FRONT END + REPOSITORY ════════
           {
@@ -162,7 +162,7 @@ export const courses: Course[] = [
       },
       {
         id: 's2',
-        title: 'Backend + DSA',
+        title: 'Stage 2: Backend + DSA',
         modules: [
           {
             id: 'm2_py_fund',
@@ -308,7 +308,7 @@ export const courses: Course[] = [
       },
       {
         id: 's3',
-        title: 'AI, Integration & Deployment',
+        title: 'Stage 3: AI, Integration & Deployment',
         modules: [
           {
             id: 'm3_ai',
@@ -344,7 +344,7 @@ export const courses: Course[] = [
       },
       {
         id: 's4',
-        title: 'Career Launchpad',
+        title: 'Stage 4: Career Launchpad',
         modules: [
           {
             id: 'm4_sysdesign',
