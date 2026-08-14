@@ -346,47 +346,53 @@ export const courses: Course[] = [
         id: 's4',
         title: 'Stage 4: Career Launchpad',
         modules: [
-      {
-        id: 'm4_sysdesign',
-        title: 'System Design & Software Architecture',
-        duration: '5h', lessons: [
-          { id: 'l_sys_1', title: 'System Design Fundamentals: HLD vs LLD', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_sys_2', title: 'Load Balancing, Database Sharding & Caching', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_sys_3', title: 'Scalable Architecture & High Availability Designs', duration: '1h 45m', type: 'reading', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm4_cap1',
-        title: 'Capstone Project Mentoring & Review - 1',
-        duration: '4h', lessons: [
-          { id: 'l_cap1_1', title: 'Project Scope Finalization & Architecture Validation', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_cap1_2', title: 'Database Schema Design & DRF API Contract Review', duration: '2h 00m', type: 'project', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm4_cap2',
-        title: 'Capstone Project Development & Mentoring - 2',
-        duration: '5h', lessons: [
-          { id: 'l_cap2_1', title: 'Frontend-Backend API Integrations & State Setup', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_cap2_2', title: 'AI Feature Tuning, Security Auditing, & Optimization', duration: '3h 00m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm4_portfolio',
-        title: 'Resume Building, LinkedIn & GitHub Portfolio',
-        duration: '4h', lessons: [
-          { id: 'l_port_1', title: 'Creating ATS-Compliant Tech Resume Profiles', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_port_2', title: 'GitHub Repo Presentation, Readme Designs, & LinkedIn', duration: '2h 00m', type: 'reading', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm4_mock',
-        title: 'Mock Technical Interviews & Valedictory',
-        duration: '4h', lessons: [
-          { id: 'l_mock_1', title: 'DSA Live Coding Problem Solving Practices', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_mock_2', title: 'Technical HR Mock Interviews & Prep Guides', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
-      }
+          {
+            id: 'm4_sysdesign',
+            title: 'System Design & Software Architecture',
+            duration: '5h',
+            lessons: [
+              { id: 'l_sys_1', title: 'System Design Fundamentals: HLD vs LLD', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_sys_2', title: 'Load Balancing & Database Sharding', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_sys_3', title: 'Caching Strategies & Scalable Web Architecture', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm4_cap1',
+            title: 'Capstone Project Mentoring & Review - 1',
+            duration: '4h',
+            lessons: [
+              { id: 'l_cap1_1', title: 'Project Scope Finalization & Architecture Validation', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_cap1_2', title: 'Database Design Review & API Contract Definition', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm4_cap2',
+            title: 'Capstone Project Development & Mentoring - 2',
+            duration: '5h',
+            lessons: [
+              { id: 'l_cap2_1', title: 'Frontend-Backend Integration & AI Feature Tuning', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_cap2_2', title: 'Bug Fixing & Security Auditing', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_cap2_3', title: 'Performance Optimization', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm4_portfolio',
+            title: 'Resume Building, LinkedIn & GitHub Portfolio',
+            duration: '4h',
+            lessons: [
+              { id: 'l_port_1', title: 'Creating ATS-Compliant Resume & GitHub Presentation', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_port_2', title: 'README Design, LinkedIn Profile Optimization & Branding', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm4_mock',
+            title: 'Mock Technical Interviews & Valedictory',
+            duration: '4h',
+            lessons: [
+              { id: 'l_mock_1', title: 'Technical Coding Practice & DSA Live Problem Solving', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_mock_2', title: 'HR Interview Prep, Capstone Demos, & Certification', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          }
         ]
       }
     ],
