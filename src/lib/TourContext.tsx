@@ -1,49 +1,75 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useNav } from '@/lib/nav';
+import { useUser } from '@/lib/UserContext';
 
 interface TourContextType {
-  /** Check if a tour has already been completed in this session */
+  /** Check if a tour has already been completed */
   isTourCompleted: (tourId: string) => boolean;
-  /** Mark a tour as completed for this session */
+  /** Mark a tour as completed */
   markComplete: (tourId: string) => void;
   /** Check if tour should run (not yet completed) */
   shouldRunTour: (tourId: string) => boolean;
+  /** Reset all completed tours for the active user */
+  resetTours: () => void;
 }
 
 const TourContext = createContext<TourContextType | null>(null);
 
 export function TourProvider({ children }: { children: ReactNode }) {
-  // In-memory Set — automatically resets on page refresh (F5) or logout
-  const [completedTours, setCompletedTours] = useState<Set<string>>(new Set());
+  const { user } = useUser();
+  const [completedTours, setCompletedTours] = useState<string[]>([]);
   const { route } = useNav();
 
-  // Reset tours when user lands on the login screen
+  // Load completed tours from localStorage when active user profile changes
+  useEffect(() => {
+    const mobile = user?.mobile || localStorage.getItem('aspire_logged_in_mobile') || 'guest';
+    const stored = localStorage.getItem(`aspire_completed_tours_${mobile}`);
+    if (stored) {
+      try {
+        setCompletedTours(JSON.parse(stored));
+      } catch {
+        setCompletedTours([]);
+      }
+    } else {
+      setCompletedTours([]);
+    }
+  }, [user?.mobile]);
+
+  // Reset tours in-memory when user lands on the login screen (auth logout)
   useEffect(() => {
     if (route === 'login') {
-      setCompletedTours(new Set());
+      setCompletedTours([]);
     }
   }, [route]);
 
   const isTourCompleted = useCallback(
-    (tourId: string) => completedTours.has(tourId),
+    (tourId: string) => completedTours.includes(tourId),
     [completedTours]
   );
 
   const markComplete = useCallback((tourId: string) => {
+    const mobile = user?.mobile || localStorage.getItem('aspire_logged_in_mobile') || 'guest';
     setCompletedTours((prev) => {
-      const next = new Set(prev);
-      next.add(tourId);
+      if (prev.includes(tourId)) return prev;
+      const next = [...prev, tourId];
+      localStorage.setItem(`aspire_completed_tours_${mobile}`, JSON.stringify(next));
       return next;
     });
-  }, []);
+  }, [user?.mobile]);
 
   const shouldRunTour = useCallback(
-    (tourId: string) => !completedTours.has(tourId),
+    (tourId: string) => !completedTours.includes(tourId),
     [completedTours]
   );
 
+  const resetTours = useCallback(() => {
+    const mobile = user?.mobile || localStorage.getItem('aspire_logged_in_mobile') || 'guest';
+    setCompletedTours([]);
+    localStorage.removeItem(`aspire_completed_tours_${mobile}`);
+  }, [user?.mobile]);
+
   return (
-    <TourContext.Provider value={{ isTourCompleted, markComplete, shouldRunTour }}>
+    <TourContext.Provider value={{ isTourCompleted, markComplete, shouldRunTour, resetTours }}>
       {children}
     </TourContext.Provider>
   );
