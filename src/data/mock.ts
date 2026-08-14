@@ -675,7 +675,7 @@ const prevLesson = previewIndex > 0 ? allLessons[previewIndex - 1] : null;
 export const liveClasses: LiveClass[] = [
   {
     id: 'lc1',
-    title: 'Live Workshop: Introduction to Version Control & Git Architecture',
+    title: 'Introduction to Version Control & Git Architecture',
     course: 'Python Full Stack + DSA with AI',
     instructor: instructors[1], // Srinivas Rao
     scheduledAt: new Date().toISOString(), // Use current time for "Live"
@@ -686,7 +686,7 @@ export const liveClasses: LiveClass[] = [
   },
   {
     id: 'lc2',
-    title: 'Upcoming: Git Commands: init, add, commit, push, pull',
+    title: 'Git Commands: init, add, commit, push, pull',
     course: 'Python Full Stack + DSA with AI',
     instructor: instructors[0], // Kavitha Chowdary
     scheduledAt: new Date(Date.now() + 86400000).toISOString(), // Tomorrow

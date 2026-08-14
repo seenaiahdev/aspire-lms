@@ -281,11 +281,11 @@ export function LiveClassroomScreen() {
           </button>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-rose-500 text-white flex items-center gap-1.5 shadow-sm">
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> LIVE NOW
+              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-purple-600 text-white flex items-center gap-1.5 shadow-sm">
+                <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> DEMO PREVIEW
               </span>
               <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                <Users2 className="w-3.5 h-3.5" /> 0 Students Attending
+                <Users2 className="w-3.5 h-3.5" /> Simulated Environment
               </span>
             </div>
             <h1 className="font-extrabold text-lg sm:text-xl text-slate-900 leading-tight">
@@ -325,9 +325,9 @@ export function LiveClassroomScreen() {
                 <Video className="w-8 h-8 text-slate-500" />
               </div>
               <div>
-                <h3 className="font-extrabold text-xl text-white">Starts soon, please wait...</h3>
+                <h3 className="font-extrabold text-xl text-white">Interactive Classroom Demo</h3>
                 <p className="text-sm font-semibold text-slate-400 mt-2 max-w-md mx-auto">
-                  The host has not started the broadcast yet. You're in the waiting room.
+                  This is a preview of the Aspire Next live classroom interface. Actual sessions are broadcast here according to your batch schedule, featuring a live video stream, collaborative code editor, and real-time student interaction panels.
                 </p>
               </div>
             </div>
@@ -343,8 +343,8 @@ export function LiveClassroomScreen() {
                       HOST
                     </span>
                   </div>
-                  <p className="text-amber-400/80 text-xs font-bold flex items-center gap-1.5 mt-0.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400/80" /> Waiting for host...
+                  <p className="text-purple-400 text-xs font-bold flex items-center gap-1.5 mt-0.5">
+                    <span className="w-2 h-2 rounded-full bg-purple-400" /> Simulated Host
                   </p>
                 </div>
               </div>
@@ -379,11 +379,11 @@ export function LiveClassroomScreen() {
           <div className="bg-white rounded-2xl p-4 border border-slate-200/90 shadow-2xs shrink-0 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Users2 className="w-4 h-4 text-[#7c3aed]" />
-              <h3 className="font-extrabold text-slate-900 text-xs">Active Students (0)</h3>
+              <h3 className="font-extrabold text-slate-900 text-xs">Active Students (Demo)</h3>
             </div>
             
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-semibold text-slate-400 italic">Waiting for students to join...</span>
+              <span className="text-xs font-semibold text-slate-400 italic">Simulation active</span>
             </div>
           </div>
 
