@@ -965,7 +965,7 @@ export function DashboardScreen() {
             </div>
             <div>
               <p className="text-xs text-slate-500 font-semibold">Modules Completed</p>
-              <p className="text-base font-extrabold text-slate-900 mt-0.5">0 of 1 Finished <span className="text-xs text-slate-400 font-normal ml-1">Ready to start!</span></p>
+              <p className="text-base font-extrabold text-slate-900 mt-0.5">0 of 1 Finished</p>
             </div>
           </div>
 
