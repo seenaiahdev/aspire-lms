@@ -713,8 +713,25 @@ export function ProjectsScreen() {
         })}
       </div>
 
+      {/* ════════ CAPSTONE LOCKED STATE ════════ */}
+      {mainCategory === 'capstone' && (
+        <Card className="p-10 sm:p-14 text-center bg-white border border-slate-200 rounded-[2rem] max-w-2xl mx-auto mt-6 flex flex-col items-center animate-fade-in shadow-sm">
+          <div className="w-20 h-20 rounded-3xl bg-slate-50 border border-slate-100 flex items-center justify-center mb-6 shadow-inner">
+            <Lock className="w-8 h-8 text-slate-400" />
+          </div>
+          <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 mb-3">Capstone Locked</h2>
+          <p className="text-sm text-slate-500 max-w-md leading-relaxed mb-8 font-medium">
+            The Capstone Project is the ultimate test of your skills. It will automatically unlock once you complete the final module and your Major Project.
+          </p>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 uppercase tracking-widest bg-slate-100/80 px-5 py-2.5 rounded-xl">
+            <Clock className="w-4 h-4" />
+            <span>Coming Soon</span>
+          </div>
+        </Card>
+      )}
+
       {/* ════════ 2. SUB-TABS (ASSIGNED / SUBMITTED / MENTOR FEEDBACK) ════════ */}
-      {mainCategory !== 'templates' && (
+      {mainCategory !== 'templates' && mainCategory !== 'capstone' && (
         <div className="space-y-6">
           <Tabs
             variant="pills"
@@ -739,7 +756,7 @@ export function ProjectsScreen() {
               </div>
             ) : (
               filtered.map((p, index) => {
-                const isLocked = p.status === 'assigned';
+                const isLocked = p.status === 'locked' || p.projectType === 'capstone' || p.locked;
                 return (
                   <Card 
                     key={p.id} 

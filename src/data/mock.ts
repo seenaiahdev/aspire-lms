@@ -708,14 +708,14 @@ export const quizzes: Quiz[] = [
 
 export const projects: Project[] = [
   // ════════ MINI PROJECTS ════════
-  { id: 'proj-s1', title: 'Semantic Web Page Layout', course: 'Stage 1: Web Architecture', projectType: 'mini', status: 'assigned', difficulty: 'Beginner', skills: ['HTML5', 'CSS3', 'Git'], description: 'Construct a fully semantic single-page layout using modern HTML5 tags and CSS Flexbox.', dueDate: 'Aug 20' },
-  { id: 'proj-s2', title: 'Django REST API & Redis Cache', course: 'Stage 2: Backend & DSA', projectType: 'mini', status: 'assigned', difficulty: 'Intermediate', skills: ['Python', 'Django', 'Redis'], description: 'Build a robust Django REST API with JWT authentication and Redis caching for database queries.', dueDate: 'Sep 10' },
+  { id: 'proj-s1', title: 'Python Data Analyzer', course: 'Module 2: Python Fundamentals', projectType: 'mini', status: 'assigned', locked: true, difficulty: 'Beginner', skills: ['Python', 'Pandas', 'Data Cleaning'], description: 'Build a Python script that analyzes, cleans, and generates insights from raw CSV data.', dueDate: 'Aug 20' },
+  { id: 'proj-s2', title: 'Django REST API & Redis Cache', course: 'Module 3: Backend & DSA', projectType: 'mini', status: 'assigned', locked: true, difficulty: 'Intermediate', skills: ['Python', 'Django', 'Redis'], description: 'Build a robust Django REST API with JWT authentication and Redis caching for database queries.', dueDate: 'Sep 10' },
 
   // ════════ MAJOR PROJECTS ════════
-  { id: 'proj-s3', title: 'Intelligent AI Chatbot Integration', course: 'Stage 3: AI & Deployment', projectType: 'major', status: 'assigned', difficulty: 'Advanced', skills: ['Python', 'LangChain', 'OpenAI', 'Docker'], description: 'Develop an AI-powered chatbot using LangChain that references custom PDF documents, containerized with Docker.', dueDate: 'Oct 05' },
+  { id: 'proj-s3', title: 'Enterprise Fullstack E-Commerce', course: 'Module 4: Fullstack Integration', projectType: 'major', status: 'assigned', locked: true, difficulty: 'Advanced', skills: ['React', 'Django', 'PostgreSQL', 'Docker'], description: 'Develop a complete React frontend integrated with a Django REST backend. Includes auth, payments, and Docker deployment.', dueDate: 'Oct 05' },
 
   // ════════ CAPSTONE PROJECTS ════════
-  { id: 'proj-s4', title: 'Enterprise LMS Microservices Architecture', course: 'Stage 4: Career Launchpad', projectType: 'capstone', status: 'assigned', difficulty: 'Advanced', skills: ['System Design', 'React', 'Django', 'AWS'], description: 'Design and deploy a scalable Learning Management System using a microservices architecture, complete with HLD and LLD documentation.', dueDate: 'Nov 15' },
+  { id: 'proj-s4', title: 'Capstone Project: Coming Soon', course: 'Final Stage: Career Launchpad', projectType: 'capstone', status: 'assigned', difficulty: 'Advanced', skills: ['System Design', 'React', 'Django', 'AWS'], description: 'Design and deploy a scalable Learning Management System using a microservices architecture. Details will be unlocked soon.', dueDate: 'TBD' },
 ];
 
 export const notifications: Notification[] = [];
@@ -775,7 +775,7 @@ export const practiceProblems: PracticeProblem[] = [
 ];
 
 export const jobOpportunities: JobOpportunity[] = [
-  { id: 'j1', company: 'Amazon', role: 'SDE 1 - Fullstack (Python)', logo: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', location: 'Hyderabad, India', type: 'Full-time', salary: '20-28 LPA', postedDate: '1 day ago', match: 98, skills: ['Python', 'Django', 'AWS', 'DSA'], status: 'open' },
+  { id: 'j1', company: 'TCS', role: 'Python Developer', logo: '/tcs.png', location: 'Hyderabad, India', type: 'Full-time', salary: '4-7 LPA', postedDate: '1 day ago', match: 98, skills: ['Python', 'Django', 'AWS', 'DSA'], status: 'open' },
 ];
 
 export const announcements = [

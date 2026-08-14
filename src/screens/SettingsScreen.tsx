@@ -62,7 +62,6 @@ export function SettingsScreen() {
   const sections = [
     { id: 'profile', label: 'Profile Details', icon: User },
     { id: 'notifications', label: 'Notifications', icon: Bell },
-    { id: 'privacy', label: 'Privacy', icon: Shield },
     { id: 'connected', label: 'Connected Accounts', icon: Link2 },
   ];
 
@@ -128,20 +127,14 @@ export function SettingsScreen() {
               <CardBody className="p-6 sm:p-8 space-y-8">
                 
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-slate-100 pb-8">
-                  <div className="relative group cursor-pointer">
+                  <div className="relative">
                     <Avatar src={currentUser.avatar} name={currentUser.name} size="xl" className="w-24 h-24 shadow-sm border-2 border-slate-100" />
-                    <div className="absolute inset-0 bg-slate-900/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Camera className="w-6 h-6 text-white" />
-                    </div>
                   </div>
-                  <div className="text-center sm:text-left space-y-2">
+                  <div className="text-center sm:text-left space-y-1 self-center">
                     <h3 className="font-extrabold text-slate-900 text-lg">Profile Avatar</h3>
                     <p className="text-xs font-semibold text-slate-500 max-w-xs">
-                      We support PNG, JPG, or GIF under 5MB. A square image works best.
+                      Managing profile pictures is disabled for this demo.
                     </p>
-                    <button className="px-4 py-2 mt-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-extrabold transition-colors">
-                      Upload New Picture
-                    </button>
                   </div>
                 </div>
 
@@ -242,52 +235,6 @@ export function SettingsScreen() {
                 <div className="flex justify-end pt-4 border-t border-slate-100">
                   <button 
                     onClick={handleSaveNotifications}
-                    className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2"
-                  >
-                    <Check className="w-4 h-4" /> Save Preferences
-                  </button>
-                </div>
-              </CardBody>
-            </Card>
-          )}
-
-
-
-          {section === 'privacy' && (
-            <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden">
-              <CardBody className="p-6 sm:p-8 space-y-6">
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg">Privacy & Security</h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-1">Manage what information is visible to the community.</p>
-                </div>
-
-                <div className="space-y-3 pt-4">
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100">
-                    <div>
-                      <p className="text-sm font-extrabold text-slate-800">Public Profile</p>
-                      <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Allow other students to view your profile</p>
-                    </div>
-                    <Toggle active={privacy.publicProfile} onClick={() => setPrivacy({ ...privacy, publicProfile: !privacy.publicProfile })} />
-                  </div>
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100">
-                    <div>
-                      <p className="text-sm font-extrabold text-slate-800">Leaderboard Visibility</p>
-                      <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Display your name and rank on global charts</p>
-                    </div>
-                    <Toggle active={privacy.leaderboard} onClick={() => setPrivacy({ ...privacy, leaderboard: !privacy.leaderboard })} />
-                  </div>
-                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-50/50 border border-slate-100">
-                    <div>
-                      <p className="text-sm font-extrabold text-slate-800">Activity Status</p>
-                      <p className="text-[11px] font-semibold text-slate-500 mt-0.5">Show when you are currently online</p>
-                    </div>
-                    <Toggle active={privacy.activityStatus} onClick={() => setPrivacy({ ...privacy, activityStatus: !privacy.activityStatus })} />
-                  </div>
-                </div>
-
-                <div className="flex justify-end pt-4 border-t border-slate-100">
-                  <button 
-                    onClick={handleSavePrivacy}
                     className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2"
                   >
                     <Check className="w-4 h-4" /> Save Preferences

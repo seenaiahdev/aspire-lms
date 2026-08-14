@@ -28,69 +28,69 @@ export interface SwagReward {
 const swagRewardsList: SwagReward[] = [
   {
     id: 'r1',
-    name: 'Locked Reward (Coming Soon)',
-    category: 'Locked',
-    description: 'Locked Reward',
-    currentXp: 0,
-    requiredXp: 1200,
-    isUnlocked: false,
-    productImage: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?auto=format&fit=crop&w=800&q=80',
-    tag: '0% COMPLETED',
-  },
-  {
-    id: 'r2',
-    name: 'Locked Reward (Coming Soon)',
-    category: 'Locked',
-    description: 'Locked Reward',
-    currentXp: 0,
-    requiredXp: 750,
-    isUnlocked: false,
-    productImage: 'https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?auto=format&fit=crop&w=800&q=80',
-    tag: '0% COMPLETED',
-  },
-  {
-    id: 'r3',
-    name: 'Locked Reward (Coming Soon)',
-    category: 'Locked',
-    description: 'Locked Reward',
+    name: 'Developer Sticker Pack',
+    category: 'Accessories',
+    description: 'High-quality vinyl laptop stickers featuring developer humor and Aspire Next branding.',
     currentXp: 0,
     requiredXp: 1000,
     isUnlocked: false,
-    productImage: 'https://images.unsplash.com/photo-1602143407151-7111542de6e8?auto=format&fit=crop&w=800&q=80',
-    tag: '0% COMPLETED',
+    productImage: '/rewards/stickers.png',
+    tag: 'LOCKED',
   },
   {
-    id: 'r4',
-    name: 'Locked Reward (Coming Soon)',
-    category: 'Locked',
-    description: 'Locked Reward',
+    id: 'r2',
+    name: 'Aspire Next Coffee Mug',
+    category: 'Drinkware',
+    description: 'Start your coding sessions with this premium ceramic mug. Microwave and dishwasher safe.',
     currentXp: 0,
     requiredXp: 2000,
     isUnlocked: false,
-    productImage: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80',
-    tag: '0% COMPLETED',
+    productImage: '/rewards/mug.png',
+    tag: 'LOCKED',
   },
   {
-    id: 'r5',
-    name: 'Locked Reward (Coming Soon)',
-    category: 'Locked',
-    description: 'Locked Reward',
+    id: 'r3',
+    name: 'Reusable Smart Notebook',
+    category: 'Stationery',
+    description: 'Eco-friendly smart notebook with scan-to-cloud and erase capabilities. Includes smart pen.',
+    currentXp: 0,
+    requiredXp: 3500,
+    isUnlocked: false,
+    productImage: '/rewards/notebook.png',
+    tag: 'LOCKED',
+  },
+  {
+    id: 'r4',
+    name: 'Smart LED Flask',
+    category: 'Drinkware',
+    description: 'Premium stainless steel insulated flask with digital LED temperature display. Keeps drinks hot/cold for 12+ hours.',
     currentXp: 0,
     requiredXp: 5000,
     isUnlocked: false,
-    productImage: 'https://images.unsplash.com/photo-1556905055-8f358a7a47b2?auto=format&fit=crop&w=800&q=80',
-    tag: '0% COMPLETED',
+    productImage: '/rewards/bottle.jpg',
+    tag: 'LOCKED',
+  },
+  {
+    id: 'r5',
+    name: 'Premium Developer T-Shirt',
+    category: 'Apparel',
+    description: 'Ultra-comfortable breathable tee for long coding sessions. Navy blue with Aspire Next graphics.',
+    currentXp: 0,
+    requiredXp: 8000,
+    isUnlocked: false,
+    productImage: '/rewards/tshirt.png',
+    tag: 'LOCKED',
   },
   {
     id: 'r6',
-    name: 'Locked Reward (Coming Soon)',
-    category: 'Locked',
-    description: 'Locked Reward',
+    name: 'Tech Backpack',
+    category: 'Gear',
+    description: 'Sleek, water-resistant tech backpack with dedicated laptop sleeve, anti-theft pockets, and built-in USB charging port.',
     currentXp: 0,
-    requiredXp: 3000,
+    requiredXp: 15000,
     isUnlocked: false,
-    productImage: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?auto=format&fit=crop&w=800&q=80',
-    tag: '0% COMPLETED',
+    productImage: '/rewards/backpack.png',
+    tag: 'LOCKED',
   }
 ];
 
@@ -141,6 +141,7 @@ export function RewardsScreen() {
   const [selectedReward, setSelectedReward] = useState<SwagReward | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [claimedId, setClaimedId] = useState<string | null>(null);
+  const [lockedToast, setLockedToast] = useState(false);
 
   const unlockedCount = rewardsState.filter(r => r.isUnlocked).length;
   const lockedCount = rewardsState.filter(r => !r.isUnlocked).length;
@@ -221,29 +222,23 @@ export function RewardsScreen() {
               className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]"
             >
               
-              {/* ── CARD CONTENT (BLURRED IF LOCKED) ── */}
-              <div className={cn("flex flex-col h-full justify-between transition-all duration-500", !reward.isUnlocked && "blur-[3px] opacity-40 select-none pointer-events-none")}>
+              <div 
+                className="flex flex-col h-full justify-between transition-all duration-500 cursor-pointer"
+                onClick={() => {
+                  if (!reward.isUnlocked) {
+                    setLockedToast(true);
+                    setTimeout(() => setLockedToast(false), 3000);
+                  }
+                }}
+              >
                 
                 {/* Full Seamless Edge-to-Edge Image Header */}
-                <div className="relative h-60 w-full overflow-hidden shrink-0 bg-slate-100">
+                <div className="relative h-80 sm:h-[340px] w-full overflow-hidden shrink-0 bg-[#0f111a]">
                   <img
                     src={reward.productImage}
                     alt={reward.name}
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                    className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
                   />
-
-                  {/* Status Chip */}
-                  <div className="absolute top-3 right-3 z-20">
-                    {reward.isUnlocked ? (
-                      <span className="px-3 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider shadow-md flex items-center gap-1">
-                        <CheckCircle2 className="w-3.5 h-3.5" /> UNLOCKED DEMO
-                      </span>
-                    ) : (
-                      <span className="px-3 py-1 rounded-full bg-[#7c3aed] text-white text-[10px] font-black uppercase tracking-wider shadow-md">
-                        LOCKED ({progressPercent}%)
-                      </span>
-                    )}
-                  </div>
                 </div>
 
                 {/* Card Body */}
@@ -263,14 +258,14 @@ export function RewardsScreen() {
                     </h3>
                   </div>
 
-                  {/* Unlocked Actions */}
+                  {/* Unlocked / Locked Actions */}
                   <div className="pt-3 border-t border-slate-100 mt-auto">
                     {isClaimed ? (
                       <div className="w-full py-2.5 px-4 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 font-extrabold text-xs flex items-center justify-center gap-2">
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                         <span>Claimed & Shipping Dispatched!</span>
                       </div>
-                    ) : (
+                    ) : reward.isUnlocked ? (
                       <button
                         onClick={(e) => { e.stopPropagation(); handleClaimReward(reward); }}
                         className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
@@ -278,33 +273,23 @@ export function RewardsScreen() {
                         <ShoppingBag className="w-4 h-4 text-amber-300" />
                         <span>Claim Swag Reward</span>
                       </button>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setLockedToast(true);
+                          setTimeout(() => setLockedToast(false), 3000);
+                        }}
+                        className="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200/80 font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200"
+                      >
+                        <Lock className="w-4 h-4" />
+                        <span>Locked Reward</span>
+                      </button>
                     )}
                   </div>
                 </div>
 
               </div>
-
-              {/* ── FULL CARD BLURRED OVERLAY WHEN LOCKED (DEAD CENTER OF ENTIRE CARD) ── */}
-              {!reward.isUnlocked && (
-                <div className="absolute inset-0 z-30 bg-slate-950/85 backdrop-blur-md p-6 flex flex-col items-center justify-center text-center text-white space-y-3.5 animate-fade-in">
-                  
-                  {/* SVG Circular Progress Ring with Lock Icon in Center */}
-                  <CircularRewardLock progress={progressPercent} size={80} />
-
-                  <div className="max-w-xs space-y-1.5">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-500/20 text-purple-300 border border-purple-400/40 text-[11px] font-black uppercase tracking-wider">
-                      <span>LOCKED REWARD</span>
-                      <span className="text-white">({reward.currentXp} / {reward.requiredXp} XP)</span>
-                    </div>
-
-                    <h4 className="font-extrabold text-sm sm:text-base text-white leading-snug line-clamp-2">
-                      {reward.name}
-                    </h4>
-
-                  </div>
-
-                </div>
-              )}
 
             </Card>
           );
@@ -312,7 +297,7 @@ export function RewardsScreen() {
       </div>
 
 
-      {/* ════════ PRODUCT DETAILS & CLAIM MODAL ════════ */}
+      {/* ════════ REWARD DETAILS MODAL ════════ */}
       {selectedReward && createPortal(
         <div 
           className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
@@ -405,6 +390,21 @@ export function RewardsScreen() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">This content is currently locked.</p>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>

@@ -39,11 +39,11 @@ export function ResourcesScreen() {
   const [search, setSearch] = useState('');
   const [type, setType] = useState('all');
   const [resourcesList, setResourcesList] = useState(initialResources);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [lockedToast, setLockedToast] = useState(false);
 
   const handleDownload = (id: string, title: string) => {
-    setToastMessage(`🔒 Locked: "${title}" will be available when you reach this module.`);
-    setTimeout(() => setToastMessage(null), 3000);
+    setLockedToast(true);
+    setTimeout(() => setLockedToast(false), 3000);
   };
 
   const filtered = resourcesList.filter((r) => {
@@ -57,12 +57,19 @@ export function ResourcesScreen() {
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12">
 
-      {toastMessage && (
-        <Toast
-          message={toastMessage}
-          onClose={() => setToastMessage(null)}
-          position="top-right"
-        />
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">This content is currently locked.</p>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Clean Top Header */}

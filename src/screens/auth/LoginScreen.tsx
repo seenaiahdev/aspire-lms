@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
@@ -11,6 +11,26 @@ export function LoginScreen() {
   const [otp, setOtp] = useState(['', '', '', '']);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Auto-fill OTP and auto-submit for demo environment
+  useEffect(() => {
+    if (step === 'otp') {
+      const timer = setTimeout(() => {
+        setOtp(['1', '2', '3', '4']);
+        
+        // Auto-submit after a brief pause so they can see the filled code
+        setTimeout(() => {
+          setIsSubmitting(true);
+          setTimeout(() => {
+            setIsSubmitting(false);
+            login();
+          }, 600);
+        }, 500);
+        
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [step, login]);
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -140,10 +160,10 @@ export function LoginScreen() {
               <span className="text-[9px] sm:text-xs font-semibold text-white">Goal Driven</span>
             </div>
 
-            {/* Label 4: Bottom-Left — 1-on-1 Mentorship */}
-            <div className="flex absolute -bottom-2 -left-8 sm:bottom-3 sm:-left-12 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20">
+            {/* Label 4: Bottom-Left — WWH Model */}
+            <div className="flex absolute -bottom-2 -left-3 sm:bottom-3 sm:-left-4 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20">
               <Users className="w-3 h-3 sm:w-4 sm:h-4 text-sky-200" />
-              <span className="text-[9px] sm:text-xs font-semibold text-white">1-on-1 Mentorship</span>
+              <span className="text-[9px] sm:text-xs font-semibold text-white">WWH Model</span>
             </div>
 
           </div>
@@ -263,6 +283,10 @@ export function LoginScreen() {
                   </div>
                   <p className="text-xs text-slate-500 font-normal">
                     Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span>
+                  </p>
+                  <p className="text-[10px] text-amber-600 font-medium mt-2.5 flex items-center justify-center gap-1.5 bg-amber-50 px-3 py-1 rounded-lg mx-auto w-fit border border-amber-100/50 shadow-sm">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" /> 
+                    Demo Mode: Auto-filling code...
                   </p>
                 </div>
 
