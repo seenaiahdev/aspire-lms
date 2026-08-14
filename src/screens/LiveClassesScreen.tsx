@@ -423,73 +423,89 @@ export function LiveClassroomScreen() {
             </div>
           </div>
           
-          {/* Tab Scroll Content */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3">
-            {tab === 'chat' && (
-              <div className="space-y-3">
-                {chatMessages.length === 0 && (
-                  <div className="text-center py-10">
-                    <MessageCircle className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                    <p className="text-xs font-semibold text-slate-400">No messages yet. Be the first to say hello!</p>
-                  </div>
-                )}
-                {chatMessages.map((c, i) => (
-                  <div key={i} className={cn("flex gap-2.5 p-2.5 rounded-xl transition-colors", c.mentor ? "bg-purple-50/70 border border-purple-100" : "hover:bg-slate-50")}>
-                    <Avatar src={c.avatar} name={c.name} size="sm" className="shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-xs font-black text-slate-900">{c.name}</span>
-                        {c.mentor && (
-                          <span className="px-1.5 py-0.2 rounded bg-[#7c3aed] text-white text-[9px] font-black uppercase tracking-wider">
-                            INSTRUCTOR
-                          </span>
-                        )}
-                        <span className="text-[10px] font-semibold text-slate-400 ml-auto shrink-0">{c.time}</span>
-                      </div>
-                      <p className="text-xs font-semibold text-slate-700 leading-relaxed break-words">{c.msg}</p>
+          {/* Wrapper to overlay lock on scroll and input area */}
+          <div className="flex-1 relative flex flex-col min-h-0">
+            
+            {/* Tab Scroll Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 filter blur-[1.5px] pointer-events-none">
+              {tab === 'chat' && (
+                <div className="space-y-3">
+                  {chatMessages.length === 0 && (
+                    <div className="text-center py-10">
+                      <MessageCircle className="w-8 h-8 text-slate-200 mx-auto mb-2" />
+                      <p className="text-xs font-semibold text-slate-400">No messages yet. Be the first to say hello!</p>
                     </div>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {tab === 'notes' && (
-              <div className="flex flex-col h-full space-y-2">
-                <textarea 
-                  className="w-full flex-1 min-h-[160px] text-xs font-semibold text-slate-800 focus:outline-none resize-none bg-transparent placeholder:text-slate-400 leading-relaxed" 
-                  placeholder="Take notes during the live class..." 
-                  defaultValue={``} 
-                />
-                <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-400">All notes saved locally</span>
+                  )}
+                  {chatMessages.map((c, i) => (
+                    <div key={i} className={cn("flex gap-2.5 p-2.5 rounded-xl transition-colors", c.mentor ? "bg-purple-50/70 border border-purple-100" : "hover:bg-slate-50")}>
+                      <Avatar src={c.avatar} name={c.name} size="sm" className="shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-xs font-black text-slate-900">{c.name}</span>
+                          {c.mentor && (
+                            <span className="px-1.5 py-0.2 rounded bg-[#7c3aed] text-white text-[9px] font-black uppercase tracking-wider">
+                              INSTRUCTOR
+                            </span>
+                          )}
+                          <span className="text-[10px] font-semibold text-slate-400 ml-auto shrink-0">{c.time}</span>
+                        </div>
+                        <p className="text-xs font-semibold text-slate-700 leading-relaxed break-words">{c.msg}</p>
+                      </div>
+                    </div>
+                  ))}
                 </div>
+              )}
+
+              {tab === 'notes' && (
+                <div className="flex flex-col h-full space-y-2">
+                  <textarea 
+                    className="w-full flex-1 min-h-[160px] text-xs font-semibold text-slate-800 focus:outline-none resize-none bg-transparent placeholder:text-slate-400 leading-relaxed" 
+                    placeholder="Take notes during the live class..." 
+                    defaultValue={``} 
+                  />
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400">All notes saved locally</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Interactive Message Sending Input */}
+            {tab === 'chat' && (
+              <div className="p-3 border-t border-slate-100 bg-slate-50/50 shrink-0 filter blur-[1.5px] pointer-events-none">
+                <form 
+                  onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
+                  className="flex items-center gap-2"
+                >
+                  <input 
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#7c3aed] transition-colors" 
+                    placeholder="Ask a question or type a message..." 
+                  />
+                  <button 
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-black transition-all shadow-md active:scale-95 flex items-center gap-1 shrink-0"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Send</span>
+                  </button>
+                </form>
               </div>
             )}
-          </div>
 
-          {/* Interactive Message Sending Input */}
-          {tab === 'chat' && (
-            <div className="p-3 border-t border-slate-100 bg-slate-50/50 shrink-0">
-              <form 
-                onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
-                className="flex items-center gap-2"
-              >
-                <input 
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  className="flex-1 bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-800 focus:outline-none focus:border-[#7c3aed] transition-colors" 
-                  placeholder="Ask a question or type a message..." 
-                />
-                <button 
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-black transition-all shadow-md active:scale-95 flex items-center gap-1 shrink-0"
-                >
-                  <Send className="w-3.5 h-3.5" />
-                  <span>Send</span>
-                </button>
-              </form>
+            {/* Premium Lock Overlay */}
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-[3px] flex flex-col items-center justify-center p-6 text-center z-30 select-none">
+              <div className="w-12 h-12 rounded-2xl bg-purple-50 flex items-center justify-center border border-purple-100 shadow-md shadow-purple-500/5 mb-3.5 animate-slide-up">
+                <Lock className="w-5 h-5 text-purple-600" />
+              </div>
+              <h4 className="font-extrabold text-sm text-slate-900 tracking-wide uppercase">Workspace Locked</h4>
+              <p className="text-xs font-semibold text-slate-500 mt-2 max-w-[220px] leading-relaxed mx-auto">
+                Classroom chat and personal notes will activate dynamically once a live class starts.
+              </p>
             </div>
-          )}
+
+          </div>
 
         </div>
 
