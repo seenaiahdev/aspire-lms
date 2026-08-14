@@ -98,35 +98,6 @@ export function CourseScreen() {
   const [tab, setTab] = useState('modules');
   const [openStageIndex, setOpenStageIndex] = useState<number | null>(0);
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
-  const [toastMessage, setToastMessage] = useState<string | null>(null);
-
-  const handleShare = () => {
-    const shareData = {
-      title: course.title,
-      text: `Learn ${course.title} with me on AspireNext!`,
-      url: window.location.href,
-    };
-
-    if (navigator.share && navigator.canShare && navigator.canShare(shareData)) {
-      navigator.share(shareData)
-        .then(() => {
-          setToastMessage("Course shared successfully! 🚀");
-          setTimeout(() => setToastMessage(null), 3000);
-        })
-        .catch((err) => {
-          console.error("Error sharing:", err);
-        });
-    } else {
-      navigator.clipboard.writeText(window.location.href)
-        .then(() => {
-          setToastMessage("Course link copied to clipboard! Share it with your friends. 🚀");
-          setTimeout(() => setToastMessage(null), 3000);
-        })
-        .catch((err) => {
-          console.error("Clipboard error:", err);
-        });
-    }
-  };
 
   return (
     <div className="space-y-6">
@@ -422,16 +393,10 @@ export function CourseScreen() {
                 <span>{course.progress > 0 ? 'Continue Learning' : 'Start Course'}</span>
               </button>
 
-              <div className="flex gap-2 pt-2">
-                <button 
-                  onClick={handleShare}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Share2 className="w-3.5 h-3.5" /> Share
-                </button>
+              <div className="pt-2">
                 <button 
                   onClick={() => navigate('certificates')}
-                  className="flex-1 py-2.5 px-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-extrabold text-xs transition-colors flex items-center justify-center gap-1.5 border border-purple-100 cursor-pointer"
+                  className="w-full py-2.5 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-extrabold text-xs transition-colors flex items-center justify-center gap-1.5 border border-purple-100 cursor-pointer"
                 >
                   <Award className="w-3.5 h-3.5" /> Certificate
                 </button>
@@ -441,17 +406,6 @@ export function CourseScreen() {
         </div>
       </div>
 
-      {/* Toast Notification */}
-      {toastMessage && (
-        <div className="fixed bottom-6 right-6 z-50 animate-fade-in">
-          <div className="bg-white px-4 py-3 rounded-2xl shadow-xl border border-slate-100 flex items-center gap-3">
-            <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
-              <Check className="w-3.5 h-3.5 text-emerald-600" />
-            </div>
-            <p className="text-xs font-bold text-slate-800">{toastMessage}</p>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
