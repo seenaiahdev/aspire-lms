@@ -193,7 +193,7 @@ export interface CommunityPost {
 export interface ScheduleItem {
   id: ID;
   title: string;
-  type: 'class' | 'assignment' | 'exam' | 'event' | 'task';
+  type: 'class' | 'assignment' | 'exam' | 'project' | 'resource' | 'reward' | 'placement' | 'task';
   date: string;
   dateKey?: string;
   time: string;
