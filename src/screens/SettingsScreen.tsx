@@ -10,7 +10,7 @@ export function SettingsScreen() {
   const [section, setSection] = useState('profile');
   const [theme, setTheme] = useState('light');
   const [notifications, setNotifications] = useState({
-    assignments: true, live: true, community: false, placement: true, weekly: true,
+    assignments: true, live: true, placement: true, weekly: true,
   });
   const [privacy, setPrivacy] = useState({
     publicProfile: true, leaderboard: true, activityStatus: false,
