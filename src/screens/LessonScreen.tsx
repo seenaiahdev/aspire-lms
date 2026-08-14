@@ -269,7 +269,7 @@ export function LessonScreen() {
                 {course.stages?.[currentStageIndex >= 0 ? currentStageIndex : 0]?.title || 'Module'}
               </span>
               <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-extrabold">
-                Lesson {currentIdx + 1} of {allLessons.length}
+                Lesson {safeCurrentIdx + 1} of {allLessons.length}
               </span>
             </div>
             <h1 className="font-extrabold text-slate-900 text-lg sm:text-xl">{currentLesson.title}</h1>
