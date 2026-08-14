@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2 } from 'lucide-react';
 import { scheduleItems } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
@@ -10,6 +10,7 @@ import { scheduleSteps } from '@/lib/tourSteps';
 const typeConfig: Record<string, { color: string; icon: any; label: string }> = {
   class: { color: 'teal', icon: Radio, label: 'Live Classes' },
   assignment: { color: 'amber', icon: FileText, label: 'Practice Hub' },
+  practice: { color: 'sky', icon: Code2, label: 'Practice Lab' },
   project: { color: 'indigo', icon: FolderOpen, label: 'Projects' },
   resource: { color: 'purple', icon: BookOpen, label: 'Resources' },
   reward: { color: 'rose', icon: Trophy, label: 'Rewards' },
@@ -20,6 +21,7 @@ const typeConfig: Record<string, { color: string; icon: any; label: string }> = 
 const typeOptions = [
   { value: 'class', label: 'Live Classes' },
   { value: 'assignment', label: 'Practice Hub' },
+  { value: 'practice', label: 'Practice Lab' },
   { value: 'project', label: 'Projects' },
   { value: 'resource', label: 'Resources' },
   { value: 'reward', label: 'Rewards' },
@@ -155,6 +157,9 @@ export function ScheduleScreen() {
         break;
       case 'placement':
         navigate('placement');
+        break;
+      case 'practice':
+        navigate('practice');
         break;
       case 'task':
       default:
