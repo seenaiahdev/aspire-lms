@@ -156,7 +156,11 @@ export const courses: Course[] = [
               { id: 'l_es6_1', title: 'Destructuring, Spread/Rest Operators, and Modules', completed: false, video: { duration: '1h 00m', completed: false }, practice: { duration: '15m', completed: false } },
               { id: 'l_es6_2', title: 'Promises, Async/Await, and Fetch API Integration', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '30m', completed: false } },
               { id: 'l_es6_3', title: 'Handling JSON Data & Dynamic API Integrations', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
-            ]      {
+            ]
+          }
+        ]
+      },
+      {
         id: 's2',
         title: 'Stage 2: Backend + DSA',
         modules: [
@@ -300,10 +304,6 @@ export const courses: Course[] = [
               { id: 'l_dsa2_3', title: 'Trees: Binary Trees, BST Traversals & Operations', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
             ]
           }
-        ]
-      },  ]
-      },
-
         ]
       },
       {
