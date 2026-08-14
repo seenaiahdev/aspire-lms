@@ -521,7 +521,7 @@ export const courses: Course[] = [
     id: 's1',
     title: 'Professional Communication & Soft Skills',
     subtitle: 'Learn professional email writing, technical speaking, group discussions, and interview skills.',
-    category: 'Communication or Soft Skills',
+    category: 'Communication & Soft Skills',
     level: 'Beginner',
     instructor: instructors[2],
     thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&q=80',

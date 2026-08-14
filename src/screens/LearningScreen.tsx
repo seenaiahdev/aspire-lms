@@ -63,7 +63,7 @@ const learningItems: LearningItem[] = [
   {
     id: 's1',
     category: 'soft_skills',
-    categoryLabel: 'Communication or Soft Skills',
+    categoryLabel: 'Communication & Soft Skills',
     title: 'Professional Communication & Soft Skills',
     subtitle: 'Learn professional email writing, technical speaking, group discussions, and interview skills.',
     thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80',
@@ -448,7 +448,7 @@ export function LearningScreen() {
             {[
               { id: 'all', label: 'All' },
               { id: 'courses', label: 'Courses' },
-              { id: 'soft_skills', label: 'Communication or Soft Skills' },
+              { id: 'soft_skills', label: 'Communication & Soft Skills' },
               { id: 'aptitude', label: 'Aptitude & Reasoning' },
               { id: 'resume', label: 'Resume' },
               { id: 'portfolio', label: 'Portfolio' },
