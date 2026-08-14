@@ -158,7 +158,7 @@ export function ScheduleScreen() {
         break;
       case 'task':
       default:
-        navigate('practice');
+        // Personal tasks have no external redirection
         break;
     }
   };
@@ -586,13 +586,15 @@ export function ScheduleScreen() {
                             {item.course && <p className="mt-1 text-sm text-slate-500">{item.course}</p>}
                           </div>
                         </div>
-                        <button
-                          onClick={() => handleItemClick(item.type)}
-                          className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
-                        >
-                          <Icon className="w-4 h-4 text-slate-500" />
-                          {cfg.label}
-                        </button>
+                        {item.type !== 'task' && (
+                          <button
+                            onClick={() => handleItemClick(item.type)}
+                            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
+                          >
+                            <Icon className="w-4 h-4 text-slate-500" />
+                            {cfg.label}
+                          </button>
+                        )}
                       </div>
                     );
                   })}
@@ -621,13 +623,15 @@ export function ScheduleScreen() {
                                 <p className="mt-1 text-sm text-slate-500">{item.time}</p>
                               </div>
                             </div>
-                            <button
-                              onClick={() => handleItemClick(item.type)}
-                              className="inline-flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-4 py-2 text-sm font-semibold text-[#1d4ed8] border border-[#bfdbfe] hover:bg-[#dbeafe] transition-all cursor-pointer"
-                            >
-                              <Icon className="w-4 h-4" />
-                              {cfg.label}
-                            </button>
+                            {item.type !== 'task' && (
+                              <button
+                                onClick={() => handleItemClick(item.type)}
+                                className="inline-flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-4 py-2 text-sm font-semibold text-[#1d4ed8] border border-[#bfdbfe] hover:bg-[#dbeafe] transition-all cursor-pointer"
+                              >
+                                <Icon className="w-4 h-4" />
+                                {cfg.label}
+                              </button>
+                            )}
                           </div>
                         );
                       })}
