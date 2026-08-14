@@ -7,7 +7,7 @@ interface TourContextType {
   isTourCompleted: (tourId: string) => boolean;
   /** Mark a tour as completed */
   markComplete: (tourId: string) => void;
-  /** Check if tour should run (not yet completed) */
+  /** Check if tour should run (not yet completed and allowed for this login session) */
   shouldRunTour: (tourId: string) => boolean;
   /** Reset all completed tours for the active user */
   resetTours: () => void;
@@ -17,7 +17,21 @@ const TourContext = createContext<TourContextType | null>(null);
 
 export function TourProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
-  const [completedTours, setCompletedTours] = useState<string[]>([]);
+  
+  // Synchronous initialization prevents race condition on initial render
+  const [completedTours, setCompletedTours] = useState<string[]>(() => {
+    const mobile = localStorage.getItem('aspire_logged_in_mobile') || 'guest';
+    const stored = localStorage.getItem(`aspire_completed_tours_${mobile}`);
+    if (stored) {
+      try {
+        return JSON.parse(stored);
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
+  
   const { route } = useNav();
 
   // Load completed tours from localStorage when active user profile changes
@@ -49,6 +63,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
 
   const markComplete = useCallback((tourId: string) => {
     const mobile = user?.mobile || localStorage.getItem('aspire_logged_in_mobile') || 'guest';
+    localStorage.setItem('aspire_tour_allowed', 'false'); // Lock further automatic triggers
     setCompletedTours((prev) => {
       if (prev.includes(tourId)) return prev;
       const next = [...prev, tourId];
@@ -58,7 +73,10 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [user?.mobile]);
 
   const shouldRunTour = useCallback(
-    (tourId: string) => !completedTours.includes(tourId),
+    (tourId: string) => {
+      const isAllowed = localStorage.getItem('aspire_tour_allowed') === 'true';
+      return isAllowed && !completedTours.includes(tourId);
+    },
     [completedTours]
   );
 
@@ -66,6 +84,7 @@ export function TourProvider({ children }: { children: ReactNode }) {
     const mobile = user?.mobile || localStorage.getItem('aspire_logged_in_mobile') || 'guest';
     setCompletedTours([]);
     localStorage.removeItem(`aspire_completed_tours_${mobile}`);
+    localStorage.setItem('aspire_tour_allowed', 'true'); // Allow tours to run again
   }, [user?.mobile]);
 
   return (

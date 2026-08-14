@@ -51,6 +51,7 @@ export function NavProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(() => {
     localStorage.setItem('aspire_logged_in', 'true');
+    localStorage.setItem('aspire_tour_allowed', 'true');
     setIsLoggedIn(true);
     navigate('dashboard');
   }, [navigate]);
