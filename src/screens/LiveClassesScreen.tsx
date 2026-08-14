@@ -8,6 +8,7 @@ import {
   SkipBack, SkipForward, Bookmark, CalendarX, Lock
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
+import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -249,6 +250,7 @@ export function LiveClassesScreen() {
 
 export function LiveClassroomScreen() {
   const { navigate, params } = useNav();
+  const { user } = useUser();
   const cls = liveClasses.find((c) => c.id === params.id) || liveClasses[0];
   const [tab, setTab] = useState('chat');
   const [isMuted, setIsMuted] = useState(false);
@@ -262,7 +264,7 @@ export function LiveClassroomScreen() {
     if (!newMessage.trim()) return;
     setChatMessages((prev) => [
       ...prev,
-      { name: 'Aarav Sharma', avatar: 'https://i.pravatar.cc/200?img=12', msg: newMessage, time: 'Just now' }
+      { name: user.name, avatar: user.avatar, msg: newMessage, time: 'Just now' }
     ]);
     setNewMessage('');
   };
@@ -327,7 +329,7 @@ export function LiveClassroomScreen() {
               <div>
                 <h3 className="font-extrabold text-xl text-white">Interactive Classroom Demo</h3>
                 <p className="text-sm font-semibold text-slate-400 mt-2 max-w-md mx-auto">
-                  This is a preview of the Aspire Next live classroom interface. Actual sessions are broadcast here according to your batch schedule, featuring a live video stream, collaborative code editor, and real-time student interaction panels.
+                  This is a preview of the Aspire Next live classroom interface. Actual sessions are broadcast here according to your batch schedule, featuring a live video stream.
                 </p>
               </div>
             </div>
