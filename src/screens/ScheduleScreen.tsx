@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock } from 'lucide-react';
 import { scheduleItems } from '@/data/mock';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
