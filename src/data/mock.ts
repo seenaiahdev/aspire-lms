@@ -156,139 +156,152 @@ export const courses: Course[] = [
               { id: 'l_es6_1', title: 'Destructuring, Spread/Rest Operators, and Modules', completed: false, video: { duration: '1h 00m', completed: false }, practice: { duration: '15m', completed: false } },
               { id: 'l_es6_2', title: 'Promises, Async/Await, and Fetch API Integration', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '30m', completed: false } },
               { id: 'l_es6_3', title: 'Handling JSON Data & Dynamic API Integrations', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
-            ]
-          }
-        ]
-      },
-      {
+            ]      {
         id: 's2',
         title: 'Stage 2: Backend + DSA',
         modules: [
-      {
-        id: 'm2_py_fund',
-        title: 'Python Programming Fundamentals',
-        duration: '6h', lessons: [
-          { id: 'l_py_1', title: 'Python Setup, Variables, Data Types, & Control Flow', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_py_2', title: 'Functions, Variable Scope & Program Layouts', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_py_3', title: 'Built-in Data Structures: Lists, Tuples, Sets, Dicts', duration: '2h 30m', type: 'video', completed: false, preview: false },
+          {
+            id: 'm2_py_fund',
+            title: 'Python Programming Fundamentals',
+            duration: '6h',
+            lessons: [
+              { id: 'l_py_1', title: 'Python Setup, Variables, Data Types & Control Flow', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_py_2', title: 'Functions & Variable Scope in Python', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_py_3', title: 'Built-in Data Structures: Lists, Tuples, Sets, Dicts', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_py_adv',
+            title: 'Advanced Python & Exception Handling',
+            duration: '5h',
+            lessons: [
+              { id: 'l_py_adv_1', title: 'Decorators, Generators, and Iterators in Python', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_py_adv_2', title: 'File I/O & Error Handling: try-except-finally', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_py_adv_3', title: 'Context Managers & Custom Exceptions', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_oop',
+            title: 'Object-Oriented Programming (OOP)',
+            duration: '6h',
+            lessons: [
+              { id: 'l_oop_1', title: 'Classes, Objects, and Constructors: __init__', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_oop_2', title: 'OOP Principles: Inheritance, Polymorphism, Encapsulation, & Abstraction', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_oop_3', title: 'Advanced OOP: Dunder Methods & Design Patterns', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_sql',
+            title: 'SQL & Relational Databases (MySQL)',
+            duration: '6h',
+            lessons: [
+              { id: 'l_sql_1', title: 'RDBMS Concepts & SQL DDL: CREATE, ALTER', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_sql_2', title: 'SQL DML: INSERT, UPDATE, DELETE & Select Queries', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_sql_3', title: 'Filtering, Aggregations, & GROUP BY Clauses', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_sql_adv',
+            title: 'Advanced SQL & PostgreSQL Integration',
+            duration: '5h',
+            lessons: [
+              { id: 'l_sql_adv_1', title: 'SQL Joins: Inner, Left, Right, Full & Subqueries', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_sql_adv_2', title: 'Database Indexing, Transactions (ACID), & Foreign Keys', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_sql_adv_3', title: 'PostgreSQL Environment Setup & Shell Commands', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_django_setup',
+            title: 'Django Framework Setup & Architecture',
+            duration: '5h',
+            lessons: [
+              { id: 'l_django_1', title: 'MVT Architecture & Creating Django Projects/Apps', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_django_2', title: 'Directory Structure & Settings Configuration', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_django_3', title: 'Request-Response Lifecycle, Views & Routing', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_django_temp',
+            title: 'Django Templates & Static Files Setup',
+            duration: '5h',
+            lessons: [
+              { id: 'l_django_temp_1', title: 'Django Template Language (DTL), Filters, & Tags', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_django_temp_2', title: 'Template Inheritance & Layout Strategies', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_django_temp_3', title: 'Handling Static Files & User Media Uploads', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_django_models',
+            title: 'Django Models & Database ORM',
+            duration: '6h',
+            lessons: [
+              { id: 'l_django_mod_1', title: 'Model Fields & Relationships: OneToOne, ForeignKey, ManyToMany', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_django_mod_2', title: 'Django ORM Queries & Migrations Management', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_django_mod_3', title: 'Admin Interface Customization & Model Managers', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_django_forms',
+            title: 'Django Forms, Authentication & Auth',
+            duration: '6h',
+            lessons: [
+              { id: 'l_django_forms_1', title: 'Django Forms & ModelForms with CSRF Protection', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_django_forms_2', title: 'User Authentication System: Login, Logout, Register', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_django_forms_3', title: 'Permission & Group Management in Django', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_drf_core',
+            title: 'Django REST Framework (DRF) Core',
+            duration: '6h',
+            lessons: [
+              { id: 'l_drf_1', title: 'REST API Architecture & DRF Setup', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_drf_2', title: 'Serializers & ModelSerializers in DRF', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_drf_3', title: 'Function & Class-Based Views: APIView, Generic Views', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_drf_adv',
+            title: 'DRF Advanced: ViewSets, JWT Auth & Testing',
+            duration: '6h',
+            lessons: [
+              { id: 'l_drf_adv_1', title: 'ViewSets, Routers, & Custom API Actions', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_drf_adv_2', title: 'JWT Authentication: SimpleJWT Integration & Permissions', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_drf_adv_3', title: 'Filtering, Pagination, & API Testing with pytest/Postman', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_redis',
+            title: 'Redis Caching & AWS S3 Cloud Storage',
+            duration: '5h',
+            lessons: [
+              { id: 'l_redis_1', title: 'Redis Installation & Caching Django Views/Queries', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_redis_2', title: 'File Uploads & Cloud Storage Integration: AWS S3', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_redis_3', title: 'Using Cloudinary for Media & CDN Optimization', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_dsa1',
+            title: 'Data Structures using Python - Part 1',
+            duration: '6h',
+            lessons: [
+              { id: 'l_dsa1_1', title: 'Time & Space Complexity: Big-O Notation Analysis', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_dsa1_2', title: 'Arrays, Matrix Operations & Linked Lists: Singly & Doubly', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_dsa1_3', title: 'Stacks & Queues: Implementations & Use Cases', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm2_dsa2',
+            title: 'Data Structures & Algorithms - Part 2',
+            duration: '6h',
+            lessons: [
+              { id: 'l_dsa2_1', title: 'Recursion & Searching Algorithms: Linear, Binary Search', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_dsa2_2', title: 'Sorting Algorithms: Bubble, Quick, Merge Sort', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_dsa2_3', title: 'Trees: Binary Trees, BST Traversals & Operations', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          }
         ]
-      },
-      {
-        id: 'm2_py_adv',
-        title: 'Advanced Python & Exception Handling',
-        duration: '5h', lessons: [
-          { id: 'l_py_adv_1', title: 'Decorators, Generators, and Iterators in Python', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_py_adv_2', title: 'File I/O, Error Handling (try-except-finally)', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_py_adv_3', title: 'Context Managers & Designing Custom Exceptions', duration: '1h 30m', type: 'reading', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_oop',
-        title: 'Object-Oriented Programming (OOP)',
-        duration: '6h', lessons: [
-          { id: 'l_oop_1', title: 'Classes, Objects, and Constructor Methods (__init__)', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_oop_2', title: 'Inheritance, Polymorphism, and Encapsulation', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_oop_3', title: 'Abstraction Concepts & Dunder (Magic) Methods', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_sql',
-        title: 'SQL & Relational Databases (MySQL)',
-        duration: '6h', lessons: [
-          { id: 'l_sql_1', title: 'RDBMS Concepts & SQL Data Definition Language (DDL)', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_sql_2', title: 'Data Manipulation Language (DML) & Basic Queries', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_sql_3', title: 'Filtering, Aggregations, and GROUP BY Clauses', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_sql_adv',
-        title: 'Advanced SQL & PostgreSQL Integration',
-        duration: '5h', lessons: [
-          { id: 'l_sql_adv_1', title: 'SQL Joins (Inner, Left, Right, Full) & Subqueries', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_sql_adv_2', title: 'Database Indexing, Transactions (ACID), and Keys', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_sql_adv_3', title: 'PostgreSQL Environment Setup & Shell Commands', duration: '1h 30m', type: 'reading', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_django_setup',
-        title: 'Django Framework Setup & Architecture',
-        duration: '5h', lessons: [
-          { id: 'l_django_1', title: 'Django MVT Architecture & Project Initialization', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_2', title: 'Django Views, Routing, Settings, & Request Lifecycle', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_3', title: 'Creating Custom Apps & Directory Architecture', duration: '1h 45m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_django_temp',
-        title: 'Django Templates & Static Files Setup',
-        duration: '5h', lessons: [
-          { id: 'l_django_temp_1', title: 'Django Template Language (DTL): Filters & Tags', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_temp_2', title: 'Template Inheritance & Static Files Configuration', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_temp_3', title: 'Handling Media Uploads & File Management', duration: '1h 45m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_django_models',
-        title: 'Django Models & Database ORM',
-        duration: '6h', lessons: [
-          { id: 'l_django_mod_1', title: 'Model Fields & Database Relationship Types', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_mod_2', title: 'Django ORM Queries: Filters, Lookups, & Excludes', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_mod_3', title: 'Migrations Management & Django Admin Customization', duration: '2h 00m', type: 'reading', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_django_forms',
-        title: 'Django Forms, Authentication & Auth',
-        duration: '6h', lessons: [
-          { id: 'l_django_forms_1', title: 'Django Forms, ModelForms, & CSRF Protection', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_forms_2', title: 'User Authentication: Login, Logout, & Registration', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_django_forms_3', title: 'Permission Management & Custom User Models', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_drf_core',
-        title: 'Django REST Framework (DRF) Core',
-        duration: '6h', lessons: [
-          { id: 'l_drf_1', title: 'REST API Architecture & Serializer Basics', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_drf_2', title: 'ModelSerializers & Handling Relationships', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_drf_3', title: 'Function-Based Views vs Class-Based APIViews', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_drf_adv',
-        title: 'DRF Advanced: ViewSets, JWT Auth & Testing',
-        duration: '6h', lessons: [
-          { id: 'l_drf_adv_1', title: 'ViewSets, Routers, and Custom DRF Permissions', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_drf_adv_2', title: 'JWT Authentication Setup & Token Validation', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_drf_adv_3', title: 'API Testing with Postman & Unit Tests', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_redis',
-        title: 'Redis Caching & AWS S3 Cloud Storage',
-        duration: '5h', lessons: [
-          { id: 'l_redis_1', title: 'Redis Caching for Django Views & Database Queries', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_redis_2', title: 'Integrating AWS S3 / Cloudinary for Media Files', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_redis_3', title: 'Production Cache Configuration & CDN Integration', duration: '1h 30m', type: 'reading', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_dsa1',
-        title: 'Data Structures using Python - Part 1',
-        duration: '6h', lessons: [
-          { id: 'l_dsa1_1', title: 'Array Operations & Multidimensional Matrices', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_dsa1_2', title: 'Linked Lists: Singly, Doubly, and Circular', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_dsa1_3', title: 'Stacks, Queues, and Big-O Complexity Analysis', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm2_dsa2',
-        title: 'Data Structures & Algorithms - Part 2',
-        duration: '6h', lessons: [
-          { id: 'l_dsa2_1', title: 'Trees, Binary Search Trees (BST), & Traversals', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_dsa2_2', title: 'Recursion, Linear Search, and Binary Search', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_dsa2_3', title: 'Sorting Algorithms: Bubble, Quick, and Merge Sort', duration: '2h 00m', type: 'video', completed: false, preview: false },
-        ]
+      },  ]
       },
 
         ]
