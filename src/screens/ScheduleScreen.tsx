@@ -10,7 +10,6 @@ import { scheduleSteps } from '@/lib/tourSteps';
 const typeConfig: Record<string, { color: string; icon: any; label: string }> = {
   class: { color: 'teal', icon: Radio, label: 'Live Classes' },
   assignment: { color: 'amber', icon: FileText, label: 'Practice Hub' },
-  exam: { color: 'red', icon: Award, label: 'Practice Hub (Exam)' },
   project: { color: 'indigo', icon: FolderOpen, label: 'Projects' },
   resource: { color: 'purple', icon: BookOpen, label: 'Resources' },
   reward: { color: 'rose', icon: Trophy, label: 'Rewards' },
@@ -21,7 +20,6 @@ const typeConfig: Record<string, { color: string; icon: any; label: string }> = 
 const typeOptions = [
   { value: 'class', label: 'Live Classes' },
   { value: 'assignment', label: 'Practice Hub' },
-  { value: 'exam', label: 'Practice Hub (Exam)' },
   { value: 'project', label: 'Projects' },
   { value: 'resource', label: 'Resources' },
   { value: 'reward', label: 'Rewards' },
