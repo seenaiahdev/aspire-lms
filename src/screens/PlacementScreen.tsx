@@ -138,6 +138,7 @@ export function PlacementScreen() {
   const [jobsList, setJobsList] = useState<typeof jobOpportunities>(jobOpportunities);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [lockedToast, setLockedToast] = useState(false);
 
   const totalCount = jobsList.length;
   const appliedCount = jobsList.filter((j) => j.status === 'applied').length;
@@ -278,8 +279,8 @@ export function PlacementScreen() {
                   id={index === 0 ? 'tour-placement-card-0' : undefined}
                   className="group p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm flex flex-col justify-between h-full cursor-not-allowed opacity-90 grayscale-[15%]"
                   onClick={() => {
-                    setToastMessage(`🔒 Locked: Job applications will unlock in Stage 4.`);
-                    setTimeout(() => setToastMessage(null), 3000);
+                    setLockedToast(true);
+                    setTimeout(() => setLockedToast(false), 3000);
                   }}
                 >
                   {/* Top: Logo (Hover), Company, Status */}
@@ -343,8 +344,8 @@ export function PlacementScreen() {
                     <button 
                       onClick={(e) => {
                         e.stopPropagation();
-                        setToastMessage(`🔒 Locked: Job applications will unlock in Stage 4.`);
-                        setTimeout(() => setToastMessage(null), 3000);
+                        setLockedToast(true);
+                        setTimeout(() => setLockedToast(false), 3000);
                       }}
                       className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-200/50 text-slate-500 font-extrabold text-xs shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-not-allowed"
                     >
@@ -528,6 +529,21 @@ export function PlacementScreen() {
           </div>
         </div>,
         document.body
+      )}
+
+      {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
+      {lockedToast && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+          <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
+            <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
+              <Lock className="w-5 h-5 text-purple-300" />
+            </div>
+            <div className="pr-2">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Placement Hub Locked</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">Job applications will unlock in Stage 4.</p>
+            </div>
+          </div>
+        </div>
       )}
 
     </div>
