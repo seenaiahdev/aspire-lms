@@ -22,13 +22,12 @@ const lessonIcons: Record<string, any> = {
   video: Play, reading: FileText, quiz: ClipboardCheck, project: FolderGit2,
 };
 
-function ModuleAccordion({ mod, course, navigate }: { mod: any, course: any, navigate: any }) {
-  const [isOpen, setIsOpen] = useState(false);
+function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any, course: any, navigate: any, isOpen: boolean, onToggle: () => void }) {
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-2 sm:p-3 shadow-2xs">
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={onToggle}
         className={cn(
           "w-full flex justify-between items-center px-3 py-3.5 text-left cursor-pointer rounded-xl transition-all duration-300 group",
           isOpen ? "bg-purple-50/50 shadow-inner" : "hover:bg-slate-50"
@@ -98,6 +97,7 @@ export function CourseScreen() {
   const course = courses.find((c) => c.id === params.id) || courses[0];
   const [tab, setTab] = useState('modules');
   const [openStageIndex, setOpenStageIndex] = useState<number | null>(0);
+  const [openModuleId, setOpenModuleId] = useState<string | null>(null);
 
   return (
     <div className="space-y-6">
@@ -202,7 +202,14 @@ export function CourseScreen() {
                       >
                         <div className="space-y-4 pt-2">
                           {stage.modules.map((mod: any) => (
-                            <ModuleAccordion key={mod.id} mod={mod} course={course} navigate={navigate} />
+                            <ModuleAccordion 
+                              key={mod.id} 
+                              mod={mod} 
+                              course={course} 
+                              navigate={navigate} 
+                              isOpen={openModuleId === mod.id}
+                              onToggle={() => setOpenModuleId(openModuleId === mod.id ? null : mod.id)}
+                            />
                           ))}
                         </div>
                       </AccordionItem>

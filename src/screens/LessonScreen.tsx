@@ -14,15 +14,12 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Tabs } from '@/components/ui/Tabs';
 import { cn } from '@/lib/utils';
 
-function SidebarModuleAccordion({ mod, course, currentLesson, navigate }: any) {
-  const [isOpen, setIsOpen] = useState(
-    mod.lessons.some((l: any) => l.id === currentLesson?.id)
-  );
+function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, onToggle }: any) {
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
   return (
     <div className="space-y-1.5 border border-slate-100 p-2 rounded-xl">
       <button 
-        onClick={() => setIsOpen(!isOpen)}
+        onClick={onToggle}
         className="w-full flex items-center justify-between px-1 mb-1 group cursor-pointer"
       >
         <h4 className={cn("text-[11px] font-bold uppercase tracking-wider transition-colors", isOpen ? "text-[#7c3aed]" : "text-slate-700 group-hover:text-[#7c3aed]")}>{mod.title}</h4>
@@ -91,6 +88,7 @@ export function LessonScreen() {
   const [playing, setPlaying] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [expandedModules, setExpandedModules] = useState<Record<number, boolean>>({ 0: true });
+  const [openModuleId, setOpenModuleId] = useState<string | null>(null);
 
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
@@ -122,11 +120,21 @@ export function LessonScreen() {
     s.modules.some((m: any) => m.lessons.some((l: any) => l.id === currentLesson?.id))
   );
   
+  const currentModule = course.stages?.flatMap((s: any) => s.modules).find((m: any) =>
+    m.lessons.some((l: any) => l.id === currentLesson?.id)
+  );
+
   useEffect(() => {
     if (currentStageIndex !== undefined && currentStageIndex !== -1) {
       setExpandedModules({ [currentStageIndex]: true });
     }
   }, [currentStageIndex]);
+
+  useEffect(() => {
+    if (currentModule) {
+      setOpenModuleId(currentModule.id);
+    }
+  }, [currentModule?.id]);
 
   return (
     <div className="h-[calc(100vh-5.5rem)] flex flex-col lg:flex-row gap-6 overflow-hidden font-sans pb-2 relative">
@@ -466,7 +474,15 @@ export function LessonScreen() {
                   {isStageOpen && (
                     <div className="p-2 space-y-3 bg-white border-t border-slate-100 animate-fade-in">
                       {stage.modules.map((mod: any, mi: number) => (
-                        <SidebarModuleAccordion key={mod.id} mod={mod} course={course} currentLesson={currentLesson} navigate={navigate} />
+                        <SidebarModuleAccordion 
+                          key={mod.id} 
+                          mod={mod} 
+                          course={course} 
+                          currentLesson={currentLesson} 
+                          navigate={navigate} 
+                          isOpen={openModuleId === mod.id}
+                          onToggle={() => setOpenModuleId(openModuleId === mod.id ? null : mod.id)}
+                        />
                       ))}
                     </div>
                   )}
