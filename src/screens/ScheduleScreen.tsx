@@ -8,26 +8,38 @@ import { useNav } from '@/lib/nav';
 import { scheduleSteps } from '@/lib/tourSteps';
 
 const typeConfig: Record<string, { color: string; icon: any; label: string }> = {
-  class: { color: 'teal', icon: Radio, label: 'Live Class' },
-  assignment: { color: 'amber', icon: FileText, label: 'Assignment' },
-  exam: { color: 'red', icon: Award, label: 'Exam' },
-  project: { color: 'indigo', icon: FolderOpen, label: 'Project' },
-  resource: { color: 'purple', icon: BookOpen, label: 'Resource' },
-  reward: { color: 'rose', icon: Trophy, label: 'Reward' },
-  placement: { color: 'emerald', icon: Briefcase, label: 'Placement' },
+  class: { color: 'teal', icon: Radio, label: 'Live Classes' },
+  assignment: { color: 'amber', icon: FileText, label: 'Practice Hub' },
+  exam: { color: 'red', icon: Award, label: 'Practice Hub (Exam)' },
+  project: { color: 'indigo', icon: FolderOpen, label: 'Projects' },
+  resource: { color: 'purple', icon: BookOpen, label: 'Resources' },
+  reward: { color: 'rose', icon: Trophy, label: 'Rewards' },
+  placement: { color: 'emerald', icon: Briefcase, label: 'Placement Hub' },
   task: { color: 'gray', icon: PlusCircle, label: 'Task' },
 };
 
 const typeOptions = [
-  { value: 'class', label: 'Live Class' },
-  { value: 'assignment', label: 'Assignment' },
-  { value: 'exam', label: 'Exam' },
-  { value: 'project', label: 'Project' },
-  { value: 'resource', label: 'Resource' },
-  { value: 'reward', label: 'Reward' },
-  { value: 'placement', label: 'Placement' },
+  { value: 'class', label: 'Live Classes' },
+  { value: 'assignment', label: 'Practice Hub' },
+  { value: 'exam', label: 'Practice Hub (Exam)' },
+  { value: 'project', label: 'Projects' },
+  { value: 'resource', label: 'Resources' },
+  { value: 'reward', label: 'Rewards' },
+  { value: 'placement', label: 'Placement Hub' },
   { value: 'task', label: 'Task' },
 ];
+
+function formatTimeTo12Hour(time24: string): string {
+  if (!time24) return 'Anytime';
+  const parts = time24.split(':');
+  if (parts.length < 2) return time24;
+  let hours = parseInt(parts[0], 10);
+  const minutes = parts[1];
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  hours = hours ? hours : 12; // 0 should be 12
+  return `${hours}:${minutes} ${ampm}`;
+}
 
 function getDateKey(date: Date) {
   const yyyy = date.getFullYear();
@@ -83,7 +95,6 @@ export function ScheduleScreen() {
     type: 'task',
     date: getDateKey(today),
     time: '',
-    location: '',
     course: '',
   });
 
@@ -164,10 +175,9 @@ export function ScheduleScreen() {
       type: taskForm.type as typeof taskForm.type,
       date: formatTaskDateLabel(taskForm.date, today),
       dateKey: taskForm.date,
-      time: taskForm.time.trim() || 'Anytime',
+      time: taskForm.time.trim() ? formatTimeTo12Hour(taskForm.time) : 'Anytime',
       duration: '',
       course: taskForm.course.trim() || undefined,
-      location: taskForm.location.trim() || undefined,
       completed: false,
     };
 
@@ -179,7 +189,6 @@ export function ScheduleScreen() {
       type: 'task',
       date: taskForm.date,
       time: '',
-      location: '',
       course: '',
     });
   };
@@ -435,15 +444,25 @@ export function ScheduleScreen() {
                     </div>
                   </div>
 
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-black text-slate-700 uppercase tracking-wide">Time</label>
-                    <input
-                      value={taskForm.time}
-                      onChange={(e) => handleTaskFormChange('time', e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all placeholder:text-slate-400"
-                      placeholder="e.g. 5:30 PM"
-                    />
-                  </div>
+                    <div className="space-y-1.5 relative">
+                      <label className="text-xs font-black text-slate-700 uppercase tracking-wide">Time</label>
+                      <div className="relative">
+                        <input
+                          type="time"
+                          value={taskForm.time}
+                          onClick={(e) => {
+                            try {
+                              (e.target as any).showPicker();
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }}
+                          onChange={(e) => handleTaskFormChange('time', e.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-slate-50/50 pl-4 pr-10 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all cursor-pointer"
+                        />
+                        <Clock className="w-3.5 h-3.5 text-slate-400 absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      </div>
+                    </div>
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-black text-slate-700 uppercase tracking-wide">Type</label>
@@ -507,15 +526,7 @@ export function ScheduleScreen() {
                     />
                   </div>
 
-                  <div className="space-y-1.5 sm:col-span-2">
-                    <label className="text-xs font-black text-slate-700 uppercase tracking-wide">Location</label>
-                    <input
-                      value={taskForm.location}
-                      onChange={(e) => handleTaskFormChange('location', e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all placeholder:text-slate-400"
-                      placeholder="Optional location"
-                    />
-                  </div>
+
 
                   <div className="sm:col-span-2 flex items-center gap-3">
                     <button
