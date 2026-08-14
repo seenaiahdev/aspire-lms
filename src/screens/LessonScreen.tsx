@@ -444,7 +444,7 @@ export function LessonScreen() {
           {/* Accordion Module Cards List */}
           <div className="flex-1 overflow-y-auto space-y-3 pr-1">
             {course.stages?.map((stage: any, si: number) => {
-              const isStageOpen = expandedModules[si] ?? (si === 0);
+              const isStageOpen = !!expandedModules[si];
               const stageLessons = stage.modules.flatMap((m: any) => m.lessons);
               return (
                 <div key={stage.id} className="rounded-xl border border-slate-100 overflow-hidden shadow-2xs">
