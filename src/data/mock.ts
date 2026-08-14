@@ -47,7 +47,7 @@ const instructors: Instructor[] = [
 export const courses: Course[] = [
   {
     id: 'c1',
-    title: 'Fullstack Python + DSA',
+    title: 'Python Full Stack + DSA with AI',
     subtitle: 'Master Python, Advanced Backend Architectures, Frontend Technologies, and DSA Interview Prep',
     category: 'Web Development',
     level: 'Intermediate',
@@ -655,7 +655,7 @@ export const liveClasses: LiveClass[] = [
   {
     id: 'lc1',
     title: 'Live Workshop: Introduction to Version Control & Git Architecture',
-    course: 'Fullstack Python + DSA',
+    course: 'Python Full Stack + DSA with AI',
     instructor: instructors[1], // Srinivas Rao
     scheduledAt: new Date().toISOString(), // Use current time for "Live"
     duration: '120m',
@@ -666,7 +666,7 @@ export const liveClasses: LiveClass[] = [
   {
     id: 'lc2',
     title: 'Upcoming: Git Commands: init, add, commit, push, pull',
-    course: 'Fullstack Python + DSA',
+    course: 'Python Full Stack + DSA with AI',
     instructor: instructors[0], // Kavitha Chowdary
     scheduledAt: new Date(Date.now() + 86400000).toISOString(), // Tomorrow
     duration: '90m',
@@ -783,7 +783,7 @@ export const communityPosts: CommunityPost[] = [
 ];
 
 export const scheduleItems: ScheduleItem[] = [
-  { id: 's1', title: 'Python Basics Live Class', type: 'class', date: 'Today', time: '4:00 PM', duration: '90 min', course: 'Fullstack Python + DSA', location: 'Live Session' },
+  { id: 's1', title: 'Python Basics Live Class', type: 'class', date: 'Today', time: '4:00 PM', duration: '90 min', course: 'Python Full Stack + DSA with AI', location: 'Live Session' },
 ];
 
 export const practiceProblems: PracticeProblem[] = [

@@ -41,7 +41,7 @@ const learningItems: LearningItem[] = [
     id: 'c1',
     category: 'courses',
     categoryLabel: 'Courses',
-    title: 'Fullstack Python + DSA',
+    title: 'Python Full Stack + DSA with AI',
     subtitle: 'Master Python, Advanced Backend Architectures, Frontend Technologies, and DSA Interview Prep',
     thumbnail: '/python-full-stack.png',
     level: 'Intermediate',
