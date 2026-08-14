@@ -765,7 +765,7 @@ export function DashboardScreen() {
                   </div>
 
                   {/* Date Status Legend */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-600 font-semibold">
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-center gap-6 text-[10px] text-slate-600 font-semibold">
                     <div className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-[#7c3aed]" />
                       <span>Selected</span>
@@ -773,10 +773,6 @@ export function DashboardScreen() {
                     <div className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-purple-50 border border-[#7c3aed]" />
                       <span>Today</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="w-2.5 h-2.5 rounded-full border border-slate-300 bg-slate-50" />
-                      <span>Holiday</span>
                     </div>
                   </div>
 
