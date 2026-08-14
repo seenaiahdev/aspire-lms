@@ -54,7 +54,7 @@ export const courses: Course[] = [
     instructor: instructors[2],
     thumbnail: '/python-full-stack.png',
     banner: '/python-full-stack.png',
-    rating: 0, reviews: 0, students: 0, duration: '162 hours', lessons: 90,
+    rating: 0, reviews: 0, students: 0, duration: '163 hours', lessons: 93,
     progress: 0,
     tags: ['Python', 'Django', 'React', 'DSA'],
     description: 'Master fullstack development and DSA using Python. Build modern client-server architectures, containerize with Docker, deploy to the cloud, and solve complex algorithms.',
