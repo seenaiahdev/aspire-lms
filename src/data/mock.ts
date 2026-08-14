@@ -310,34 +310,36 @@ export const courses: Course[] = [
         id: 's3',
         title: 'Stage 3: AI, Integration & Deployment',
         modules: [
-      {
-        id: 'm3_ai',
-        title: 'Introduction to AI, Prompt Engineering & LLMs',
-        duration: '5h', lessons: [
-          { id: 'l_ai_1', title: 'Ecosystem: AI vs ML vs DL vs LLMs', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_ai_2', title: 'Google Gemini & OpenAI API Setup and Access', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_ai_3', title: 'Prompt Engineering Strategies & Few-Shot Prompting', duration: '2h 00m', type: 'reading', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm3_langchain',
-        title: 'AI Integration with Python & LangChain',
-        duration: '6h', lessons: [
-          { id: 'l_lang_1', title: 'LangChain Framework Basics & Prompt Templates', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_lang_2', title: 'Chains, Memory, & Django Backend Integrations', duration: '2h 00m', type: 'video', completed: false, preview: false },
-          { id: 'l_lang_3', title: 'Building Intelligent AI Chatbots with Custom Knowledge', duration: '2h 00m', type: 'project', completed: false, preview: false },
-        ]
-      },
-      {
-        id: 'm3_docker',
-        title: 'Docker Containerization & Cloud Deployment',
-        duration: '5h', lessons: [
-          { id: 'l_dock_1', title: 'Docker Concepts, Installation & Core Commands', duration: '1h 30m', type: 'video', completed: false, preview: false },
-          { id: 'l_dock_2', title: 'Dockerfile creation & Containerizing Django/DB', duration: '1h 45m', type: 'video', completed: false, preview: false },
-          { id: 'l_dock_3', title: 'Docker Compose & Deploying Full Stack App to Cloud', duration: '1h 45m', type: 'video', completed: false, preview: false },
-        ]
-      },
-
+          {
+            id: 'm3_ai',
+            title: 'Introduction to AI, Prompt Engineering & LLMs',
+            duration: '5h',
+            lessons: [
+              { id: 'l_ai_1', title: 'What is AI/ML/DL/LLM & Generative AI Ecosystem', completed: false, video: { duration: '1h 00m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_ai_2', title: 'Google Gemini & OpenAI API Setup and Access', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_ai_3', title: 'Prompt Engineering Strategies & Few-Shot Prompting', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm3_langchain',
+            title: 'AI Integration with Python & LangChain',
+            duration: '6h',
+            lessons: [
+              { id: 'l_lang_1', title: 'LangChain Framework Basics, Prompt Templates & Chains', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_lang_2', title: 'Integrating OpenAI/Gemini APIs in Django Backend', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_lang_3', title: 'Building Intelligent AI Chatbots & LLM Interfaces', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm3_docker',
+            title: 'Docker Containerization & Cloud Deployment',
+            duration: '5h',
+            lessons: [
+              { id: 'l_dock_1', title: 'Docker Concepts & Creating Dockerfiles', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_dock_2', title: 'Containerizing Django Applications & Docker Compose', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_dock_3', title: 'Deploying Full Stack Applications to Cloud (Render/AWS/Vercel)', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          }
         ]
       },
       {
