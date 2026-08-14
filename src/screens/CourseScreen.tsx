@@ -151,32 +151,33 @@ export function CourseScreen() {
         </div>
       </div>
 
+      {/* Custom Purple Underline Tabs */}
+      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-px overflow-x-auto scrollbar-hide">
+        {[
+          { id: 'modules', label: 'Modules' },
+          { id: 'overview', label: 'Overview' },
+          { id: 'resources', label: 'Resources' },
+          { id: 'reviews', label: 'Reviews' },
+          { id: 'discussion', label: 'Discussion' },
+        ].map((t) => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={cn(
+              "px-5 py-3 font-extrabold text-sm border-b-2 transition-all shrink-0 cursor-pointer",
+              tab === t.id
+                ? "border-[#7c3aed] text-[#7c3aed] bg-purple-50/50 rounded-t-xl"
+                : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
+            )}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left — Content */}
         <div className="lg:col-span-2 space-y-6">
-          {/* Custom Purple Underline Tabs */}
-          <div className="flex items-center gap-2 border-b border-slate-200/80 pb-px overflow-x-auto scrollbar-hide">
-            {[
-              { id: 'modules', label: 'Modules' },
-              { id: 'overview', label: 'Overview' },
-              { id: 'resources', label: 'Resources' },
-              { id: 'reviews', label: 'Reviews' },
-              { id: 'discussion', label: 'Discussion' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={cn(
-                  "px-5 py-3 font-extrabold text-sm border-b-2 transition-all shrink-0",
-                  tab === t.id
-                    ? "border-[#7c3aed] text-[#7c3aed] bg-purple-50/50 rounded-t-xl"
-                    : "border-transparent text-slate-500 hover:text-slate-900 hover:border-slate-300"
-                )}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
 
           {/* Modules */}
           {tab === 'modules' && (
