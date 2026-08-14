@@ -64,82 +64,100 @@ export const courses: Course[] = [
         id: 's1',
         title: 'Stage 1: Frontend & Programming Foundations',
         modules: [
-      // ════════ STAGE 1: FRONT END + REPOSITORY ════════
-      {
-        id: 'm1_git',
-        title: 'Git & GitHub Version Control',
-        duration: '5h', lessons: [
-          { id: 'l_git_1', title: 'Introduction to Version Control & Git Architecture', completed: false, video: { duration: '1h 15m', completed: false, preview: true }, assessment: { duration: '15m', completed: false } },
-          { id: 'l_git_2', title: 'Git Commands: init, add, commit, push, pull', completed: false, video: { duration: '1h 45m', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_git_3', title: 'Branching Strategy, Merge Conflicts & GitHub PRs', completed: false, video: { duration: '1h 20m', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_html',
-        title: 'HTML5 & Web Architecture',
-        duration: '6h', lessons: [
-          { id: 'l_html_1', title: 'Web Architecture & Client-Server Communication', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '45m', completed: false }, assessment: { duration: '15m', completed: false } },
-          { id: 'l_html_2', title: 'HTML5 Document Structure & Semantic Elements', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h 00m', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_html_3', title: 'HTML Forms, Input Types, & Client-Side Validation', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '45m', completed: false }, assessment: { duration: '20m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_css_fund',
-        title: 'CSS3 Fundamentals & Box Model',
-        duration: '5h', lessons: [
-          { id: 'l_css_1', title: 'CSS Syntax, Rules, and Element/Class/ID Selectors', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_css_2', title: 'The CSS Box Model: Margin, Padding, Border, Content', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_css_adv',
-        title: 'Advanced CSS Layouts & Responsive Design',
-        duration: '5h', lessons: [
-          { id: 'l_css_adv_1', title: 'Flexbox Architecture & Practical Alignments', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_css_adv_2', title: 'CSS Grid System & Multi-Column Layouts', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_bootstrap',
-        title: 'Bootstrap 5 Framework',
-        duration: '4h', lessons: [
-          { id: 'l_boot_1', title: 'Bootstrap 5 Grid System & Responsive Utilities', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_js_ess',
-        title: 'JavaScript Essentials & Control Flow',
-        duration: '5h', lessons: [
-          { id: 'l_js_1', title: 'JS Setup, Variables, & Data Types', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_js_2', title: 'Operators, Expressions, and Conditional Statements', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_js_3', title: 'Loops: for, while, forEach, & Iterations', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_js_func',
-        title: 'JavaScript Functions, Objects & Arrays',
-        duration: '6h', lessons: [
-          { id: 'l_js_func_1', title: 'Function Declarations, Expressions, & Arrow Functions', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
-          { id: 'l_js_func_2', title: 'Advanced Array Methods (map, filter, reduce)', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_dom',
-        title: 'DOM Manipulation & Event Handling',
-        duration: '5h', lessons: [
-          { id: 'l_dom_1', title: 'Selecting and Modifying DOM Elements Dynamically', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_dom_2', title: 'Event Listeners, Bubbling, and Delegation Patterns', completed: false, video: { duration: '1h 45m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-      {
-        id: 'm1_es6',
-        title: 'Modern ES6+ & Asynchronous JS',
-        duration: '5h', lessons: [
-          { id: 'l_es6_1', title: 'Destructuring, Spread/Rest Operators, and Modules', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '1h', completed: false }, assessment: { duration: '20m', completed: false } },
-          { id: 'l_es6_2', title: 'Promises, Async/Await, and Fetch API Integration', completed: false, video: { duration: '2h 00m', completed: false }, practice: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
-        ]
-      },
-
+          // ════════ STAGE 1: FRONT END + REPOSITORY ════════
+          {
+            id: 'm1_git',
+            title: 'Git & GitHub Version Control',
+            duration: '5h',
+            lessons: [
+              { id: 'l_git_1', title: 'Git Architecture & Version Control Concepts', completed: false, video: { duration: '1h 00m', completed: false, preview: true }, assessment: { duration: '15m', completed: false } },
+              { id: 'l_git_2', title: 'Core Git Commands: init, add, commit, push, pull', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_git_3', title: 'Branching Strategy & Merge Conflicts', completed: false, video: { duration: '1h 00m', completed: false }, assessment: { duration: '15m', completed: false } },
+              { id: 'l_git_4', title: 'GitHub Pull Requests & Collaboration Workflows', completed: false, video: { duration: '45m', completed: false }, practice: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_html',
+            title: 'HTML5 & Web Architecture',
+            duration: '6h',
+            lessons: [
+              { id: 'l_html_1', title: 'Web Architecture & Client-Server Communication Model', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_html_2', title: 'HTML5 Document Structure & Semantic Elements', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_html_3', title: 'HTML Forms, Input Types, & Client-Side Validation', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } },
+              { id: 'l_html_4', title: 'HTML Tables, Media Tags & Accessibility', completed: false, video: { duration: '1h 15m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_css_fund',
+            title: 'CSS3 Fundamentals & Box Model',
+            duration: '5h',
+            lessons: [
+              { id: 'l_css_1', title: 'CSS Syntax, Rules, and Element/Class/ID Selectors', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_css_2', title: 'The CSS Box Model: Margin, Padding, Border, & Content', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_css_3', title: 'CSS Colors, Typography, & Visual Backgrounds', completed: false, video: { duration: '1h 00m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_css_adv',
+            title: 'Advanced CSS Layouts & Responsive Design',
+            duration: '5h',
+            lessons: [
+              { id: 'l_css_adv_1', title: 'Flexbox Architecture & Practical Alignments', completed: false, video: { duration: '1h 00m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_css_adv_2', title: 'CSS Grid System & Multi-Column Layouts', completed: false, video: { duration: '1h 00m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_css_adv_3', title: 'Positioning: Relative, Absolute, Fixed, Sticky', completed: false, video: { duration: '1h 00m', completed: false }, assessment: { duration: '15m', completed: false } },
+              { id: 'l_css_adv_4', title: 'Media Queries & Responsive UI Design Patterns', completed: false, video: { duration: '1h 00m', completed: false }, practice: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_bootstrap',
+            title: 'Bootstrap 5 Framework',
+            duration: '4h',
+            lessons: [
+              { id: 'l_boot_1', title: 'Bootstrap 5 Grid System & Responsive Utilities', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_boot_2', title: 'Bootstrap Components (Navbar, Modals, Cards, Forms)', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_boot_3', title: 'Customizing Bootstrap Styles & Themes', completed: false, video: { duration: '45m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_js_ess',
+            title: 'JavaScript Essentials & Control Flow',
+            duration: '5h',
+            lessons: [
+              { id: 'l_js_1', title: 'JS Setup, Variables (var, let, const), & Data Types', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_js_2', title: 'Operators, Expressions, and Conditional Statements', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_js_3', title: 'Loops: for, while, forEach, & Iterations', completed: false, video: { duration: '1h 45m', completed: false }, assessment: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_js_func',
+            title: 'JavaScript Functions, Objects & Arrays',
+            duration: '6h',
+            lessons: [
+              { id: 'l_js_func_1', title: 'Function Declarations, Expressions, & Arrow Functions', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_js_func_2', title: 'Advanced Array Methods (map, filter, reduce)', completed: false, video: { duration: '1h 30m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_js_func_3', title: 'Object Manipulation & Higher-Order Functions', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_dom',
+            title: 'DOM Manipulation & Event Handling',
+            duration: '5h',
+            lessons: [
+              { id: 'l_dom_1', title: 'Selecting and Modifying DOM Elements Dynamically', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_dom_2', title: 'Event Listeners, Bubbling, and Delegation Patterns', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } },
+              { id: 'l_dom_3', title: 'Form Validation & Dynamic HTML Creation', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '15m', completed: false } }
+            ]
+          },
+          {
+            id: 'm1_es6',
+            title: 'Modern ES6+ & Asynchronous JS',
+            duration: '5h',
+            lessons: [
+              { id: 'l_es6_1', title: 'Destructuring, Spread/Rest Operators, and Modules', completed: false, video: { duration: '1h 00m', completed: false }, practice: { duration: '15m', completed: false } },
+              { id: 'l_es6_2', title: 'Promises, Async/Await, and Fetch API Integration', completed: false, video: { duration: '1h 15m', completed: false }, practice: { duration: '30m', completed: false } },
+              { id: 'l_es6_3', title: 'Handling JSON Data & Dynamic API Integrations', completed: false, video: { duration: '1h 30m', completed: false }, assessment: { duration: '30m', completed: false } }
+            ]
+          }
         ]
       },
       {
