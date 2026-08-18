@@ -16,12 +16,15 @@ export function ProgressRing({
   strokeWidth = 6,
   className,
   showLabel = true,
-  color = 'stroke-primary-500',
-  trackColor = 'stroke-ink-100',
+  color = 'stroke-[#7c3aed]',
+  trackColor = 'stroke-slate-100',
 }: ProgressRingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (value / 100) * circumference;
+
+  const strokeColor = color.includes('stroke-') ? color : color.replace(/\btext-/, 'stroke-');
+  const strokeTrack = trackColor.includes('stroke-') ? trackColor : trackColor.replace(/\btext-/, 'stroke-');
 
   return (
     <div className={cn('relative inline-flex items-center justify-center', className)} style={{ width: size, height: size }}>
@@ -31,7 +34,7 @@ export function ProgressRing({
           cy={size / 2}
           r={radius}
           strokeWidth={strokeWidth}
-          className={trackColor}
+          className={strokeTrack}
           fill="none"
         />
         <circle
@@ -39,7 +42,7 @@ export function ProgressRing({
           cy={size / 2}
           r={radius}
           strokeWidth={strokeWidth}
-          className={cn(color, 'transition-all duration-700 ease-out')}
+          className={cn(strokeColor, 'transition-all duration-700 ease-out')}
           fill="none"
           strokeDasharray={circumference}
           strokeDashoffset={offset}

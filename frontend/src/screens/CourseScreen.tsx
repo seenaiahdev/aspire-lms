@@ -404,7 +404,7 @@ export function CourseScreen() {
                       <h3 className="font-extrabold text-slate-900 text-lg">Course Content</h3>
                       <p className="text-xs font-semibold text-slate-500 mt-1">{course.stages?.length || 0} stages · {course.lessons} lessons · {course.duration}</p>
                     </div>
-                    <ProgressRing value={course.progress} size={60} strokeWidth={6} color="text-[#7c3aed]" />
+                    <ProgressRing value={course.progress} size={60} strokeWidth={6} color="stroke-[#7c3aed]" trackColor="stroke-slate-100" />
                   </div>
                   <div className="p-4 sm:p-6 space-y-4">
                     {course.stages?.map((stage: any, i: number) => {
@@ -623,7 +623,7 @@ export function CourseScreen() {
           <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden sticky top-24">
             <CardBody className="p-6 text-center space-y-4">
               <div className="relative inline-block">
-                <ProgressRing value={course.progress} size={110} strokeWidth={8} showLabel={false} color="text-[#7c3aed]" />
+                <ProgressRing value={course.progress} size={110} strokeWidth={8} showLabel={false} color="stroke-[#7c3aed]" trackColor="stroke-slate-100" />
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
                   <span className="text-2xl font-black text-slate-900">{course.progress}%</span>
                   <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Done</span>
