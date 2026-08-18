@@ -26,6 +26,8 @@ const lessonIcons: Record<string, any> = {
 
 function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any, course: any, navigate: any, isOpen: boolean, onToggle: () => void }) {
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
+  const completedCount = Math.round((allLessons.length * (course.progress || 0)) / 100);
+
   return (
     <div className="bg-white rounded-xl border border-slate-100 p-2 sm:p-3 shadow-2xs">
       <button 
@@ -44,10 +46,11 @@ function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any
       {isOpen && (
         <div className="space-y-2 pt-3 mt-1 pb-1 animate-fade-in pl-1">
           {mod.lessons.map((lesson: any, idx: number) => {
-            const Icon = Play; // Since type is removed, default to Play
+            const Icon = Play;
             const isPreview = lesson.video?.preview || lesson.preview;
             const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
-            const isLessonLocked = (globalIdx > 0 && allLessons.slice(0, globalIdx).some((l: any) => !l.completed)) && !isPreview;
+            const isCompleted = lesson.completed || (globalIdx < completedCount && globalIdx !== -1);
+            const isLessonLocked = (globalIdx > completedCount) && !isPreview && !isCompleted;
             
             return (
               <button
@@ -69,22 +72,22 @@ function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any
               >
                 <div className={cn(
                   'w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-2xs',
-                  lesson.completed ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-purple-50 text-[#7c3aed] border border-purple-100',
+                  isCompleted ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-purple-50 text-[#7c3aed] border border-purple-100',
                 )}>
-                  {lesson.completed ? (
-                    <CheckCircle2 className="w-4.5 h-4.5" />
+                  {isCompleted ? (
+                    <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
                   ) : isPreview ? (
-                    <Play className="w-4 h-4" />
+                    <Play className="w-4 h-4 text-[#7c3aed]" />
                   ) : (
-                    <Icon className="w-4 h-4" />
+                    <Icon className="w-4 h-4 text-[#7c3aed]" />
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className={cn('text-sm font-bold', lesson.completed ? 'text-slate-500' : 'text-slate-900 group-hover/lesson:text-[#7c3aed] transition-colors')}>{lesson.title}</p>
+                  <p className={cn('text-sm font-bold', isCompleted ? 'text-slate-500' : 'text-slate-900 group-hover/lesson:text-[#7c3aed] transition-colors')}>{lesson.title}</p>
                   <p className="text-xs font-semibold text-slate-400 mt-0.5">{lesson.video?.duration || lesson.duration} · Video Lesson</p>
                 </div>
                 {isLessonLocked && <Lock className="w-4 h-4 text-slate-300 ml-auto" />}
-                {isPreview && !lesson.completed && <span className="px-2.5 py-1 rounded-md bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] text-white text-[10px] font-black uppercase tracking-wider shadow-sm ml-auto">Preview</span>}
+                {isPreview && !isCompleted && <span className="px-2.5 py-1 rounded-md bg-gradient-to-r from-[#7c3aed] to-[#6d28d9] text-white text-[10px] font-black uppercase tracking-wider shadow-sm ml-auto">Preview</span>}
               </button>
             );
           })}

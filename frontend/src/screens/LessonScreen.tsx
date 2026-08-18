@@ -18,6 +18,8 @@ import { supabase } from '@/lib/supabase';
 
 function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, onToggle }: any) {
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
+  const completedCount = Math.round((allLessons.length * (course.progress || 0)) / 100);
+
   return (
     <div className="space-y-1.5 border border-slate-100 p-2 rounded-xl">
       <button 
@@ -36,7 +38,8 @@ function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, 
             const isCurrent = lesson.id === currentLesson?.id;
             const isPreview = lesson.video?.preview || lesson.preview;
             const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
-            const isLocked = (globalIdx > 0 && allLessons.slice(0, globalIdx).some((l: any) => !l.completed)) && !isPreview;
+            const isCompleted = lesson.completed || (globalIdx < completedCount && globalIdx !== -1);
+            const isLocked = (globalIdx > completedCount) && !isPreview && !isCompleted && !isCurrent;
             return (
               <button
                 key={lesson.id}
@@ -59,10 +62,10 @@ function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, 
               >
                 <div className={cn(
                   'w-6 h-6 rounded-lg flex items-center justify-center shrink-0 text-[11px] font-black',
-                  lesson.completed ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
+                  isCompleted ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' :
                   isCurrent ? 'bg-[#7c3aed] text-white' : 'bg-slate-100 text-slate-400',
                 )}>
-                  {lesson.completed ? <CheckCircle2 className="w-3.5 h-3.5" /> : (isLocked ? <Lock className="w-3.5 h-3.5 opacity-50" /> : li + 1)}
+                  {isCompleted ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" /> : (isLocked ? <Lock className="w-3.5 h-3.5 opacity-50" /> : li + 1)}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={cn('text-xs line-clamp-1', isCurrent ? 'font-black text-[#7c3aed]' : 'font-semibold text-slate-800')}>{lesson.title}</p>
