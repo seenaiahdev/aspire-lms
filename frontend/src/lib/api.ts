@@ -380,12 +380,21 @@ export async function fetchQuizzes(batchCode: string) {
 // PROJECTS
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchProjects(batchCode: string) {
+export async function fetchProjects(batchCode: string, batchCategory?: string) {
   try {
+    const conditions = ["target_batch.eq.ALL", "target_batch.eq.All Batches"];
+    if (batchCode) {
+      conditions.push(`target_batch.eq.${batchCode}`);
+    }
+    if (batchCategory) {
+      conditions.push(`target_batch.eq.${batchCategory}`);
+      conditions.push(`target_batch.eq.${batchCategory} Batch`);
+    }
+
     const { data, error } = await supabase
       .from('projects')
       .select('*')
-      .eq('target_batch', batchCode)
+      .or(conditions.join(','))
       .order('created_at', { ascending: false });
 
     if (error) {
