@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchCertificates } from '@/lib/api';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
+import { supabase } from '@/lib/supabase';
 
 import { certificationsSteps } from '@/lib/tourSteps';
 
@@ -78,8 +79,45 @@ export function CertificatesScreen() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        const data = await fetchCertificates(user.id);
-        setCerts(data as CourseCertificate[]);
+        // 1. Fetch courses table
+        const { data: dbCourses, error: coursesError } = await supabase
+          .from('courses')
+          .select('*');
+
+        if (coursesError) {
+          console.error("Error loading courses for certificates:", coursesError.message);
+          return;
+        }
+
+        // 2. Filter courses the user is enrolled in
+        const enrolledIds = user.enrolledCourses || [];
+        const userCourses = dbCourses?.filter(c => enrolledIds.includes(c.id)) || [];
+
+        // 3. Map to CourseCertificate objects
+        const mappedCerts: CourseCertificate[] = userCourses.map(course => {
+          const progress = (user.courseProgress && user.courseProgress[course.id] !== undefined)
+            ? user.courseProgress[course.id]
+            : (user.enrolledCourses && user.enrolledCourses[0] === course.id)
+            ? (user.progress || 0)
+            : 0;
+
+          const completed = progress >= 100;
+          const issuedDate = completed ? 'Aug 19, 2026' : undefined;
+
+          return {
+            id: course.id,
+            courseTitle: course.title,
+            categoryLabel: course.category || 'Professional',
+            instructorName: course.instructor || 'Lead Instructor',
+            instructorRole: 'Senior Instructor',
+            progress: progress,
+            issuedDate: issuedDate,
+            verifyId: `verify-${course.id}-${user.id}`,
+            certificateBg: course.thumbnail || '/python-full-stack.png'
+          };
+        });
+
+        setCerts(mappedCerts);
       } catch (error) {
         console.error('Failed to fetch certificates:', error);
       } finally {
@@ -87,12 +125,11 @@ export function CertificatesScreen() {
       }
     };
     loadData();
-  }, [user.id]);
+  }, [user.id, user.enrolledCourses, user.courseProgress, user.progress]);
 
-  const activeCerts = certs.filter(c => c.id === 'c1');
-  const unlockedCount = activeCerts.filter(c => c.progress >= 100).length;
-  const lockedCount = activeCerts.filter(c => c.progress < 100).length;
-  const avgProgress = activeCerts.length > 0 ? Math.round(activeCerts.reduce((acc, c) => acc + c.progress, 0) / activeCerts.length) : 0;
+  const unlockedCount = certs.filter(c => c.progress >= 100).length;
+  const lockedCount = certs.filter(c => c.progress < 100).length;
+  const avgProgress = certs.length > 0 ? Math.round(certs.reduce((acc, c) => acc + c.progress, 0) / certs.length) : 0;
 
   const handleDownload = (cert: CourseCertificate) => {
     triggerFileDownload(`AspireNext Certificate - ${cert.courseTitle}`);
@@ -179,9 +216,9 @@ export function CertificatesScreen() {
               id={index === 0 ? 'tour-certs-card-0' : undefined}
               className={cn(
                 "relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]",
-                cert.id === 'c1' ? "hover:shadow-xl cursor-pointer" : ""
+                isUnlocked ? "hover:shadow-xl cursor-pointer" : ""
               )}
-              onClick={cert.id === 'c1' ? () => setSelectedCert(cert) : undefined}
+              onClick={isUnlocked ? () => setSelectedCert(cert) : undefined}
             >
               
               {/* ── CARD CONTENT (BLURRED IF LOCKED) ── */}
