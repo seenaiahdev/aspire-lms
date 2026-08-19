@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { GraduationCap, Mail, MapPin, Calendar, Star, Award, Zap, Flame, TrendingUp, Github, Linkedin, Globe, Edit, ChevronRight } from 'lucide-react';
-import { certificates, badges, recentActivity } from '@/data/mock';
 import { useUser } from '@/lib/UserContext';
+import { fetchBadges } from '@/lib/api';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
@@ -63,7 +63,20 @@ const badgeMedalStyles: Record<string, { bg: string; border: string; glow: strin
 export function ProfileScreen() {
   const { user } = useUser();
   const { navigate } = useNav();
-  const activeActivity = [];
+  const [badges, setBadges] = useState<any[]>([]);
+  const activeActivity: any[] = [];
+
+  useEffect(() => {
+    const loadBadges = async () => {
+      try {
+        const data = await fetchBadges();
+        setBadges(data);
+      } catch (err) {
+        console.error('Failed to fetch badges', err);
+      }
+    };
+    loadBadges();
+  }, []);
   const totalXP = (user.xp || 0) * 15;
   const earnedBadges = badges.map((badge) => {
     let earned = false;

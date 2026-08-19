@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Sparkles, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock
 } from 'lucide-react';
-import { jobOpportunities } from '@/data/mock';
+import { fetchJobs } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -133,12 +134,31 @@ function TechStackSvg({ name, className = "w-4 h-4" }: { name: string; className
 }
 
 export function PlacementScreen() {
+  const { user } = useUser();
   const [activeFilter, setActiveFilter] = useState<'open' | 'applied' | 'closed' | 'all'>('open');
   const [searchQuery, setSearchQuery] = useState('');
-  const [jobsList, setJobsList] = useState<typeof jobOpportunities>(jobOpportunities);
+  const [jobsList, setJobsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lockedToast, setLockedToast] = useState(false);
+
+  useEffect(() => {
+    const loadJobs = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchJobs(user?.batchCategory || 'Weekday');
+        setJobsList(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (user?.batchCategory) {
+      loadJobs();
+    }
+  }, [user?.batchCategory]);
 
   const totalCount = jobsList.length;
   const appliedCount = jobsList.filter((j) => j.status === 'applied').length;
@@ -266,7 +286,11 @@ export function PlacementScreen() {
 
       {/* Job Opportunities Square Cards Grid */}
       <div>
-        {filteredJobs.length > 0 ? (
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : filteredJobs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
             {filteredJobs.map((job, index) => {
               const isOpen = job.status === 'open';

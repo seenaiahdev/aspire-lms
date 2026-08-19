@@ -1,12 +1,23 @@
+import { useState, useEffect } from 'react';
 import { Home, GraduationCap, Code2, Bell, User } from 'lucide-react';
 import { bottomNavItems, type Route } from '@/lib/routes';
 import { useNav } from '@/lib/nav';
-import { notifications } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
+import { fetchNotifications } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import * as Icons from 'lucide-react';
 
 export function BottomNav() {
   const { route, navigate } = useNav();
+  const { user } = useUser();
+  const [notifications, setNotifications] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchNotifications(user.id).then(setNotifications).catch(console.error);
+    }
+  }, [user?.id]);
+
   const unread = notifications.filter((n) => !n.read).length;
 
   return (

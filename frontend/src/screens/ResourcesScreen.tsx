@@ -1,8 +1,9 @@
 import { useState } from 'react';
 
 import { resourcesSteps } from '@/lib/tourSteps';
-import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle, Lock } from 'lucide-react';
-import { resources as initialResources } from '@/data/mock';
+import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle, Lock, Loader2 } from 'lucide-react';
+import { fetchResources } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 import { Card } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Toast } from '@/components/ui/Toast';
@@ -36,10 +37,28 @@ const typeLabels: Record<string, string> = {
 };
 
 export function ResourcesScreen() {
+  const { user } = useUser();
   const [search, setSearch] = useState('');
   const [type, setType] = useState('all');
-  const [resourcesList, setResourcesList] = useState(initialResources);
+  const [resourcesList, setResourcesList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [lockedToast, setLockedToast] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const courseId = user?.enrolled_courses?.[0]?.id;
+        const data = await fetchResources(courseId);
+        setResourcesList(data || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [user]);
 
   const handleDownload = (id: string, title: string) => {
     triggerFileDownload(id, title);
@@ -106,8 +125,22 @@ export function ResourcesScreen() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
-        {filtered.map((r, index) => {
+      {loading ? (
+        <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
+          <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
+          <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Resources...</h3>
+        </div>
+      ) : filtered.length === 0 ? (
+        <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
+          <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
+            <CheckCircle className="w-8 h-8 text-slate-400" />
+          </div>
+          <h3 className="font-extrabold text-slate-900 text-lg mb-1">No resources available yet</h3>
+          <p className="text-sm font-medium text-slate-500">Check back later for new resources.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {filtered.map((r, index) => {
           const Icon = typeIcons[r.type] || FileText;
           const color = typeColors[r.type] || typeColors.notes;
           return (
@@ -167,7 +200,8 @@ export function ResourcesScreen() {
             </Card>
           );
         })}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

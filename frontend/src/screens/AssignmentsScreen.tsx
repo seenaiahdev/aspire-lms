@@ -59,93 +59,7 @@ interface PythonTask {
 }
 
 // Comprehensive Course Assessments Data
-const courseAssignments: PythonTask[] = [
-  {
-    id: '1',
-    slug: 'git-architecture-quiz',
-    type: 'mcq',
-    title: 'Git Architecture & Version Control Assessment',
-    category: 'Version Control',
-    difficulty: 'Beginner',
-    xp: 100,
-    timeEstimate: '15 mins',
-    description: 'Test your understanding of Git architecture, local vs remote repositories, and the staging area.',
-    status: 'locked',
-    attemptsCount: 0,
-    passedCount: 0,
-    failedCount: 0,
-    bestScorePercentage: 0,
-    attemptHistory: [],
-    mcqQuestions: [
-      {
-        id: 1,
-        question: 'What is the primary difference between Git and GitHub?',
-        options: ['Git is a local tool, GitHub is a cloud hosting service', 'They are the exact same thing', 'Git is for Windows, GitHub is for Mac', 'Git is a cloud service, GitHub is a CLI tool'],
-        correctIndex: 0,
-        explanation: 'Git is the version control system that runs locally on your machine, whereas GitHub is a cloud-based hosting service for Git repositories.',
-      },
-      {
-        id: 2,
-        question: 'Which area holds the files before they are committed to the repository?',
-        options: ['Working Directory', 'Staging Area', 'Local Repository', 'Remote Repository'],
-        correctIndex: 1,
-        explanation: 'The Staging Area (or Index) is where you format and review a commit before actually committing it to the local repository.',
-      }
-    ],
-  },
-  {
-    id: '2',
-    slug: 'git-commands-quiz',
-    type: 'mcq',
-    title: 'Git Commands: init, add, commit Assessment',
-    category: 'Version Control',
-    difficulty: 'Beginner',
-    xp: 120,
-    timeEstimate: '20 mins',
-    description: 'Verify your knowledge of foundational Git commands for tracking and committing files.',
-    status: 'locked',
-    attemptsCount: 0,
-    passedCount: 0,
-    failedCount: 0,
-    bestScorePercentage: 0,
-    attemptHistory: [],
-    mcqQuestions: [
-      {
-        id: 1,
-        question: 'Which command initializes a new Git repository?',
-        options: ['git start', 'git init', 'git new', 'git create'],
-        correctIndex: 1,
-        explanation: 'git init is used to create a new, empty Git repository or reinitialize an existing one.',
-      }
-    ],
-  },
-  {
-    id: '3',
-    slug: 'html5-structure-quiz',
-    type: 'mcq',
-    title: 'HTML5 Semantic Elements Assessment',
-    category: 'Web Architecture',
-    difficulty: 'Beginner',
-    xp: 150,
-    timeEstimate: '15 mins',
-    description: 'Assess your knowledge of modern HTML5 semantic elements and document structuring.',
-    status: 'locked',
-    attemptsCount: 0,
-    passedCount: 0,
-    failedCount: 0,
-    bestScorePercentage: 0,
-    attemptHistory: [],
-    mcqQuestions: [
-      {
-        id: 1,
-        question: 'Which HTML5 element is specifically designed for the main navigation menu?',
-        options: ['<header>', '<section>', '<nav>', '<aside>'],
-        correctIndex: 2,
-        explanation: 'The <nav> element represents a section of a page whose purpose is to provide navigation links.',
-      }
-    ],
-  }
-];
+// Loaded via API
 
 // ════════════════ CUSTOM CONFETTI ANIMATION ════════════════
 const ConfettiBurst = () => {
@@ -196,8 +110,34 @@ const ConfettiBurst = () => {
   );
 };
 
+import { useUser } from '@/lib/UserContext';
+import { fetchAssignments } from '@/lib/api';
+import { Loader2 } from 'lucide-react';
+
 export function AssignmentsScreen() {
+  const { user } = useUser();
   const { navigate } = useNav();
+  const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      if (user?.batch) {
+        setLoading(true);
+        try {
+          const data = await fetchAssignments(user.batch);
+          setCourseAssignments(data || []);
+        } catch (error) {
+          console.error("Failed to fetch assignments:", error);
+          setCourseAssignments([]);
+        } finally {
+          setLoading(false);
+        }
+      }
+    };
+    loadData();
+  }, [user?.batch]);
+
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [lockedToast, setLockedToast] = useState(false);
   const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'completed'>('all');
@@ -1079,12 +1019,17 @@ export function AssignmentsScreen() {
           </div>
 
           {/* Tasks List Cards */}
-          {filteredTasks.length === 0 ? (
+          {loading ? (
+            <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
+              <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Assessments...</h3>
+            </div>
+          ) : filteredTasks.length === 0 ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
                 <CheckCircle2 className="w-8 h-8 text-slate-400" />
               </div>
-              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No Assessments Found</h3>
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No assignments available yet</h3>
               <p className="text-sm font-medium text-slate-500">You don't have any {filterTab} assessments at the moment.</p>
             </div>
           ) : (

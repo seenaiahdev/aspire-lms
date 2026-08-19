@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock } from 'lucide-react';
-import { practiceProblems } from '@/data/mock';
+import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2 } from 'lucide-react';
+import { fetchPracticeProblems } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 
 import { practiceSteps } from '@/lib/tourSteps';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -27,12 +28,30 @@ interface Submission {
 }
 
 export function PracticeScreen() {
+  const { user } = useUser();
   const { navigate } = useNav();
   const [tab, setTab] = useState('problems');
   const [difficulty, setDifficulty] = useState('all');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [problems, setProblems] = useState(practiceProblems);
+  const [problems, setProblems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [lockedToast, setLockedToast] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const courseId = user?.enrolled_courses?.[0]?.id;
+        const data = await fetchPracticeProblems(courseId);
+        setProblems(data || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [user]);
 
   // Load submissions from localStorage
   useEffect(() => {
@@ -131,14 +150,21 @@ export function PracticeScreen() {
             ))}
           </div>
 
-          {filtered.length === 0 ? (
+          {loading ? (
+            <Card>
+              <CardBody className="text-center py-12">
+                <Loader2 className="w-10 h-10 text-[#7c3aed] animate-spin mx-auto mb-4" />
+                <h3 className="font-extrabold text-slate-900 text-base mb-1">Loading Problems...</h3>
+              </CardBody>
+            </Card>
+          ) : filtered.length === 0 ? (
             <Card>
               <CardBody className="text-center py-12">
                 <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200">
                   <Lock className="w-8 h-8 text-slate-400" />
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1">No Problems Found</h3>
-                <p className="text-xs font-medium text-slate-500 mb-2">Try changing your difficulty filter.</p>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1">No Practice problems available yet</h3>
+                <p className="text-xs font-medium text-slate-500 mb-2">Try changing your difficulty filter or check back later.</p>
               </CardBody>
             </Card>
           ) : (

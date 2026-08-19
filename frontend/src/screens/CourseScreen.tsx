@@ -5,7 +5,7 @@ import {
   Download, Share2, Heart, Award, ChevronUp, ChevronDown, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { courses as mockCourses, resources as mockResourcesList } from '@/data/mock';
+import { fetchResources } from '@/lib/api';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -109,6 +109,7 @@ export function CourseScreen() {
   const [loading, setLoading] = useState(true);
 
   const batchCategory = user.batchCategory || 'Weekday';
+  const courseIdToFetch = params.id || (user.enrolled_courses && user.enrolled_courses[0]) || 'crs-1786624019154-w';
 
   useEffect(() => {
     async function fetchCourseAndSyllabus() {
@@ -118,7 +119,7 @@ export function CourseScreen() {
         const { data: courseData, error: courseError } = await supabase
           .from('courses')
           .select('*')
-          .eq('id', params.id || 'PYAI2026')
+          .eq('id', courseIdToFetch)
           .maybeSingle();
 
         if (courseError) {
@@ -158,7 +159,7 @@ export function CourseScreen() {
           event: 'UPDATE',
           schema: 'public',
           table: 'courses',
-          filter: `id=eq.${params.id || 'PYAI2026'}`
+          filter: `id=eq.${courseIdToFetch}`
         },
         (payload) => {
           console.log("Real-time course detail update:", payload.new);
@@ -189,26 +190,36 @@ export function CourseScreen() {
       supabase.removeChannel(coursesChannel);
       supabase.removeChannel(milestonesChannel);
     };
-  }, [params.id, batchCategory]);
+  }, [courseIdToFetch, batchCategory]);
 
   const course = useMemo(() => {
-    // If not loaded yet, or loading, return placeholder/mock values
+    // If not loaded yet from Supabase, return a loading placeholder
     if (!dbCourse) {
-      // Return a temporary structure or fallback from mock
-      const mockFallback = mockCourses.find((c) => c.id === params.id) || mockCourses[0];
       return {
-        ...mockFallback,
+        id: courseIdToFetch,
+        title: 'Loading...',
+        category: '',
+        level: '',
         instructor: {
-          name: mockFallback.instructor?.name || 'Lead Instructor',
-          avatar: mockFallback.instructor?.avatar || '',
-          role: mockFallback.instructor?.role || 'LMS Specialist',
-          title: mockFallback.instructor?.role || 'LMS Specialist',
-          rating: 4.9,
-          students: 12400,
-          courses: 4,
-          bio: 'Instructor is a senior engineer.'
+          name: 'Loading...',
+          avatar: '',
+          role: '',
+          title: '',
+          rating: 0,
+          students: 0,
+          courses: 0,
+          bio: ''
         },
-        progress: user.progress || 0
+        rating: 0,
+        reviews: 0,
+        students: 0,
+        duration: '',
+        lessons: 0,
+        stages: [],
+        progress: user.progress || 0,
+        description: '',
+        subtitle: '',
+        tags: []
       };
     }
 
@@ -279,15 +290,17 @@ export function CourseScreen() {
     setCommentText('');
   };
 
-  const courseResources = useMemo(() => {
-    const titleLower = (course.title || '').toLowerCase();
-    return mockResourcesList.filter(res => {
-      if (titleLower.includes('python') || titleLower.includes('dsa') || titleLower.includes('ai')) {
-        return res.category.includes('Backend') || res.category.includes('AI') || res.category.includes('Version');
-      }
-      return true;
-    });
-  }, [course.title]);
+  const [courseResources, setCourseResources] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadResources() {
+      const resources = await fetchResources(course.id);
+      setCourseResources(resources);
+    }
+    if (course.id && course.id !== 'Loading...') {
+      loadResources();
+    }
+  }, [course.id]);
 
   const ratingPercentages = useMemo(() => {
     const r = course.rating || 5.0;

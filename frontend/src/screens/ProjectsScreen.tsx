@@ -4,7 +4,8 @@ import {
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
   Upload, FolderOpen, Eye, Lock,
 } from 'lucide-react';
-import { projects } from '@/data/mock';
+import { fetchProjects } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 import { Toast } from '@/components/ui/Toast';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -110,6 +111,7 @@ const projectGuides: Record<string, ProjectGuide> = {
 };
 
 export function ProjectsScreen() {
+  const { user } = useUser();
   const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone' | 'templates'>('mini');
   const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
   const [lockedToast, setLockedToast] = useState(false);
@@ -123,14 +125,30 @@ export function ProjectsScreen() {
     }
   });
 
-  const [projectsState, setProjectsState] = useState<any[]>(projects);
+  const [projectsState, setProjectsState] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [toastVisible, setToastVisible] = useState(false);
 
-  // Sync state if mock data changed
+  // Fetch from Supabase
   useEffect(() => {
-    setProjectsState(projects);
-  }, [projects]);
+    const loadProjects = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchProjects(user?.batch || '');
+        setProjectsState(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (user?.batch) {
+      loadProjects();
+    } else {
+      setIsLoading(false);
+    }
+  }, [user?.batch]);
 
   // Interactive File Explorer Modal state
   const [showExplorer, setShowExplorer] = useState(false);
@@ -729,7 +747,11 @@ export function ProjectsScreen() {
 
           {/* PROJECTS GRID */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {filtered.length === 0 ? (
+            {isLoading ? (
+              <div className="col-span-full flex justify-center py-12">
+                <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="col-span-full">
                 <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
                   <FolderGit2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />

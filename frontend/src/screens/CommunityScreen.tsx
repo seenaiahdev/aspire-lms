@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Users, Heart, MessageCircle, Share2, Pin, Megaphone, Calendar, Sparkles, TrendingUp } from 'lucide-react';
-import { communityPosts, announcements } from '@/data/mock';
+import { useState, useEffect } from 'react';
+import { Users, Heart, MessageCircle, Share2, Pin, Megaphone, Calendar, Sparkles, TrendingUp, Loader2 } from 'lucide-react';
+import { fetchCommunityPosts, fetchAnnouncements } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Avatar } from '@/components/ui/Avatar';
@@ -9,7 +10,30 @@ import { Tabs } from '@/components/ui/Tabs';
 import { cn } from '@/lib/utils';
 
 export function CommunityScreen() {
+  const { user } = useUser();
   const [tab, setTab] = useState('feed');
+  const [communityPosts, setCommunityPosts] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [posts, ann] = await Promise.all([
+          fetchCommunityPosts(),
+          fetchAnnouncements()
+        ]);
+        setCommunityPosts(posts || []);
+        setAnnouncements(ann || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -39,41 +63,52 @@ export function CommunityScreen() {
             {/* Create post */}
             <Card className="p-4">
               <div className="flex gap-3">
-                <Avatar src="https://i.pravatar.cc/200?img=12" name="Aarav" size="md" />
+                <Avatar src="https://i.pravatar.cc/200?img=12" name={user?.name || 'User'} size="md" />
                 <input className="input" placeholder="Share something with the community..." />
               </div>
             </Card>
 
-            {communityPosts.map((post) => (
-              <Card key={post.id} className="p-5">
-                <div className="flex items-start gap-3 mb-3">
-                  <Avatar src={post.avatar} name={post.author} size="md" />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <p className="font-semibold text-ink-800 text-sm">{post.author}</p>
-                      {post.role === 'mentor' && <Badge variant="primary" size="sm">Mentor</Badge>}
-                    </div>
-                    <p className="text-xs text-ink-500">{post.time}</p>
-                  </div>
-                  {post.role === 'mentor' && <Pin className="w-4 h-4 text-ink-300" />}
-                </div>
-                <p className="text-sm text-ink-700 mb-3 leading-relaxed">{post.content}</p>
-                <div className="flex flex-wrap gap-1.5 mb-4">
-                  {post.tags.map((t: string) => <span key={t} className="text-xs text-primary-600 font-medium">#{t}</span>)}
-                </div>
-                <div className="flex items-center gap-6 pt-3 border-t border-ink-100">
-                  <button className={cn('flex items-center gap-1.5 text-sm transition-colors', post.liked ? 'text-error-500' : 'text-ink-500 hover:text-error-500')}>
-                    <Heart className={cn('w-4 h-4', post.liked && 'fill-error-500')} /> {post.likes}
-                  </button>
-                  <button className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-primary-600 transition-colors">
-                    <MessageCircle className="w-4 h-4" /> {post.comments}
-                  </button>
-                  <button className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-primary-600 transition-colors ml-auto">
-                    <Share2 className="w-4 h-4" />
-                  </button>
-                </div>
+            {loading ? (
+              <Card className="p-12 text-center">
+                <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
+                <p className="text-sm font-medium text-ink-500">Loading community posts...</p>
               </Card>
-            ))}
+            ) : communityPosts.length === 0 ? (
+              <Card className="p-12 text-center">
+                <p className="text-sm font-medium text-ink-500">No posts yet. Be the first to share something!</p>
+              </Card>
+            ) : (
+              communityPosts.map((post) => (
+                <Card key={post.id} className="p-5">
+                  <div className="flex items-start gap-3 mb-3">
+                    <Avatar src={post.avatar} name={post.author} size="md" />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="font-semibold text-ink-800 text-sm">{post.author}</p>
+                        {post.role === 'mentor' && <Badge variant="primary" size="sm">Mentor</Badge>}
+                      </div>
+                      <p className="text-xs text-ink-500">{post.time}</p>
+                    </div>
+                    {post.role === 'mentor' && <Pin className="w-4 h-4 text-ink-300" />}
+                  </div>
+                  <p className="text-sm text-ink-700 mb-3 leading-relaxed">{post.content}</p>
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {post.tags?.map((t: string) => <span key={t} className="text-xs text-primary-600 font-medium">#{t}</span>)}
+                  </div>
+                  <div className="flex items-center gap-6 pt-3 border-t border-ink-100">
+                    <button className={cn('flex items-center gap-1.5 text-sm transition-colors', post.liked ? 'text-error-500' : 'text-ink-500 hover:text-error-500')}>
+                      <Heart className={cn('w-4 h-4', post.liked && 'fill-error-500')} /> {post.likes}
+                    </button>
+                    <button className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-primary-600 transition-colors">
+                      <MessageCircle className="w-4 h-4" /> {post.comments}
+                    </button>
+                    <button className="flex items-center gap-1.5 text-sm text-ink-500 hover:text-primary-600 transition-colors ml-auto">
+                      <Share2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </Card>
+              ))
+            )}
           </div>
 
           {/* Sidebar */}
@@ -111,25 +146,38 @@ export function CommunityScreen() {
 
       {tab === 'announcements' && (
         <div className="space-y-3 max-w-2xl">
-          {announcements.map((a) => (
-            <Card key={a.id} className="p-5">
-              <div className="flex items-start gap-3">
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-                  a.priority === 'high' ? 'bg-error-100' : a.priority === 'medium' ? 'bg-warning-100' : 'bg-ink-100'
-                }`}>
-                  <Megaphone className={`w-5 h-5 ${a.priority === 'high' ? 'text-error-600' : a.priority === 'medium' ? 'text-warning-600' : 'text-ink-500'}`} />
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <h3 className="font-bold text-ink-900 text-sm">{a.title}</h3>
-                    <Badge variant={a.priority === 'high' ? 'error' : a.priority === 'medium' ? 'warning' : 'default'}>{a.priority}</Badge>
-                  </div>
-                  <p className="text-sm text-ink-600 mb-2">{a.message}</p>
-                  <p className="text-xs text-ink-400">{a.time}</p>
-                </div>
-              </div>
+          {loading ? (
+            <Card className="p-12 text-center">
+              <Loader2 className="w-8 h-8 text-primary-500 animate-spin mx-auto mb-4" />
+              <p className="text-sm font-medium text-ink-500">Loading announcements...</p>
             </Card>
-          ))}
+          ) : announcements.length === 0 ? (
+            <Card className="p-12 text-center">
+              <Megaphone className="w-12 h-12 text-ink-300 mx-auto mb-3" />
+              <h3 className="font-bold text-ink-900 mb-1">No Announcements</h3>
+              <p className="text-sm font-medium text-ink-500">There are no new announcements at this time.</p>
+            </Card>
+          ) : (
+            announcements.map((a) => (
+              <Card key={a.id} className="p-5">
+                <div className="flex items-start gap-3">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
+                    a.priority === 'high' ? 'bg-error-100' : a.priority === 'medium' ? 'bg-warning-100' : 'bg-ink-100'
+                  }`}>
+                    <Megaphone className={`w-5 h-5 ${a.priority === 'high' ? 'text-error-600' : a.priority === 'medium' ? 'text-warning-600' : 'text-ink-500'}`} />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <h3 className="font-bold text-ink-900 text-sm">{a.title}</h3>
+                      <Badge variant={a.priority === 'high' ? 'error' : a.priority === 'medium' ? 'warning' : 'default'}>{a.priority}</Badge>
+                    </div>
+                    <p className="text-sm text-ink-600 mb-2">{a.message}</p>
+                    <p className="text-xs text-ink-400">{a.time}</p>
+                  </div>
+                </div>
+              </Card>
+            ))
+          )}
         </div>
       )}
 

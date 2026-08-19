@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Award, Download, Share2, ShieldCheck, Lock, Unlock, CheckCircle2, Clock, Sparkles, BookOpen, ExternalLink, RefreshCw, X, Check, FileCheck
+  Award, Download, Share2, ShieldCheck, Lock, Unlock, CheckCircle2, Clock, Sparkles, BookOpen, ExternalLink, RefreshCw, X, Check, FileCheck, Loader2
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Toast } from '@/components/ui/Toast';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
+import { useUser } from '@/lib/UserContext';
+import { fetchCertificates } from '@/lib/api';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 
 import { certificationsSteps } from '@/lib/tourSteps';
@@ -23,70 +25,6 @@ export interface CourseCertificate {
   verifyId?: string;
   certificateBg: string;
 }
-
-// Exactly 6 Certificates matching 1-to-1 with the 6 My Learning items
-const initialCertificates: CourseCertificate[] = [
-  {
-    id: 'c1',
-    courseTitle: 'Master Fullstack Development and DSA using Python',
-    categoryLabel: 'Courses',
-    instructorName: 'Sara Khan',
-    instructorRole: 'Staff Frontend Architect',
-    progress: 100,
-    verifyId: 'CERT-AN-7829-PYTHON',
-    certificateBg: 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 's1',
-    courseTitle: 'Communication & Soft Skills Specialist Certificate',
-    categoryLabel: 'Soft Skills',
-    instructorName: 'Sara Khan',
-    instructorRole: 'Staff Frontend Architect',
-    progress: 100,
-    verifyId: 'CERT-AN-7829-COMM',
-    certificateBg: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 'a1',
-    courseTitle: 'Advanced Aptitude & Analytical Reasoning Accreditation',
-    categoryLabel: 'Aptitude',
-    instructorName: 'Sara Khan',
-    instructorRole: 'Staff Frontend Architect',
-    progress: 100,
-    verifyId: 'CERT-AN-7829-APT',
-    certificateBg: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 'p1',
-    courseTitle: 'Full-Stack Technical Portfolio Blueprint Certificate',
-    categoryLabel: 'Portfolio',
-    instructorName: 'Sara Khan',
-    instructorRole: 'Staff Frontend Architect',
-    progress: 100,
-    verifyId: 'CERT-AN-7829-PORT',
-    certificateBg: 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 'r1',
-    courseTitle: 'Professional Resume & Interview Readiness Certification',
-    categoryLabel: 'Resume',
-    instructorName: 'Sara Khan',
-    instructorRole: 'Staff Frontend Architect',
-    progress: 100,
-    verifyId: 'CERT-AN-7829-RES',
-    certificateBg: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80',
-  },
-  {
-    id: 'l1',
-    courseTitle: 'LinkedIn Networking & Brand Building Mastery Certificate',
-    categoryLabel: 'LinkedIn',
-    instructorName: 'Sara Khan',
-    instructorRole: 'Staff Frontend Architect',
-    progress: 100,
-    verifyId: 'CERT-AN-7829-LINK',
-    certificateBg: 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?auto=format&fit=crop&w=800&q=80',
-  }
-];
 
 function CircularProgressLock({ progress, size = 76 }: { progress: number; size?: number }) {
   const strokeWidth = 5;
@@ -131,9 +69,25 @@ function CircularProgressLock({ progress, size = 76 }: { progress: number; size?
 
 export function CertificatesScreen() {
   const { navigate } = useNav();
-  const [certs, setCerts] = useState<CourseCertificate[]>(initialCertificates);
+  const { user } = useUser();
+  const [certs, setCerts] = useState<CourseCertificate[]>([]);
   const [selectedCert, setSelectedCert] = useState<CourseCertificate | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await fetchCertificates(user.id);
+        setCerts(data as CourseCertificate[]);
+      } catch (error) {
+        console.error('Failed to fetch certificates:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [user.id]);
 
   const activeCerts = certs.filter(c => c.id === 'c1');
   const unlockedCount = activeCerts.filter(c => c.progress >= 100).length;
@@ -209,7 +163,12 @@ export function CertificatesScreen() {
       </div>
 
 
-      {/* ════════ CERTIFICATE CARDS GRID (EXACTLY 6 CARDS MATCHING MY LEARNING) ════════ */}
+      {/* ════════ CERTIFICATE CARDS GRID ════════ */}
+      {loading ? (
+        <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+      ) : certs.length === 0 ? (
+        <div className="text-center p-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">No certificates earned yet</div>
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {certs.map((cert, index) => {
           const isUnlocked = cert.progress >= 100;
@@ -348,6 +307,7 @@ export function CertificatesScreen() {
           );
         })}
       </div>
+      )}
 
 
       {/* ════════ RESPONSIVE OFFICIAL ASPIRE NEXT CERTIFICATE MODAL ════════ */}

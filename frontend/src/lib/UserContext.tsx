@@ -1,8 +1,32 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
-import { currentUser as initialUser } from '@/data/mock';
 import { User } from '@/types';
 import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile } from '@/lib/api';
 import { supabase } from './supabase';
+
+const initialUser: ExtendedUser = {
+  id: 'guest',
+  name: 'New Student',
+  email: 'student@aspirenext.edu',
+  avatar: '',
+  role: 'Student',
+  program: 'Engineering Degree',
+  college: 'IIT Hyderabad',
+  startYear: 2023,
+  endYear: 2027,
+  joinedDate: 'Aug 2026',
+  xp: 0,
+  level: 1,
+  streak: 0,
+  rank: 120,
+  bio: 'No biography set yet. Go to Settings to introduce yourself!',
+  skills: [],
+  socials: [
+    { label: 'GitHub', value: 'Not connected' },
+    { label: 'LinkedIn', value: 'Not connected' },
+    { label: 'Portfolio', value: 'Not connected' },
+  ],
+};
+
 
 interface ExtendedUser extends User {
   batchCode?: string;

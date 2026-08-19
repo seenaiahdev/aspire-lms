@@ -1,11 +1,11 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Play, Pause, Volume2, Maximize2, Settings, ArrowLeft, Calendar, Clock, 
   Users, Download, FileText, Bookmark, MessageCircle, Send, CheckCircle2, 
   SkipBack, SkipForward, Radio, Share2, Sparkles, ShieldCheck, Lock
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { liveClasses } from '@/data/mock';
+import { fetchRecordingById } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -14,17 +14,41 @@ import { cn } from '@/lib/utils';
 export function RecordingScreen() {
   const { user: currentUser } = useUser();
   const { navigate, params } = useNav();
-  const recording = liveClasses.find((c) => c.id === params.id) || liveClasses.find((c) => c.status === 'completed') || liveClasses[3];
+  
+  const [recording, setRecording] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [isLocked, setIsLocked] = useState(true);
   const [playing, setPlaying] = useState(true);
   const [tab, setTab] = useState('overview');
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [qaInput, setQaInput] = useState('');
-  const [questions, setQuestions] = useState([
-    { name: 'Karan Patel', avatar: 'https://i.pravatar.cc/200?img=15', msg: 'At 32:10, why did we partition database tables by region instead of user ID?', time: '2h ago', likes: 12 },
-    { name: 'Rohan Mehta', avatar: recording.instructor.avatar, msg: 'Great question! Region-based partitioning minimizes cross-datacenter roundtrip latency.', time: '1h ago', mentor: true, likes: 24 },
-  ]);
+  const [questions, setQuestions] = useState<any[]>([]);
+
+  useEffect(() => {
+    const loadRecording = async () => {
+      setIsLoading(true);
+      try {
+        const data = await fetchRecordingById(params.id);
+        if (data) {
+          setRecording(data);
+          setQuestions([
+            { name: 'Karan Patel', avatar: 'https://i.pravatar.cc/200?img=15', msg: 'At 32:10, why did we partition database tables by region instead of user ID?', time: '2h ago', likes: 12 },
+            { name: 'Rohan Mehta', avatar: data.instructor?.avatar || '', msg: 'Great question! Region-based partitioning minimizes cross-datacenter roundtrip latency.', time: '1h ago', mentor: true, likes: 24 },
+          ]);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (params.id) {
+      loadRecording();
+    } else {
+      setIsLoading(false);
+    }
+  }, [params.id]);
 
   const handleAddQuestion = () => {
     if (!qaInput.trim()) return;
@@ -34,6 +58,32 @@ export function RecordingScreen() {
     ]);
     setQaInput('');
   };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12 animate-fade-in">
+        <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
+  if (!recording) {
+    return (
+      <div className="flex flex-col items-center justify-center py-12 text-center animate-fade-in">
+        <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4 border border-slate-200">
+          <Radio className="w-8 h-8 text-slate-400" />
+        </div>
+        <h3 className="font-extrabold text-slate-800 text-base">Recording Not Found</h3>
+        <p className="text-xs font-medium text-slate-500 mt-1">The requested recording could not be found.</p>
+        <button 
+          onClick={() => navigate('live', { tab: 'completed' })}
+          className="mt-4 px-5 py-2.5 rounded-xl bg-purple-50 text-[#7c3aed] font-extrabold text-xs"
+        >
+          Back to Live Classes
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-16">

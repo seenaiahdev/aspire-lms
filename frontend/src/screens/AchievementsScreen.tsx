@@ -1,7 +1,8 @@
-import { Trophy, Flame, Zap, Lock, Sparkles, ArrowLeft, Award, Linkedin } from 'lucide-react';
-import { badges } from '@/data/mock';
+import { Trophy, Flame, Zap, Lock, Sparkles, ArrowLeft, Award, Linkedin, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@/lib/UserContext';
 import { useNav } from '@/lib/nav';
+import { fetchBadges } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -69,6 +70,22 @@ const badgeMedalStyles: Record<string, { bg: string; border: string; glow: strin
 export function AchievementsScreen() {
   const { user: currentUser } = useUser();
   const { navigate } = useNav();
+  const [badges, setBadges] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadBadges = async () => {
+      try {
+        const data = await fetchBadges();
+        setBadges(data);
+      } catch (error) {
+        console.error('Failed to fetch badges:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadBadges();
+  }, []);
 
   // Dynamic calculations based on user's real-time stats
   const totalXP = (currentUser.xp || 0) * 15;
@@ -161,75 +178,81 @@ export function AchievementsScreen() {
           <h3 className="font-bold text-ink-900 text-lg">Badges</h3>
           <span className="text-sm text-ink-500">{earnedCount} of {dynamicBadges.length} earned</span>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-          {dynamicBadges.map((badge) => {
-            const Icon = (Icons as any)[badge.icon] as Icons.LucideIcon;
-            const rarity = rarityConfig[badge.rarity];
-            return (
-              <Card key={badge.id} hover className={cn('p-5 text-center flex flex-col items-center justify-between border border-slate-100 rounded-[2rem] bg-white transition-all', !badge.earned && 'opacity-50')}>
-                <div className="w-full flex flex-col items-center">
-                  <div className={cn(
-                    'w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all relative shrink-0',
-                    badge.earned 
-                      ? `${badgeMedalStyles[badge.id]?.bg} ${badgeMedalStyles[badge.id]?.border} ${badgeMedalStyles[badge.id]?.glow}` 
-                      : 'bg-slate-100 border-4 border-slate-200 shadow-inner'
-                  )}>
-                    {/* Glowing highlight reflection for 3D effect */}
-                    {badge.earned && (
-                      <div className="absolute top-1 left-3 w-6 h-3 bg-white/25 rounded-full blur-[1px] rotate-[-15deg] pointer-events-none" />
-                    )}
-                    {badge.earned ? (
-                      <Icon className={cn('w-9 h-9', badgeMedalStyles[badge.id]?.icon)} />
-                    ) : (
-                      <Lock className="w-6 h-6 text-slate-400" />
-                    )}
+        {loading ? (
+          <div className="flex justify-center p-8"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+        ) : dynamicBadges.length === 0 ? (
+          <div className="text-center p-8 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">No badges available yet</div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+            {dynamicBadges.map((badge) => {
+              const Icon = (Icons as any)[badge.icon] as Icons.LucideIcon;
+              const rarity = rarityConfig[badge.rarity];
+              return (
+                <Card key={badge.id} hover className={cn('p-5 text-center flex flex-col items-center justify-between border border-slate-100 rounded-[2rem] bg-white transition-all', !badge.earned && 'opacity-50')}>
+                  <div className="w-full flex flex-col items-center">
+                    <div className={cn(
+                      'w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all relative shrink-0',
+                      badge.earned 
+                        ? `${badgeMedalStyles[badge.id]?.bg} ${badgeMedalStyles[badge.id]?.border} ${badgeMedalStyles[badge.id]?.glow}` 
+                        : 'bg-slate-100 border-4 border-slate-200 shadow-inner'
+                    )}>
+                      {/* Glowing highlight reflection for 3D effect */}
+                      {badge.earned && (
+                        <div className="absolute top-1 left-3 w-6 h-3 bg-white/25 rounded-full blur-[1px] rotate-[-15deg] pointer-events-none" />
+                      )}
+                      {badge.earned ? (
+                        <Icon className={cn('w-9 h-9', badgeMedalStyles[badge.id]?.icon)} />
+                      ) : (
+                        <Lock className="w-6 h-6 text-slate-400" />
+                      )}
+                    </div>
+                    <p className="font-extrabold text-slate-900 text-sm mb-1">{badge.name}</p>
+                    <p className="text-xs font-semibold text-slate-500 mb-3 px-2 line-clamp-2 min-h-[32px]">{badge.description}</p>
                   </div>
-                  <p className="font-extrabold text-slate-900 text-sm mb-1">{badge.name}</p>
-                  <p className="text-xs font-semibold text-slate-500 mb-3 px-2 line-clamp-2 min-h-[32px]">{badge.description}</p>
-                </div>
-                <div className="w-full space-y-1">
-                  <Badge variant={badge.earned ? (badge.rarity === 'legendary' ? 'primary' : badge.rarity === 'epic' ? 'secondary' : badge.rarity === 'rare' ? 'accent' : 'default') : 'default'} size="sm">
-                    {badge.earned ? rarity.label : 'Locked'}
-                  </Badge>
-                  {badge.earned && badge.date && <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-wider">Earned {badge.date}</p>}
-                </div>
-                
-                {badge.earned && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      let achievementDetails = "";
-                      if (badge.id === 'b1') {
-                        achievementDetails = "Completing 5 lessons in a single day was an exciting milestone on my learning journey!";
-                      } else if (badge.id === 'b2') {
-                        achievementDetails = "Maintaining a 30-day streak of active learning has been a fantastic way to build strong coding habits!";
-                      } else if (badge.id === 'b3') {
-                        achievementDetails = "Scoring 90% or higher on 10 quizzes has really pushed me to master the core concepts!";
-                      } else if (badge.id === 'b4') {
-                        achievementDetails = "Answering 50 community doubts and helping fellow developers has been an incredibly rewarding experience.";
-                      } else if (badge.id === 'b5') {
-                        achievementDetails = "Solving 100 coding problems has significantly leveled up my problem-solving and algorithmic thinking!";
-                      } else if (badge.id === 'b6') {
-                        achievementDetails = "Starting my study sessions before 7 AM for a whole week has built amazing discipline.";
-                      } else if (badge.id === 'b7') {
-                        achievementDetails = "Collaborating to complete 5 group projects taught me hands-on teamwork and software architecture.";
-                      } else if (badge.id === 'b8') {
-                        achievementDetails = "Achieving a perfect score of 100 on 5 assignments shows the high standards of execution I strive for!";
-                      }
+                  <div className="w-full space-y-1">
+                    <Badge variant={badge.earned ? (badge.rarity === 'legendary' ? 'primary' : badge.rarity === 'epic' ? 'secondary' : badge.rarity === 'rare' ? 'accent' : 'default') : 'default'} size="sm">
+                      {badge.earned ? rarity.label : 'Locked'}
+                    </Badge>
+                    {badge.earned && badge.date && <p className="text-[10px] font-black text-slate-400 mt-1 uppercase tracking-wider">Earned {badge.date}</p>}
+                  </div>
+                  
+                  {badge.earned && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        let achievementDetails = "";
+                        if (badge.id === 'b1') {
+                          achievementDetails = "Completing 5 lessons in a single day was an exciting milestone on my learning journey!";
+                        } else if (badge.id === 'b2') {
+                          achievementDetails = "Maintaining a 30-day streak of active learning has been a fantastic way to build strong coding habits!";
+                        } else if (badge.id === 'b3') {
+                          achievementDetails = "Scoring 90% or higher on 10 quizzes has really pushed me to master the core concepts!";
+                        } else if (badge.id === 'b4') {
+                          achievementDetails = "Answering 50 community doubts and helping fellow developers has been an incredibly rewarding experience.";
+                        } else if (badge.id === 'b5') {
+                          achievementDetails = "Solving 100 coding problems has significantly leveled up my problem-solving and algorithmic thinking!";
+                        } else if (badge.id === 'b6') {
+                          achievementDetails = "Starting my study sessions before 7 AM for a whole week has built amazing discipline.";
+                        } else if (badge.id === 'b7') {
+                          achievementDetails = "Collaborating to complete 5 group projects taught me hands-on teamwork and software architecture.";
+                        } else if (badge.id === 'b8') {
+                          achievementDetails = "Achieving a perfect score of 100 on 5 assignments shows the high standards of execution I strive for!";
+                        }
 
-                      const postText = `Thrilled to share that I have just unlocked the "${badge.name}" badge on AspireNext LMS! 🎓✨\n\n${achievementDetails} AspireNext has been an incredible platform, providing industry-ready skills and an amazing learning experience! 🚀\n\nIf you are looking to elevate your career and master Python, Full Stack, DSA, or AI, I highly recommend checking out AspireNext!\n\n#AspireNext #LMS #ContinuousLearning #Upskilling #${badge.name.replace(/\s+/g, '')} #CareerGrowth #TechEducation`;
-                      const shareUrl = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(postText)}`;
-                      window.open(shareUrl, '_blank');
-                    }}
-                    className="mt-3 w-full py-1.5 px-3 rounded-lg border border-slate-200 hover:border-blue-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[10px] font-extrabold flex items-center justify-center gap-1 transition-all"
-                  >
-                    <Linkedin className="w-3.5 h-3.5 shrink-0" /> Share
-                  </button>
-                )}
-              </Card>
-            );
-          })}
-        </div>
+                        const postText = `Thrilled to share that I have just unlocked the "${badge.name}" badge on AspireNext LMS! 🎓✨\n\n${achievementDetails} AspireNext has been an incredible platform, providing industry-ready skills and an amazing learning experience! 🚀\n\nIf you are looking to elevate your career and master Python, Full Stack, DSA, or AI, I highly recommend checking out AspireNext!\n\n#AspireNext #LMS #ContinuousLearning #Upskilling #${badge.name.replace(/\s+/g, '')} #CareerGrowth #TechEducation`;
+                        const shareUrl = `https://www.linkedin.com/feed/?shareActive=true&text=${encodeURIComponent(postText)}`;
+                        window.open(shareUrl, '_blank');
+                      }}
+                      className="mt-3 w-full py-1.5 px-3 rounded-lg border border-slate-200 hover:border-blue-200 hover:bg-blue-50 text-slate-600 hover:text-blue-600 text-[10px] font-extrabold flex items-center justify-center gap-1 transition-all"
+                    >
+                      <Linkedin className="w-3.5 h-3.5 shrink-0" /> Share
+                    </button>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

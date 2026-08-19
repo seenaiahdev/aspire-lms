@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar } from 'lucide-react';
-import { quizzes, leaderboard } from '@/data/mock';
+import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2 } from 'lucide-react';
+import { fetchQuizzes, fetchLeaderboard } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Tabs } from '@/components/ui/Tabs';
@@ -14,8 +15,31 @@ import { useNav } from '@/lib/nav';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 
 export function QuizzesScreen() {
+  const { user } = useUser();
   const { navigate } = useNav();
   const [tab, setTab] = useState('upcoming');
+  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        if (user?.batch) {
+          const q = await fetchQuizzes(user.batch);
+          setQuizzes(q || []);
+        }
+        const l = await fetchLeaderboard();
+        setLeaderboard(l || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [user?.batch]);
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<any>(() => {
     try {
@@ -122,56 +146,73 @@ export function QuizzesScreen() {
       />
 
       {tab === 'upcoming' && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {quizzes.filter(q => q.status === 'upcoming').map((q) => {
-            const isLocked = false; // All unlocked
-            return (
-              <Card 
-                key={q.id} 
-                onClick={() => {
-                  setSelectedQuiz(q);
-                }}
-                className="p-6 bg-white border border-slate-200/60 rounded-[2rem] flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-300"
-              >
-                <div>
-                  <div className="flex items-start justify-between mb-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center border border-indigo-100/50 shadow-sm shrink-0">
-                        <ClipboardCheck className="w-6 h-6 text-indigo-600" />
-                      </div>
-                      <div>
-                        <h3 className="font-extrabold text-slate-900 text-[17px] leading-snug mb-1 group-hover:text-indigo-700 transition-colors">{q.title}</h3>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-500">{q.course}</span>
-                          <span className="w-1 h-1 rounded-full bg-slate-300" />
-                          <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
+        <>
+          {loading ? (
+            <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
+              <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto mb-4" />
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Quizzes...</h3>
+            </div>
+          ) : quizzes.filter(q => q.status === 'upcoming').length === 0 ? (
+            <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
+              <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
+                <CheckCircle2 className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No quizzes available yet</h3>
+              <p className="text-sm font-medium text-slate-500">Check back later for new quizzes.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+              {quizzes.filter(q => q.status === 'upcoming').map((q) => {
+                const isLocked = false; // All unlocked
+                return (
+                  <Card 
+                    key={q.id} 
+                    onClick={() => {
+                      setSelectedQuiz(q);
+                    }}
+                    className="p-6 bg-white border border-slate-200/60 rounded-[2rem] flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-300"
+                  >
+                    <div>
+                      <div className="flex items-start justify-between mb-5">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center border border-indigo-100/50 shadow-sm shrink-0">
+                            <ClipboardCheck className="w-6 h-6 text-indigo-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-slate-900 text-[17px] leading-snug mb-1 group-hover:text-indigo-700 transition-colors">{q.title}</h3>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-slate-500">{q.course}</span>
+                              <span className="w-1 h-1 rounded-full bg-slate-300" />
+                              <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
+                            </div>
+                          </div>
                         </div>
                       </div>
+                      
+                      <div className="flex items-center gap-5 text-[13px] font-semibold text-slate-500 mb-6 pt-5 border-t border-slate-100">
+                        <span className="flex items-center gap-1.5"><Compass className="w-4 h-4 text-indigo-400" />{q.questions} questions</span>
+                        <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-emerald-500" />{q.duration}</span>
+                        <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-rose-400" />Due {q.dueDate}</span>
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="flex items-center gap-5 text-[13px] font-semibold text-slate-500 mb-6 pt-5 border-t border-slate-100">
-                    <span className="flex items-center gap-1.5"><Compass className="w-4 h-4 text-indigo-400" />{q.questions} questions</span>
-                    <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-emerald-500" />{q.duration}</span>
-                    <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-rose-400" />Due {q.dueDate}</span>
-                  </div>
-                </div>
 
-                <button 
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedQuiz(q);
-                  }}
-                  className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20 cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Start Quiz</span>
-                </button>
-              </Card>
-            )
-          })}
-        </div>
+                    <button 
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedQuiz(q);
+                      }}
+                      className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20 cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-current" />
+                      <span>Start Quiz</span>
+                    </button>
+                  </Card>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {tab === 'results' && (

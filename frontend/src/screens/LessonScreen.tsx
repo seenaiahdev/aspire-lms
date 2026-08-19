@@ -6,7 +6,7 @@ import {
   SkipBack, SkipForward, Maximize2, Lock, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { courses as mockCourses, resources as mockResourcesList } from '@/data/mock';
+import { fetchResources } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -202,18 +202,18 @@ export function LessonScreen() {
   }, [params.id, batchCategory]);
 
   const course = useMemo(() => {
-    // If not loaded yet, or loading, return placeholder/mock values
+    // If not loaded yet from Supabase, return a loading placeholder
     if (!dbCourse) {
-      // Return a temporary structure or fallback from mock
-      const mockFallback = mockCourses.find((c) => c.id === params.id) || mockCourses[0];
       return {
-        ...mockFallback,
-        instructor: {
-          name: mockFallback.instructor?.name || 'Lead Instructor',
-          avatar: mockFallback.instructor?.avatar || '',
-          role: mockFallback.instructor?.role || 'LMS Specialist'
-        },
-        progress: user.progress || 0
+        id: params.id || '',
+        title: 'Loading...',
+        category: '',
+        level: '',
+        instructor: { name: 'Loading...', avatar: '', role: '' },
+        rating: 0, reviews: 0, students: 0, duration: '', lessons: 0,
+        stages: [],
+        progress: user.progress || 0,
+        description: '', subtitle: '', tags: []
       };
     }
 
@@ -290,22 +290,17 @@ export function LessonScreen() {
     return `Welcome to this session on "${currentLesson?.title || 'this topic'}". In this lesson, we will cover the core architectures, fundamental structures, and practical components. Make sure to follow along and write code in your local setup. If you run into any questions, feel free to use the Discussion tab to connect with our mentors. Let's get started.`;
   }, [currentLesson?.id]);
 
-  const lessonResources = useMemo(() => {
-    const moduleTitleLower = (currentModule?.title || '').toLowerCase();
-    return mockResourcesList.filter(res => {
-      const catLower = res.category.toLowerCase();
-      if (moduleTitleLower.includes('git') || moduleTitleLower.includes('version')) {
-        return catLower.includes('version');
-      }
-      if (moduleTitleLower.includes('html') || moduleTitleLower.includes('css') || moduleTitleLower.includes('bootstrap')) {
-        return catLower.includes('web');
-      }
-      if (moduleTitleLower.includes('python') || moduleTitleLower.includes('oop') || moduleTitleLower.includes('sql')) {
-        return catLower.includes('backend');
-      }
-      return false;
-    });
-  }, [currentModule?.id]);
+  const [lessonResources, setLessonResources] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadResources() {
+      const resources = await fetchResources(course.id);
+      setLessonResources(resources);
+    }
+    if (course.id && course.title !== 'Loading...') {
+      loadResources();
+    }
+  }, [course.id]);
 
   const [lessonCommentText, setLessonCommentText] = useState('');
   const [lessonComments, setLessonComments] = useState<any[]>([]);

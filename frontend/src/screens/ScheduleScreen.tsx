@@ -1,6 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2 } from 'lucide-react';
-import { scheduleItems } from '@/data/mock';
+import { fetchDailySchedules } from '@/lib/api';
+import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
@@ -67,11 +68,47 @@ function parseScheduleItemDate(item: { date: string; dateKey?: string }, today: 
 }
 
 export function ScheduleScreen() {
+  const { user } = useUser();
   const { navigate } = useNav();
   const today = new Date();
   const [calendarDate, setCalendarDate] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<Date>(today);
-  const [items, setItems] = useState(scheduleItems);
+  
+  const [apiTasks, setApiTasks] = useState<any[]>([]);
+  const [localTasks, setLocalTasks] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    const loadTasks = async () => {
+      setIsLoading(true);
+      try {
+        const dateStr = getDateKey(selectedDate);
+        const data = await fetchDailySchedules(dateStr, user?.batch || '');
+        const formatted = data.map((row: any) => ({
+          id: row.id,
+          title: row.title || row.topic,
+          type: 'class',
+          date: row.date,
+          dateKey: row.date,
+          time: row.time,
+          course: row.subtopic,
+          completed: row.status === 'completed'
+        }));
+        setApiTasks(formatted);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    if (user?.batch) {
+      loadTasks();
+    } else {
+      setIsLoading(false);
+    }
+  }, [selectedDate, user?.batch]);
+
+  const items = [...apiTasks, ...localTasks];
   const [showAddTask, setShowAddTask] = useState(false);
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
@@ -128,7 +165,8 @@ export function ScheduleScreen() {
   };
 
   const toggleTaskCompletion = (id: string) => {
-    setItems((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
+    setApiTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
+    setLocalTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
   };
 
   const handleTaskFormChange = (field: keyof typeof taskForm, value: string) => {
@@ -184,7 +222,7 @@ export function ScheduleScreen() {
       completed: false,
     };
 
-    setItems((prev) => [newTask, ...prev]);
+    setLocalTasks((prev) => [newTask, ...prev]);
     setSelectedDate(new Date(taskForm.date));
     setShowAddTask(false);
     setTaskForm({
@@ -563,7 +601,11 @@ export function ScheduleScreen() {
                 </div>
               </div>
 
-              {itemsForSelectedDate.length === 0 ? (
+              {isLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="w-8 h-8 border-4 border-[#2563eb] border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : itemsForSelectedDate.length === 0 ? (
                 <div className="rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-500">
                   No plans yet. Add a quick task to start your schedule.
                 </div>

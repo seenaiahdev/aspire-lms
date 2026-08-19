@@ -1,11 +1,30 @@
-import { useState } from 'react';
-import { Bell, X, CheckCheck, Clock, AlertTriangle, Sparkles, FileText, Radio, Check } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Bell, X, CheckCheck, Clock, AlertTriangle, Sparkles, FileText, Radio, Check, Loader2 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { notifications as initialNotifications } from '@/data/mock';
+import { useUser } from '@/lib/UserContext';
+import { fetchNotifications } from '@/lib/api';
 
 export function NotificationsDrawer() {
   const { notificationsOpen, setNotificationsOpen } = useNav();
-  const [notificationsList, setNotificationsList] = useState<typeof initialNotifications>([]);
+  const { user } = useUser();
+  const [notificationsList, setNotificationsList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadItems = async () => {
+      if (!notificationsOpen || !user?.id) return;
+      setLoading(true);
+      try {
+        const data = await fetchNotifications(user.id);
+        setNotificationsList(data);
+      } catch (error) {
+        console.error('Failed to load notifications', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadItems();
+  }, [notificationsOpen, user?.id]);
 
   if (!notificationsOpen) return null;
 
@@ -68,7 +87,9 @@ export function NotificationsDrawer() {
 
         {/* Notifications List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
-          {notificationsList.length === 0 ? (
+          {loading ? (
+            <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 text-primary-500 animate-spin" /></div>
+          ) : notificationsList.length === 0 ? (
             <div className="py-12 text-center text-slate-400 space-y-2">
               <Bell className="w-8 h-8 mx-auto stroke-[1.5]" />
               <p className="text-xs font-semibold">No notifications right now</p>

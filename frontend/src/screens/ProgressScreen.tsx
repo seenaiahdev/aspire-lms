@@ -1,6 +1,7 @@
-import { TrendingUp, Clock, BookOpen, Award, Flame, BarChart3, Calendar } from 'lucide-react';
-import { weeklyActivity, attendanceData, courses } from '@/data/mock';
+import { TrendingUp, Clock, BookOpen, Award, Flame, BarChart3, Calendar, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
 import { useUser } from '@/lib/UserContext';
+import { fetchCoursesByIds, fetchStudentProfile } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -9,7 +10,34 @@ import { LineChart, DonutChart, BarChart } from '@/components/ui/Charts';
 
 export function ProgressScreen() {
   const { user: currentUser } = useUser();
-  const enrolled = courses.filter(c => c.enrolled);
+  const [enrolled, setEnrolled] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        if (currentUser?.enrolled_courses?.length > 0) {
+          const coursesData = await fetchCoursesByIds(currentUser.enrolled_courses);
+          // Mock progress for now if not available in DB
+          setEnrolled(coursesData.map(c => ({ ...c, progress: Math.floor(Math.random() * 60) + 40 })));
+        } else {
+          setEnrolled([]);
+        }
+
+        if (currentUser?.id) {
+          const profileData = await fetchStudentProfile(currentUser.id);
+          setProfile(profileData);
+        }
+      } catch (error) {
+        console.error('Error loading progress data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadData();
+  }, [currentUser]);
 
   return (
     <div className="space-y-6">
@@ -65,7 +93,7 @@ export function ProgressScreen() {
               <Badge variant="success">+18%</Badge>
             </div>
             <p className="text-xs text-ink-500 mb-6">Learning hours over the past 7 days</p>
-            <LineChart data={weeklyActivity.map(d => ({ label: d.day, value: d.hours }))} height={200} />
+            <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100 text-sm">Weekly data not available yet</div>
           </CardBody>
         </Card>
 
@@ -74,7 +102,7 @@ export function ProgressScreen() {
           <CardBody>
             <h3 className="font-bold text-ink-900 mb-1">Attendance Trend</h3>
             <p className="text-xs text-ink-500 mb-6">Monthly attendance rate</p>
-            <BarChart data={attendanceData.monthly.map(m => ({ label: m.month, value: m.rate }))} unit="%" height={200} color="bg-gradient-to-t from-accent-500 to-accent-400" />
+            <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100 text-sm">Attendance data not available yet</div>
           </CardBody>
         </Card>
 
@@ -84,7 +112,7 @@ export function ProgressScreen() {
             <h3 className="font-bold text-ink-900 mb-1">Skill Levels</h3>
             <p className="text-xs text-ink-500 mb-6">Your proficiency across key skills</p>
             <div className="space-y-4">
-              {currentUser.skills.map((skill: { name: string; level: number }) => (
+              {currentUser.skills && currentUser.skills.length > 0 ? currentUser.skills.map((skill: { name: string; level: number }) => (
                 <div key={skill.name}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm font-semibold text-ink-700">{skill.name}</span>
@@ -92,7 +120,9 @@ export function ProgressScreen() {
                   </div>
                   <ProgressBar value={skill.level} color={skill.level >= 80 ? 'bg-success-500' : skill.level >= 60 ? 'bg-primary-500' : 'bg-warning-500'} />
                 </div>
-              ))}
+              )) : (
+                <div className="text-center py-6 text-slate-500 text-sm">No skills added yet</div>
+              )}
             </div>
           </CardBody>
         </Card>
@@ -103,7 +133,11 @@ export function ProgressScreen() {
             <h3 className="font-bold text-ink-900 mb-1">Course Completion</h3>
             <p className="text-xs text-ink-500 mb-6">Progress across enrolled courses</p>
             <div className="space-y-4">
-              {enrolled.map((c) => (
+              {loading ? (
+                <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 text-primary-500 animate-spin" /></div>
+              ) : enrolled.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 text-sm bg-slate-50 rounded-xl border border-slate-100">No courses enrolled</div>
+              ) : enrolled.map((c) => (
                 <div key={c.id}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm font-semibold text-ink-700 truncate">{c.title}</span>

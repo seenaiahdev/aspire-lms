@@ -260,3 +260,310 @@ export async function fetchCoursesByIds(courseIds: string[]) {
   return data || [];
 }
 
+// ════════════════════════════════════════════════════════════════
+// ASSIGNMENTS
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchAssignments(batchCode: string) {
+  try {
+    const { data, error } = await supabase
+      .from('assignments')
+      .select('*')
+      .eq('batch_code', batchCode)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('assignments table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// QUIZZES
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchQuizzes(batchCode: string) {
+  try {
+    const { data, error } = await supabase
+      .from('quizzes')
+      .select('*')
+      .eq('batch_code', batchCode)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('quizzes table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// PROJECTS
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchProjects(batchCode: string) {
+  try {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('target_batch', batchCode)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('projects table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// RESOURCES
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchResources(courseId?: string) {
+  try {
+    let query = supabase.from('resources').select('*').order('created_at', { ascending: false });
+    if (courseId) query = query.eq('course_id', courseId);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn('resources table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// COMMUNITY & ANNOUNCEMENTS
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchCommunityPosts() {
+  try {
+    const { data, error } = await supabase
+      .from('community_posts')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('community_posts table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function fetchAnnouncements() {
+  try {
+    const { data, error } = await supabase
+      .from('announcements')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('announcements table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// BADGES & ACHIEVEMENTS
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchBadges() {
+  try {
+    const { data, error } = await supabase
+      .from('badges')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.warn('badges table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// CERTIFICATES
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchCertificates(studentId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('certificates')
+      .select('*')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('certificates table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchNotifications(studentId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('notifications table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// PRACTICE PROBLEMS
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchPracticeProblems(courseId?: string) {
+  try {
+    let query = supabase.from('practice_problems').select('*').order('created_at', { ascending: true });
+    if (courseId) query = query.eq('course_id', courseId);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn('practice_problems table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// REWARDS / SWAG
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchRewards() {
+  try {
+    const { data, error } = await supabase
+      .from('rewards')
+      .select('*')
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.warn('rewards table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// LEADERBOARD (uses students table)
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchLeaderboard() {
+  try {
+    const { data, error } = await supabase
+      .from('students')
+      .select('id, name, avatar, email, batch')
+      .order('name', { ascending: true })
+      .limit(20);
+
+    if (error) {
+      console.warn('Error fetching leaderboard:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+// RECORDINGS (uses live_sessions with completed status)
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchRecordingById(sessionId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('live_sessions')
+      .select('*')
+      .eq('id', sessionId)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Error fetching recording:', error.message);
+      return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchRecordings(batchCode: string) {
+  try {
+    // Try recordings table first
+    const { data: recData, error: recError } = await supabase
+      .from('recordings')
+      .select('*')
+      .eq('batch_code', batchCode)
+      .order('created_at', { ascending: false });
+
+    if (!recError && recData && recData.length > 0) {
+      return recData;
+    }
+
+    // Fallback: completed live_sessions
+    const { data, error } = await supabase
+      .from('live_sessions')
+      .select('*')
+      .eq('batch_code', batchCode)
+      .eq('status', 'completed')
+      .order('date', { ascending: false });
+
+    if (error) {
+      console.warn('Error fetching recordings:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+

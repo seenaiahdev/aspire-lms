@@ -6,7 +6,6 @@ import {
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
-import { liveClasses } from '@/data/mock';
 import { useUser } from '@/lib/UserContext';
 import { fetchLiveSessions, fetchDailySchedules } from '@/lib/api';
 import { cn } from '@/lib/utils';

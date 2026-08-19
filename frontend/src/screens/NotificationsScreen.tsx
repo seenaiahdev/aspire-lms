@@ -1,6 +1,7 @@
-import { useState } from 'react';
-import { Bell, FileText, Radio, MessageCircle, Briefcase, Settings, CheckCheck, Trash2 } from 'lucide-react';
-import { notifications } from '@/data/mock';
+import { useState, useEffect } from 'react';
+import { Bell, FileText, Radio, MessageCircle, Briefcase, Settings, CheckCheck, Trash2, Loader2 } from 'lucide-react';
+import { useUser } from '@/lib/UserContext';
+import { fetchNotifications } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -17,8 +18,26 @@ const typeConfig: Record<string, { color: string; icon: any }> = {
 };
 
 export function NotificationsScreen() {
+  const { user } = useUser();
   const [tab, setTab] = useState('all');
-  const [items, setItems] = useState(notifications);
+  const [items, setItems] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadItems = async () => {
+      try {
+        if (user?.id) {
+          const data = await fetchNotifications(user.id);
+          setItems(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadItems();
+  }, [user?.id]);
 
   const filtered = items.filter((n) => tab === 'all' ? true : tab === 'unread' ? !n.read : n.type === tab);
   const unread = items.filter((n) => !n.read).length;
@@ -51,10 +70,12 @@ export function NotificationsScreen() {
       />
 
       <div className="space-y-2">
-        {filtered.length === 0 ? (
+        {loading ? (
+          <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+        ) : filtered.length === 0 ? (
           <Card className="p-12 text-center">
             <Bell className="w-10 h-10 text-ink-300 mx-auto mb-3" />
-            <p className="text-sm text-ink-500">No notifications here</p>
+            <p className="text-sm text-ink-500">No notifications yet</p>
           </Card>
         ) : (
           filtered.map((n) => {

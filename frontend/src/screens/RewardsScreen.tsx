@@ -1,13 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Gift, Sparkles, Lock, Unlock, CheckCircle2, Award, ShoppingBag, ArrowRight, Package, Truck, X, ShieldCheck
+  Gift, Sparkles, Lock, Unlock, CheckCircle2, Award, ShoppingBag, ArrowRight, Package, Truck, X, ShieldCheck, Loader2
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Toast } from '@/components/ui/Toast';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
+import { useUser } from '@/lib/UserContext';
+import { fetchRewards } from '@/lib/api';
 
 import { rewardsSteps } from '@/lib/tourSteps';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
@@ -24,75 +26,6 @@ export interface SwagReward {
   productImage: string;
   tag: string;
 }
-
-const swagRewardsList: SwagReward[] = [
-  {
-    id: 'r1',
-    name: 'Developer Sticker Pack',
-    category: 'Accessories',
-    description: 'High-quality vinyl laptop stickers featuring developer humor and Aspire Next branding.',
-    currentXp: 0,
-    requiredXp: 1000,
-    isUnlocked: false,
-    productImage: '/rewards/stickers.png',
-    tag: 'LOCKED',
-  },
-  {
-    id: 'r2',
-    name: 'Aspire Next Coffee Mug',
-    category: 'Drinkware',
-    description: 'Start your coding sessions with this premium ceramic mug. Microwave and dishwasher safe.',
-    currentXp: 0,
-    requiredXp: 2000,
-    isUnlocked: false,
-    productImage: '/rewards/mug.png',
-    tag: 'LOCKED',
-  },
-  {
-    id: 'r3',
-    name: 'Reusable Smart Notebook',
-    category: 'Stationery',
-    description: 'Eco-friendly smart notebook with scan-to-cloud and erase capabilities. Includes smart pen.',
-    currentXp: 0,
-    requiredXp: 3500,
-    isUnlocked: false,
-    productImage: '/rewards/notebook.png',
-    tag: 'LOCKED',
-  },
-  {
-    id: 'r4',
-    name: 'Smart LED Flask',
-    category: 'Drinkware',
-    description: 'Premium stainless steel insulated flask with digital LED temperature display. Keeps drinks hot/cold for 12+ hours.',
-    currentXp: 0,
-    requiredXp: 5000,
-    isUnlocked: false,
-    productImage: '/rewards/bottle.jpg',
-    tag: 'LOCKED',
-  },
-  {
-    id: 'r5',
-    name: 'Premium Developer T-Shirt',
-    category: 'Apparel',
-    description: 'Ultra-comfortable breathable tee for long coding sessions. Navy blue with Aspire Next graphics.',
-    currentXp: 0,
-    requiredXp: 8000,
-    isUnlocked: false,
-    productImage: '/rewards/tshirt.png',
-    tag: 'LOCKED',
-  },
-  {
-    id: 'r6',
-    name: 'Tech Backpack',
-    category: 'Gear',
-    description: 'Sleek, water-resistant tech backpack with dedicated laptop sleeve, anti-theft pockets, and built-in USB charging port.',
-    currentXp: 0,
-    requiredXp: 15000,
-    isUnlocked: false,
-    productImage: '/rewards/backpack.png',
-    tag: 'LOCKED',
-  }
-];
 
 function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: number }) {
   const strokeWidth = 5;
@@ -137,11 +70,35 @@ function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: 
 
 export function RewardsScreen() {
   const { navigate } = useNav();
-  const [rewardsState, setRewardsState] = useState<SwagReward[]>(swagRewardsList);
+  const { user } = useUser();
+  const [rewardsState, setRewardsState] = useState<SwagReward[]>([]);
   const [selectedReward, setSelectedReward] = useState<SwagReward | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [claimedId, setClaimedId] = useState<string | null>(null);
   const [lockedToast, setLockedToast] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  const userXp = user?.xp || 0;
+
+  useEffect(() => {
+    const loadRewards = async () => {
+      try {
+        const data = await fetchRewards();
+        const enhanced = data.map((item: any) => ({
+          ...item,
+          currentXp: userXp,
+          isUnlocked: userXp >= item.requiredXp,
+          tag: userXp >= item.requiredXp ? 'UNLOCKED' : 'LOCKED'
+        }));
+        setRewardsState(enhanced);
+      } catch (error) {
+        console.error('Failed to fetch rewards:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadRewards();
+  }, [userXp]);
 
   const unlockedCount = rewardsState.filter(r => r.isUnlocked).length;
   const lockedCount = rewardsState.filter(r => !r.isUnlocked).length;
@@ -176,7 +133,7 @@ export function RewardsScreen() {
         <div id="tour-rewards-balance" className="flex items-center gap-3 shrink-0">
           <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white font-black text-xs shadow-md flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-white" />
-            <span>0 Total Student XP</span>
+            <span>{userXp} Total Student XP</span>
           </div>
         </div>
       </div>
@@ -210,6 +167,11 @@ export function RewardsScreen() {
 
 
       {/* ════════ PRODUCTS REWARDS GRID ════════ */}
+      {loading ? (
+        <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+      ) : rewardsState.length === 0 ? (
+        <div className="text-center p-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">No rewards available yet</div>
+      ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {rewardsState.map((reward, index) => {
           const progressPercent = Math.round((reward.currentXp / reward.requiredXp) * 100);
@@ -295,6 +257,7 @@ export function RewardsScreen() {
           );
         })}
       </div>
+      )}
 
 
       {/* ════════ REWARD DETAILS MODAL ════════ */}
