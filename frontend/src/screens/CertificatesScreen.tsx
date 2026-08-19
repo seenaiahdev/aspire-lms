@@ -104,22 +104,6 @@ export function CertificatesScreen() {
           const completed = progress >= 100;
           const issuedDate = completed ? 'Aug 19, 2026' : undefined;
 
-          let certificateBg = 'https://images.unsplash.com/photo-1460925895917-afdab827c52f?auto=format&fit=crop&w=800&q=80';
-          const cat = (course.category || '').toLowerCase();
-          const title = (course.title || '').toLowerCase();
-          
-          if (cat.includes('web') || cat.includes('python') || title.includes('python') || title.includes('dsa') || title.includes('ai')) {
-            certificateBg = 'https://images.unsplash.com/photo-1633356122544-f134324a6cee?auto=format&fit=crop&w=800&q=80';
-          } else if (cat.includes('communication') || cat.includes('soft') || cat.includes('skill')) {
-            certificateBg = 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?auto=format&fit=crop&w=800&q=80';
-          } else if (cat.includes('resume') || title.includes('resume')) {
-            certificateBg = 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?auto=format&fit=crop&w=800&q=80';
-          } else if (cat.includes('aptitude') || cat.includes('reasoning')) {
-            certificateBg = 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?auto=format&fit=crop&w=800&q=80';
-          } else if (cat.includes('linkedin') || title.includes('linkedin')) {
-            certificateBg = 'https://images.unsplash.com/photo-1611944212129-29977ae1398c?auto=format&fit=crop&w=800&q=80';
-          }
-
           return {
             id: course.id,
             courseTitle: course.title,
@@ -129,7 +113,7 @@ export function CertificatesScreen() {
             progress: progress,
             issuedDate: issuedDate,
             verifyId: `verify-${course.id}-${user.id}`,
-            certificateBg: certificateBg
+            certificateBg: course.thumbnail || '/python-full-stack.png'
           };
         });
 
