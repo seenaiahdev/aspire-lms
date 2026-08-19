@@ -208,7 +208,11 @@ export function LiveClassesScreen() {
                       e.preventDefault();
                       e.stopPropagation();
                     } else if (cls.status === 'ongoing') {
-                      navigate('classroom', { id: cls.id });
+                      if (cls.link) {
+                        window.open(cls.link, '_blank');
+                      } else {
+                        alert('Meeting link is not available yet.');
+                      }
                     }
                   }}
                 >
@@ -265,10 +269,16 @@ export function LiveClassesScreen() {
                 
                 {cls.status === 'ongoing' ? (
                   <button 
-                    onClick={() => navigate('classroom', { id: cls.id })} 
+                    onClick={() => {
+                      if (cls.link) {
+                        window.open(cls.link, '_blank');
+                      } else {
+                        alert('Meeting link is not available yet.');
+                      }
+                    }} 
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
                   >
-                    <Radio className="w-4 h-4" /> Join Live Class
+                    <Radio className="w-4 h-4" /> Join Live Class on Zoom
                   </button>
                 ) : cls.status === 'completed' ? (
                   <button 
@@ -468,65 +478,71 @@ export function LiveClassroomScreen() {
         <div className="lg:col-span-2 flex flex-col gap-4 min-h-0">
           
           {/* Main Video View Container */}
-          <div className="relative rounded-[2.2rem] overflow-hidden bg-[#0c0f1d] shadow-2xl flex-1 border border-slate-800 flex items-center justify-center group">
+          {/* Main Video View Container - Now Zoom Launchpad */}
+          <div className="relative rounded-[2.2rem] overflow-hidden bg-[#0c0f1d] shadow-2xl flex-1 border border-slate-800 flex flex-col items-center justify-center group py-16">
             
             {/* Tech Background Image Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-[#101537] to-[#1e1438]" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-[#0a0f2c] to-[#140e2b]" />
             <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1531403009284-440f080d1e12?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-10 mix-blend-luminosity" />
-            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
+            <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-md" />
 
-            {/* Waiting State Content */}
-            <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-4 p-6">
-              <div className="w-20 h-20 rounded-full bg-slate-900 border border-slate-700 flex items-center justify-center relative shadow-2xl">
-                <div className="absolute inset-0 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />
-                <Video className="w-8 h-8 text-slate-500" />
+            {/* Launchpad Content */}
+            <div className="relative z-10 flex flex-col items-center justify-center text-center space-y-8 p-6 w-full max-w-2xl">
+              <div className="w-24 h-24 rounded-[2rem] bg-slate-900 border border-slate-700 flex items-center justify-center relative shadow-2xl overflow-hidden">
+                <div className="absolute inset-0 rounded-[2rem] border-2 border-blue-500/50" />
+                <div className="absolute inset-0 bg-blue-500/10 animate-pulse" />
+                <Video className="w-10 h-10 text-blue-500" />
               </div>
-              <div>
-                <h3 className="font-extrabold text-xl text-white">Interactive Classroom Demo</h3>
-                <p className="text-sm font-semibold text-slate-400 mt-2 max-w-md mx-auto">
-                  This is a preview of the Aspire Next live classroom interface. Actual sessions are broadcast here according to your batch schedule, featuring a live video stream.
+              
+              <div className="space-y-3">
+                <h3 className="font-extrabold text-3xl text-white">Zoom Classroom</h3>
+                <p className="text-sm font-medium text-slate-400 mx-auto max-w-md">
+                  This session uses Zoom for secure, high-quality video broadcasting. Join the meeting to participate.
                 </p>
               </div>
+
+              {cls.link ? (
+                <div className="flex flex-col items-center gap-5 w-full">
+                  <a
+                    href={cls.link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-10 py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-lg flex items-center justify-center gap-3 transition-all transform hover:scale-105 hover:-translate-y-1 shadow-xl hover:shadow-blue-500/25 ring-1 ring-blue-400/50"
+                  >
+                    <Video className="w-6 h-6" />
+                    Launch Zoom Meeting
+                  </a>
+                  <div className="flex items-center gap-2 text-xs text-slate-400 font-medium bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-800/80">
+                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                    Please keep this LMS tab open to access your interactive class notes.
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center gap-5 w-full">
+                  <div className="w-full sm:w-auto px-10 py-4 rounded-2xl bg-slate-800 text-slate-500 font-extrabold text-lg flex items-center justify-center gap-3 border border-slate-700 cursor-not-allowed">
+                    <VideoOff className="w-6 h-6" />
+                    Meeting Link Unavailable
+                  </div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-800/80">
+                    <span className="w-2 h-2 rounded-full bg-slate-600" />
+                    The instructor hasn't provided the meeting link yet.
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Video Top Bar Overlay (Instructor Info) */}
             <div className="absolute top-0 left-0 right-0 p-4 sm:p-5 flex items-center justify-between z-20 bg-gradient-to-b from-slate-950/90 via-slate-950/40 to-transparent">
               <div className="flex items-center gap-3">
-                <Avatar src={cls.instructor.avatar} name={cls.instructor.name} size="sm" className="ring-2 ring-purple-400/50 grayscale opacity-75" />
+                <Avatar src={cls.instructor.avatar} name={cls.instructor.name} size="sm" className="ring-2 ring-blue-400/50" />
                 <div>
                   <div className="flex items-center gap-2">
-                    <p className="text-white/80 text-sm font-black">{cls.instructor.name}</p>
-                    <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-black uppercase tracking-wider">
+                    <p className="text-white/90 text-sm font-black">{cls.instructor.name}</p>
+                    <span className="px-1.5 py-0.5 rounded bg-blue-900/50 text-blue-300 border border-blue-700/50 text-[9px] font-black uppercase tracking-wider">
                       HOST
                     </span>
                   </div>
-                  <p className="text-purple-400 text-xs font-bold flex items-center gap-1.5 mt-0.5">
-                    <span className="w-2 h-2 rounded-full bg-purple-400" /> Simulated Host
-                  </p>
                 </div>
-              </div>
-            </div>
-
-            {/* Bottom Stream Controls Dock Bar */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5 z-20 bg-gradient-to-t from-slate-950 via-slate-950/80 to-transparent">
-              <div className="flex items-center justify-between">
-                
-                {/* Control Action Buttons */}
-                <div className="flex items-center gap-2 sm:gap-3 opacity-50 pointer-events-none">
-                  <button className="p-3 rounded-2xl font-extrabold text-xs flex items-center justify-center border backdrop-blur-md bg-slate-900/80 text-white border-slate-700/80">
-                    <MicOff className="w-5 h-5" />
-                  </button>
-                  <button className="p-3 rounded-2xl font-extrabold text-xs flex items-center justify-center border backdrop-blur-md bg-slate-900/80 text-white border-slate-700/80">
-                    <VideoOff className="w-5 h-5" />
-                  </button>
-                  <button className="px-3.5 py-3 rounded-2xl font-extrabold text-xs flex items-center gap-2 border backdrop-blur-md bg-slate-900/80 text-white border-slate-700/80">
-                    <Hand className="w-5 h-5" />
-                    <span className="hidden sm:inline">Raise Hand</span>
-                  </button>
-                </div>
-
-
-
               </div>
             </div>
 

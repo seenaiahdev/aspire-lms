@@ -970,8 +970,14 @@ export function DashboardScreen() {
                     onClick={() => {
                       if (cls.status === 'completed') {
                         navigate('recording', { id: cls.id });
+                      } else if (cls.status === 'ongoing') {
+                        if (cls.link) {
+                          window.open(cls.link, '_blank');
+                        } else {
+                          alert('Meeting link is not available yet.');
+                        }
                       } else {
-                        navigate(cls.status === 'ongoing' ? 'classroom' : 'live', cls.status === 'ongoing' ? { id: cls.id } : { tab: 'upcoming' });
+                        navigate('live', { tab: 'upcoming' });
                       }
                     }}
                     className={cn(
@@ -1020,7 +1026,7 @@ export function DashboardScreen() {
                         "text-xs font-extrabold transition-colors inline-flex items-center gap-1.5",
                         cls.status === 'completed' ? "text-slate-500 group-hover:text-[#7c3aed]" : "text-[#7c3aed] group-hover:text-[#6d28d9]"
                       )}>
-                        {cls.status === 'ongoing' ? 'Join Live Class' : 
+                        {cls.status === 'ongoing' ? 'Join on Zoom' : 
                          cls.status === 'completed' ? 'Watch Recording' : 
                          'View & Set Reminder'}
                         {cls.status === 'completed' ? (
