@@ -556,7 +556,6 @@ export function LessonScreen() {
               { id: 'notes', label: 'Notes', icon: PenLine },
               { id: 'transcript', label: 'Transcript', icon: FileText },
               { id: 'resources', label: 'Resources', icon: Download },
-              { id: 'discussion', label: 'Discussion', icon: MessageCircle },
             ].map((t) => (
               <button
                 key={t.id}
@@ -625,52 +624,6 @@ export function LessonScreen() {
                     </div>
                   ))
                 )}
-              </div>
-            )}
-
-            {tab === 'discussion' && (
-              <div className="flex flex-col h-full space-y-4 text-left select-text pointer-events-auto">
-                <div className="flex gap-3 mb-4 shrink-0">
-                  <Avatar name={user.name} size="sm" />
-                  <div className="flex-1 space-y-2">
-                    <textarea 
-                      value={lessonCommentText}
-                      onChange={(e) => setLessonCommentText(e.target.value)}
-                      placeholder="Ask a question or share your thoughts..." 
-                      className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 outline-none text-xs font-semibold text-slate-900 min-h-[70px] resize-none" 
-                    />
-                    <div className="flex justify-end">
-                      <button 
-                        onClick={handlePostLessonComment}
-                        className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-[10px] font-extrabold shadow-md transition-all cursor-pointer"
-                      >
-                        Post Comment
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="flex-1 overflow-y-auto space-y-3 pt-4 border-t border-slate-100">
-                  {lessonComments.length === 0 ? (
-                    <div className="text-center py-6">
-                      <MessageCircle className="w-10 h-10 text-slate-200 mx-auto mb-2" />
-                      <h4 className="text-xs font-bold text-slate-800">No discussions yet</h4>
-                      <p className="text-[10px] text-slate-500 mt-1">Be the first to start a conversation for this lesson.</p>
-                    </div>
-                  ) : (
-                    lessonComments.map((comment) => (
-                      <div key={comment.id} className="flex gap-2.5 items-start p-2.5 rounded-2xl hover:bg-slate-50 transition-colors duration-200 border border-transparent hover:border-slate-100">
-                        <Avatar name={comment.author} size="sm" className="bg-purple-100 text-purple-700" />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[11px] font-black text-slate-800">{comment.author}</span>
-                            <span className="text-[9px] font-semibold text-slate-400">{comment.time}</span>
-                          </div>
-                          <p className="text-[11px] font-medium text-slate-600 mt-1 leading-relaxed">{comment.content}</p>
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
               </div>
             )}
           </div>

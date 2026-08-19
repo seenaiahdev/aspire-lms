@@ -453,7 +453,6 @@ export function CourseScreen() {
           { id: 'overview', label: 'Overview' },
           { id: 'resources', label: 'Resources' },
           { id: 'reviews', label: 'Reviews' },
-          { id: 'discussion', label: 'Discussion' },
         ].map((t) => (
           <button
             key={t.id}
@@ -528,56 +527,6 @@ export function CourseScreen() {
                       {tag}
                     </div>
                   ))}
-                </div>
-              </CardBody>
-            </Card>
-          )}
-
-          {tab === 'discussion' && (
-            <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden">
-              <CardBody className="p-6 sm:p-8 space-y-6">
-                <div className="flex gap-4">
-                  <Avatar name={user.name} size="md" />
-                  <div className="flex-1 space-y-3">
-                    <textarea 
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      placeholder="Ask a question or share your thoughts..." 
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 outline-none text-sm font-semibold text-slate-900 min-h-[90px] resize-none" 
-                    />
-                    <div className="flex justify-end">
-                      <button 
-                        onClick={handlePostComment}
-                        className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold shadow-md transition-all cursor-pointer"
-                      >
-                        Post Comment
-                      </button>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-4 pt-4 border-t border-slate-100">
-                  {comments.length === 0 ? (
-                    <div className="text-center py-8">
-                      <MessageCircle className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-                      <h4 className="text-sm font-bold text-slate-800">No discussions yet</h4>
-                      <p className="text-xs text-slate-500 mt-1">Be the first to start a conversation.</p>
-                    </div>
-                  ) : (
-                    <div className="space-y-4 max-h-[350px] overflow-y-auto pr-1">
-                      {comments.map((comment) => (
-                        <div key={comment.id} className="flex gap-3.5 items-start p-3 rounded-2xl hover:bg-slate-50 transition-colors duration-200 border border-transparent hover:border-slate-100">
-                          <Avatar name={comment.author} size="sm" className="bg-purple-100 text-purple-700" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-black text-slate-800">{comment.author}</span>
-                              <span className="text-[10px] font-bold text-slate-400">{comment.time}</span>
-                            </div>
-                            <p className="text-xs font-semibold text-slate-600 mt-1 leading-relaxed">{comment.content}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
                 </div>
               </CardBody>
             </Card>
