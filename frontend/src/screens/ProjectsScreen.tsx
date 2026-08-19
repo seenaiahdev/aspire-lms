@@ -135,7 +135,7 @@ export function ProjectsScreen() {
     const loadProjects = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchProjects(user?.batch || '');
+        const data = await fetchProjects(user?.batchCode || '');
         setProjectsState(data);
       } catch (err) {
         console.error(err);
@@ -143,12 +143,12 @@ export function ProjectsScreen() {
         setIsLoading(false);
       }
     };
-    if (user?.batch) {
+    if (user?.batchCode) {
       loadProjects();
     } else {
       setIsLoading(false);
     }
-  }, [user?.batch]);
+  }, [user?.batchCode]);
 
   // Interactive File Explorer Modal state
   const [showExplorer, setShowExplorer] = useState(false);

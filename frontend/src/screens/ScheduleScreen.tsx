@@ -83,7 +83,7 @@ export function ScheduleScreen() {
       setIsLoading(true);
       try {
         const dateStr = getDateKey(selectedDate);
-        const data = await fetchDailySchedules(dateStr, user?.batch || '');
+        const data = await fetchDailySchedules(dateStr, user?.batchCode || '');
         const formatted = data.map((row: any) => ({
           id: row.id,
           title: row.title || row.topic,
@@ -101,12 +101,12 @@ export function ScheduleScreen() {
         setIsLoading(false);
       }
     };
-    if (user?.batch) {
+    if (user?.batchCode) {
       loadTasks();
     } else {
       setIsLoading(false);
     }
-  }, [selectedDate, user?.batch]);
+  }, [selectedDate, user?.batchCode]);
 
   const items = [...apiTasks, ...localTasks];
   const [showAddTask, setShowAddTask] = useState(false);

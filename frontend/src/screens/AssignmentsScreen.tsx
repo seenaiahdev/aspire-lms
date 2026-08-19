@@ -122,10 +122,10 @@ export function AssignmentsScreen() {
 
   useEffect(() => {
     const loadData = async () => {
-      if (user?.batch) {
+      if (user?.batchCode) {
         setLoading(true);
         try {
-          const data = await fetchAssignments(user.batch, user.batchCategory);
+          const data = await fetchAssignments(user.batchCode, user.batchCategory);
           setCourseAssignments(data || []);
         } catch (error) {
           console.error("Failed to fetch assignments:", error);
@@ -136,7 +136,7 @@ export function AssignmentsScreen() {
       }
     };
     loadData();
-  }, [user?.batch, user?.batchCategory]);
+  }, [user?.batchCode, user?.batchCategory]);
 
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [lockedToast, setLockedToast] = useState(false);

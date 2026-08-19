@@ -26,8 +26,8 @@ export function QuizzesScreen() {
     const load = async () => {
       setLoading(true);
       try {
-        if (user?.batch) {
-          const q = await fetchQuizzes(user.batch);
+        if (user?.batchCode) {
+          const q = await fetchQuizzes(user.batchCode);
           setQuizzes(q || []);
         }
         const l = await fetchLeaderboard();
@@ -39,7 +39,7 @@ export function QuizzesScreen() {
       }
     };
     load();
-  }, [user?.batch]);
+  }, [user?.batchCode]);
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<any>(() => {
     try {
