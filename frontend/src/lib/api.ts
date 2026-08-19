@@ -109,7 +109,20 @@ export async function fetchJobs(batchCategory: string) {
     throw error;
   }
 
-  return data || [];
+  if (!data) return [];
+
+  return data.map((item: any) => ({
+    id: item.id,
+    company: item.company || 'TCS',
+    role: item.job_title || 'Software Engineer',
+    location: item.location || 'Remote',
+    type: item.job_type || 'Full-Time',
+    salary: item.salary || 'LPA',
+    posted: item.posted_date || 'Recent',
+    logo: item.logo || '',
+    description: item.description || 'Job details...',
+    status: 'open'
+  }));
 }
 
 /**
