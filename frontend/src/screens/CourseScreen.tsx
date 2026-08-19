@@ -111,6 +111,38 @@ export function CourseScreen() {
   const batchCategory = user.batchCategory || 'Weekday';
   const courseIdToFetch = params.id || (user.enrolled_courses && user.enrolled_courses[0]) || 'crs-1786624019154-w';
 
+  const [courseResources, setCourseResources] = useState<any[]>([]);
+  const [courseReviewsList, setCourseReviewsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadResources() {
+      const resources = await fetchResources(courseIdToFetch);
+      setCourseResources(resources);
+    }
+    if (courseIdToFetch) {
+      loadResources();
+    }
+  }, [courseIdToFetch]);
+
+  useEffect(() => {
+    async function loadReviews() {
+      const dbReviews = await fetchCourseReviews(courseIdToFetch);
+      if (dbReviews && dbReviews.length > 0) {
+        setCourseReviewsList(dbReviews);
+      } else if (courseIdToFetch === 'crs-1786624019154-w') {
+        setCourseReviewsList([
+          { id: 1, author: 'Saurabh K.', rating: 5, date: '2 days ago', comment: `The course structure is exceptional. The Git and Django backend modules are very clear.` },
+          { id: 2, author: 'Megha S.', rating: 4.8, date: '1 week ago', comment: `Loved the OOP and Python fundamentals. The practice problems are very helpful.` }
+        ]);
+      } else {
+        setCourseReviewsList([]);
+      }
+    }
+    if (courseIdToFetch) {
+      loadReviews();
+    }
+  }, [courseIdToFetch]);
+
   useEffect(() => {
     async function fetchCourseAndSyllabus() {
       setLoading(true);
@@ -315,18 +347,6 @@ export function CourseScreen() {
     setCommentText('');
   };
 
-  const [courseResources, setCourseResources] = useState<any[]>([]);
-
-  useEffect(() => {
-    async function loadResources() {
-      const resources = await fetchResources(course.id);
-      setCourseResources(resources);
-    }
-    if (course.id && course.id !== 'Loading...') {
-      loadResources();
-    }
-  }, [course.id]);
-
   const ratingPercentages = useMemo(() => {
     const r = course.rating || 5.0;
     if (r >= 4.8) return { 5: '85%', 4: '10%', 3: '5%', 2: '0%', 1: '0%' };
@@ -334,27 +354,6 @@ export function CourseScreen() {
     if (r >= 4.0) return { 5: '50%', 4: '35%', 3: '10%', 2: '4%', 1: '1%' };
     return { 5: '30%', 4: '30%', 3: '20%', 2: '10%', 1: '10%' };
   }, [course.rating]);
-
-  const [courseReviewsList, setCourseReviewsList] = useState<any[]>([]);
-
-  useEffect(() => {
-    async function loadReviews() {
-      const dbReviews = await fetchCourseReviews(course.id);
-      if (dbReviews && dbReviews.length > 0) {
-        setCourseReviewsList(dbReviews);
-      } else if (course.id === 'crs-1786624019154-w') {
-        setCourseReviewsList([
-          { id: 1, author: 'Saurabh K.', rating: 5, date: '2 days ago', comment: `The course structure is exceptional. The Git and Django backend modules are very clear.` },
-          { id: 2, author: 'Megha S.', rating: 4.8, date: '1 week ago', comment: `Loved the OOP and Python fundamentals. The practice problems are very helpful.` }
-        ]);
-      } else {
-        setCourseReviewsList([]);
-      }
-    }
-    if (course.id && course.id !== 'Loading...') {
-      loadReviews();
-    }
-  }, [course.id]);
 
   if (loading && !dbCourse) {
     return (
