@@ -121,7 +121,8 @@ export async function fetchJobs(batchCategory: string) {
     posted: item.posted_date || 'Recent',
     logo: item.logo || '',
     description: item.description || 'Job details...',
-    status: 'open'
+    status: 'open',
+    skills: item.skills || ['Python', 'Django', 'SQL']
   }));
 }
 
