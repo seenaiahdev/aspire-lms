@@ -119,6 +119,7 @@ export function LessonScreen() {
   const [loading, setLoading] = useState(true);
 
   const courseIdToFetch = params.id || (user.enrolled_courses && user.enrolled_courses[0]) || 'crs-1786624019154-w';
+  const batchCategory = user.batchCategory || 'Weekday';
 
   useEffect(() => {
     async function fetchCourseAndSyllabus() {
