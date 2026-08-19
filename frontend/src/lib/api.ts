@@ -275,6 +275,27 @@ export async function fetchCoursesByIds(courseIds: string[]) {
   return data || [];
 }
 
+/**
+ * Fetches reviews for a specific course.
+ */
+export async function fetchCourseReviews(courseId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('course_reviews')
+      .select('*')
+      .eq('course_id', courseId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('course_reviews table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
 // ════════════════════════════════════════════════════════════════
 // ASSIGNMENTS
 // ════════════════════════════════════════════════════════════════

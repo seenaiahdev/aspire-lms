@@ -5,7 +5,7 @@ import {
   Download, Share2, Heart, Award, ChevronUp, ChevronDown, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { fetchResources } from '@/lib/api';
+import { fetchResources, fetchCourseReviews } from '@/lib/api';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -264,9 +264,9 @@ export function CourseScreen() {
         courses: 4,
         bio: `${dbCourse.instructor || 'Lead Instructor'} is a senior engineer with years of experience building and optimizing large scale applications.`
       },
-      rating: dbCourse.rating || 5.0,
-      reviews: Math.floor((dbCourse.rating || 5.0) * 12),
-      students: dbCourse.enrolled_count || 120,
+      rating: dbCourse.id === 'crs-1786624019154-w' ? (dbCourse.rating || 5.0) : (dbCourse.rating || 0),
+      reviews: dbCourse.id === 'crs-1786624019154-w' ? (courseReviewsList.length || 60) : courseReviewsList.length,
+      students: dbCourse.enrolled_count !== undefined && dbCourse.enrolled_count !== null ? dbCourse.enrolled_count : 0,
       duration: durationStr,
       lessons: lessonsCount,
       stages: stages,
@@ -279,7 +279,7 @@ export function CourseScreen() {
       subtitle: dbCourse.description || '',
       tags: dbCourse.tags || ['Python Programming', 'Advanced OOP', 'Flask/Django', 'DSA & Algorithms', 'AI Integration']
     };
-  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, params.id]);
+  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, courseReviewsList, params.id]);
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
@@ -335,12 +335,26 @@ export function CourseScreen() {
     return { 5: '30%', 4: '30%', 3: '20%', 2: '10%', 1: '10%' };
   }, [course.rating]);
 
-  const courseReviewsList = useMemo(() => {
-    return [
-      { id: 1, author: 'Saurabh K.', rating: 5, date: '2 days ago', comment: `The course structure is exceptional. The Git and Django backend modules are very clear.` },
-      { id: 2, author: 'Megha S.', rating: 4.8, date: '1 week ago', comment: `Loved the OOP and Python fundamentals. The practice problems are very helpful.` }
-    ];
-  }, []);
+  const [courseReviewsList, setCourseReviewsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    async function loadReviews() {
+      const dbReviews = await fetchCourseReviews(course.id);
+      if (dbReviews && dbReviews.length > 0) {
+        setCourseReviewsList(dbReviews);
+      } else if (course.id === 'crs-1786624019154-w') {
+        setCourseReviewsList([
+          { id: 1, author: 'Saurabh K.', rating: 5, date: '2 days ago', comment: `The course structure is exceptional. The Git and Django backend modules are very clear.` },
+          { id: 2, author: 'Megha S.', rating: 4.8, date: '1 week ago', comment: `Loved the OOP and Python fundamentals. The practice problems are very helpful.` }
+        ]);
+      } else {
+        setCourseReviewsList([]);
+      }
+    }
+    if (course.id && course.id !== 'Loading...') {
+      loadReviews();
+    }
+  }, [course.id]);
 
   if (loading && !dbCourse) {
     return (
