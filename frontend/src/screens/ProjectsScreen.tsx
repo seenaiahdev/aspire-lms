@@ -286,11 +286,22 @@ export function ProjectsScreen() {
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
     return projectsState.map((p: any) => {
-      const hasLink = Boolean(driveLinks[p.id]);
-      if (hasLink && p.status === 'assigned') {
-        return { ...p, status: 'submitted' as const };
+      const projectType = (p.project_type || p.type || 'mini').toLowerCase();
+      let status = (p.status || 'assigned').toLowerCase();
+      if (status === 'published' || status === 'assigned') {
+        status = 'assigned';
       }
-      return p;
+
+      const hasLink = Boolean(driveLinks[p.id]);
+      if (hasLink && status === 'assigned') {
+        status = 'submitted';
+      }
+      return {
+        ...p,
+        projectType,
+        status,
+        course: p.course || p.category || 'General Curriculum'
+      };
     });
   }, [projectsState, driveLinks]);
 
