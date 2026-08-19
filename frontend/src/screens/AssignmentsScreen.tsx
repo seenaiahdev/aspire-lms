@@ -125,7 +125,7 @@ export function AssignmentsScreen() {
       if (user?.batch) {
         setLoading(true);
         try {
-          const data = await fetchAssignments(user.batch);
+          const data = await fetchAssignments(user.batch, user.batchCategory);
           setCourseAssignments(data || []);
         } catch (error) {
           console.error("Failed to fetch assignments:", error);
@@ -136,7 +136,7 @@ export function AssignmentsScreen() {
       }
     };
     loadData();
-  }, [user?.batch]);
+  }, [user?.batch, user?.batchCategory]);
 
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [lockedToast, setLockedToast] = useState(false);

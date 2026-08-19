@@ -264,19 +264,55 @@ export async function fetchCoursesByIds(courseIds: string[]) {
 // ASSIGNMENTS
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchAssignments(batchCode: string) {
+export async function fetchAssignments(batchCode: string, batchCategory?: string) {
   try {
+    const targetBatchStr = batchCategory === 'Weekend' ? 'Weekend Batch' : 'Weekday Batch';
     const { data, error } = await supabase
-      .from('assignments')
+      .from('assessments')
       .select('*')
-      .eq('batch_code', batchCode)
+      .or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`)
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.warn('assignments table not available:', error.message);
+      console.warn('assessments table not available:', error.message);
       return [];
     }
-    return data || [];
+
+    if (!data) return [];
+
+    return data.map((item: any) => {
+      const type = item.coding_count > 0 ? 'coding' : 'mcq';
+      return {
+        id: item.id,
+        slug: item.id,
+        type: type,
+        title: item.title,
+        category: item.course_name || 'General',
+        difficulty: 'Intermediate',
+        xp: 150,
+        timeEstimate: `${item.duration_minutes || 45} mins`,
+        description: item.topic_name ? `Topic: ${item.topic_name.split('||').pop()}` : 'Assessment test',
+        status: 'pending',
+        attemptsCount: 0,
+        passedCount: 0,
+        failedCount: 0,
+        bestScorePercentage: 0,
+        attemptHistory: [],
+        mcqQuestions: (item.mcqs || []).map((q: any, index: number) => ({
+          id: index,
+          question: q.question,
+          codeSnippet: q.codeSnippet || '',
+          options: q.options || [],
+          correctIndex: q.correctIndex || 0,
+          explanation: q.explanation || 'Refer to classroom notes.'
+        })),
+        codingProblem: item.coding_questions && item.coding_questions[0] ? {
+          instructions: item.coding_questions[0].description || item.coding_questions[0].instructions || '',
+          starterCode: item.coding_questions[0].starterCode || 'def solution():\n    pass',
+          testCases: item.coding_questions[0].testCases || []
+        } : undefined
+      };
+    });
   } catch {
     return [];
   }
