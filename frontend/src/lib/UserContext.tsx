@@ -25,6 +25,7 @@ const initialUser: ExtendedUser = {
     { label: 'LinkedIn', value: 'Not connected' },
     { label: 'Portfolio', value: 'Not connected' },
   ],
+  courseProgress: {},
 };
 
 
@@ -38,6 +39,7 @@ interface ExtendedUser extends User {
   status?: string;
   registrationId?: string;
   enrolledCourses?: string[];
+  courseProgress?: Record<string, number>;
 }
 
 interface UserContextType {
@@ -116,6 +118,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             status: student.status,
             registrationId: student.registration_id,
             enrolledCourses: student.enrolled_courses || [],
+            courseProgress: profile?.course_progress || {},
           };
 
           setUser(updatedUser);

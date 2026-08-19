@@ -205,6 +205,7 @@ export interface StudentProfileRow {
   connected_linkedin: boolean;
   connected_portfolio: boolean;
   progress?: number;
+  course_progress?: Record<string, number>;
   attendance?: number;
   gpa?: number;
   updated_at: string;

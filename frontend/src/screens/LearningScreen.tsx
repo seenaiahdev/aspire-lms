@@ -207,7 +207,11 @@ export function LearningScreen() {
         lessonsCount: course.lessons_count || 93,
         enrolledCount: `${course.enrolled_count || 0} enrolled`,
         rating: course.rating || 5.0,
-        progress: user.progress || 0,
+        progress: (user.courseProgress && user.courseProgress[course.id] !== undefined)
+          ? user.courseProgress[course.id]
+          : (user.enrolledCourses && user.enrolledCourses[0] === course.id)
+          ? (user.progress || 0)
+          : 0,
         instructor: {
           name: course.instructor || 'Lead Instructor',
           avatar: '',
@@ -217,7 +221,7 @@ export function LearningScreen() {
         targetRoute: 'course'
       };
     });
-  }, [dbCourses, user.progress]);
+  }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses]);
 
   const filteredItems = useMemo(() => {
     return learningItems.filter((item) => {

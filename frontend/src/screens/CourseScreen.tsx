@@ -249,12 +249,16 @@ export function CourseScreen() {
       duration: '163 hours',
       lessons: lessonsCount || 93,
       stages: stages,
-      progress: user.progress || 0,
+      progress: (user.courseProgress && user.courseProgress[dbCourse.id] !== undefined)
+        ? user.courseProgress[dbCourse.id]
+        : (user.enrolledCourses && user.enrolledCourses[0] === dbCourse.id)
+        ? (user.progress || 0)
+        : 0,
       description: dbCourse.description || '',
       subtitle: dbCourse.description || '',
       tags: dbCourse.tags || ['Python Programming', 'Advanced OOP', 'Flask/Django', 'DSA & Algorithms', 'AI Integration']
     };
-  }, [dbCourse, dbSyllabus, user.progress, params.id]);
+  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, params.id]);
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
