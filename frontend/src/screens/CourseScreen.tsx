@@ -113,6 +113,7 @@ export function CourseScreen() {
 
   const [courseResources, setCourseResources] = useState<any[]>([]);
   const [courseReviewsList, setCourseReviewsList] = useState<any[]>([]);
+  const [allCourses, setAllCourses] = useState<any[]>([]);
 
   useEffect(() => {
     async function loadResources() {
@@ -177,6 +178,14 @@ export function CourseScreen() {
         } else {
           // If no milestones record exists for this course, reset it to empty
           setDbSyllabus(null);
+        }
+
+        // 3. Fetch all courses to calculate instructor stats in real-time
+        const { data: allCoursesData } = await supabase
+          .from('courses')
+          .select('*');
+        if (allCoursesData) {
+          setAllCourses(allCoursesData);
         }
       } catch (err) {
         console.error("Exception loading course details:", err);
@@ -281,20 +290,39 @@ export function CourseScreen() {
       durationStr = `${totalHours} hours`;
     }
 
+    const instructorName = dbCourse.instructor || 'Lead Instructor';
+    const instructorCourses = allCourses.filter(c => c.instructor === instructorName);
+    const coursesCount = instructorCourses.length || 1;
+    const totalStudents = instructorCourses.reduce((acc, c) => acc + (c.enrolled_count || 0), 0);
+    const ratedCourses = instructorCourses.filter(c => c.rating > 0);
+    const avgRating = ratedCourses.length > 0 
+      ? parseFloat((ratedCourses.reduce((acc, c) => acc + Number(c.rating), 0) / ratedCourses.length).toFixed(1)) 
+      : 5.0;
+
+    let role = 'LMS Specialist';
+    let bio = `${instructorName} is a senior engineer with years of experience building and optimizing large scale applications.`;
+    if (instructorName.toLowerCase().includes('siva')) {
+      role = 'Senior Software Architect';
+      bio = 'Siva V is a veteran software architect with 10+ years of experience specializing in Python, backend engineering, Distributed Systems, and AI integrations.';
+    } else if (instructorName.toLowerCase().includes('david') || instructorName.toLowerCase().includes('chen')) {
+      role = 'Career Coach & Soft Skills Mentor';
+      bio = 'David Chen is a career consultant and soft skills trainer helping students master communication, build stellar resumes, and ace technical interviews.';
+    }
+
     return {
       id: dbCourse.id,
       title: dbCourse.title,
       category: dbCourse.category || 'Web Development',
       level: dbCourse.level || 'Intermediate',
       instructor: {
-        name: dbCourse.instructor || 'Lead Instructor',
+        name: instructorName,
         avatar: '',
-        role: 'LMS Specialist',
-        title: 'LMS Specialist',
-        rating: 4.9,
-        students: 12400,
-        courses: 4,
-        bio: `${dbCourse.instructor || 'Lead Instructor'} is a senior engineer with years of experience building and optimizing large scale applications.`
+        role: role,
+        title: role,
+        rating: avgRating,
+        students: totalStudents,
+        courses: coursesCount,
+        bio: bio
       },
       rating: dbCourse.id === 'crs-1786624019154-w' ? (dbCourse.rating || 5.0) : (dbCourse.rating || 0),
       reviews: dbCourse.id === 'crs-1786624019154-w' ? (courseReviewsList.length || 60) : courseReviewsList.length,
@@ -311,7 +339,7 @@ export function CourseScreen() {
       subtitle: dbCourse.description || '',
       tags: dbCourse.tags || ['Python Programming', 'Advanced OOP', 'Flask/Django', 'DSA & Algorithms', 'AI Integration']
     };
-  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, courseReviewsList, params.id]);
+  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, courseReviewsList, allCourses, params.id]);
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
@@ -404,7 +432,7 @@ export function CourseScreen() {
             </span>
             <span className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />
-              <span>{(course.students / 1000).toFixed(1)}k students</span>
+              <span>{course.students >= 1000 ? `${(course.students / 1000).toFixed(1)}k` : course.students} students</span>
             </span>
             <span className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
@@ -658,7 +686,11 @@ export function CourseScreen() {
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Rating</p>
                 </div>
                 <div>
-                  <p className="text-sm font-black text-slate-900">{(course.instructor.students / 1000).toFixed(1)}k</p>
+                  <p className="text-sm font-black text-slate-900">
+                    {course.instructor.students >= 1000 
+                      ? `${(course.instructor.students / 1000).toFixed(1)}k` 
+                      : course.instructor.students}
+                  </p>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Students</p>
                 </div>
                 <div>
