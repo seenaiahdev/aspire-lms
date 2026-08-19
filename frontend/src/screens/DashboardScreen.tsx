@@ -392,16 +392,46 @@ export function DashboardScreen() {
       return timeA - timeB;
     });
 
-    return sorted.map(cls => ({
-      id: cls.id,
-      title: cls.session_title,
-      course: cls.technology || 'Core Programming',
-      instructor: { name: cls.instructor || 'Lead Instructor' },
-      scheduledAt: `${cls.date}T${cls.time || '10:00:00'}`,
-      duration: cls.duration || '1h 30m',
-      status: (cls.status === 'ongoing' || cls.status === 'upcoming') ? cls.status : 'upcoming',
-      link: cls.meeting_link
-    }));
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    return sorted.map(cls => {
+      let resolvedStatus = cls.status;
+      const sessionStart = new Date(`${cls.date}T${cls.time || '00:00:00'}`);
+      let durationMinutes = 90;
+      if (cls.duration) {
+        const match = cls.duration.match(/(\d+)h/);
+        const matchMin = cls.duration.match(/(\d+)m/);
+        const hours = match ? parseInt(match[1]) : 0;
+        const minutes = matchMin ? parseInt(matchMin[1]) : 0;
+        durationMinutes = hours * 60 + minutes;
+      }
+      const sessionEnd = new Date(sessionStart.getTime() + durationMinutes * 60 * 1000);
+      const isPast = now.getTime() > sessionEnd.getTime();
+      const isDateInPast = cls.date < todayStr;
+
+      if (cls.status === 'completed' || isDateInPast || (cls.date === todayStr && isPast)) {
+        resolvedStatus = 'completed';
+      } else if (cls.status === 'ongoing') {
+        resolvedStatus = 'ongoing';
+      } else {
+        resolvedStatus = 'upcoming';
+      }
+
+      return {
+        id: cls.id,
+        title: cls.session_title,
+        course: cls.technology || 'Core Programming',
+        instructor: { name: cls.instructor || 'Lead Instructor' },
+        scheduledAt: `${cls.date}T${cls.time || '10:00:00'}`,
+        duration: cls.duration || '1h 30m',
+        status: resolvedStatus,
+        link: cls.meeting_link
+      };
+    });
   }, [dbLiveSessions, selectedDateStr]);
 
   // Track topic completed checkmarks locally
@@ -933,14 +963,22 @@ export function DashboardScreen() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                {currentLiveClasses.filter(c => c.status === 'ongoing' || c.status === 'upcoming').map((cls, idx) => (
+                {currentLiveClasses.map((cls, idx) => (
                   <div 
                     key={cls.id}
                     id={`tour-class-card-${idx}`}
-                    onClick={() => navigate(cls.status === 'ongoing' ? 'classroom' : 'live', cls.status === 'ongoing' ? { id: cls.id } : { tab: 'upcoming' })}
+                    onClick={() => {
+                      if (cls.status === 'completed') {
+                        navigate('recording', { id: cls.id });
+                      } else {
+                        navigate(cls.status === 'ongoing' ? 'classroom' : 'live', cls.status === 'ongoing' ? { id: cls.id } : { tab: 'upcoming' });
+                      }
+                    }}
                     className={cn(
                       "p-5 rounded-[1.5rem] bg-white shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden",
-                      cls.status === 'ongoing' ? "border border-purple-200/90 hover:border-[#7c3aed] ring-1 ring-purple-100" : "border border-slate-200/90 hover:border-[#7c3aed]/60"
+                      cls.status === 'ongoing' ? "border border-purple-200/90 hover:border-[#7c3aed] ring-1 ring-purple-100" : 
+                      cls.status === 'completed' ? "border border-slate-150 bg-slate-50/20 opacity-90" : 
+                      "border border-slate-200/90 hover:border-[#7c3aed]/60"
                     )}
                   >
                     <div>
@@ -952,6 +990,11 @@ export function DashboardScreen() {
                               <span className="relative inline-flex rounded-full h-2 w-2 bg-white" />
                             </span>
                             <span>LIVE NOW</span>
+                          </span>
+                        ) : cls.status === 'completed' ? (
+                          <span className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                            <span>COMPLETED</span>
                           </span>
                         ) : (
                           <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
@@ -973,9 +1016,18 @@ export function DashboardScreen() {
                     </div>
 
                     <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-xs font-extrabold text-[#7c3aed] group-hover:text-[#6d28d9] transition-colors inline-flex items-center gap-1.5">
-                        {cls.status === 'ongoing' ? 'Join Live Class' : 'View & Set Reminder'}
-                        <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                      <span className={cn(
+                        "text-xs font-extrabold transition-colors inline-flex items-center gap-1.5",
+                        cls.status === 'completed' ? "text-slate-500 group-hover:text-[#7c3aed]" : "text-[#7c3aed] group-hover:text-[#6d28d9]"
+                      )}>
+                        {cls.status === 'ongoing' ? 'Join Live Class' : 
+                         cls.status === 'completed' ? 'Watch Recording' : 
+                         'View & Set Reminder'}
+                        {cls.status === 'completed' ? (
+                          <Play className="w-3 h-3 fill-current transition-transform group-hover:translate-x-1" />
+                        ) : (
+                          <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
+                        )}
                       </span>
                     </div>
                   </div>

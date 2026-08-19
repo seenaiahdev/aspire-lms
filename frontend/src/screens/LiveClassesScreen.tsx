@@ -59,22 +59,52 @@ export function LiveClassesScreen() {
       return timeA - timeB;
     });
 
-    return sorted.map(cls => ({
-      id: cls.id,
-      title: cls.session_title,
-      course: cls.technology || 'Core Programming',
-      instructor: { 
-        name: cls.instructor || 'Lead Instructor',
-        avatar: '',
-        title: 'LMS Instructor'
-      },
-      scheduledAt: cls.date && cls.time ? `${cls.date} at ${cls.time.slice(0, 5)}` : (cls.date || 'TBD'),
-      duration: cls.duration || '1h 30m',
-      participants: 120,
-      status: cls.status || 'upcoming',
-      thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
-      link: cls.meeting_link || ''
-    }));
+    const now = new Date();
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    const todayStr = `${yyyy}-${mm}-${dd}`;
+
+    return sorted.map(cls => {
+      let resolvedStatus = cls.status || 'upcoming';
+      const sessionStart = new Date(`${cls.date}T${cls.time || '00:00:00'}`);
+      let durationMinutes = 90;
+      if (cls.duration) {
+        const match = cls.duration.match(/(\d+)h/);
+        const matchMin = cls.duration.match(/(\d+)m/);
+        const hours = match ? parseInt(match[1]) : 0;
+        const minutes = matchMin ? parseInt(matchMin[1]) : 0;
+        durationMinutes = hours * 60 + minutes;
+      }
+      const sessionEnd = new Date(sessionStart.getTime() + durationMinutes * 60 * 1000);
+      const isPast = now.getTime() > sessionEnd.getTime();
+      const isDateInPast = cls.date < todayStr;
+
+      if (cls.status === 'completed' || isDateInPast || (cls.date === todayStr && isPast)) {
+        resolvedStatus = 'completed';
+      } else if (cls.status === 'ongoing') {
+        resolvedStatus = 'ongoing';
+      } else {
+        resolvedStatus = 'upcoming';
+      }
+
+      return {
+        id: cls.id,
+        title: cls.session_title,
+        course: cls.technology || 'Core Programming',
+        instructor: { 
+          name: cls.instructor || 'Lead Instructor',
+          avatar: '',
+          title: 'LMS Instructor'
+        },
+        scheduledAt: cls.date && cls.time ? `${cls.date} at ${cls.time.slice(0, 5)}` : (cls.date || 'TBD'),
+        duration: cls.duration || '1h 30m',
+        participants: 120,
+        status: resolvedStatus,
+        thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
+        link: cls.meeting_link || ''
+      };
+    });
   }, [dbSessions]);
 
   const handleTabChange = (newTab: string) => {
