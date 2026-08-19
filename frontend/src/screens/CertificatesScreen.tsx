@@ -397,7 +397,7 @@ export function CertificatesScreen() {
                     </p>
 
                     <h1 className="text-xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight text-gradient bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] bg-clip-text text-transparent py-0.5">
-                      Aarav Sharma
+                      {user.name}
                     </h1>
 
                     <p className="text-[11px] sm:text-xs font-medium text-slate-600 max-w-md mx-auto leading-relaxed">
