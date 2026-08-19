@@ -170,7 +170,7 @@ export function CertificatesScreen() {
             <Award className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
           <div>
-            <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} / {activeCerts.length}</p>
+            <p className="text-2xl font-black text-slate-900 tracking-tight">{unlockedCount} / {certs.length}</p>
             <p className="text-xs font-extrabold text-[#7c3aed]">Unlocked Certificates</p>
           </div>
         </Card>
