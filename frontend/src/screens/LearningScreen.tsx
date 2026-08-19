@@ -49,30 +49,32 @@ export function LearningScreen() {
   const [dbCourses, setDbCourses] = useState<any[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
 
-  const [dbSyllabus, setDbSyllabus] = useState<any>(null);
+  const [allMilestones, setAllMilestones] = useState<any[]>([]);
   const [syllabusLoading, setSyllabusLoading] = useState(true);
+
+  const dbSyllabus = useMemo(() => {
+    const batchCategory = user.batchCategory || 'Weekday';
+    const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
+    return allMilestones.find(m => m.id === targetCategory) || null;
+  }, [allMilestones, user.batchCategory]);
 
   useEffect(() => {
     async function loadSyllabus() {
       if (!user.enrolledCourses || user.enrolledCourses.length === 0) {
-        setDbSyllabus(null);
+        setAllMilestones([]);
         setSyllabusLoading(false);
         return;
       }
       setSyllabusLoading(true);
       try {
-        const batchCategory = user.batchCategory || 'Weekday';
-        const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
         const { data, error } = await supabase
           .from('milestones_data')
-          .select('*')
-          .eq('id', targetCategory)
-          .maybeSingle();
+          .select('*');
 
         if (error) {
           console.error("Error fetching milestones:", error.message);
         } else if (data) {
-          setDbSyllabus(data);
+          setAllMilestones(data);
         }
       } catch (err) {
         console.error("Exception loading milestones:", err);
@@ -83,21 +85,18 @@ export function LearningScreen() {
 
     loadSyllabus();
 
-    const batchCategory = user.batchCategory || 'Weekday';
-    const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
     const milestonesChannel = supabase
       .channel('milestones_road_realtime')
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
-          table: 'milestones_data',
-          filter: `id=eq.${targetCategory}`
+          table: 'milestones_data'
         },
-        (payload) => {
-          console.log("Real-time milestones update inside Milestones Roadmap:", payload.new);
-          setDbSyllabus(payload.new);
+        () => {
+          console.log("Real-time milestones update inside Milestones Roadmap, reloading...");
+          loadSyllabus();
         }
       )
       .subscribe();
@@ -105,7 +104,7 @@ export function LearningScreen() {
     return () => {
       supabase.removeChannel(milestonesChannel);
     };
-  }, [user.enrolledCourses, user.batchCategory]);
+  }, [user.enrolledCourses]);
 
   const curriculumRoadmap = useMemo(() => {
     const activeCourse = dbCourses[0];
@@ -195,6 +194,31 @@ export function LearningScreen() {
         categoryLabel = 'LinkedIn';
       }
 
+      const batchCategory = user.batchCategory || 'Weekday';
+      const targetCategory = course.id === 'crs-1786624019154-w'
+        ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
+        : course.id;
+
+      const courseMilestone = allMilestones.find(m => m.id === targetCategory);
+      const stages = courseMilestone?.stages || [];
+      const lessonsCount = stages.reduce((acc: number, stage: any) => 
+        acc + (stage.modules?.reduce((mAcc: number, m: any) => mAcc + (m.lessons?.length || 0), 0) || 0)
+      , 0);
+
+      const totalHours = stages.reduce((acc: number, stage: any) => 
+        acc + (stage.modules?.reduce((mAcc: number, m: any) => {
+          const h = parseInt(m.duration || '0');
+          return mAcc + (isNaN(h) ? 0 : h);
+        }, 0) || 0)
+      , 0);
+
+      let durationStr = '0 hours';
+      if (course.id === 'crs-1786624019154-w') {
+        durationStr = '163 hours';
+      } else if (totalHours > 0) {
+        durationStr = `${totalHours} hours`;
+      }
+
       return {
         id: course.id,
         category,
@@ -203,8 +227,8 @@ export function LearningScreen() {
         subtitle: course.description || 'Master this program.',
         thumbnail: course.thumbnail || '/python-full-stack.png',
         level: (course.level || 'Intermediate') as 'Beginner' | 'Intermediate' | 'Advanced',
-        duration: course.duration || '163 hours',
-        lessonsCount: course.lessons_count || 93,
+        duration: durationStr,
+        lessonsCount: lessonsCount,
         enrolledCount: `${course.enrolled_count || 0} enrolled`,
         rating: course.rating || 5.0,
         progress: (user.courseProgress && user.courseProgress[course.id] !== undefined)
@@ -221,7 +245,7 @@ export function LearningScreen() {
         targetRoute: 'course'
       };
     });
-  }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses]);
+  }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses, allMilestones, user.batchCategory]);
 
   const filteredItems = useMemo(() => {
     return learningItems.filter((item) => {

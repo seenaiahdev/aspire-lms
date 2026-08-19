@@ -118,7 +118,7 @@ export function LessonScreen() {
   const [dbSyllabus, setDbSyllabus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const batchCategory = user.batchCategory || 'Weekday';
+  const courseIdToFetch = params.id || (user.enrolled_courses && user.enrolled_courses[0]) || 'crs-1786624019154-w';
 
   useEffect(() => {
     async function fetchCourseAndSyllabus() {
@@ -128,7 +128,7 @@ export function LessonScreen() {
         const { data: courseData, error: courseError } = await supabase
           .from('courses')
           .select('*')
-          .eq('id', params.id || 'PYAI2026')
+          .eq('id', courseIdToFetch)
           .maybeSingle();
 
         if (courseError) {
@@ -138,7 +138,9 @@ export function LessonScreen() {
         }
 
         // 2. Fetch Syllabus (milestones_data) from DB
-        const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
+        const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
+          ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
+          : courseIdToFetch;
         const { data: syllabusData, error: syllabusError } = await supabase
           .from('milestones_data')
           .select('*')
@@ -177,7 +179,9 @@ export function LessonScreen() {
       )
       .subscribe();
 
-    const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
+    const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
+      ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
+      : courseIdToFetch;
     const milestonesChannel = supabase
       .channel('lesson_milestones_details_realtime')
       .on(
@@ -199,7 +203,7 @@ export function LessonScreen() {
       supabase.removeChannel(coursesChannel);
       supabase.removeChannel(milestonesChannel);
     };
-  }, [params.id, batchCategory]);
+  }, [courseIdToFetch, batchCategory]);
 
   const course = useMemo(() => {
     // If not loaded yet from Supabase, return a loading placeholder
@@ -222,6 +226,20 @@ export function LessonScreen() {
       acc + (stage.modules?.reduce((mAcc: number, m: any) => mAcc + (m.lessons?.length || 0), 0) || 0)
     , 0);
 
+    const totalHours = stages.reduce((acc: number, stage: any) => 
+      acc + (stage.modules?.reduce((mAcc: number, m: any) => {
+        const h = parseInt(m.duration || '0');
+        return mAcc + (isNaN(h) ? 0 : h);
+      }, 0) || 0)
+    , 0);
+
+    let durationStr = '0 hours';
+    if (dbCourse.id === 'crs-1786624019154-w') {
+      durationStr = '163 hours';
+    } else if (totalHours > 0) {
+      durationStr = `${totalHours} hours`;
+    }
+
     return {
       id: dbCourse.id,
       title: dbCourse.title,
@@ -235,15 +253,15 @@ export function LessonScreen() {
       rating: dbCourse.rating || 5.0,
       reviews: Math.floor((dbCourse.rating || 5.0) * 12),
       students: dbCourse.enrolled_count || 120,
-      duration: '163 hours',
-      lessons: lessonsCount || 93,
+      duration: durationStr,
+      lessons: lessonsCount,
       stages: stages,
       progress: user.progress || 0,
       description: dbCourse.description || '',
       subtitle: dbCourse.description || '',
       tags: dbCourse.tags || ['Python Programming', 'Advanced OOP', 'Flask/Django', 'DSA & Algorithms', 'AI Integration']
     };
-  }, [dbCourse, dbSyllabus, user.progress, params.id]);
+  }, [dbCourse, dbSyllabus, user.progress, courseIdToFetch]);
 
   const allLessons = course.stages?.flatMap((s: any) => s.modules).flatMap((m: any) => m.lessons) || [];
   const currentIdx = allLessons.findIndex((l: any) => l.id === params.lesson);

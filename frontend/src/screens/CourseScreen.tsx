@@ -129,7 +129,9 @@ export function CourseScreen() {
         }
 
         // 2. Fetch Syllabus (milestones_data) from DB
-        const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
+        const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
+          ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
+          : courseIdToFetch;
         const { data: syllabusData, error: syllabusError } = await supabase
           .from('milestones_data')
           .select('*')
@@ -140,6 +142,9 @@ export function CourseScreen() {
           console.error("Error loading syllabus stages:", syllabusError.message);
         } else if (syllabusData) {
           setDbSyllabus(syllabusData);
+        } else {
+          // If no milestones record exists for this course, reset it to empty
+          setDbSyllabus(null);
         }
       } catch (err) {
         console.error("Exception loading course details:", err);
@@ -168,7 +173,9 @@ export function CourseScreen() {
       )
       .subscribe();
 
-    const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
+    const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
+      ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
+      : courseIdToFetch;
     const milestonesChannel = supabase
       .channel('milestones_details_realtime')
       .on(
@@ -228,6 +235,20 @@ export function CourseScreen() {
       acc + (stage.modules?.reduce((mAcc: number, m: any) => mAcc + (m.lessons?.length || 0), 0) || 0)
     , 0);
 
+    const totalHours = stages.reduce((acc: number, stage: any) => 
+      acc + (stage.modules?.reduce((mAcc: number, m: any) => {
+        const h = parseInt(m.duration || '0');
+        return mAcc + (isNaN(h) ? 0 : h);
+      }, 0) || 0)
+    , 0);
+
+    let durationStr = '0 hours';
+    if (dbCourse.id === 'crs-1786624019154-w') {
+      durationStr = '163 hours';
+    } else if (totalHours > 0) {
+      durationStr = `${totalHours} hours`;
+    }
+
     return {
       id: dbCourse.id,
       title: dbCourse.title,
@@ -246,8 +267,8 @@ export function CourseScreen() {
       rating: dbCourse.rating || 5.0,
       reviews: Math.floor((dbCourse.rating || 5.0) * 12),
       students: dbCourse.enrolled_count || 120,
-      duration: '163 hours',
-      lessons: lessonsCount || 93,
+      duration: durationStr,
+      lessons: lessonsCount,
       stages: stages,
       progress: (user.courseProgress && user.courseProgress[dbCourse.id] !== undefined)
         ? user.courseProgress[dbCourse.id]
