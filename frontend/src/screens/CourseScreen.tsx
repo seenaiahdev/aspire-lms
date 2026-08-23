@@ -25,6 +25,7 @@ const lessonIcons: Record<string, any> = {
 };
 
 function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any, course: any, navigate: any, isOpen: boolean, onToggle: () => void }) {
+  const { user } = useUser();
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
   const completedCount = Math.round((allLessons.length * (course.progress || 0)) / 100);
 
@@ -50,7 +51,7 @@ function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any
             const isPreview = lesson.video?.preview || lesson.preview;
             const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
             const isCompleted = lesson.completed || (globalIdx < completedCount && globalIdx !== -1);
-            const isLessonLocked = (globalIdx > completedCount) && !isPreview && !isCompleted;
+            const isLessonLocked = !user?.unlockedLessonIds?.includes(lesson.id);
             
             return (
               <button
@@ -109,7 +110,7 @@ export function CourseScreen() {
   const [loading, setLoading] = useState(true);
 
   const batchCategory = user.batchCategory || 'Weekday';
-  const courseIdToFetch = params.id || (user.enrolled_courses && user.enrolled_courses[0]) || 'crs-1786624019154-w';
+  const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
 
   const [courseResources, setCourseResources] = useState<any[]>([]);
   const [courseReviewsList, setCourseReviewsList] = useState<any[]>([]);
@@ -161,22 +162,43 @@ export function CourseScreen() {
           setDbCourse(courseData);
         }
 
-        // 2. Fetch Syllabus (milestones_data) from DB
-        const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
-          ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
-          : courseIdToFetch;
-        const { data: syllabusData, error: syllabusError } = await supabase
-          .from('milestones_data')
+        // 2. Fetch Syllabus stages & lessons from DB
+        const { data: topics } = await supabase
+          .from('course_topics')
           .select('*')
-          .eq('id', targetCategory)
-          .maybeSingle();
+          .eq('course_id', courseIdToFetch)
+          .order('id', { ascending: true });
 
-        if (syllabusError) {
-          console.error("Error loading syllabus stages:", syllabusError.message);
-        } else if (syllabusData) {
-          setDbSyllabus(syllabusData);
+        const { data: lessons } = await supabase
+          .from('course_lessons')
+          .select('*')
+          .eq('course_id', courseIdToFetch)
+          .order('sort_order', { ascending: true });
+
+        if (topics && lessons) {
+          const stages = topics.map(topic => {
+            const subtopics = topic.subtopics || [];
+            return {
+              id: topic.id,
+              title: topic.title,
+              modules: subtopics.map((sub: any) => {
+                const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
+                return {
+                  id: sub.id,
+                  title: sub.title,
+                  duration: sub.durationHours || sub.duration || '5h',
+                  lessons: moduleLessons.map((l: any) => ({
+                    id: l.id,
+                    title: l.title,
+                    description: l.description,
+                    completed: false
+                  }))
+                };
+              })
+            };
+          });
+          setDbSyllabus({ id: courseIdToFetch, stages });
         } else {
-          // If no milestones record exists for this course, reset it to empty
           setDbSyllabus(null);
         }
 
@@ -196,7 +218,7 @@ export function CourseScreen() {
 
     fetchCourseAndSyllabus();
 
-    // Setup real-time updates for courses and milestones_data
+    // Setup real-time updates for courses, topics, and lessons
     const coursesChannel = supabase
       .channel('course_details_realtime')
       .on(
@@ -214,31 +236,46 @@ export function CourseScreen() {
       )
       .subscribe();
 
-    const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
-      ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
-      : courseIdToFetch;
-    const milestonesChannel = supabase
-      .channel('milestones_details_realtime')
+    const topicsChannel = supabase
+      .channel('course_topics_realtime')
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
-          table: 'milestones_data',
-          filter: `id=eq.${targetCategory}`
+          table: 'course_topics',
+          filter: `course_id=eq.${courseIdToFetch}`
         },
-        (payload) => {
-          console.log("Real-time milestones/syllabus update:", payload.new);
-          setDbSyllabus(payload.new);
+        () => {
+          console.log("Real-time course_topics update, reloading...");
+          fetchCourseAndSyllabus();
+        }
+      )
+      .subscribe();
+
+    const lessonsChannel = supabase
+      .channel('course_lessons_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'course_lessons',
+          filter: `course_id=eq.${courseIdToFetch}`
+        },
+        () => {
+          console.log("Real-time course_lessons update, reloading...");
+          fetchCourseAndSyllabus();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(coursesChannel);
-      supabase.removeChannel(milestonesChannel);
+      supabase.removeChannel(topicsChannel);
+      supabase.removeChannel(lessonsChannel);
     };
-  }, [courseIdToFetch, batchCategory]);
+  }, [courseIdToFetch]);
 
   const course = useMemo(() => {
     // If not loaded yet from Supabase, return a loading placeholder

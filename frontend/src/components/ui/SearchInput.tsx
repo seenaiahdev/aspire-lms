@@ -2,17 +2,19 @@ import { Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SearchInputProps {
+  id?: string;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
   className?: string;
 }
 
-export function SearchInput({ value, onChange, placeholder = 'Search...', className }: SearchInputProps) {
+export function SearchInput({ id, value, onChange, placeholder = 'Search...', className }: SearchInputProps) {
   return (
     <div className={cn('relative', className)}>
       <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-400" />
       <input
+        id={id}
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}

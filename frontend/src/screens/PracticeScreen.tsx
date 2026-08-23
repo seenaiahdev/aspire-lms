@@ -41,7 +41,7 @@ export function PracticeScreen() {
     const load = async () => {
       setLoading(true);
       try {
-        const courseId = user?.enrolled_courses?.[0]?.id;
+        const courseId = user?.enrolledCourses?.[0];
         const data = await fetchPracticeProblems(courseId);
         setProblems(data || []);
       } catch (err) {
@@ -87,7 +87,11 @@ export function PracticeScreen() {
     setProblems(updatedProblems);
   }, []);
 
-  const filtered = problems.filter(p => difficulty === 'all' || p.difficulty === difficulty);
+  const filtered = problems.filter(p => {
+    const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
+    const isUnlocked = user?.unlockedLessonIds?.includes(p.inner_topic_id);
+    return matchesDifficulty && isUnlocked;
+  });
   const solved = 0;
 
   return (

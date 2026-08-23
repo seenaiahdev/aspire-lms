@@ -18,8 +18,8 @@ export function ProgressScreen() {
     const loadData = async () => {
       setLoading(true);
       try {
-        if (currentUser?.enrolled_courses?.length > 0) {
-          const coursesData = await fetchCoursesByIds(currentUser.enrolled_courses);
+        if (currentUser?.enrolledCourses && currentUser.enrolledCourses.length > 0) {
+          const coursesData = await fetchCoursesByIds(currentUser.enrolledCourses);
           // Mock progress for now if not available in DB
           setEnrolled(coursesData.map(c => ({ ...c, progress: Math.floor(Math.random() * 60) + 40 })));
         } else {

@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal 
+  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -49,60 +49,158 @@ export function LearningScreen() {
   const [dbCourses, setDbCourses] = useState<any[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(true);
 
-  const [allMilestones, setAllMilestones] = useState<any[]>([]);
+  const [dbSyllabi, setDbSyllabi] = useState<Record<string, any>>({});
   const [syllabusLoading, setSyllabusLoading] = useState(true);
 
   const dbSyllabus = useMemo(() => {
-    const batchCategory = user.batchCategory || 'Weekday';
-    const targetCategory = batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack';
-    return allMilestones.find(m => m.id === targetCategory) || null;
-  }, [allMilestones, user.batchCategory]);
+    const firstCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
+    return dbSyllabi[firstCourseId] || null;
+  }, [dbSyllabi, user.enrolledCourses]);
 
   useEffect(() => {
-    async function loadSyllabus() {
+    async function loadSyllabi() {
       if (!user.enrolledCourses || user.enrolledCourses.length === 0) {
-        setAllMilestones([]);
+        setDbSyllabi({});
         setSyllabusLoading(false);
         return;
       }
       setSyllabusLoading(true);
       try {
-        const { data, error } = await supabase
-          .from('milestones_data')
-          .select('*');
+        const syllabiMap: Record<string, any> = {};
+        for (const courseId of user.enrolledCourses) {
+          const { data: topics } = await supabase
+            .from('course_topics')
+            .select('*')
+            .eq('course_id', courseId)
+            .order('id', { ascending: true });
 
-        if (error) {
-          console.error("Error fetching milestones:", error.message);
-        } else if (data) {
-          setAllMilestones(data);
+           const { data: lessons } = await supabase
+            .from('course_lessons')
+            .select('*')
+            .eq('course_id', courseId)
+            .order('sort_order', { ascending: true });
+
+          const { data: assessments } = await supabase
+            .from('assessments')
+            .select('id, topic_id, duration_minutes, title')
+            .eq('course_id', courseId);
+
+          const { data: codingQuestions } = await supabase
+            .from('coding_questions')
+            .select('id, inner_topic_id, title')
+            .eq('course_id', courseId);
+
+          const { data: projects } = await supabase
+            .from('projects')
+            .select('id, inner_topic_id, title, type, project_type')
+            .eq('course_id', courseId);
+
+          if (topics && lessons) {
+            const stages = topics.map(topic => {
+              const subtopics = topic.subtopics || [];
+              return {
+                id: topic.id,
+                title: topic.title,
+                modules: subtopics.map((sub: any) => {
+                  const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
+                  return {
+                    id: sub.id,
+                    title: sub.title,
+                    duration: sub.durationHours || sub.duration || '5h',
+                    lessons: moduleLessons.map((l: any, idx: number) => {
+                      const dbPractices = codingQuestions
+                        ? codingQuestions.filter((cq: any) => cq.inner_topic_id === l.id)
+                        : [];
+                      const dbAssessments = assessments
+                        ? assessments.filter((asmnt: any) => {
+                            const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
+                            return parts[2] === l.id;
+                          })
+                        : [];
+                      const dbProjects = projects
+                        ? projects.filter((p: any) => p.inner_topic_id === l.id)
+                        : [];
+
+                      return {
+                        id: l.id,
+                        title: l.title,
+                        description: l.description,
+                        completed: false,
+                        video: {
+                          preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
+                          duration: '45m',
+                          completed: false
+                        },
+                        practices: dbPractices.map((cq: any) => ({
+                          id: cq.id,
+                          title: cq.title,
+                          duration: '20m',
+                          completed: false
+                        })),
+                        assessments: dbAssessments.map((asmnt: any) => ({
+                          id: asmnt.id,
+                          title: asmnt.title,
+                          duration: `${asmnt.duration_minutes || 15}m`,
+                          completed: false
+                        })),
+                        projects: dbProjects.map((p: any) => ({
+                          id: p.id,
+                          title: p.title,
+                          type: p.project_type || p.type || 'mini',
+                          completed: false
+                        }))
+                      };
+                    })
+                  };
+                })
+              };
+            });
+            syllabiMap[courseId] = { id: courseId, stages };
+          }
         }
+        setDbSyllabi(syllabiMap);
       } catch (err) {
-        console.error("Exception loading milestones:", err);
+        console.error("Exception loading syllabi from DB:", err);
       } finally {
         setSyllabusLoading(false);
       }
     }
 
-    loadSyllabus();
+    loadSyllabi();
 
-    const milestonesChannel = supabase
-      .channel('milestones_road_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'milestones_data'
-        },
-        () => {
-          console.log("Real-time milestones update inside Milestones Roadmap, reloading...");
-          loadSyllabus();
-        }
-      )
-      .subscribe();
+    const channels: any[] = [];
+    if (user.enrolledCourses) {
+      for (const courseId of user.enrolledCourses) {
+        const topicsChan = supabase
+          .channel(`topics_${courseId}_realtime`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'course_topics', filter: `course_id=eq.${courseId}` },
+            () => {
+              console.log(`Real-time topics update for ${courseId}`);
+              loadSyllabi();
+            }
+          )
+          .subscribe();
+
+        const lessonsChan = supabase
+          .channel(`lessons_${courseId}_realtime`)
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'course_lessons', filter: `course_id=eq.${courseId}` },
+            () => {
+              console.log(`Real-time lessons update for ${courseId}`);
+              loadSyllabi();
+            }
+          )
+          .subscribe();
+
+        channels.push(topicsChan, lessonsChan);
+      }
+    }
 
     return () => {
-      supabase.removeChannel(milestonesChannel);
+      channels.forEach(ch => supabase.removeChannel(ch));
     };
   }, [user.enrolledCourses]);
 
@@ -194,13 +292,8 @@ export function LearningScreen() {
         categoryLabel = 'LinkedIn';
       }
 
-      const batchCategory = user.batchCategory || 'Weekday';
-      const targetCategory = course.id === 'crs-1786624019154-w'
-        ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
-        : course.id;
-
-      const courseMilestone = allMilestones.find(m => m.id === targetCategory);
-      const stages = courseMilestone?.stages || [];
+      const courseSyllabus = dbSyllabi[course.id];
+      const stages = courseSyllabus?.stages || [];
       const lessonsCount = stages.reduce((acc: number, stage: any) => 
         acc + (stage.modules?.reduce((mAcc: number, m: any) => mAcc + (m.lessons?.length || 0), 0) || 0)
       , 0);
@@ -245,7 +338,7 @@ export function LearningScreen() {
         targetRoute: 'course'
       };
     });
-  }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses, allMilestones, user.batchCategory]);
+  }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses, dbSyllabi]);
 
   const filteredItems = useMemo(() => {
     return learningItems.filter((item) => {
@@ -338,8 +431,13 @@ export function LearningScreen() {
               <div className="relative pl-12 space-y-8">
                 
                 {curriculumRoadmap.stages?.map((stage: any, stageIdx: number) => {
-                  const isLocked = stageIdx > 0;
-                  const isCurrent = stageIdx === 0;
+                  const isLocked = !stage.modules?.some((m: any) => 
+                    m.lessons?.some((l: any) => user?.unlockedLessonIds?.includes(l.id))
+                  );
+                  const firstUnlockedStageIdx = curriculumRoadmap.stages?.findIndex((s: any) => 
+                    s.modules?.some((m: any) => m.lessons?.some((l: any) => user?.unlockedLessonIds?.includes(l.id)))
+                  );
+                  const isCurrent = (firstUnlockedStageIdx === -1) ? (stageIdx === 0) : (stageIdx === firstUnlockedStageIdx);
 
                   return (
                     <div key={stage.id} className={cn("relative group", isLocked && "opacity-70")}>
@@ -418,8 +516,7 @@ export function LearningScreen() {
                               const assessments = mod.lessons?.filter((l: any) => !!l.assessment).length || 0;
                               const coding = 0; // We merged coding into practices for now
 
-                              // A module is locked if any previous module has incomplete lessons
-                              const isModLocked = modIdx > 0 && stage.modules.slice(0, modIdx).some((prevMod: any) => prevMod.lessons?.some((l: any) => !l.completed));
+                              const isModLocked = !mod.lessons?.some((l: any) => user?.unlockedLessonIds?.includes(l.id));
 
                               return (
                                 <button
@@ -732,7 +829,7 @@ export function LearningScreen() {
 
                 <div className="space-y-3">
                   {mod.lessons?.map((lesson: any, idx: number) => {
-                    const isLessonLocked = idx > 0 && mod.lessons.slice(0, idx).some((l: any) => !l.completed);
+                    const isLessonLocked = !user?.unlockedLessonIds?.includes(lesson.id);
                     const isExpanded = activeAccordion === lesson.id;
 
                     return (
@@ -791,61 +888,90 @@ export function LearningScreen() {
                               </div>
                             )}
 
-                            {/* PRACTICE ITEM */}
-                            {lesson.practice && (
-                              <div className={cn("p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3", !lesson.video?.completed ? "opacity-60" : "hover:shadow-md hover:border-purple-200")}>
-                                <div className="flex items-start gap-3">
-                                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm", !lesson.video?.completed ? "bg-slate-200 text-slate-400" : "bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-amber-500/20")}>
-                                    {!lesson.video?.completed ? <Lock className="w-4 h-4" /> : <Code2 className="w-4 h-4" />}
-                                  </div>
-                                  <div>
-                                    <span className={cn("text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border", !lesson.video?.completed ? "text-slate-500 bg-slate-100 border-slate-200" : "text-amber-600 bg-amber-50 border-amber-100")}>
-                                      PRACTICAL LAB
-                                    </span>
-                                    <h4 className={cn("font-bold text-sm mt-1 leading-tight", !lesson.video?.completed ? "text-slate-500" : "text-slate-900")}>{lesson.title} Practice</h4>
-                                    <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
-                                      <Clock className="w-3 h-3" /> {lesson.practice.duration}
-                                    </span>
-                                  </div>
-                                </div>
-                                <button 
-                                  disabled={!lesson.video?.completed}
-                                  onClick={() => { setSelectedTopicDrawer(null); navigate('practice'); }} 
-                                  className={cn("px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all", !lesson.video?.completed ? "bg-slate-100 text-slate-400 shadow-none" : "bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95")}
-                                >
-                                  <span>{!lesson.video?.completed ? 'LOCKED' : 'SOLVE'}</span>
-                                  {!lesson.video?.completed ? <Lock className="w-3 h-3"/> : <ExternalLink className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            )}
+                             {/* PRACTICE ITEMS */}
+                             {lesson.practices && lesson.practices.map((practice: any) => (
+                               <div key={practice.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                                 <div className="flex items-start gap-3">
+                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-amber-500/20">
+                                     <Code2 className="w-4 h-4" />
+                                   </div>
+                                   <div>
+                                     <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-amber-600 bg-amber-50 border-amber-100">
+                                       PRACTICAL LAB
+                                     </span>
+                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{practice.title}</h4>
+                                     <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                       <Clock className="w-3 h-3" /> {practice.duration}
+                                     </span>
+                                   </div>
+                                 </div>
+                                 <button 
+                                   onClick={() => { setSelectedTopicDrawer(null); navigate('practice'); }} 
+                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95"
+                                 >
+                                   <span>SOLVE</span>
+                                   <ExternalLink className="w-3 h-3" />
+                                 </button>
+                               </div>
+                             ))}
 
-                            {/* ASSESSMENT ITEM */}
-                            {lesson.assessment && (
-                              <div className={cn("p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "opacity-60" : "hover:shadow-md hover:border-purple-200")}>
-                                <div className="flex items-start gap-3">
-                                  <div className={cn("w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "bg-slate-200 text-slate-400" : "bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-primary-500/20")}>
-                                    {!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? <Lock className="w-4 h-4" /> : <ClipboardCheck className="w-4 h-4" />}
-                                  </div>
-                                  <div>
-                                    <span className={cn("text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "text-slate-500 bg-slate-100 border-slate-200" : "text-primary-600 bg-primary-50 border-primary-100")}>
-                                      ASSESSMENT
-                                    </span>
-                                    <h4 className={cn("font-bold text-sm mt-1 leading-tight", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "text-slate-500" : "text-slate-900")}>{lesson.title} Quiz</h4>
-                                    <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
-                                      <Clock className="w-3 h-3" /> {lesson.assessment.duration}
-                                    </span>
-                                  </div>
+                             {/* ASSESSMENT ITEMS */}
+                             {lesson.assessments && lesson.assessments.map((assessment: any) => (
+                               <div key={assessment.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                                 <div className="flex items-start gap-3">
+                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-primary-500/20">
+                                     <ClipboardCheck className="w-4 h-4" />
+                                   </div>
+                                   <div>
+                                     <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-primary-600 bg-primary-50 border-primary-100">
+                                       ASSESSMENT
+                                     </span>
+                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{assessment.title}</h4>
+                                     <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                       <Clock className="w-3 h-3" /> {assessment.duration}
+                                     </span>
+                                   </div>
+                                 </div>
+                                 <button 
+                                   onClick={() => { setSelectedTopicDrawer(null); navigate('assignments'); }} 
+                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95"
+                                 >
+                                   <span>TAKE</span>
+                                   <ExternalLink className="w-3 h-3" />
+                                 </button>
+                               </div>
+                             ))}
+
+                             {/* PROJECT ITEMS */}
+                             {lesson.projects && lesson.projects.map((proj: any) => (
+                               <div key={proj.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                                 <div className="flex items-start gap-3">
+                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-emerald-500/20">
+                                     <FolderOpen className="w-4 h-4" />
+                                   </div>
+                                   <div>
+                                     <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-emerald-600 bg-emerald-50 border-emerald-100">
+                                       PROJECT
+                                     </span>
+                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{proj.title}</h4>
+                                     <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                       <Clock className="w-3 h-3" /> Submission Required
+                                     </span>
+                                   </div>
+                                 </div>
+                                 <button 
+                                   onClick={() => {
+                                     setSelectedTopicDrawer(null);
+                                     const pType = (proj.type || 'mini').toLowerCase();
+                                     navigate('projects', { tab: pType, id: proj.id });
+                                   }} 
+                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20 active:scale-95"
+                                 >
+                                   <span>VIEW</span>
+                                   <ExternalLink className="w-3 h-3" />
+                                 </button>
                                 </div>
-                                <button 
-                                  disabled={!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice))}
-                                  onClick={() => { setSelectedTopicDrawer(null); navigate('assignments'); }} 
-                                  className={cn("px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all", !(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? "bg-slate-100 text-slate-400 shadow-none" : "bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95")}
-                                >
-                                  <span>{!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? 'LOCKED' : 'TAKE'}</span>
-                                  {!(lesson.practice?.completed || (lesson.video?.completed && !lesson.practice)) ? <Lock className="w-3 h-3"/> : <ExternalLink className="w-3 h-3" />}
-                                </button>
-                              </div>
-                            )}
+                             ))}
                           </div>
                         )}
                       </div>

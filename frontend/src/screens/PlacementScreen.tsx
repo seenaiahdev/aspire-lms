@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Sparkles, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock
+  Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Sparkles, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock, ExternalLink
 } from 'lucide-react';
-import { fetchJobs } from '@/lib/api';
+import { fetchJobs, fetchPlacementResources } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Toast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
+import { supabase } from '@/lib/supabase';
 
 import { placementSteps } from '@/lib/tourSteps';
 
@@ -135,30 +136,61 @@ function TechStackSvg({ name, className = "w-4 h-4" }: { name: string; className
 
 export function PlacementScreen() {
   const { user } = useUser();
-  const [activeFilter, setActiveFilter] = useState<'open' | 'applied' | 'closed' | 'all'>('open');
+  const [activeFilter, setActiveFilter] = useState<'open' | 'applied' | 'closed' | 'all' | 'prep'>('open');
   const [searchQuery, setSearchQuery] = useState('');
   const [jobsList, setJobsList] = useState<any[]>([]);
+  const [prepList, setPrepList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedJob, setSelectedJob] = useState<any | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lockedToast, setLockedToast] = useState(false);
 
   useEffect(() => {
-    const loadJobs = async () => {
+    const loadJobsAndResources = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchJobs(user?.batchCategory || 'Weekday');
-        setJobsList(data);
+        const jobsData = await fetchJobs(user?.batchCategory || 'Weekday', user?.batchCode || '');
+        setJobsList(jobsData);
+        
+        const prepData = await fetchPlacementResources();
+        setPrepList(prepData || []);
       } catch (err) {
         console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
+
     if (user?.batchCategory) {
-      loadJobs();
+      loadJobsAndResources();
     }
-  }, [user?.batchCategory]);
+
+    // Real-time subscription for placement prep resources table
+    const prepChannel = supabase
+      .channel('placement_resources_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'placement_resources'
+        },
+        async () => {
+          console.log("Real-time placement prep resources updated, reloading...");
+          try {
+            const prepData = await fetchPlacementResources();
+            setPrepList(prepData || []);
+          } catch (err) {
+            console.error(err);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(prepChannel);
+    };
+  }, [user?.batchCategory, user?.batchCode]);
 
   const totalCount = jobsList.length;
   const appliedCount = jobsList.filter((j) => j.status === 'applied').length;
@@ -172,6 +204,14 @@ export function PlacementScreen() {
       j.company.toLowerCase().includes(searchQuery.toLowerCase()) ||
       j.location.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesFilter && matchesSearch;
+  });
+
+  const filteredPrep = prepList.filter((r) => {
+    return (
+      r.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      r.snippet.toLowerCase().includes(searchQuery.toLowerCase())
+    );
   });
 
   const handleApplyJob = (jobId: string) => {
@@ -277,6 +317,7 @@ export function PlacementScreen() {
             { id: 'applied', label: `Applied Jobs (${appliedCount})` },
             { id: 'closed', label: `Closed Jobs (${closedCount})` },
             { id: 'all', label: `All Jobs (${totalCount})` },
+            { id: 'prep', label: `Prep Resources (${prepList.length})` },
           ]}
           active={activeFilter}
           onChange={(id) => setActiveFilter(id as any)}
@@ -290,52 +331,101 @@ export function PlacementScreen() {
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
           </div>
+        ) : activeFilter === 'prep' ? (
+          filteredPrep.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+              {filteredPrep.map((res) => (
+                <Card key={res.id} className="p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm flex flex-col justify-between h-full hover:border-[#7c3aed]/40 hover:shadow-md transition-all duration-300">
+                  <div>
+                    <div className="flex justify-between items-start mb-3">
+                      <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider border border-purple-100">
+                        {res.category}
+                      </span>
+                      <span className="text-xs font-bold text-slate-400">{res.read_time}</span>
+                    </div>
+                    <h3 className="text-lg font-extrabold text-slate-900 mb-2 leading-snug">{res.title}</h3>
+                    <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">{res.snippet}</p>
+                  </div>
+                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-400">By {res.author}</span>
+                    {res.link_url && (
+                      <a href={res.link_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-extrabold text-[#7c3aed] hover:text-[#6d28d9] transition-colors">
+                        <span>Open Link</span>
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <div className="p-12 text-center bg-white rounded-[2rem] border border-slate-200 space-y-2">
+              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200">
+                <Briefcase className="w-8 h-8 text-slate-400" />
+              </div>
+              <h3 className="font-extrabold text-slate-800 text-base">No prep resources found</h3>
+              <p className="text-xs font-medium text-slate-500">There are no prep resources matching your search query.</p>
+            </div>
+          )
         ) : filteredJobs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
             {filteredJobs.map((job, index) => {
-              const isOpen = job.status === 'open';
-              const isApplied = job.status === 'applied';
-              const isClosed = job.status === 'closed';
+               const isLocked = job.isLocked;
+               const isOpen = job.status === 'open';
+               const isApplied = job.status === 'applied';
+               const isClosed = job.status === 'closed';
 
-              return (
-                <Card
-                  key={job.id}
-                  id={index === 0 ? 'tour-placement-card-0' : undefined}
-                  className="group p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm flex flex-col justify-between h-full cursor-pointer hover:border-slate-350 hover:shadow-md transition-all duration-300"
-                  onClick={() => {
-                    setSelectedJob(job);
-                  }}
-                >
-                  {/* Top: Logo (Hover), Company, Status */}
-                  <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <div className="flex flex-col">
-                        <div className="h-0 opacity-0 overflow-hidden group-hover:h-8 group-hover:opacity-100 group-hover:mb-2 transition-all duration-300">
-                          <img
-                            src={job.logo}
-                            alt={job.company}
-                            className="h-8 object-contain rounded-md"
-                          />
-                        </div>
-                        <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{job.company}</span>
-                      </div>
-                      
-                      {isOpen && (
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider border border-emerald-100">
-                          Apply Now
-                        </span>
-                      )}
-                      {isApplied && (
-                        <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider border border-purple-100">
-                          Applied
-                        </span>
-                      )}
-                      {isClosed && (
-                        <span className="px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-wider border border-rose-100">
-                          Closed
-                        </span>
-                      )}
-                    </div>
+               return (
+                 <Card
+                   key={job.id}
+                   id={index === 0 ? 'tour-placement-card-0' : undefined}
+                   className={cn(
+                     "group p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm flex flex-col justify-between h-full cursor-pointer hover:shadow-md transition-all duration-300",
+                     isLocked 
+                       ? "opacity-90 grayscale-[20%] border-slate-200/60 bg-slate-50/50 cursor-not-allowed"
+                       : "hover:border-slate-350 hover:bg-white"
+                   )}
+                   onClick={() => {
+                     if (isLocked) {
+                       setLockedToast(true);
+                       setTimeout(() => setLockedToast(false), 3000);
+                     } else {
+                       setSelectedJob(job);
+                     }
+                   }}
+                 >
+                   {/* Top: Logo (Hover), Company, Status */}
+                   <div>
+                     <div className="flex justify-between items-start mb-3">
+                       <div className="flex flex-col">
+                         <div className="h-0 opacity-0 overflow-hidden group-hover:h-8 group-hover:opacity-100 group-hover:mb-2 transition-all duration-300">
+                           <img
+                             src={job.logo}
+                             alt={job.company}
+                             className="h-8 object-contain rounded-md"
+                           />
+                         </div>
+                         <span className="text-xs font-black text-slate-400 uppercase tracking-wider">{job.company}</span>
+                       </div>
+                       
+                       {isLocked ? (
+                         <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider border border-slate-200 flex items-center gap-1">
+                           <Lock className="w-3 h-3" /> Locked
+                         </span>
+                       ) : isOpen ? (
+                         <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-wider border border-emerald-100">
+                           Apply Now
+                         </span>
+                       ) : isApplied ? (
+                         <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider border border-purple-100">
+                           Applied
+                         </span>
+                       ) : (
+                         <span className="px-2.5 py-1 rounded-full bg-rose-50 text-rose-600 text-[10px] font-black uppercase tracking-wider border border-rose-100">
+                           Closed
+                         </span>
+                       )}
+                     </div>
 
                     <h3 className="text-lg sm:text-xl font-extrabold text-slate-900 group-hover:text-[#7c3aed] mb-5 leading-snug transition-colors">
                       {job.role}

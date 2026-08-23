@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2 } from 'lucide-react';
-import { fetchDailySchedules } from '@/lib/api';
+import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
@@ -75,8 +75,78 @@ export function ScheduleScreen() {
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   
   const [apiTasks, setApiTasks] = useState<any[]>([]);
+  const [unlockedExtraEvents, setUnlockedExtraEvents] = useState<any[]>([]);
   const [localTasks, setLocalTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    async function loadUnlockedExtraEvents() {
+      if (!user) return;
+      try {
+        const courseId = user.enrolledCourses?.[0];
+        
+        // 1. Unlocked assessments
+        const assessmentsData = await fetchAssignments(user.batchCode || '', user.batchCategory);
+        const unlockedAssessments = assessmentsData.filter(t => {
+          const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
+          return user.unlockedLessonIds?.includes(lessonId);
+        });
+
+        // 2. Unlocked projects
+        const projectsData = await fetchProjects(user.batchCode || '', user.batchCategory);
+        const unlockedProjects = projectsData.filter(p => user.unlockedLessonIds?.includes(p.inner_topic_id));
+
+        // 3. Unlocked coding problems
+        const codingData = await fetchPracticeProblems(courseId);
+        const unlockedCoding = codingData.filter(p => user.unlockedLessonIds?.includes(p.inner_topic_id));
+
+        const extra: any[] = [];
+        unlockedAssessments.forEach(asmnt => {
+          extra.push({
+            id: asmnt.id,
+            title: asmnt.title,
+            type: 'assignment',
+            date: asmnt.dueDate || getDateKey(today),
+            dateKey: asmnt.dueDate || getDateKey(today),
+            time: '11:59 PM',
+            course: asmnt.category || 'Python Programming',
+            completed: asmnt.status === 'completed'
+          });
+        });
+
+        unlockedProjects.forEach(proj => {
+          extra.push({
+            id: proj.id,
+            title: proj.title,
+            type: 'project',
+            date: proj.due_date || getDateKey(today),
+            dateKey: proj.due_date || getDateKey(today),
+            time: '11:59 PM',
+            course: proj.course || 'Python Programming',
+            completed: proj.status === 'submitted' || proj.status === 'feedback'
+          });
+        });
+
+        unlockedCoding.forEach(p => {
+          extra.push({
+            id: p.id,
+            title: p.title,
+            type: 'practice',
+            date: p.created_date || getDateKey(today),
+            dateKey: p.created_date || getDateKey(today),
+            time: 'Anytime',
+            course: 'Practice Lab',
+            completed: p.solved
+          });
+        });
+
+        setUnlockedExtraEvents(extra);
+      } catch (err) {
+        console.error("Error loading extra events:", err);
+      }
+    }
+    loadUnlockedExtraEvents();
+  }, [user]);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -108,7 +178,7 @@ export function ScheduleScreen() {
     }
   }, [selectedDate, user?.batchCode]);
 
-  const items = [...apiTasks, ...localTasks];
+  const items = [...apiTasks, ...unlockedExtraEvents, ...localTasks];
   const [showAddTask, setShowAddTask] = useState(false);
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);

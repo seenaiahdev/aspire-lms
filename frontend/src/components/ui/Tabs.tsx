@@ -9,6 +9,7 @@ interface Tab {
 }
 
 interface TabsProps {
+  id?: string;
   tabs: Tab[];
   active: string;
   onChange: (id: string) => void;
@@ -16,10 +17,10 @@ interface TabsProps {
   className?: string;
 }
 
-export function Tabs({ tabs, active, onChange, variant = 'default', className }: TabsProps) {
+export function Tabs({ id, tabs, active, onChange, variant = 'default', className }: TabsProps) {
   if (variant === 'pills') {
     return (
-      <div className={cn('flex gap-2 overflow-x-auto scrollbar-hide', className)}>
+      <div id={id} className={cn('flex gap-2 overflow-x-auto scrollbar-hide', className)}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -49,7 +50,7 @@ export function Tabs({ tabs, active, onChange, variant = 'default', className }:
 
   if (variant === 'underline') {
     return (
-      <div className={cn('flex gap-1 border-b border-slate-200 overflow-x-auto scrollbar-hide', className)}>
+      <div id={id} className={cn('flex gap-1 border-b border-slate-200 overflow-x-auto scrollbar-hide', className)}>
         {tabs.map((tab) => (
           <button
             key={tab.id}
@@ -75,7 +76,7 @@ export function Tabs({ tabs, active, onChange, variant = 'default', className }:
   }
 
   return (
-    <div className={cn('flex p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 overflow-x-auto scrollbar-hide', className)}>
+    <div id={id} className={cn('flex p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 overflow-x-auto scrollbar-hide', className)}>
       {tabs.map((tab) => (
         <button
           key={tab.id}

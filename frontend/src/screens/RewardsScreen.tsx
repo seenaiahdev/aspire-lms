@@ -10,6 +10,7 @@ import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchRewards } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 
 import { rewardsSteps } from '@/lib/tourSteps';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
@@ -25,6 +26,7 @@ export interface SwagReward {
   isUnlocked: boolean; // Unlocked item is the Bag
   productImage: string;
   tag: string;
+  isLocked?: boolean;
 }
 
 function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: number }) {
@@ -84,13 +86,35 @@ export function RewardsScreen() {
     const loadRewards = async () => {
       try {
         const data = await fetchRewards();
-        const enhanced = data.map((item: any) => ({
-          ...item,
-          currentXp: userXp,
-          isUnlocked: userXp >= item.requiredXp,
-          tag: userXp >= item.requiredXp ? 'UNLOCKED' : 'LOCKED'
-        }));
-        setRewardsState(enhanced);
+        const enhanced = data.map((item: any) => {
+          const reqXp = item.reward_required_xp_points ?? item.requiredXp ?? 0;
+          let imgUrl = item.reward_image_url || item.productImage || '';
+          
+          if (imgUrl.includes('/rewards/')) {
+            if (imgUrl.includes('mug')) imgUrl = '/rewards/mug.png';
+            else if (imgUrl.includes('notebook')) imgUrl = '/rewards/notebook.png';
+            else if (imgUrl.includes('backpack')) imgUrl = '/rewards/backpack.png';
+            else if (imgUrl.includes('stickers')) imgUrl = '/rewards/stickers.png';
+            else if (imgUrl.includes('tshirt')) imgUrl = '/rewards/tshirt.png';
+            else if (imgUrl.includes('bottle') || imgUrl.includes('flask')) imgUrl = '/rewards/bottle.jpg';
+          }
+
+          return {
+            id: item.id,
+            name: item.reward_title || item.name || '',
+            category: item.category || 'General',
+            description: item.description || '',
+            currentXp: userXp,
+            requiredXp: reqXp,
+            isUnlocked: userXp >= reqXp,
+            productImage: imgUrl,
+            tag: userXp >= reqXp ? 'UNLOCKED' : 'LOCKED',
+            isLocked: item.is_locked ?? false
+          };
+        });
+        const visible = enhanced.filter((item: any) => !item.isLocked);
+        visible.sort((a, b) => a.requiredXp - b.requiredXp);
+        setRewardsState(visible);
       } catch (error) {
         console.error('Failed to fetch rewards:', error);
       } finally {
@@ -98,6 +122,27 @@ export function RewardsScreen() {
       }
     };
     loadRewards();
+
+    // Set up real-time subscription for rewards table
+    const channel = supabase
+      .channel('rewards_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'rewards'
+        },
+        () => {
+          console.log("Real-time rewards table updated, reloading list...");
+          loadRewards();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [userXp]);
 
   const unlockedCount = rewardsState.filter(r => r.isUnlocked).length;

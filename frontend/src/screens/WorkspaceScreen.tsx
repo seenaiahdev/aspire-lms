@@ -2,11 +2,12 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   ArrowLeft, CheckCircle2, Upload, FolderOpen,
   ExternalLink, AlertCircle, BookOpen, ChevronLeft, ChevronRight,
-  MonitorSmartphone, Eye, Lock, FileText,
+  MonitorSmartphone, Eye, Lock, FileText, Loader2
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
+import { supabase } from '@/lib/supabase';
 
 // ── Problem config ────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ interface ProblemConfig {
   category: string;
   description: string;
   examples: { input: string; output: string; explanation?: string }[];
+  starterCode?: string;
 }
 
 const PROBLEM_CONFIGS: Record<string, ProblemConfig> = {
@@ -94,8 +96,12 @@ function formatBytes(bytes: number): string {
 export function WorkspaceScreen() {
   const { navigate, params } = useNav();
 
-  const problemId = (params.id && PROBLEM_CONFIGS[params.id]) ? params.id : 'pp1';
-  const problemConfig = PROBLEM_CONFIGS[problemId] || PROBLEM_CONFIGS['pp1'];
+  const [problemConfig, setProblemConfig] = useState<ProblemConfig>(() => {
+    const defaultId = params.id && PROBLEM_CONFIGS[params.id] ? params.id : 'pp1';
+    return PROBLEM_CONFIGS[defaultId] || PROBLEM_CONFIGS['pp1'];
+  });
+  const [loadingProblem, setLoadingProblem] = useState(false);
+  const problemId = problemConfig.id;
   const isReviewMode = params.mode === 'review';
 
   const [isPanelOpen, setIsPanelOpen] = useState(true);
@@ -114,6 +120,50 @@ export function WorkspaceScreen() {
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Dynamically load coding question from database if not hardcoded
+  useEffect(() => {
+    const fetchDbProblem = async () => {
+      if (!params.id) return;
+      if (PROBLEM_CONFIGS[params.id]) {
+        setProblemConfig(PROBLEM_CONFIGS[params.id]);
+        return;
+      }
+
+      setLoadingProblem(true);
+      try {
+        const { data, error } = await supabase
+          .from('coding_questions')
+          .select('*')
+          .eq('id', params.id)
+          .maybeSingle();
+
+        if (data) {
+          const mapped: ProblemConfig = {
+            id: data.id,
+            title: data.title || 'Untitled Problem',
+            difficulty: (data.difficulty as any) || 'Easy',
+            category: data.category || 'Basics',
+            problem_statement: data.problem_statement || data.description || '',
+            description: data.problem_statement || data.description || '',
+            examples: Array.isArray(data.test_cases) ? data.test_cases.map((tc: any) => ({
+              input: typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input || ''),
+              output: typeof tc.output === 'object' ? JSON.stringify(tc.output) : String(tc.output || ''),
+              explanation: tc.explanation || undefined
+            })) : [],
+            starterCode: data.starter_code || ''
+          } as any;
+          setProblemConfig(mapped);
+        }
+      } catch (err) {
+        console.error("Failed to load dynamic coding question:", err);
+      } finally {
+        setLoadingProblem(false);
+      }
+    };
+
+    fetchDbProblem();
+  }, [params.id]);
 
   // On mount: load submitted data
   useEffect(() => {
@@ -292,15 +342,28 @@ export function WorkspaceScreen() {
 
         <div className="space-y-4">
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Examples</h3>
-          {problemConfig.examples.map((ex, idx) => (
-            <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-1.5 font-mono text-xs">
-              <p className="font-bold text-slate-500 text-[10px] uppercase">Example {idx + 1}:</p>
-              <p><span className="text-[#7c3aed] font-bold">Input:</span> {ex.input}</p>
-              <p><span className="text-emerald-600 font-bold">Output:</span> {ex.output}</p>
-              {ex.explanation && <p className="text-slate-500 text-[11px] font-sans mt-1">{ex.explanation}</p>}
-            </div>
-          ))}
+          {problemConfig.examples && problemConfig.examples.length > 0 ? (
+            problemConfig.examples.map((ex, idx) => (
+              <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-1.5 font-mono text-xs">
+                <p className="font-bold text-slate-500 text-[10px] uppercase">Example {idx + 1}:</p>
+                <p><span className="text-[#7c3aed] font-bold">Input:</span> {ex.input}</p>
+                <p><span className="text-emerald-600 font-bold">Output:</span> {ex.output}</p>
+                {ex.explanation && <p className="text-slate-500 text-[11px] font-sans mt-1">{ex.explanation}</p>}
+              </div>
+            ))
+          ) : (
+            <p className="text-xs text-slate-400 italic">No example cases provided.</p>
+          )}
         </div>
+
+        {problemConfig.starterCode && (
+          <div className="space-y-2">
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Starter Code</h3>
+            <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto whitespace-pre-wrap select-all cursor-pointer">
+              {problemConfig.starterCode}
+            </pre>
+          </div>
+        )}
 
         {!isReviewMode && (
           <div className="p-4 rounded-xl bg-primary-500/10 border border-primary-500/30">
@@ -317,6 +380,17 @@ export function WorkspaceScreen() {
       </div>
     </div>
   );
+
+  if (loadingProblem) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-slate-50">
+        <div className="text-center">
+          <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
+          <h3 className="font-extrabold text-slate-900 text-lg">Loading coding workspace...</h3>
+        </div>
+      </div>
+    );
+  }
 
   // ── Right Panel: REVIEW MODE ────────────────────────────────────────────────
   //  Shows the submitted file structure directly (embedded inline)

@@ -17,6 +17,7 @@ import { useUser } from '@/lib/UserContext';
 import { supabase } from '@/lib/supabase';
 
 function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, onToggle }: any) {
+  const { user } = useUser();
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
   const completedCount = Math.round((allLessons.length * (course.progress || 0)) / 100);
 
@@ -39,7 +40,7 @@ function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, 
             const isPreview = lesson.video?.preview || lesson.preview;
             const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
             const isCompleted = lesson.completed || (globalIdx < completedCount && globalIdx !== -1);
-            const isLocked = (globalIdx > completedCount) && !isPreview && !isCompleted && !isCurrent;
+            const isLocked = !user?.unlockedLessonIds?.includes(lesson.id);
             return (
               <button
                 key={lesson.id}
@@ -118,7 +119,7 @@ export function LessonScreen() {
   const [dbSyllabus, setDbSyllabus] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
-  const courseIdToFetch = params.id || (user.enrolled_courses && user.enrolled_courses[0]) || 'crs-1786624019154-w';
+  const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
   const batchCategory = user.batchCategory || 'Weekday';
 
   useEffect(() => {
@@ -138,20 +139,96 @@ export function LessonScreen() {
           setDbCourse(courseData);
         }
 
-        // 2. Fetch Syllabus (milestones_data) from DB
-        const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
-          ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
-          : courseIdToFetch;
-        const { data: syllabusData, error: syllabusError } = await supabase
-          .from('milestones_data')
+        // 2. Fetch Syllabus stages & lessons from DB
+        const { data: topics } = await supabase
+          .from('course_topics')
           .select('*')
-          .eq('id', targetCategory)
-          .maybeSingle();
+          .eq('course_id', courseIdToFetch)
+          .order('id', { ascending: true });
 
-        if (syllabusError) {
-          console.error("Error loading syllabus stages:", syllabusError.message);
-        } else if (syllabusData) {
-          setDbSyllabus(syllabusData);
+        const { data: lessons } = await supabase
+          .from('course_lessons')
+          .select('*')
+          .eq('course_id', courseIdToFetch)
+          .order('sort_order', { ascending: true });
+
+        const { data: assessments } = await supabase
+          .from('assessments')
+          .select('id, topic_id, duration_minutes, title')
+          .eq('course_id', courseIdToFetch);
+
+        const { data: codingQuestions } = await supabase
+          .from('coding_questions')
+          .select('id, inner_topic_id, title')
+          .eq('course_id', courseIdToFetch);
+
+        const { data: projects } = await supabase
+          .from('projects')
+          .select('id, inner_topic_id, title')
+          .eq('course_id', courseIdToFetch);
+
+        if (topics && lessons) {
+          const stages = topics.map(topic => {
+            const subtopics = topic.subtopics || [];
+            return {
+              id: topic.id,
+              title: topic.title,
+              modules: subtopics.map((sub: any) => {
+                const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
+                return {
+                  id: sub.id,
+                  title: sub.title,
+                  duration: sub.durationHours || sub.duration || '5h',
+                  lessons: moduleLessons.map((l: any, idx: number) => {
+                    const dbPractices = codingQuestions
+                      ? codingQuestions.filter((cq: any) => cq.inner_topic_id === l.id)
+                      : [];
+                    const dbAssessments = assessments
+                      ? assessments.filter((asmnt: any) => {
+                          const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
+                          return parts[2] === l.id;
+                        })
+                      : [];
+                    const dbProjects = projects
+                      ? projects.filter((p: any) => p.inner_topic_id === l.id)
+                      : [];
+
+                    return {
+                      id: l.id,
+                      title: l.title,
+                      description: l.description,
+                      completed: false,
+                      video: {
+                        preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
+                        duration: '45m',
+                        completed: false
+                      },
+                      practices: dbPractices.map((cq: any) => ({
+                        id: cq.id,
+                        title: cq.title,
+                        duration: '20m',
+                        completed: false
+                      })),
+                      assessments: dbAssessments.map((asmnt: any) => ({
+                        id: asmnt.id,
+                        title: asmnt.title,
+                        duration: `${asmnt.duration_minutes || 15}m`,
+                        completed: false
+                      })),
+                      projects: dbProjects.map((p: any) => ({
+                        id: p.id,
+                        title: p.title,
+                        completed: false
+                      }))
+                    };
+                  })
+                };
+              })
+            };
+          });
+          setDbSyllabus({ id: courseIdToFetch, stages });
+        } else {
+          setDbSyllabus(null);
         }
       } catch (err) {
         console.error("Exception loading course details:", err);
@@ -162,7 +239,7 @@ export function LessonScreen() {
 
     fetchCourseAndSyllabus();
 
-    // Setup real-time updates for courses and milestones_data
+    // Setup real-time updates for courses, topics, and lessons
     const coursesChannel = supabase
       .channel('lesson_course_details_realtime')
       .on(
@@ -171,7 +248,7 @@ export function LessonScreen() {
           event: 'UPDATE',
           schema: 'public',
           table: 'courses',
-          filter: `id=eq.${params.id || 'PYAI2026'}`
+          filter: `id=eq.${courseIdToFetch}`
         },
         (payload) => {
           console.log("Real-time course detail update inside Lesson Player:", payload.new);
@@ -180,31 +257,46 @@ export function LessonScreen() {
       )
       .subscribe();
 
-    const targetCategory = courseIdToFetch === 'crs-1786624019154-w'
-      ? (batchCategory === 'Weekend' ? 'ml-python-weekend' : 'ml-python-full-stack')
-      : courseIdToFetch;
-    const milestonesChannel = supabase
-      .channel('lesson_milestones_details_realtime')
+    const topicsChannel = supabase
+      .channel('lesson_course_topics_realtime')
       .on(
         'postgres_changes',
         {
-          event: 'UPDATE',
+          event: '*',
           schema: 'public',
-          table: 'milestones_data',
-          filter: `id=eq.${targetCategory}`
+          table: 'course_topics',
+          filter: `course_id=eq.${courseIdToFetch}`
         },
-        (payload) => {
-          console.log("Real-time milestones/syllabus update inside Lesson Player:", payload.new);
-          setDbSyllabus(payload.new);
+        () => {
+          console.log("Real-time course_topics update inside Lesson Player, reloading...");
+          fetchCourseAndSyllabus();
+        }
+      )
+      .subscribe();
+
+    const lessonsChannel = supabase
+      .channel('lesson_course_lessons_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'course_lessons',
+          filter: `course_id=eq.${courseIdToFetch}`
+        },
+        () => {
+          console.log("Real-time course_lessons update inside Lesson Player, reloading...");
+          fetchCourseAndSyllabus();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(coursesChannel);
-      supabase.removeChannel(milestonesChannel);
+      supabase.removeChannel(topicsChannel);
+      supabase.removeChannel(lessonsChannel);
     };
-  }, [courseIdToFetch, batchCategory]);
+  }, [courseIdToFetch]);
 
   const course = useMemo(() => {
     // If not loaded yet from Supabase, return a loading placeholder

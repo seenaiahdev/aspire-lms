@@ -40,6 +40,7 @@ interface ExtendedUser extends User {
   registrationId?: string;
   enrolledCourses?: string[];
   courseProgress?: Record<string, number>;
+  unlockedLessonIds?: string[];
 }
 
 interface UserContextType {
@@ -87,6 +88,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const realStreak = profile?.attendance ?? 0;
           const realGpa = profile?.gpa ?? 0.00;
 
+          let unlockedLessonIds: string[] = [];
+          if (student.batch) {
+            const { data: locks } = await supabase
+              .from('milestone_locks')
+              .select('lesson_id, is_locked, unlock_datetime')
+              .eq('batch_code', student.batch);
+            
+            if (locks) {
+              const now = new Date();
+              unlockedLessonIds = locks
+                .filter((l: any) => !l.is_locked || (l.unlock_datetime && new Date(l.unlock_datetime) <= now))
+                .map((l: any) => l.lesson_id);
+            }
+          }
+
           const updatedUser = {
             id: student.id,
             name: student.name,
@@ -119,6 +135,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             registrationId: student.registration_id,
             enrolledCourses: student.enrolled_courses || [],
             courseProgress: profile?.course_progress || {},
+            unlockedLessonIds: unlockedLessonIds,
           };
 
           setUser(updatedUser);
@@ -167,8 +184,50 @@ export function UserProvider({ children }: { children: ReactNode }) {
         )
         .subscribe();
 
+      const locksChannel = supabase
+        .channel('milestone_locks_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'milestone_locks'
+          },
+          () => {
+            console.log("Real-time milestone locks updated inside Context, reloading...");
+            refetchUser();
+          }
+        )
+        .subscribe();
+
+      const profileChannel = supabase
+        .channel('student_profiles_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'student_profiles'
+          },
+          (payload) => {
+            const cached = localStorage.getItem('aspire_cached_user');
+            if (cached) {
+              try {
+                const currentUser = JSON.parse(cached);
+                if (payload.new && payload.new.student_id === currentUser.id) {
+                  console.log("Current student profile updated in database, reloading context...", payload.new);
+                  refetchUser();
+                }
+              } catch {}
+            }
+          }
+        )
+        .subscribe();
+
       return () => {
         supabase.removeChannel(channel);
+        supabase.removeChannel(locksChannel);
+        supabase.removeChannel(profileChannel);
       };
     }
   }, [refetchUser]);

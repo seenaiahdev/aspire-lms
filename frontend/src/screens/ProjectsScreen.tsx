@@ -17,6 +17,7 @@ import { triggerFileDownload } from '@/lib/downloadHelper';
 import { cn } from '@/lib/utils';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
+import { useNav } from '@/lib/nav';
 
 import { projectsSteps } from '@/lib/tourSteps';
 
@@ -36,7 +37,7 @@ type ProjectGuide = {
   techStack: string[];
   fileStructure: { path: string; purpose: string }[];
   functions: string[];
-  workflow: { action: string; event: string; calls: string[]; result: string }[];
+  workflow?: { action: string; event: string; calls: string[]; result: string }[];
   buildSteps: string[];
   tips: string[];
 };
@@ -112,10 +113,18 @@ const projectGuides: Record<string, ProjectGuide> = {
 
 export function ProjectsScreen() {
   const { user } = useUser();
+  const { params } = useNav();
   const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone' | 'templates'>('mini');
   const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+
+  // Automatically switch tab based on route params
+  useEffect(() => {
+    if (params.tab && ['mini', 'major', 'capstone', 'templates'].includes(params.tab)) {
+      setMainCategory(params.tab as any);
+    }
+  }, [params.tab]);
 
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>(() => {
     try {
@@ -135,7 +144,8 @@ export function ProjectsScreen() {
     const loadProjects = async () => {
       setIsLoading(true);
       try {
-        const data = await fetchProjects(user?.batchCode || '', user?.batchCategory || '');
+        const courseId = user?.enrolledCourses?.[0];
+        const data = await fetchProjects(user?.batchCode || '', user?.batchCategory || '', courseId);
         setProjectsState(data);
       } catch (err) {
         console.error(err);
@@ -148,7 +158,21 @@ export function ProjectsScreen() {
     } else {
       setIsLoading(false);
     }
-  }, [user?.batchCode, user?.batchCategory]);
+  }, [user?.batchCode, user?.batchCategory, user?.enrolledCourses]);
+
+  // Automatically scroll to and highlight project card if matching params.id is found
+  useEffect(() => {
+    if (params.id && !isLoading) {
+      setTimeout(() => {
+        const el = document.getElementById(`project-card-${params.id}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          el.classList.add('ring-4', 'ring-purple-400', 'ring-offset-2');
+          setTimeout(() => el.classList.remove('ring-4', 'ring-purple-400', 'ring-offset-2'), 2500);
+        }
+      }, 500);
+    }
+  }, [params.id, isLoading]);
 
   // Interactive File Explorer Modal state
   const [showExplorer, setShowExplorer] = useState(false);
@@ -285,25 +309,35 @@ export function ProjectsScreen() {
 
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
-    return projectsState.map((p: any) => {
-      const projectType = (p.project_type || p.type || 'mini').toLowerCase();
-      let status = (p.status || 'assigned').toLowerCase();
-      if (status === 'published' || status === 'assigned') {
-        status = 'assigned';
-      }
+    return projectsState
+      .filter((p: any) => user?.unlockedLessonIds?.includes(p.inner_topic_id))
+      .map((p: any) => {
+        const projectType = (p.project_type || p.type || 'mini').toLowerCase();
+        let status = (p.status || 'assigned').toLowerCase();
+        if (status === 'published' || status === 'assigned') {
+          status = 'assigned';
+        }
 
-      const hasLink = Boolean(driveLinks[p.id]);
-      if (hasLink && status === 'assigned') {
-        status = 'submitted';
-      }
-      return {
-        ...p,
-        projectType,
-        status,
-        course: p.course || p.category || 'General Curriculum'
-      };
-    });
-  }, [projectsState, driveLinks]);
+        const hasLink = Boolean(driveLinks[p.id]);
+        if (hasLink && status === 'assigned') {
+          status = 'submitted';
+        }
+        const rawSkills = p.tech_stack || p.skills;
+        const skillsArray = Array.isArray(rawSkills) 
+          ? rawSkills 
+          : typeof rawSkills === 'string' 
+            ? rawSkills.split(',').map((s: string) => s.trim()).filter(Boolean)
+            : [];
+
+        return {
+          ...p,
+          projectType,
+          status,
+          course: p.course || p.category || 'General Curriculum',
+          skills: skillsArray
+        };
+      });
+  }, [projectsState, driveLinks, user?.unlockedLessonIds]);
 
   useEffect(() => {
     localStorage.setItem('projectDriveLinks', JSON.stringify(driveLinks));
@@ -776,7 +810,8 @@ export function ProjectsScreen() {
                 return (
                   <Card 
                     key={p.id} 
-                    id={index === 0 ? 'tour-projects-card-0' : undefined}
+                    id={`project-card-${p.id}`}
+                    data-tour={index === 0 ? 'tour-projects-card-0' : undefined}
                     onClick={() => {
                       if (isLocked) {
                         setLockedToast(true);

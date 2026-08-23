@@ -97,12 +97,17 @@ export async function fetchMilestones(batchCategory: string) {
 /**
  * Fetches jobs for the placement board, filtered by cohort category.
  */
-export async function fetchJobs(batchCategory: string) {
+export async function fetchJobs(batchCategory: string, batchCode: string = '') {
   const targetBatchStr = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
+  let orQuery = `target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`;
+  if (batchCode) {
+    orQuery += `,target_batch.eq.${batchCode}`;
+  }
+
   const { data, error } = await supabase
     .from('jobs')
     .select('*')
-    .or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`);
+    .or(orQuery);
 
   if (error) {
     console.error('Error fetching jobs:', error);
@@ -121,9 +126,31 @@ export async function fetchJobs(batchCategory: string) {
     posted: item.posted_date || 'Recent',
     logo: item.logo || '',
     description: item.description || 'Job details...',
-    status: 'open',
-    skills: item.skills || ['Python', 'Django', 'SQL']
+    status: item.publish_status === 'Closed' ? 'closed' : 'open',
+    skills: item.skills || ['Python', 'Django', 'SQL'],
+    isLocked: item.is_locked ?? false
   }));
+}
+
+/**
+ * Fetches placement preparation resources.
+ */
+export async function fetchPlacementResources() {
+  try {
+    const { data, error } = await supabase
+      .from('placement_resources')
+      .select('*')
+      .eq('publish_status', 'Published')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching placement resources:', error);
+      throw error;
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
 }
 
 /**
@@ -300,14 +327,17 @@ export async function fetchCourseReviews(courseId: string) {
 // ASSIGNMENTS
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchAssignments(batchCode: string, batchCategory?: string) {
+export async function fetchAssignments(batchCode: string, batchCategory?: string, courseId?: string) {
   try {
-    const targetBatchStr = batchCategory === 'Weekend' ? 'Weekend Batch' : 'Weekday Batch';
-    const { data, error } = await supabase
-      .from('assessments')
-      .select('*')
-      .or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`)
-      .order('created_at', { ascending: false });
+    let query = supabase.from('assessments').select('*');
+    if (courseId) {
+      query = query.eq('course_id', courseId);
+    } else {
+      const targetBatchStr = batchCategory === 'Weekend' ? 'Weekend Batch' : 'Weekday Batch';
+      query = query.or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`);
+    }
+
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.warn('assessments table not available:', error.message);
@@ -317,23 +347,25 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
     if (!data) return [];
 
     return data.map((item: any) => {
-      const type = item.coding_count > 0 ? 'coding' : 'mcq';
+      const type = (item.coding_count > 0 ? 'coding' : 'mcq') as 'coding' | 'mcq';
       return {
         id: item.id,
         slug: item.id,
         type: type,
         title: item.title,
         category: item.course_name || 'General',
-        difficulty: 'Intermediate',
+        difficulty: 'Intermediate' as const,
         xp: 150,
         timeEstimate: `${item.duration_minutes || 45} mins`,
         description: item.topic_name ? `Topic: ${item.topic_name.split('||').pop()}` : 'Assessment test',
-        status: 'pending',
+        status: 'pending' as 'pending' | 'completed',
         attemptsCount: 0,
         passedCount: 0,
         failedCount: 0,
         bestScorePercentage: 0,
         attemptHistory: [],
+        topic_id: item.topic_id,
+        dueDate: item.due_date,
         mcqQuestions: (item.mcqs || []).map((q: any, index: number) => ({
           id: index,
           question: q.question,
@@ -380,22 +412,24 @@ export async function fetchQuizzes(batchCode: string) {
 // PROJECTS
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchProjects(batchCode: string, batchCategory?: string) {
+export async function fetchProjects(batchCode: string, batchCategory?: string, courseId?: string) {
   try {
-    const conditions = ["target_batch.eq.ALL", "target_batch.eq.All Batches"];
-    if (batchCode) {
-      conditions.push(`target_batch.eq.${batchCode}`);
-    }
-    if (batchCategory) {
-      conditions.push(`target_batch.eq.${batchCategory}`);
-      conditions.push(`target_batch.eq.${batchCategory} Batch`);
+    let query = supabase.from('projects').select('*');
+    if (courseId) {
+      query = query.eq('course_id', courseId);
+    } else {
+      const conditions = ["target_batch.eq.ALL", "target_batch.eq.All Batches"];
+      if (batchCode) {
+        conditions.push(`target_batch.eq.${batchCode}`);
+      }
+      if (batchCategory) {
+        conditions.push(`target_batch.eq.${batchCategory}`);
+        conditions.push(`target_batch.eq.${batchCategory} Batch`);
+      }
+      query = query.or(conditions.join(','));
     }
 
-    const { data, error } = await supabase
-      .from('projects')
-      .select('*')
-      .or(conditions.join(','))
-      .order('created_at', { ascending: false });
+    const { data, error } = await query.order('created_at', { ascending: false });
 
     if (error) {
       console.warn('projects table not available:', error.message);
@@ -413,16 +447,37 @@ export async function fetchProjects(batchCode: string, batchCategory?: string) {
 
 export async function fetchResources(courseId?: string) {
   try {
-    let query = supabase.from('resources').select('*').order('created_at', { ascending: false });
-    if (courseId) query = query.eq('course_id', courseId);
-
-    const { data, error } = await query;
+    const { data, error } = await supabase
+      .from('placement_resources')
+      .select('*')
+      .eq('publish_status', 'Published')
+      .order('created_at', { ascending: false });
 
     if (error) {
-      console.warn('resources table not available:', error.message);
+      console.warn('placement_resources table not available:', error.message);
       return [];
     }
-    return data || [];
+
+    return (data || []).map((item: any) => {
+      const typeLower = (item.type || '').toLowerCase();
+      let finalType = 'notes';
+      if (typeLower.includes('pdf')) finalType = 'pdf';
+      else if (typeLower.includes('note')) finalType = 'notes';
+      else if (typeLower.includes('cheat')) finalType = 'cheatsheet';
+      else if (typeLower.includes('road')) finalType = 'roadmap';
+      else if (typeLower.includes('temp')) finalType = 'template';
+
+      return {
+        id: item.id,
+        title: item.title || 'Untitled Resource',
+        category: item.category || 'General',
+        type: finalType,
+        updatedAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent',
+        downloads: 0,
+        size: item.read_time || '5 min read',
+        link_url: item.link_url || ''
+      };
+    });
   } catch {
     return [];
   }
@@ -537,13 +592,13 @@ export async function fetchNotifications(studentId: string) {
 
 export async function fetchPracticeProblems(courseId?: string) {
   try {
-    let query = supabase.from('practice_problems').select('*').order('created_at', { ascending: true });
+    let query = supabase.from('coding_questions').select('*').order('created_at', { ascending: true });
     if (courseId) query = query.eq('course_id', courseId);
 
     const { data, error } = await query;
 
     if (error) {
-      console.warn('practice_problems table not available:', error.message);
+      console.warn('coding_questions table not available:', error.message);
       return [];
     }
     return data || [];

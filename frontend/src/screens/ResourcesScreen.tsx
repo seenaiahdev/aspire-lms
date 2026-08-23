@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 
 import { resourcesSteps } from '@/lib/tourSteps';
-import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle, Lock, Loader2 } from 'lucide-react';
+import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle, Lock, Loader2, ExternalLink } from 'lucide-react';
 import { fetchResources } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { Card } from '@/components/ui/Card';
@@ -10,6 +10,7 @@ import { Toast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
+import { supabase } from '@/lib/supabase';
 
 const typeIcons: Record<string, any> = {
   pdf: FileText,
@@ -48,7 +49,7 @@ export function ResourcesScreen() {
     const load = async () => {
       setLoading(true);
       try {
-        const courseId = user?.enrolled_courses?.[0]?.id;
+        const courseId = user?.enrolledCourses?.[0];
         const data = await fetchResources(courseId);
         setResourcesList(data || []);
       } catch (err) {
@@ -58,10 +59,34 @@ export function ResourcesScreen() {
       }
     };
     load();
+
+    const channel = supabase
+      .channel('resources_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'placement_resources'
+        },
+        () => {
+          console.log("Real-time resources updated, reloading...");
+          load();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [user]);
 
-  const handleDownload = (id: string, title: string) => {
-    triggerFileDownload(id, title);
+  const handleDownload = (id: string, title: string, linkUrl?: string) => {
+    if (linkUrl) {
+      window.open(linkUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      triggerFileDownload(id, title);
+    }
   };
 
   const filtered = resourcesList.filter((r) => {
@@ -147,14 +172,14 @@ export function ResourcesScreen() {
             <Card
               key={r.id}
               id={index === 0 ? 'tour-resources-card-0' : undefined}
-              onClick={() => handleDownload(r.id, r.title)}
+              onClick={() => handleDownload(r.id, r.title, r.link_url)}
               className="p-5 group border border-slate-200/90 shadow-sm bg-white flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-slate-350 hover:shadow-md transition-all duration-300"
             >
               <div>
                 <div className="flex items-center justify-between mb-4">
                   <div
                     className={cn(
-                      'w-12 h-12 rounded-2xl flex items-center justify-center border border-slate-100',
+                       'w-12 h-12 rounded-2xl flex items-center justify-center border border-slate-100',
                       color.bg
                     )}
                   >
@@ -190,11 +215,12 @@ export function ResourcesScreen() {
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleDownload(r.id, r.title);
+                    handleDownload(r.id, r.title, r.link_url);
                   }}
                   className="w-full py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-100 font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
                 >
-                  <Download className="w-4 h-4" /> Download
+                  {r.link_url ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                  <span>{r.link_url ? 'Open Resource' : 'Download'}</span>
                 </button>
               </div>
             </Card>

@@ -245,7 +245,7 @@ export const projectsSteps: Step[] = [
     skipBeacon: true,
   },
   {
-    target: '#tour-projects-card-0',
+    target: '[data-tour="tour-projects-card-0"]',
     title: 'Project Card',
     content: 'View the project brief, required tech stack, estimated time, and start building right away.',
     placement: 'bottom',

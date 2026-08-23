@@ -2,15 +2,17 @@ import { cn } from '@/lib/utils';
 import type { ReactNode } from 'react';
 
 interface CardProps {
+  id?: string;
   children: ReactNode;
   className?: string;
   hover?: boolean;
   onClick?: () => void;
 }
 
-export function Card({ children, className, hover, onClick }: CardProps) {
+export function Card({ id, children, className, hover, onClick }: CardProps) {
   return (
     <div
+      id={id}
       onClick={onClick}
       className={cn('card', hover && 'card-hover cursor-pointer', className)}
     >

@@ -56,6 +56,8 @@ interface PythonTask {
     starterCode: string;
     testCases: { input: string; expected: string }[];
   };
+  dueDate?: string;
+  topic_id?: string;
 }
 
 // Comprehensive Course Assessments Data
@@ -125,7 +127,8 @@ export function AssignmentsScreen() {
       if (user?.batchCode) {
         setLoading(true);
         try {
-          const data = await fetchAssignments(user.batchCode, user.batchCategory);
+          const courseId = user?.enrolledCourses?.[0];
+          const data = await fetchAssignments(user.batchCode, user.batchCategory, courseId);
           setCourseAssignments(data || []);
         } catch (error) {
           console.error("Failed to fetch assignments:", error);
@@ -136,7 +139,7 @@ export function AssignmentsScreen() {
       }
     };
     loadData();
-  }, [user?.batchCode, user?.batchCategory]);
+  }, [user?.batchCode, user?.batchCategory, user?.enrolledCourses]);
 
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [lockedToast, setLockedToast] = useState(false);
@@ -156,9 +159,15 @@ export function AssignmentsScreen() {
   const [quizStatus, setQuizStatus] = useState<'taking' | 'results' | 'review'>('taking');
   const [userScore, setUserScore] = useState(0);
   const [confirmQuizAction, setConfirmQuizAction] = useState<'submit' | 'exit' | null>(null);
+  const [userCode, setUserCode] = useState('');
+  const [codeTested, setCodeTested] = useState(false);
 
   // Filter Tasks
-  const filteredTasks = courseAssignments.filter((t) => {
+  const filteredTasks = courseAssignments.filter((t: any) => {
+    const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
+    const isUnlocked = user?.unlockedLessonIds?.includes(lessonId);
+    if (!isUnlocked) return false;
+
     if (filterTab === 'pending') return t.status === 'pending';
     if (filterTab === 'completed') return t.status === 'completed';
     return true;
