@@ -1012,4 +1012,17 @@ export async function updatePersonalTaskCompletion(taskId: string, completed: bo
   return data;
 }
 
+export async function deletePersonalTask(taskId: string) {
+  const { data, error } = await supabase
+    .from('personal_tasks')
+    .delete()
+    .eq('id', taskId);
+
+  if (error) {
+    console.error('Error deleting personal task:', error);
+    throw error;
+  }
+  return data;
+}
+
 

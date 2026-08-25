@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2 } from 'lucide-react';
-import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion } from '@/lib/api';
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2 } from 'lucide-react';
+import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -270,6 +270,17 @@ export function ScheduleScreen() {
       }
     } else {
       setApiTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
+    }
+  };
+
+  const handleDeleteTask = async (id: string) => {
+    try {
+      if (user?.id) {
+        await deletePersonalTask(id);
+      }
+      setLocalTasks((prev) => prev.filter((item) => item.id !== id));
+    } catch (err) {
+      console.error("Error deleting personal task from Supabase:", err);
     }
   };
 
@@ -745,15 +756,27 @@ export function ScheduleScreen() {
                             {item.course && <p className="mt-1 text-sm text-slate-500">{item.course}</p>}
                           </div>
                         </div>
-                        {item.type !== 'task' && (
-                          <button
-                            onClick={() => handleItemClick(item.type)}
-                            className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
-                          >
-                            <Icon className="w-4 h-4 text-slate-500" />
-                            {cfg.label}
-                          </button>
-                        )}
+                        <div className="flex items-center gap-2">
+                          {item.type !== 'task' && (
+                            <button
+                              onClick={() => handleItemClick(item.type)}
+                              className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
+                            >
+                              <Icon className="w-4 h-4 text-slate-500" />
+                              {cfg.label}
+                            </button>
+                          )}
+                          {item.id.startsWith('s-') && (
+                            <button
+                              onClick={() => handleDeleteTask(item.id)}
+                              className="h-10 w-10 rounded-2xl bg-white text-rose-500 border border-slate-200 flex items-center justify-center transition hover:bg-rose-50 hover:border-rose-100 cursor-pointer shadow-sm"
+                              type="button"
+                              title="Delete task"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -782,15 +805,27 @@ export function ScheduleScreen() {
                                 <p className="mt-1 text-sm text-slate-500">{item.time}</p>
                               </div>
                             </div>
-                            {item.type !== 'task' && (
-                              <button
-                                onClick={() => handleItemClick(item.type)}
-                                className="inline-flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-4 py-2 text-sm font-semibold text-[#1d4ed8] border border-[#bfdbfe] hover:bg-[#dbeafe] transition-all cursor-pointer"
-                              >
-                                <Icon className="w-4 h-4" />
-                                {cfg.label}
-                              </button>
-                            )}
+                            <div className="flex items-center gap-2">
+                              {item.type !== 'task' && (
+                                <button
+                                  onClick={() => handleItemClick(item.type)}
+                                  className="inline-flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-4 py-2 text-sm font-semibold text-[#1d4ed8] border border-[#bfdbfe] hover:bg-[#dbeafe] transition-all cursor-pointer"
+                                >
+                                  <Icon className="w-4 h-4" />
+                                  {cfg.label}
+                                </button>
+                              )}
+                              {item.id.startsWith('s-') && (
+                                <button
+                                  onClick={() => handleDeleteTask(item.id)}
+                                  className="h-10 w-10 rounded-2xl bg-white text-rose-500 border border-slate-200 flex items-center justify-center transition hover:bg-rose-50 hover:border-rose-100 cursor-pointer shadow-sm"
+                                  type="button"
+                                  title="Delete task"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
