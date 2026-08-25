@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Bell, FileText, Radio, MessageCircle, Briefcase, Settings, CheckCheck, Trash2, Loader2 } from 'lucide-react';
 import { useUser } from '@/lib/UserContext';
-import { fetchNotifications } from '@/lib/api';
+import { fetchNotifications, updateNotificationReadStatus, markAllNotificationsAsRead, deleteNotificationRow } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
@@ -42,8 +42,36 @@ export function NotificationsScreen() {
   const filtered = items.filter((n) => tab === 'all' ? true : tab === 'unread' ? !n.read : n.type === tab);
   const unread = items.filter((n) => !n.read).length;
 
-  const markRead = (id: string) => setItems(items.map(n => n.id === id ? { ...n, read: true } : n));
-  const markAllRead = () => setItems(items.map(n => ({ ...n, read: true })));
+  const markRead = async (id: string) => {
+    const target = items.find(n => n.id === id);
+    if (target && !target.read) {
+      try {
+        await updateNotificationReadStatus(id, true);
+        setItems(items.map(n => n.id === id ? { ...n, read: true } : n));
+      } catch (err) {
+        console.error('Failed to mark notification as read:', err);
+      }
+    }
+  };
+
+  const markAllRead = async () => {
+    if (!user?.id) return;
+    try {
+      await markAllNotificationsAsRead(user.id);
+      setItems(items.map(n => ({ ...n, read: true })));
+    } catch (err) {
+      console.error('Failed to mark all notifications as read:', err);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    try {
+      await deleteNotificationRow(id);
+      setItems(items.filter(n => n.id !== id));
+    } catch (err) {
+      console.error('Failed to delete notification:', err);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -103,7 +131,13 @@ export function NotificationsScreen() {
                     <p className="text-sm text-ink-600 mb-1">{n.message}</p>
                     <p className="text-xs text-ink-400">{n.time}</p>
                   </div>
-                  <button className="text-ink-300 hover:text-error-500 transition-colors p-1" onClick={(e) => { e.stopPropagation(); }}>
+                  <button 
+                    className="text-ink-300 hover:text-error-500 transition-colors p-1" 
+                    onClick={(e) => { 
+                      e.stopPropagation(); 
+                      handleDeleteNotification(n.id);
+                    }}
+                  >
                     <Trash2 className="w-4 h-4" />
                   </button>
                 </div>

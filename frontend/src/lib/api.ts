@@ -1025,4 +1025,43 @@ export async function deletePersonalTask(taskId: string) {
   return data;
 }
 
+export async function updateNotificationReadStatus(id: string, read: boolean) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ read: read })
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error updating notification read status:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function markAllNotificationsAsRead(studentId: string) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .update({ read: true })
+    .eq('student_id', studentId);
+
+  if (error) {
+    console.error('Error marking all notifications as read:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function deleteNotificationRow(id: string) {
+  const { data, error } = await supabase
+    .from('notifications')
+    .delete()
+    .eq('id', id);
+
+  if (error) {
+    console.error('Error deleting notification row:', error);
+    throw error;
+  }
+  return data;
+}
+
 
