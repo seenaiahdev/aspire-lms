@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2 } from 'lucide-react';
 import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
+import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
@@ -80,6 +81,21 @@ export function ScheduleScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
+    const stored = localStorage.getItem(`tasks_${user?.id || 'anon'}`);
+    if (stored) {
+      setLocalTasks(JSON.parse(stored));
+    } else {
+      setLocalTasks([]);
+    }
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (user?.id) {
+      localStorage.setItem(`tasks_${user.id}`, JSON.stringify(localTasks));
+    }
+  }, [localTasks, user?.id]);
+
+  useEffect(() => {
     async function loadUnlockedExtraEvents() {
       if (!user) return;
       try {
@@ -150,33 +166,38 @@ export function ScheduleScreen() {
 
   useEffect(() => {
     const loadTasks = async () => {
+      if (!user?.batchCode) return;
       setIsLoading(true);
       try {
-        const dateStr = getDateKey(selectedDate);
-        const data = await fetchDailySchedules(dateStr, user?.batchCode || '');
-        const formatted = data.map((row: any) => ({
-          id: row.id,
-          title: row.title || row.topic,
-          type: 'class',
-          date: row.date,
-          dateKey: row.date,
-          time: row.time,
-          course: row.subtopic,
-          completed: row.status === 'completed'
-        }));
-        setApiTasks(formatted);
+        const year = calendarDate.getFullYear();
+        const month = String(calendarDate.getMonth() + 1).padStart(2, '0');
+        const { data, error } = await supabase
+          .from('daily_schedules')
+          .select('*')
+          .eq('batch_code', user.batchCode)
+          .like('date', `${year}-${month}-%`);
+
+        if (data) {
+          const formatted = data.map((row: any) => ({
+            id: row.id,
+            title: row.title || row.topic,
+            type: 'class',
+            date: row.date,
+            dateKey: row.date,
+            time: row.time,
+            course: row.subtopic,
+            completed: row.status === 'completed'
+          }));
+          setApiTasks(formatted);
+        }
       } catch (err) {
         console.error(err);
       } finally {
         setIsLoading(false);
       }
     };
-    if (user?.batchCode) {
-      loadTasks();
-    } else {
-      setIsLoading(false);
-    }
-  }, [selectedDate, user?.batchCode]);
+    loadTasks();
+  }, [calendarDate, user?.batchCode]);
 
   const items = [...apiTasks, ...unlockedExtraEvents, ...localTasks];
   const [showAddTask, setShowAddTask] = useState(false);
