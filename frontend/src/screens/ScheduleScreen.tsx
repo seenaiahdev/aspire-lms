@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2 } from 'lucide-react';
-import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems } from '@/lib/api';
+import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -81,19 +81,17 @@ export function ScheduleScreen() {
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
-    const stored = localStorage.getItem(`tasks_${user?.id || 'anon'}`);
-    if (stored) {
-      setLocalTasks(JSON.parse(stored));
-    } else {
-      setLocalTasks([]);
+    async function loadPersonalTasks() {
+      if (!user?.id) return;
+      try {
+        const tasks = await fetchPersonalTasks(user.id);
+        setLocalTasks(tasks);
+      } catch (err) {
+        console.error("Error loading personal tasks from Supabase:", err);
+      }
     }
+    loadPersonalTasks();
   }, [user?.id]);
-
-  useEffect(() => {
-    if (user?.id) {
-      localStorage.setItem(`tasks_${user.id}`, JSON.stringify(localTasks));
-    }
-  }, [localTasks, user?.id]);
 
   useEffect(() => {
     async function loadUnlockedExtraEvents() {
@@ -255,9 +253,19 @@ export function ScheduleScreen() {
     setShowAddTask(false);
   };
 
-  const toggleTaskCompletion = (id: string) => {
-    setApiTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
-    setLocalTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
+  const toggleTaskCompletion = async (id: string) => {
+    const target = localTasks.find(t => t.id === id);
+    if (target) {
+      const nextCompleted = !target.completed;
+      try {
+        await updatePersonalTaskCompletion(id, nextCompleted);
+        setLocalTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: nextCompleted } : item));
+      } catch (err) {
+        console.error("Error updating personal task completion in Supabase:", err);
+      }
+    } else {
+      setApiTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
+    }
   };
 
   const handleTaskFormChange = (field: keyof typeof taskForm, value: string) => {
@@ -297,12 +305,13 @@ export function ScheduleScreen() {
     }
   };
 
-  const handleAddTask = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleAddTask = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!taskForm.title.trim()) return;
 
     const newTask = {
       id: `s-${Date.now()}`,
+      student_id: user?.id || 'anon',
       title: taskForm.title.trim(),
       type: taskForm.type as typeof taskForm.type,
       date: formatTaskDateLabel(taskForm.date, today),
@@ -313,16 +322,23 @@ export function ScheduleScreen() {
       completed: false,
     };
 
-    setLocalTasks((prev) => [newTask, ...prev]);
-    setSelectedDate(new Date(taskForm.date));
-    setShowAddTask(false);
-    setTaskForm({
-      title: '',
-      type: 'task',
-      date: taskForm.date,
-      time: '',
-      course: '',
-    });
+    try {
+      if (user?.id) {
+        await submitPersonalTask(newTask);
+      }
+      setLocalTasks((prev) => [newTask, ...prev]);
+      setSelectedDate(new Date(taskForm.date));
+      setShowAddTask(false);
+      setTaskForm({
+        title: '',
+        type: 'task',
+        date: taskForm.date,
+        time: '',
+        course: '',
+      });
+    } catch (err) {
+      console.error("Error adding personal task to Supabase:", err);
+    }
   };
 
   const selectedDateLabel = formatTaskDateLabel(selectedDateKey, today);

@@ -940,4 +940,76 @@ export async function fetchJobApplications(studentId: string) {
   return data || [];
 }
 
+// ════════════════════════════════════════════════════════════════
+// PERSONAL TASKS (SCHEDULE)
+// ════════════════════════════════════════════════════════════════
+
+export async function fetchPersonalTasks(studentId: string) {
+  const { data, error } = await supabase
+    .from('personal_tasks')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) {
+    console.error('Error fetching personal tasks:', error);
+    return [];
+  }
+
+  return (data || []).map((row: any) => ({
+    id: row.id,
+    student_id: row.student_id,
+    title: row.title,
+    type: row.type,
+    date: row.date,
+    dateKey: row.date_key,
+    time: row.time,
+    completed: row.completed
+  }));
+}
+
+export async function submitPersonalTask(task: {
+  id: string;
+  student_id: string;
+  title: string;
+  type: string;
+  date: string;
+  dateKey: string;
+  time: string;
+  completed: boolean;
+}) {
+  const { data, error } = await supabase
+    .from('personal_tasks')
+    .insert({
+      id: task.id,
+      student_id: task.student_id,
+      title: task.title,
+      type: task.type,
+      date: task.date,
+      date_key: task.dateKey,
+      time: task.time,
+      completed: task.completed
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error submitting personal task:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function updatePersonalTaskCompletion(taskId: string, completed: boolean) {
+  const { data, error } = await supabase
+    .from('personal_tasks')
+    .update({ completed: completed })
+    .eq('id', taskId);
+
+  if (error) {
+    console.error('Error updating personal task completion:', error);
+    throw error;
+  }
+  return data;
+}
+
 
