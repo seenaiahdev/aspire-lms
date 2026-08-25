@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import {
   Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Sparkles, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock, ExternalLink
 } from 'lucide-react';
-import { fetchJobs, fetchPlacementResources } from '@/lib/api';
+import { fetchJobs, fetchPlacementResources, submitJobApplication, fetchJobApplications } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
@@ -145,12 +145,48 @@ export function PlacementScreen() {
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [lockedToast, setLockedToast] = useState(false);
 
+  const [applyJobTarget, setApplyJobTarget] = useState<any | null>(null);
+  const [applicantName, setApplicantName] = useState(user?.name || '');
+  const [applicantPhone, setApplicantPhone] = useState(user?.mobile || '');
+  const [applicantResumeLink, setApplicantResumeLink] = useState('');
+  const [applicantCoverLetter, setApplicantCoverLetter] = useState('');
+  const [applicantAgreed, setApplicantAgreed] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      setApplicantName(user.name || '');
+      setApplicantPhone(user.mobile || '');
+    }
+  }, [user]);
+
   useEffect(() => {
     const loadJobsAndResources = async () => {
       setIsLoading(true);
       try {
         const jobsData = await fetchJobs(user?.batchCategory || 'Weekday', user?.batchCode || '');
-        setJobsList(jobsData);
+        
+        let appliedJobIds: string[] = [];
+        if (user?.id) {
+          try {
+            const dbApps = await fetchJobApplications(user.id);
+            appliedJobIds = dbApps.map((a: any) => a.job_id);
+          } catch (dbErr) {
+            console.error('Failed to fetch job applications from DB:', dbErr);
+          }
+        }
+
+        const savedApplied = localStorage.getItem('aspire_applied_jobs');
+        const localAppliedMap = savedApplied ? JSON.parse(savedApplied) : {};
+        const localAppliedIds = Object.keys(localAppliedMap);
+
+        const mergedJobs = jobsData.map((job: any) => {
+          if (appliedJobIds.includes(job.id) || localAppliedIds.includes(job.id)) {
+            return { ...job, status: 'applied' as const };
+          }
+          return job;
+        });
+
+        setJobsList(mergedJobs);
         
         const prepData = await fetchPlacementResources();
         setPrepList(prepData || []);
@@ -190,7 +226,7 @@ export function PlacementScreen() {
     return () => {
       supabase.removeChannel(prepChannel);
     };
-  }, [user?.batchCategory, user?.batchCode]);
+  }, [user?.batchCategory, user?.batchCode, user?.id]);
 
   const totalCount = jobsList.length;
   const appliedCount = jobsList.filter((j) => j.status === 'applied').length;
@@ -214,14 +250,38 @@ export function PlacementScreen() {
     );
   });
 
-  const handleApplyJob = (jobId: string) => {
+  const handleApplyJob = async (jobId: string, applicationDetails: any) => {
     setJobsList((prev) =>
       prev.map((j) => (j.id === jobId ? { ...j, status: 'applied' as const } : j))
     );
+
+    const savedApplied = localStorage.getItem('aspire_applied_jobs');
+    const appliedMap = savedApplied ? JSON.parse(savedApplied) : {};
+    appliedMap[jobId] = {
+      appliedAt: new Date().toISOString(),
+      ...applicationDetails
+    };
+    localStorage.setItem('aspire_applied_jobs', JSON.stringify(appliedMap));
+
+    if (user?.id) {
+      try {
+        await submitJobApplication({
+          student_id: user.id,
+          job_id: jobId,
+          full_name: applicationDetails.name,
+          contact_number: applicationDetails.phone,
+          resume_link: applicationDetails.resumeLink,
+          cover_letter: applicationDetails.coverLetter
+        });
+      } catch (dbErr) {
+        console.error('Failed to submit job application to Supabase:', dbErr);
+      }
+    }
+
     const targetJob = jobsList.find(j => j.id === jobId);
     if (targetJob) {
       setSelectedJob((prev: any) => prev?.id === jobId ? { ...prev, status: 'applied' } : prev);
-      setToastMessage(`Application submitted successfully for ${targetJob.role} at ${targetJob.company}! 🎉`);
+      setToastMessage(`Application submitted successfully for ${targetJob.role} at ${targetJob.company}.`);
     }
   };
 
@@ -634,7 +694,7 @@ export function PlacementScreen() {
 
               {selectedJob.status === 'open' ? (
                 <button
-                  onClick={() => handleApplyJob(selectedJob.id)}
+                  onClick={() => setApplyJobTarget(selectedJob)}
                   className="flex-1 py-3 px-6 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <Sparkles className="w-4 h-4 text-amber-300" />
@@ -659,6 +719,136 @@ export function PlacementScreen() {
               )}
             </div>
 
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ════════ JOB APPLICATION FORM MODAL ════════ */}
+      {applyJobTarget && createPortal(
+        <div 
+          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setApplyJobTarget(null); }}
+        >
+          <div className="w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto p-6 space-y-6">
+            
+            <div className="text-center space-y-2">
+              {applyJobTarget.logo ? (
+                <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center p-2 mx-auto shadow-sm overflow-hidden shrink-0">
+                  <img src={applyJobTarget.logo} alt={applyJobTarget.company} className="w-full h-full object-contain" />
+                </div>
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 mx-auto">
+                  <Building2 className="w-6 h-6" />
+                </div>
+              )}
+              <h3 className="font-extrabold text-slate-900 text-lg leading-tight">Apply to {applyJobTarget.company}</h3>
+              <p className="text-xs text-slate-500">Role: <span className="font-bold text-slate-700">{applyJobTarget.role}</span> ({applyJobTarget.type})</p>
+            </div>
+
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleApplyJob(applyJobTarget.id, {
+                  name: applicantName,
+                  phone: applicantPhone,
+                  resumeLink: applicantResumeLink,
+                  coverLetter: applicantCoverLetter,
+                  agreed: applicantAgreed
+                });
+                setApplyJobTarget(null);
+                setSelectedJob(null); // Close sidebar too
+                setApplicantResumeLink('');
+                setApplicantCoverLetter('');
+                setApplicantAgreed(false);
+              }}
+              className="space-y-4 text-left"
+            >
+              {/* Full Name */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Full Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={applicantName} 
+                  onChange={(e) => setApplicantName(e.target.value)}
+                  placeholder="Enter full name"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                />
+              </div>
+
+              {/* Contact Number */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Contact Number</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={applicantPhone} 
+                  onChange={(e) => setApplicantPhone(e.target.value)}
+                  placeholder="Enter contact number"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                />
+              </div>
+
+              {/* Resume Google Drive Link */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-[#7c3aed] uppercase tracking-wider block">Resume Google Drive Link</label>
+                <input 
+                  type="url" 
+                  required 
+                  value={applicantResumeLink} 
+                  onChange={(e) => setApplicantResumeLink(e.target.value)}
+                  placeholder="e.g. https://drive.google.com/..."
+                  className="w-full px-3 py-2 text-xs border border-purple-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed] bg-purple-50/20"
+                />
+              </div>
+
+              {/* Statement / Message */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Why are you a good fit? (Optional)</label>
+                <textarea 
+                  rows={3}
+                  value={applicantCoverLetter} 
+                  onChange={(e) => setApplicantCoverLetter(e.target.value)}
+                  placeholder="Tell the recruiter about your projects, skills, or experience..."
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                />
+              </div>
+
+              {/* Confirm checkbox */}
+              <div className="flex items-start gap-2.5 pt-1">
+                <input 
+                  type="checkbox" 
+                  id="applicantAgreed"
+                  required
+                  checked={applicantAgreed} 
+                  onChange={(e) => setApplicantAgreed(e.target.checked)}
+                  className="w-4 h-4 text-[#7c3aed] focus:ring-[#7c3aed] border-slate-200 rounded mt-0.5"
+                />
+                <label htmlFor="applicantAgreed" className="text-[11px] font-medium text-slate-500 leading-snug cursor-pointer select-none">
+                  I agree to share my student profile, attendance records, project submissions, and grades with the recruiters at {applyJobTarget.company}.
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setApplyJobTarget(null)}
+                  className="w-1/2 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-extrabold text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Confirm Application</span>
+                </button>
+              </div>
+
+            </form>
           </div>
         </div>,
         document.body

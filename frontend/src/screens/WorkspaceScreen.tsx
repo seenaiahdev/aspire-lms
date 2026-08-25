@@ -8,6 +8,9 @@ import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 import { supabase } from '@/lib/supabase';
+import { useUser } from '@/lib/UserContext';
+import { submitPracticeProblem } from '@/lib/api';
+
 
 // ── Problem config ────────────────────────────────────────────────────────────
 
@@ -95,6 +98,7 @@ function formatBytes(bytes: number): string {
 
 export function WorkspaceScreen() {
   const { navigate, params } = useNav();
+  const { user } = useUser();
 
   const [problemConfig, setProblemConfig] = useState<ProblemConfig>(() => {
     const defaultId = params.id && PROBLEM_CONFIGS[params.id] ? params.id : 'pp1';
@@ -280,13 +284,32 @@ export function WorkspaceScreen() {
       fileCount: projectFiles.length,
     }));
 
+    if (user && user.id) {
+      try {
+        await submitPracticeProblem(
+          user.id,
+          problemId,
+          'project',
+          undefined,
+          undefined,
+          storageUrl,
+          projectName,
+          projectFiles.length
+        );
+        console.log('Successfully saved submission to Supabase.');
+      } catch (dbErr) {
+        console.warn('Failed to save submission to Supabase:', dbErr);
+      }
+    }
+
+
     setUploadProgress(100);
     setUploadedStorageUrl(storageUrl);
     setUploadedFileCount(projectFiles.length);
     setUploadedTotalSize(totalSize);
     setUploadedProjectName(projectName);
     setIsProcessing(false);
-  }, [problemId]);
+  }, [problemId, user]);
 
   // Folder upload
   const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {

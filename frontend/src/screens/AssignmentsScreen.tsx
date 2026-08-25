@@ -113,7 +113,7 @@ const ConfettiBurst = () => {
 };
 
 import { useUser } from '@/lib/UserContext';
-import { fetchAssignments } from '@/lib/api';
+import { fetchAssignments, submitAssignmentAttempt, fetchAssignmentAttempts } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
 export function AssignmentsScreen() {
@@ -128,8 +128,54 @@ export function AssignmentsScreen() {
         setLoading(true);
         try {
           const courseId = user?.enrolledCourses?.[0];
-          const data = await fetchAssignments(user.batchCode, user.batchCategory, courseId);
-          setCourseAssignments(data || []);
+          const [data, attempts] = await Promise.all([
+            fetchAssignments(user.batchCode, user.batchCategory, courseId),
+            user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([])
+          ]);
+          
+          const mappedTasks = (data || []).map((task: any) => {
+            const taskAttempts = (attempts || []).filter((a: any) => a.assignment_id === task.id);
+            const passedAttempts = taskAttempts.filter((a: any) => (a.grade || 0) >= 70);
+            const failedAttempts = taskAttempts.filter((a: any) => (a.grade || 0) < 70);
+            const bestScore = taskAttempts.reduce((max: number, a: any) => Math.max(max, a.grade || 0), 0);
+            
+            const attemptHistory = taskAttempts.map((a: any, index: number) => ({
+              id: index + 1,
+              label: `Attempt ${index + 1}`,
+              score: a.grade || 0,
+              status: (a.grade || 0) >= 70 ? 'Passed' : 'Failed',
+              date: a.submitted_at ? new Date(a.submitted_at).toLocaleDateString('en-GB') : 'Recent',
+              reviewSummary: a.feedback || 'Completed.'
+            }));
+
+            // Local storage fallback for attempts not in Supabase yet
+            const localSaved = localStorage.getItem(`assignment_attempt_${task.id}`);
+            if (localSaved && attemptHistory.length === 0) {
+              try {
+                const localData = JSON.parse(localSaved);
+                attemptHistory.push({
+                  id: 1,
+                  label: 'Attempt 1 (Local)',
+                  score: localData.score,
+                  status: localData.score >= 70 ? 'Passed' : 'Failed',
+                  date: new Date(localData.timestamp).toLocaleDateString('en-GB'),
+                  reviewSummary: 'Saved locally.'
+                });
+              } catch {}
+            }
+
+            return {
+              ...task,
+              status: (taskAttempts.length > 0 || localSaved) ? 'completed' : 'pending',
+              attemptsCount: Math.max(taskAttempts.length, localSaved ? 1 : 0),
+              passedCount: passedAttempts.length || (localSaved && JSON.parse(localSaved).score >= 70 ? 1 : 0),
+              failedCount: failedAttempts.length || (localSaved && JSON.parse(localSaved).score < 70 ? 1 : 0),
+              bestScorePercentage: Math.max(bestScore, localSaved ? JSON.parse(localSaved).score : 0),
+              attemptHistory: attemptHistory
+            };
+          });
+
+          setCourseAssignments(mappedTasks);
         } catch (error) {
           console.error("Failed to fetch assignments:", error);
           setCourseAssignments([]);
@@ -139,7 +185,7 @@ export function AssignmentsScreen() {
       }
     };
     loadData();
-  }, [user?.batchCode, user?.batchCategory, user?.enrolledCourses]);
+  }, [user?.batchCode, user?.batchCategory, user?.enrolledCourses, user?.id]);
 
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [lockedToast, setLockedToast] = useState(false);
@@ -336,6 +382,25 @@ export function AssignmentsScreen() {
       setUserScore(score); // Storing % score
       setQuizStatus('results');
       activeTask.status = 'completed';
+
+      // Save locally
+      localStorage.setItem(`assignment_attempt_${activeTask.id}`, JSON.stringify({
+        score: score,
+        timestamp: new Date().toISOString()
+      }));
+
+      // Save to Supabase
+      if (user && user.id) {
+        submitAssignmentAttempt(
+          user.id,
+          activeTask.id,
+          'submitted',
+          score,
+          `Completed on ${new Date().toLocaleDateString('en-GB')}`
+        ).catch(err => {
+          console.warn('Failed to save assignment attempt to Supabase:', err);
+        });
+      }
     }
   };
 
@@ -659,6 +724,25 @@ export function AssignmentsScreen() {
                     onClick={() => {
                       setCodeTested(true);
                       activeTask.status = 'completed';
+
+                      // Save locally
+                      localStorage.setItem(`assignment_attempt_${activeTask.id}`, JSON.stringify({
+                        score: 100,
+                        timestamp: new Date().toISOString()
+                      }));
+
+                      // Save to Supabase
+                      if (user && user.id) {
+                        submitAssignmentAttempt(
+                          user.id,
+                          activeTask.id,
+                          'submitted',
+                          100,
+                          'All test cases passed!'
+                        ).catch(err => {
+                          console.warn('Failed to save assignment attempt to Supabase:', err);
+                        });
+                      }
                     }}
                     className="w-full bg-gradient-to-r from-teal-500 to-blue-600 text-white font-extrabold text-xs py-3.5 rounded-xl shadow-md transition-all active:scale-98 flex items-center justify-center gap-2"
                   >

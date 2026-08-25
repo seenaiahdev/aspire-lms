@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen
+  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -39,6 +39,15 @@ export interface LearningItem {
 export function LearningScreen() {
   const { navigate, route } = useNav();
   const { user } = useUser();
+  const [localUnlockedLessonIds, setLocalUnlockedLessonIds] = useState<string[]>(user?.unlockedLessonIds || []);
+  const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (user?.unlockedLessonIds) {
+      setLocalUnlockedLessonIds(user.unlockedLessonIds);
+    }
+  }, [user?.unlockedLessonIds]);
+
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin'>('all');
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
@@ -58,6 +67,42 @@ export function LearningScreen() {
   }, [dbSyllabi, user.enrolledCourses]);
 
   useEffect(() => {
+    if (!user?.batchCode) return;
+
+    const locksChan = supabase
+      .channel('milestone_locks_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'milestone_locks',
+          filter: `batch_code=eq.${user.batchCode}`
+        },
+        async () => {
+          console.log('Real-time milestone locks updated, reloading...');
+          const { data: locks } = await supabase
+            .from('milestone_locks')
+            .select('lesson_id, is_locked, unlock_datetime')
+            .eq('batch_code', user.batchCode);
+          
+          if (locks) {
+            const now = new Date();
+            const freshUnlockedIds = locks
+              .filter((l: any) => !l.is_locked || (l.unlock_datetime && new Date(l.unlock_datetime) <= now))
+              .map((l: any) => l.lesson_id);
+            setLocalUnlockedLessonIds(freshUnlockedIds);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(locksChan);
+    };
+  }, [user?.batchCode]);
+
+  useEffect(() => {
     async function loadSyllabi() {
       if (!user.enrolledCourses || user.enrolledCourses.length === 0) {
         setDbSyllabi({});
@@ -67,33 +112,21 @@ export function LearningScreen() {
       setSyllabusLoading(true);
       try {
         const syllabiMap: Record<string, any> = {};
-        for (const courseId of user.enrolledCourses) {
-          const { data: topics } = await supabase
-            .from('course_topics')
-            .select('*')
-            .eq('course_id', courseId)
-            .order('id', { ascending: true });
-
-           const { data: lessons } = await supabase
-            .from('course_lessons')
-            .select('*')
-            .eq('course_id', courseId)
-            .order('sort_order', { ascending: true });
-
-          const { data: assessments } = await supabase
-            .from('assessments')
-            .select('id, topic_id, duration_minutes, title')
-            .eq('course_id', courseId);
-
-          const { data: codingQuestions } = await supabase
-            .from('coding_questions')
-            .select('id, inner_topic_id, title')
-            .eq('course_id', courseId);
-
-          const { data: projects } = await supabase
-            .from('projects')
-            .select('id, inner_topic_id, title, type, project_type')
-            .eq('course_id', courseId);
+        
+        await Promise.all(user.enrolledCourses.map(async (courseId) => {
+          const [
+            { data: topics },
+            { data: lessons },
+            { data: assessments },
+            { data: codingQuestions },
+            { data: projects }
+          ] = await Promise.all([
+            supabase.from('course_topics').select('*').eq('course_id', courseId).order('id', { ascending: true }),
+            supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
+            supabase.from('assessments').select('id, topic_id, duration_minutes, title').eq('course_id', courseId),
+            supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
+            supabase.from('projects').select('id, inner_topic_id, title, type, project_type').eq('course_id', courseId)
+          ]);
 
           if (topics && lessons) {
             const stages = topics.map(topic => {
@@ -127,7 +160,7 @@ export function LearningScreen() {
                         description: l.description,
                         completed: false,
                         video: {
-                          preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
+                          preview: idx === 0 || localUnlockedLessonIds.includes(l.id),
                           duration: '45m',
                           completed: false
                         },
@@ -157,7 +190,7 @@ export function LearningScreen() {
             });
             syllabiMap[courseId] = { id: courseId, stages };
           }
-        }
+        }));
         setDbSyllabi(syllabiMap);
       } catch (err) {
         console.error("Exception loading syllabi from DB:", err);
@@ -202,7 +235,7 @@ export function LearningScreen() {
     return () => {
       channels.forEach(ch => supabase.removeChannel(ch));
     };
-  }, [user.enrolledCourses]);
+  }, [user.enrolledCourses, localUnlockedLessonIds]);
 
   const curriculumRoadmap = useMemo(() => {
     const activeCourse = dbCourses[0];
@@ -350,6 +383,15 @@ export function LearningScreen() {
     });
   }, [learningItems, activeTab, search]);
 
+  if (coursesLoading || syllabusLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px] space-y-4 font-sans">
+        <Loader2 className="w-8 h-8 text-[#7c3aed] animate-spin" />
+        <p className="text-xs text-slate-500 font-semibold">Loading roadmap details...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 font-sans pb-12">
 
@@ -431,11 +473,9 @@ export function LearningScreen() {
               <div className="relative pl-12 space-y-8">
                 
                 {curriculumRoadmap.stages?.map((stage: any, stageIdx: number) => {
-                  const isLocked = !stage.modules?.some((m: any) => 
-                    m.lessons?.some((l: any) => user?.unlockedLessonIds?.includes(l.id))
-                  );
+                  const isLocked = false;
                   const firstUnlockedStageIdx = curriculumRoadmap.stages?.findIndex((s: any) => 
-                    s.modules?.some((m: any) => m.lessons?.some((l: any) => user?.unlockedLessonIds?.includes(l.id)))
+                    s.modules?.some((m: any) => m.lessons?.some((l: any) => localUnlockedLessonIds.includes(l.id)))
                   );
                   const isCurrent = (firstUnlockedStageIdx === -1) ? (stageIdx === 0) : (stageIdx === firstUnlockedStageIdx);
 
@@ -458,65 +498,60 @@ export function LearningScreen() {
                       <div className="absolute left-[-26px] top-[64px] h-full w-1 bg-purple-200/60 rounded-full z-0" />
 
                       {/* Stage Card */}
-                      <div className={cn(
-                        "p-6 rounded-[2rem] border transition-all space-y-4",
-                        isLocked ? "bg-slate-50 border-slate-200/80" : "bg-white border-slate-200/90 shadow-md hover:shadow-lg"
-                      )}>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-3.5">
-                            <div className={cn(
-                              "w-12 h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0",
-                              isLocked ? "bg-slate-200 text-slate-500 shadow-none" : "bg-[#7c3aed] text-white"
-                            )}>
-                              {isLocked ? <Lock className="w-6 h-6" /> : <Brain className="w-6 h-6" />}
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span className={cn(
-                                  "px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider",
-                                  isLocked ? "bg-slate-200 text-slate-500" : "bg-purple-50 text-[#7c3aed] border border-purple-100"
-                                )}>
-                                  STAGE 0{stageIdx + 1}
-                                </span>
-                                {!isLocked && <span className="text-xs font-semibold text-slate-500">Phase {stageIdx + 1}</span>}
+                      {(() => {
+                        const isStageExpanded = expandedStages[stage.id] !== undefined 
+                          ? expandedStages[stage.id] 
+                          : isCurrent;
+
+                        return (
+                          <div className="p-6 rounded-[2rem] border transition-all space-y-4 bg-white border-slate-200/90 shadow-md hover:shadow-lg">
+                            {/* Interactive Header Toggler */}
+                            <div 
+                              onClick={() => {
+                                setExpandedStages(prev => ({
+                                  ...prev,
+                                  [stage.id]: !isStageExpanded
+                                }));
+                              }}
+                              className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer select-none group/stage"
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-md shrink-0 bg-[#7c3aed] text-white">
+                                  <Brain className="w-6 h-6" />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="px-2.5 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-purple-50 text-[#7c3aed] border border-purple-100">
+                                      STAGE 0{stageIdx + 1}
+                                    </span>
+                                    <span className="text-xs font-semibold text-slate-500">Phase {stageIdx + 1}</span>
+                                  </div>
+                                  <h3 className="font-extrabold text-lg sm:text-xl mt-0.5 text-slate-900 group-hover/stage:text-[#7c3aed] transition-colors">
+                                    {stage.title}
+                                  </h3>
+                                </div>
                               </div>
-                              <h3 className={cn(
-                                "font-extrabold text-lg sm:text-xl mt-0.5",
-                                isLocked ? "text-slate-700" : "text-slate-900"
-                              )}>
-                                {stage.title}
-                              </h3>
+
+                              <div className="flex items-center gap-3">
+                                <span className="px-3 py-1 rounded-full bg-slate-100 text-[#7c3aed] border border-purple-100 text-xs font-bold w-fit">
+                                  AVAILABLE
+                                </span>
+                                <div className={cn("w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 transition-transform duration-300", isStageExpanded && "rotate-180")}>
+                                  <ChevronDown className="w-4 h-4 text-slate-500" />
+                                </div>
+                              </div>
                             </div>
-                          </div>
 
-                          {isCurrent && (
-                            <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-bold flex items-center gap-1.5 w-fit">
-                              <span className="w-2 h-2 rounded-full bg-[#7c3aed] animate-pulse" />
-                              IN PROGRESS
-                            </span>
-                          )}
-                          {isLocked && (
-                            <span className="px-2.5 py-0.5 rounded-full bg-slate-200 text-slate-600 text-xs font-bold">
-                              LOCKED
-                            </span>
-                          )}
-                          {!isCurrent && !isLocked && (
-                            <span className="px-3 py-1 rounded-full bg-slate-100 text-[#7c3aed] border border-purple-100 text-xs font-bold w-fit">
-                              AVAILABLE
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Modules List inside Stage */}
-                        {!isLocked && stage.modules && (
-                          <div className="pt-2 space-y-3">
+                            {/* Modules List inside Stage */}
+                            {isStageExpanded && stage.modules && (
+                              <div className="pt-2 space-y-3">
                             {stage.modules.map((mod: any, modIdx: number) => {
                               const videos = mod.lessons?.filter((l: any) => !!l.video).length || 0;
                               const practices = mod.lessons?.filter((l: any) => !!l.practice).length || 0;
                               const assessments = mod.lessons?.filter((l: any) => !!l.assessment).length || 0;
                               const coding = 0; // We merged coding into practices for now
 
-                              const isModLocked = !mod.lessons?.some((l: any) => user?.unlockedLessonIds?.includes(l.id));
+                              const isModLocked = !mod.lessons?.some((l: any) => localUnlockedLessonIds.includes(l.id));
 
                               return (
                                 <button
@@ -570,6 +605,8 @@ export function LearningScreen() {
                           </div>
                         )}
                       </div>
+                    );
+                  })()}
                     </div>
                   );
                 })}
@@ -829,7 +866,7 @@ export function LearningScreen() {
 
                 <div className="space-y-3">
                   {mod.lessons?.map((lesson: any, idx: number) => {
-                    const isLessonLocked = !user?.unlockedLessonIds?.includes(lesson.id);
+                    const isLessonLocked = !localUnlockedLessonIds.includes(lesson.id);
                     const isExpanded = activeAccordion === lesson.id;
 
                     return (

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2 } from 'lucide-react';
-import { fetchPracticeProblems } from '@/lib/api';
+import { fetchPracticeProblems, fetchUserSubmissions } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 
 import { practiceSteps } from '@/lib/tourSteps';
@@ -42,8 +42,61 @@ export function PracticeScreen() {
       setLoading(true);
       try {
         const courseId = user?.enrolledCourses?.[0];
-        const data = await fetchPracticeProblems(courseId);
-        setProblems(data || []);
+        const dbProblems = await fetchPracticeProblems(courseId);
+        
+        let dbSubmissions: Submission[] = [];
+        if (user?.id) {
+          try {
+            const res = await fetchUserSubmissions(user.id);
+            dbSubmissions = (res || []).map((s: any) => ({
+              problemId: s.problem_id,
+              problemTitle: (dbProblems || []).find((p: any) => p.id === s.problem_id)?.title || s.project_name || 'Practice Solution',
+              language: s.language,
+              code: s.code,
+              sandboxUrl: s.sandbox_url,
+              storageUrl: s.storage_url,
+              projectName: s.project_name,
+              fileCount: s.file_count,
+              timestamp: s.created_at || new Date().toISOString()
+            }));
+          } catch (dbErr) {
+            console.warn('Failed to fetch submissions from Supabase, relying on localStorage:', dbErr);
+          }
+        }
+
+        // Merge with local storage fallback
+        const mergedSubmissions = [...dbSubmissions];
+        (dbProblems || []).forEach((problem: any) => {
+          const savedSubmission = localStorage.getItem(`submission_${problem.id}`);
+          if (savedSubmission) {
+            try {
+              const data = JSON.parse(savedSubmission);
+              const exists = mergedSubmissions.some(s => s.problemId === problem.id);
+              if (!exists) {
+                mergedSubmissions.push({
+                  problemId: problem.id,
+                  problemTitle: problem.title,
+                  ...data,
+                });
+              }
+            } catch (e) {
+              console.error('Failed to parse submission:', e);
+            }
+          }
+        });
+
+        mergedSubmissions.sort((a, b) => 
+          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        );
+
+        setSubmissions(mergedSubmissions);
+
+        const updatedProblems = (dbProblems || []).map((p: any) => {
+          const hasSubmission = mergedSubmissions.some(s => s.problemId === p.id);
+          return hasSubmission ? { ...p, solved: true } : p;
+        });
+
+        setProblems(updatedProblems);
       } catch (err) {
         console.error(err);
       } finally {
@@ -53,46 +106,12 @@ export function PracticeScreen() {
     load();
   }, [user]);
 
-  // Load submissions from localStorage
-  useEffect(() => {
-    const loadedSubmissions: Submission[] = [];
-    
-    problems.forEach((problem) => {
-      const savedSubmission = localStorage.getItem(`submission_${problem.id}`);
-      if (savedSubmission) {
-        try {
-          const data = JSON.parse(savedSubmission);
-          loadedSubmissions.push({
-            problemId: problem.id,
-            problemTitle: problem.title,
-            ...data,
-          });
-        } catch (e) {
-          console.error('Failed to parse submission:', e);
-        }
-      }
-    });
-
-    loadedSubmissions.sort((a, b) => 
-      new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-    );
-
-    setSubmissions(loadedSubmissions);
-
-    // Update solved status based on localStorage
-    const updatedProblems = problems.map(p => {
-      const hasSubmission = loadedSubmissions.some(s => s.problemId === p.id);
-      return hasSubmission ? { ...p, solved: true } : p;
-    });
-    setProblems(updatedProblems);
-  }, []);
-
   const filtered = problems.filter(p => {
     const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
     const isUnlocked = user?.unlockedLessonIds?.includes(p.inner_topic_id);
     return matchesDifficulty && isUnlocked;
   });
-  const solved = 0;
+  const solved = problems.filter(p => p.solved).length;
 
   return (
     <div className="space-y-6">
@@ -105,10 +124,10 @@ export function PracticeScreen() {
       {/* Stats */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { label: 'Solved Problems', value: `0`, icon: CheckCircle2 },
-          { label: 'Current Streak', value: '0 Days', icon: Flame },
-          { label: 'Total Points', value: `0 XP`, icon: Zap },
-          { label: 'Success Rate', value: '0%', icon: TrendingUp },
+          { label: 'Solved Problems', value: `${solved}`, icon: CheckCircle2 },
+          { label: 'Current Streak', value: `${user?.streak || 0} Days`, icon: Flame },
+          { label: 'Total Points', value: `${user?.xp || 0} XP`, icon: Zap },
+          { label: 'Success Rate', value: `${problems.length > 0 ? Math.round((solved / problems.length) * 100) : 0}%`, icon: TrendingUp },
         ].map((s, i) => (
           <Card key={i} className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">

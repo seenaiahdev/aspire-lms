@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { GraduationCap, Mail, MapPin, Calendar, Star, Award, Zap, Flame, TrendingUp, Github, Linkedin, Globe, Edit, ChevronRight } from 'lucide-react';
 import { useUser } from '@/lib/UserContext';
-import { fetchBadges } from '@/lib/api';
+import { fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts } from '@/lib/api';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
@@ -10,49 +10,49 @@ import * as Icons from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 const badgeMedalStyles: Record<string, { bg: string; border: string; glow: string; icon: string }> = {
-  b1: {
+  blue: {
     bg: 'bg-gradient-to-br from-blue-500 via-indigo-600 to-indigo-800',
     border: 'border-2 border-white ring-1 ring-indigo-400',
     glow: 'shadow-[0_0_10px_rgba(59,130,246,0.4)]',
     icon: 'text-white drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)]'
   },
-  b2: {
+  amber: {
     bg: 'bg-gradient-to-br from-amber-400 via-orange-500 to-red-600',
     border: 'border-2 border-white ring-1 ring-orange-400',
     glow: 'shadow-[0_0_12px_rgba(245,158,11,0.5)]',
     icon: 'text-white drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)] animate-pulse'
   },
-  b3: {
+  rose: {
     bg: 'bg-gradient-to-br from-red-500 via-rose-600 to-rose-800',
     border: 'border-2 border-white ring-1 ring-rose-400',
     glow: 'shadow-[0_0_10px_rgba(244,63,94,0.45)]',
     icon: 'text-white drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)]'
   },
-  b4: {
+  emerald: {
     bg: 'bg-gradient-to-br from-teal-400 via-emerald-500 to-emerald-700',
     border: 'border-2 border-white ring-1 ring-emerald-400',
     glow: 'shadow-[0_0_10px_rgba(16,185,129,0.45)]',
     icon: 'text-white drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)]'
   },
-  b5: {
+  purple: {
     bg: 'bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-800',
     border: 'border-2 border-white ring-1 ring-purple-400',
     glow: 'shadow-[0_0_15px_rgba(168,85,247,0.55)]',
     icon: 'text-yellow-300 drop-shadow-[0_1px_4px_rgba(253,224,71,0.5)]'
   },
-  b6: {
+  sky: {
     bg: 'bg-gradient-to-br from-sky-400 via-blue-500 to-blue-700',
     border: 'border-2 border-white ring-1 ring-sky-300',
     glow: 'shadow-[0_0_8px_rgba(56,189,248,0.4)]',
     icon: 'text-white drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)]'
   },
-  b7: {
+  cyan: {
     bg: 'bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600',
     border: 'border-2 border-white ring-1 ring-blue-300',
     glow: 'shadow-[0_0_8px_rgba(6,182,212,0.4)]',
     icon: 'text-white drop-shadow-[0_1px_4px_rgba(255,255,255,0.4)]'
   },
-  b8: {
+  slate: {
     bg: 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900',
     border: 'border-2 border-white ring-1 ring-amber-300',
     glow: 'shadow-[0_0_15px_rgba(251,191,36,0.5)]',
@@ -60,44 +60,96 @@ const badgeMedalStyles: Record<string, { bg: string; border: string; glow: strin
   }
 };
 
+function evaluateBadgeCriteria(
+  badge: any,
+  user: any,
+  submissions: any[],
+  assignmentSubmissions: any[]
+): boolean {
+  if (!badge.criteria) return false;
+  const criteria = badge.criteria.toLowerCase();
+
+  // 1. Streak-based criteria
+  if (criteria.includes('streak')) {
+    const match = criteria.match(/\d+/);
+    const requiredStreak = match ? parseInt(match[0], 10) : 10;
+    return (user.streak || 0) >= requiredStreak;
+  }
+
+  // 2. Score/Assessment-based criteria
+  if (criteria.includes('score') || criteria.includes('assessment') || criteria.includes('quiz') || criteria.includes('test')) {
+    const scoreMatch = criteria.match(/(\d+)%/);
+    const requiredScore = scoreMatch ? parseInt(scoreMatch[1], 10) : 70;
+    
+    const hasMatchingAttempt = (assignmentSubmissions || []).some(
+      (a) => (a.grade || 0) >= requiredScore
+    );
+    return hasMatchingAttempt;
+  }
+
+  // 3. Coding/Practice Problem-based criteria
+  if (criteria.includes('problem') || criteria.includes('coding') || criteria.includes('solve') || criteria.includes('project')) {
+    const match = criteria.match(/\d+/);
+    const requiredCount = match ? parseInt(match[0], 10) : 5;
+    const uniqueSolved = new Set((submissions || []).filter(s => s.status === 'solved' || s.language === 'project').map(s => s.problem_id)).size;
+    return uniqueSolved >= requiredCount;
+  }
+
+  // 4. Course Completion / Progress criteria
+  if (criteria.includes('completion') || criteria.includes('progress') || criteria.includes('complete')) {
+    const match = criteria.match(/\d+/);
+    const requiredProgress = match ? parseInt(match[0], 10) : 100;
+    return (user.progress || 0) >= requiredProgress;
+  }
+
+  // 5. Daily Attendance criteria
+  if (criteria.includes('attendance') || criteria.includes('attend')) {
+    const match = criteria.match(/\d+/);
+    const requiredAttendance = match ? parseInt(match[0], 10) : 75;
+    return (user.attendance || 0) >= requiredAttendance;
+  }
+
+  // 6. XP/Points criteria
+  if (criteria.includes('xp') || criteria.includes('points')) {
+    const match = criteria.match(/\d+/);
+    const requiredXP = match ? parseInt(match[0], 10) : 100;
+    const totalXP = user.xp || 0;
+    return totalXP >= requiredXP;
+  }
+
+  // Fallback: if criteria doesn't match any keywords, check if the student has any activity (XP > 0)
+  return (user.xp || 0) > 0;
+}
+
 export function ProfileScreen() {
   const { user } = useUser();
   const { navigate } = useNav();
   const [badges, setBadges] = useState<any[]>([]);
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  const [attempts, setAttempts] = useState<any[]>([]);
   const activeActivity: any[] = [];
 
   useEffect(() => {
-    const loadBadges = async () => {
+    const loadData = async () => {
       try {
-        const data = await fetchBadges();
-        setBadges(data);
+        const [badgesData, subsData, attemptsData] = await Promise.all([
+          fetchBadges(),
+          user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([]),
+          user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([])
+        ]);
+        setBadges(badgesData || []);
+        setSubmissions(subsData || []);
+        setAttempts(attemptsData || []);
       } catch (err) {
-        console.error('Failed to fetch badges', err);
+        console.error('Failed to fetch badges data:', err);
       }
     };
-    loadBadges();
-  }, []);
-  const totalXP = (user.xp || 0) * 15;
-  const earnedBadges = badges.map((badge) => {
-    let earned = false;
-    if (badge.id === 'b1') {
-      earned = user.xp > 0;
-    } else if (badge.id === 'b2') {
-      earned = (user.streak || 0) >= 30;
-    } else if (badge.id === 'b3') {
-      earned = totalXP >= 200;
-    } else if (badge.id === 'b4') {
-      earned = totalXP >= 400;
-    } else if (badge.id === 'b5') {
-      earned = totalXP >= 600;
-    } else if (badge.id === 'b6') {
-      earned = (user.streak || 0) >= 10;
-    } else if (badge.id === 'b7') {
-      earned = totalXP >= 800;
-    } else if (badge.id === 'b8') {
-      earned = totalXP >= 1000;
-    }
+    loadData();
+  }, [user?.id]);
 
+  const totalXP = user.xp || 0;
+  const earnedBadges = badges.map((badge) => {
+    const earned = evaluateBadgeCriteria(badge, user, submissions, attempts);
     return {
       ...badge,
       earned,
@@ -153,7 +205,7 @@ export function ProfileScreen() {
           {/* Stats Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/20">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
-              <p className="text-3xl font-black tracking-tight">{user.xp}%</p>
+              <p className="text-3xl font-black tracking-tight">{user.progress}%</p>
               <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Course Progress</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
@@ -263,15 +315,15 @@ export function ProfileScreen() {
           {/* Level Progress Widget */}
           <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white p-6 text-center">
             <div className="relative inline-block mb-4">
-              <ProgressRing value={user.xp} size={120} strokeWidth={10} showLabel={false} color="stroke-[#7c3aed]" />
+              <ProgressRing value={user.progress} size={120} strokeWidth={10} showLabel={false} color="stroke-[#7c3aed]" />
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Progress</span>
-                <span className="text-3xl font-black text-slate-900 -mt-1">{user.xp}%</span>
+                <span className="text-3xl font-black text-slate-900 -mt-1">{user.progress}%</span>
               </div>
             </div>
             
             <p className="text-xs font-bold text-slate-500 mb-6 bg-slate-50 py-2 rounded-xl border border-slate-100">
-              You have completed <span className="text-[#7c3aed] font-black">{user.xp}%</span> of your course modules.
+              You have completed <span className="text-[#7c3aed] font-black">{user.progress}%</span> of your course modules.
             </p>
             
             <div className="grid grid-cols-3 gap-2">
@@ -310,19 +362,22 @@ export function ProfileScreen() {
               ) : (
                 <div className="grid grid-cols-4 gap-3">
                   {earnedBadges.slice(0, 4).map((badge) => {
-                    const Icon = (Icons as any)[badge.icon] as Icons.LucideIcon;
+                    const Icon = ((Icons as any)[badge.icon] || (Icons as any)[badge.icon?.charAt(0).toUpperCase() + badge.icon?.slice(1)] || Icons.Award) as Icons.LucideIcon;
+                    const styleKey = badge.color || 'blue';
+                    const medalStyle = badgeMedalStyles[styleKey] || badgeMedalStyles.blue;
+
                     return (
                       <div key={badge.id} className="flex flex-col items-center text-center group cursor-default">
                         <div className={cn(
                           "w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-transform relative shrink-0",
-                          badgeMedalStyles[badge.id]?.bg,
-                          badgeMedalStyles[badge.id]?.border,
-                          badgeMedalStyles[badge.id]?.glow,
+                          medalStyle.bg,
+                          medalStyle.border,
+                          medalStyle.glow,
                           "group-hover:scale-110"
                         )}>
                           {/* Reflective shine */}
                           <div className="absolute top-0.5 left-1.5 w-3.5 h-1.5 bg-white/20 rounded-full blur-[0.5px] rotate-[-15deg] pointer-events-none" />
-                          <Icon className={cn("w-6 h-6", badgeMedalStyles[badge.id]?.icon)} />
+                          <Icon className={cn("w-6 h-6", medalStyle.icon)} />
                         </div>
                         <span className="text-[9px] font-black text-slate-650 uppercase tracking-wider leading-tight px-1 line-clamp-1">{badge.name}</span>
                       </div>

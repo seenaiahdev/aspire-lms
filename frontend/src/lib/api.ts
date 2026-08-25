@@ -703,3 +703,241 @@ export async function fetchRecordings(batchCode: string) {
   }
 }
 
+// ════════════════════════════════════════════════════════════════
+// NEW SOLUTIONS & ATTEMPTS INTERACTION
+// ════════════════════════════════════════════════════════════════
+
+export async function incrementUserXP(userId: string, amount: number) {
+  const { data: profile, error: fetchError } = await supabase
+    .from('student_profiles')
+    .select('xp')
+    .eq('student_id', userId)
+    .single();
+
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    console.error('Error fetching student profile for XP increment:', fetchError);
+    return;
+  }
+
+  const currentXp = profile?.xp ?? 0;
+  const newXp = currentXp + amount;
+
+  const { error: updateError } = await supabase
+    .from('student_profiles')
+    .update({ xp: newXp })
+    .eq('student_id', userId);
+
+  if (updateError) {
+    console.error('Error updating student profile XP:', updateError);
+  }
+}
+
+export async function submitPracticeProblem(
+  userId: string,
+  problemId: string,
+  language: string,
+  code?: string,
+  sandboxUrl?: string,
+  storageUrl?: string,
+  projectName?: string,
+  fileCount: number = 1
+) {
+  const { data, error } = await supabase
+    .from('submissions')
+    .insert({
+      user_id: userId,
+      problem_id: problemId,
+      language: language,
+      code: code,
+      status: 'solved',
+      sandbox_url: sandboxUrl,
+      storage_url: storageUrl,
+      project_name: projectName,
+      file_count: fileCount,
+      created_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error submitting practice problem:', error);
+    throw error;
+  }
+
+  // Increment user XP by 100 for solving a coding problem
+  try {
+    await incrementUserXP(userId, 100);
+  } catch (xpErr) {
+    console.warn('Failed to increment XP after solving problem:', xpErr);
+  }
+
+  return data;
+}
+
+export async function fetchUserSubmissions(userId: string) {
+  const { data, error } = await supabase
+    .from('submissions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching user submissions:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function submitAssignmentAttempt(
+  userId: string,
+  assignmentId: string,
+  status: 'pending' | 'submitted' | 'reviewed' | 'overdue',
+  grade?: number,
+  feedback?: string,
+  attachments: number = 0
+) {
+  const { data, error } = await supabase
+    .from('assignment_submissions')
+    .insert({
+      user_id: userId,
+      assignment_id: assignmentId,
+      status: status,
+      grade: grade,
+      feedback: feedback,
+      attachments: attachments,
+      submitted_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error submitting assignment attempt:', error);
+    throw error;
+  }
+
+  // Increment user XP dynamically based on score
+  try {
+    let pointsAwarded = 50; // Participation XP
+    const score = grade ?? 0;
+    if (score >= 100) {
+      pointsAwarded = 250; // Base 200 + 50 perfect first-try bonus
+    } else if (score >= 70) {
+      pointsAwarded = Math.round(200 * (score / 100));
+    } else if (score > 0) {
+      pointsAwarded = Math.max(50, Math.round(200 * (score / 100)));
+    }
+    await incrementUserXP(userId, pointsAwarded);
+  } catch (xpErr) {
+    console.warn('Failed to increment XP after assignment attempt:', xpErr);
+  }
+
+  return data;
+}
+
+export async function fetchAssignmentAttempts(userId: string) {
+  const { data, error } = await supabase
+    .from('assignment_submissions')
+    .select('*')
+    .eq('user_id', userId)
+    .order('submitted_at', { ascending: false });
+
+  if (error) {
+    console.error('Error fetching assignment attempts:', error);
+    return [];
+  }
+  return data || [];
+}
+
+export async function submitRewardClaim(claim: {
+  student_id: string;
+  reward_id: string;
+  full_name: string;
+  contact_number: string;
+  shipping_address: string;
+  apparel_size?: string;
+}) {
+  const { data, error } = await supabase
+    .from('reward_claims')
+    .insert({
+      id: `clm-${Date.now()}`,
+      student_id: claim.student_id,
+      reward_id: claim.reward_id,
+      full_name: claim.full_name,
+      contact_number: claim.contact_number,
+      shipping_address: claim.shipping_address,
+      apparel_size: claim.apparel_size || null,
+      status: 'pending',
+      claimed_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error submitting reward claim:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function fetchRewardClaims(studentId: string) {
+  const { data, error } = await supabase
+    .from('reward_claims')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) {
+    console.error('Error fetching reward claims:', error);
+    return [];
+  }
+  return data || [];
+}
+
+// ════════════════════════════════════════════════════════════════
+// JOB APPLICATIONS
+// ════════════════════════════════════════════════════════════════
+
+export async function submitJobApplication(application: {
+  student_id: string;
+  job_id: string;
+  full_name: string;
+  contact_number: string;
+  resume_link: string;
+  cover_letter?: string;
+}) {
+  const { data, error } = await supabase
+    .from('job_applications')
+    .insert({
+      id: `app-${Date.now()}`,
+      student_id: application.student_id,
+      job_id: application.job_id,
+      full_name: application.full_name,
+      contact_number: application.contact_number,
+      resume_link: application.resume_link,
+      cover_letter: application.cover_letter || null,
+      status: 'applied',
+      applied_at: new Date().toISOString()
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error submitting job application:', error);
+    throw error;
+  }
+  return data;
+}
+
+export async function fetchJobApplications(studentId: string) {
+  const { data, error } = await supabase
+    .from('job_applications')
+    .select('*')
+    .eq('student_id', studentId);
+
+  if (error) {
+    console.error('Error fetching job applications:', error);
+    return [];
+  }
+  return data || [];
+}
+
+

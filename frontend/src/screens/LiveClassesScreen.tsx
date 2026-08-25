@@ -48,14 +48,36 @@ export function LiveClassesScreen() {
   }, [batchCode]);
 
   const mappedSessions = useMemo(() => {
+    const parseStartTime = (timeStr: string) => {
+      let startTime24 = '00:00:00';
+      if (timeStr) {
+        const parts = timeStr.split('-');
+        const startPart = parts[0]?.trim(); // "10:00"
+        const endPart = parts[1]?.trim(); // "11:30 AM" or "07:30 PM"
+        const isPM = endPart?.toUpperCase().includes('PM') || startPart?.toUpperCase().includes('PM');
+        
+        if (startPart) {
+          const timeMatch = startPart.match(/(\d+):(\d+)/);
+          if (timeMatch) {
+            let hours = parseInt(timeMatch[1]);
+            const minutes = timeMatch[2];
+            if (isPM && hours < 12) hours += 12;
+            if (!isPM && hours === 12) hours = 0;
+            startTime24 = `${String(hours).padStart(2, '0')}:${minutes}:00`;
+          }
+        }
+      }
+      return startTime24;
+    };
+
     const sorted = [...dbSessions].sort((a, b) => {
       // Prioritize ongoing sessions first
       if (a.status === 'ongoing' && b.status !== 'ongoing') return -1;
       if (a.status !== 'ongoing' && b.status === 'ongoing') return 1;
 
-      // Then sort chronologically by date and time
-      const timeA = new Date(`${a.date}T${a.time || '00:00:00'}`).getTime();
-      const timeB = new Date(`${b.date}T${b.time || '00:00:00'}`).getTime();
+      // Sort chronologically by date and time
+      const timeA = new Date(`${a.date}T${parseStartTime(a.time)}`).getTime();
+      const timeB = new Date(`${b.date}T${parseStartTime(b.time)}`).getTime();
       return timeA - timeB;
     });
 
@@ -67,7 +89,8 @@ export function LiveClassesScreen() {
 
     return sorted.map(cls => {
       let resolvedStatus = cls.status || 'upcoming';
-      const sessionStart = new Date(`${cls.date}T${cls.time || '00:00:00'}`);
+      const startTime24 = parseStartTime(cls.time);
+      const sessionStart = new Date(`${cls.date}T${startTime24}`);
       let durationMinutes = 90;
       if (cls.duration) {
         const match = cls.duration.match(/(\d+)h/);
@@ -82,7 +105,7 @@ export function LiveClassesScreen() {
 
       if (cls.status === 'completed' || isDateInPast || (cls.date === todayStr && isPast)) {
         resolvedStatus = 'completed';
-      } else if (cls.status === 'ongoing') {
+      } else if (cls.status === 'ongoing' || (cls.date === todayStr && now.getTime() >= sessionStart.getTime() && now.getTime() <= sessionEnd.getTime())) {
         resolvedStatus = 'ongoing';
       } else {
         resolvedStatus = 'upcoming';
@@ -142,7 +165,13 @@ export function LiveClassesScreen() {
     );
   }, [mappedSessions, tab]);
 
-  const displayList = filtered;
+  const displayList = useMemo(() => {
+    return tab === 'upcoming' ? filtered.slice(0, 2) : filtered;
+  }, [filtered, tab]);
+
+  const upcomingCount = useMemo(() => {
+    return Math.min(2, mappedSessions.filter(c => c.status === 'ongoing' || c.status === 'upcoming').length);
+  }, [mappedSessions]);
 
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12 relative">
@@ -158,7 +187,7 @@ export function LiveClassesScreen() {
         id="tour-live-tabs"
         variant="pills"
         tabs={[
-          { id: 'upcoming', label: 'Upcoming & Live', badge: mappedSessions.filter(c => c.status === 'ongoing' || c.status === 'upcoming').length },
+          { id: 'upcoming', label: 'Upcoming & Live', badge: upcomingCount },
           { id: 'completed', label: 'Recordings', badge: mappedSessions.filter(c => c.status === 'completed').length },
         ]}
         active={tab}

@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User } from '@/types';
-import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile } from '@/lib/api';
+import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile, fetchUserSubmissions, fetchAssignmentAttempts } from '@/lib/api';
 import { supabase } from './supabase';
 
 const initialUser: ExtendedUser = {
@@ -103,6 +103,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
             }
           }
 
+          const realXp = profile?.xp ?? 0;
+
           const updatedUser = {
             id: student.id,
             name: student.name,
@@ -114,8 +116,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
             startYear: profile?.start_year || undefined,
             endYear: profile?.end_year || undefined,
             joinedDate: student.joined_date || 'Jan 2026',
-            xp: realProgress,
-            level: Math.floor((realProgress * 15) / 500) + 1,
+            xp: realXp,
+            level: Math.floor(realXp / 500) + 1,
             streak: realStreak,
             rank: realGpa,
             bio: profile?.bio || '',
@@ -224,10 +226,44 @@ export function UserProvider({ children }: { children: ReactNode }) {
         )
         .subscribe();
 
+      const submissionsChannel = supabase
+        .channel('submissions_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'submissions'
+          },
+          () => {
+            console.log("Real-time practice submissions changed, reloading User XP context...");
+            refetchUser();
+          }
+        )
+        .subscribe();
+
+      const attemptsChannel = supabase
+        .channel('assignment_submissions_realtime')
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'assignment_submissions'
+          },
+          () => {
+            console.log("Real-time assessment submissions changed, reloading User XP context...");
+            refetchUser();
+          }
+        )
+        .subscribe();
+
       return () => {
         supabase.removeChannel(channel);
         supabase.removeChannel(locksChannel);
         supabase.removeChannel(profileChannel);
+        supabase.removeChannel(submissionsChannel);
+        supabase.removeChannel(attemptsChannel);
       };
     }
   }, [refetchUser]);

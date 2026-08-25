@@ -2,7 +2,7 @@ import { Trophy, Flame, Zap, Lock, Sparkles, ArrowLeft, Award, Linkedin, Loader2
 import { useState, useEffect } from 'react';
 import { useUser } from '@/lib/UserContext';
 import { useNav } from '@/lib/nav';
-import { fetchBadges } from '@/lib/api';
+import { fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -17,49 +17,49 @@ const rarityConfig: Record<string, { ring: string; bg: string; text: string; lab
 };
 
 const badgeMedalStyles: Record<string, { bg: string; border: string; glow: string; icon: string }> = {
-  b1: {
+  blue: {
     bg: 'bg-gradient-to-br from-blue-500 via-indigo-600 to-indigo-800',
     border: 'border-4 border-slate-100 ring-2 ring-indigo-400',
     glow: 'shadow-[0_0_20px_rgba(59,130,246,0.5)]',
     icon: 'text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.4)]'
   },
-  b2: {
+  amber: {
     bg: 'bg-gradient-to-br from-amber-400 via-orange-500 to-red-600',
     border: 'border-4 border-amber-200 ring-2 ring-orange-400',
     glow: 'shadow-[0_0_25px_rgba(245,158,11,0.65)]',
     icon: 'text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.4)] animate-pulse'
   },
-  b3: {
+  rose: {
     bg: 'bg-gradient-to-br from-red-500 via-rose-600 to-rose-800',
     border: 'border-4 border-rose-200 ring-2 ring-rose-400',
     glow: 'shadow-[0_0_20px_rgba(244,63,94,0.55)]',
     icon: 'text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.4)]'
   },
-  b4: {
+  emerald: {
     bg: 'bg-gradient-to-br from-teal-400 via-emerald-500 to-emerald-700',
     border: 'border-4 border-emerald-100 ring-2 ring-emerald-400',
     glow: 'shadow-[0_0_20px_rgba(16,185,129,0.55)]',
     icon: 'text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.4)]'
   },
-  b5: {
+  purple: {
     bg: 'bg-gradient-to-br from-fuchsia-600 via-purple-600 to-indigo-800',
     border: 'border-4 border-yellow-400 ring-2 ring-purple-400',
     glow: 'shadow-[0_0_30px_rgba(168,85,247,0.7)]',
     icon: 'text-yellow-300 drop-shadow-[0_2px_8px_rgba(253,224,71,0.5)]'
   },
-  b6: {
+  sky: {
     bg: 'bg-gradient-to-br from-sky-400 via-blue-500 to-blue-700',
     border: 'border-4 border-sky-100 ring-2 ring-sky-300',
     glow: 'shadow-[0_0_15px_rgba(56,189,248,0.5)]',
     icon: 'text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.4)]'
   },
-  b7: {
+  cyan: {
     bg: 'bg-gradient-to-br from-cyan-400 via-blue-500 to-indigo-600',
     border: 'border-4 border-slate-100 ring-2 ring-blue-300',
     glow: 'shadow-[0_0_15px_rgba(6,182,212,0.5)]',
     icon: 'text-white drop-shadow-[0_2px_8px_rgba(255,255,255,0.4)]'
   },
-  b8: {
+  slate: {
     bg: 'bg-gradient-to-br from-slate-700 via-slate-800 to-slate-900',
     border: 'border-4 border-amber-400 ring-2 ring-amber-300',
     glow: 'shadow-[0_0_30px_rgba(251,191,36,0.65)]',
@@ -67,64 +67,108 @@ const badgeMedalStyles: Record<string, { bg: string; border: string; glow: strin
   }
 };
 
+function evaluateBadgeCriteria(
+  badge: any,
+  user: any,
+  submissions: any[],
+  assignmentSubmissions: any[]
+): boolean {
+  if (!badge.criteria) return false;
+  const criteria = badge.criteria.toLowerCase();
+
+  // 1. Streak-based criteria
+  if (criteria.includes('streak')) {
+    const match = criteria.match(/\d+/);
+    const requiredStreak = match ? parseInt(match[0], 10) : 10;
+    return (user.streak || 0) >= requiredStreak;
+  }
+
+  // 2. Score/Assessment-based criteria
+  if (criteria.includes('score') || criteria.includes('assessment') || criteria.includes('quiz') || criteria.includes('test')) {
+    const scoreMatch = criteria.match(/(\d+)%/);
+    const requiredScore = scoreMatch ? parseInt(scoreMatch[1], 10) : 70;
+    
+    const hasMatchingAttempt = (assignmentSubmissions || []).some(
+      (a) => (a.grade || 0) >= requiredScore
+    );
+    return hasMatchingAttempt;
+  }
+
+  // 3. Coding/Practice Problem-based criteria
+  if (criteria.includes('problem') || criteria.includes('coding') || criteria.includes('solve') || criteria.includes('project')) {
+    const match = criteria.match(/\d+/);
+    const requiredCount = match ? parseInt(match[0], 10) : 5;
+    const uniqueSolved = new Set((submissions || []).filter(s => s.status === 'solved' || s.language === 'project').map(s => s.problem_id)).size;
+    return uniqueSolved >= requiredCount;
+  }
+
+  // 4. Course Completion / Progress criteria
+  if (criteria.includes('completion') || criteria.includes('progress') || criteria.includes('complete')) {
+    const match = criteria.match(/\d+/);
+    const requiredProgress = match ? parseInt(match[0], 10) : 100;
+    return (user.progress || 0) >= requiredProgress;
+  }
+
+  // 5. Daily Attendance criteria
+  if (criteria.includes('attendance') || criteria.includes('attend')) {
+    const match = criteria.match(/\d+/);
+    const requiredAttendance = match ? parseInt(match[0], 10) : 75;
+    return (user.attendance || 0) >= requiredAttendance;
+  }
+
+  // 6. XP/Points criteria
+  if (criteria.includes('xp') || criteria.includes('points')) {
+    const match = criteria.match(/\d+/);
+    const requiredXP = match ? parseInt(match[0], 10) : 100;
+    const totalXP = user.xp || 0;
+    return totalXP >= requiredXP;
+  }
+
+  // Fallback: if criteria doesn't match any keywords, check if the student has any activity (XP > 0)
+  return (user.xp || 0) > 0;
+}
+
 export function AchievementsScreen() {
   const { user: currentUser } = useUser();
   const { navigate } = useNav();
   const [badges, setBadges] = useState<any[]>([]);
+  const [submissions, setSubSubmissions] = useState<any[]>([]);
+  const [attempts, setAttempts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadBadges = async () => {
+    const loadData = async () => {
       try {
-        const data = await fetchBadges();
-        setBadges(data);
+        const [badgesData, subsData, attemptsData] = await Promise.all([
+          fetchBadges(),
+          currentUser?.id ? fetchUserSubmissions(currentUser.id) : Promise.resolve([]),
+          currentUser?.id ? fetchAssignmentAttempts(currentUser.id) : Promise.resolve([])
+        ]);
+        setBadges(badgesData || []);
+        setSubSubmissions(subsData || []);
+        setAttempts(attemptsData || []);
       } catch (error) {
-        console.error('Failed to fetch badges:', error);
+        console.error('Failed to fetch data for achievements:', error);
       } finally {
         setLoading(false);
       }
     };
-    loadBadges();
-  }, []);
+    loadData();
+  }, [currentUser?.id]);
 
   // Dynamic calculations based on user's real-time stats
-  const totalXP = (currentUser.xp || 0) * 15;
+  const totalXP = currentUser.xp || 0;
   const level = Math.floor(totalXP / 500) + 1;
   const progressRingValue = ((totalXP % 500) / 500) * 100;
   const xpToNextLevel = 500 - (totalXP % 500);
 
   const dynamicBadges = badges.map((badge) => {
-    let earned = false;
-    if (badge.id === 'b1') {
-      // Fast Learner: progress > 0
-      earned = currentUser.xp > 0;
-    } else if (badge.id === 'b2') {
-      // Streak Master: streak >= 30
-      earned = (currentUser.streak || 0) >= 30;
-    } else if (badge.id === 'b3') {
-      // Quiz Champion: XP >= 200
-      earned = totalXP >= 200;
-    } else if (badge.id === 'b4') {
-      // Helping Hand: XP >= 400
-      earned = totalXP >= 400;
-    } else if (badge.id === 'b5') {
-      // Code Wizard: XP >= 600
-      earned = totalXP >= 600;
-    } else if (badge.id === 'b6') {
-      // Early Bird: streak >= 10
-      earned = (currentUser.streak || 0) >= 10;
-    } else if (badge.id === 'b7') {
-      // Team Player: XP >= 800
-      earned = totalXP >= 800;
-    } else if (badge.id === 'b8') {
-      // Perfectionist: XP >= 1000
-      earned = totalXP >= 1000;
-    }
+    const earned = evaluateBadgeCriteria(badge, currentUser, submissions, attempts);
 
     return {
       ...badge,
       earned,
-      date: earned ? 'Aug 17' : undefined,
+      date: earned ? new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : undefined,
     };
   });
 
@@ -184,16 +228,19 @@ export function AchievementsScreen() {
           <div className="text-center p-8 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">No badges available yet</div>
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-            {dynamicBadges.map((badge) => {
-              const Icon = (Icons as any)[badge.icon] as Icons.LucideIcon;
-              const rarity = rarityConfig[badge.rarity];
+            {dynamicBadges.map((badge, idx) => {
+              const Icon = ((Icons as any)[badge.icon] || (Icons as any)[badge.icon?.charAt(0).toUpperCase() + badge.icon?.slice(1)] || Icons.Award) as Icons.LucideIcon;
+              const styleKey = badge.color || 'blue';
+              const medalStyle = badgeMedalStyles[styleKey] || badgeMedalStyles.blue;
+              const rarity = rarityConfig[badge.rarity || 'common'] || rarityConfig.common;
+              
               return (
                 <Card key={badge.id} hover className={cn('p-5 text-center flex flex-col items-center justify-between border border-slate-100 rounded-[2rem] bg-white transition-all', !badge.earned && 'opacity-50')}>
                   <div className="w-full flex flex-col items-center">
                     <div className={cn(
                       'w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all relative shrink-0',
                       badge.earned 
-                        ? `${badgeMedalStyles[badge.id]?.bg} ${badgeMedalStyles[badge.id]?.border} ${badgeMedalStyles[badge.id]?.glow}` 
+                        ? `${medalStyle.bg} ${medalStyle.border} ${medalStyle.glow}` 
                         : 'bg-slate-100 border-4 border-slate-200 shadow-inner'
                     )}>
                       {/* Glowing highlight reflection for 3D effect */}
@@ -201,7 +248,7 @@ export function AchievementsScreen() {
                         <div className="absolute top-1 left-3 w-6 h-3 bg-white/25 rounded-full blur-[1px] rotate-[-15deg] pointer-events-none" />
                       )}
                       {badge.earned ? (
-                        <Icon className={cn('w-9 h-9', badgeMedalStyles[badge.id]?.icon)} />
+                        <Icon className={cn('w-9 h-9', medalStyle.icon)} />
                       ) : (
                         <Lock className="w-6 h-6 text-slate-400" />
                       )}
@@ -221,22 +268,25 @@ export function AchievementsScreen() {
                       onClick={(e) => {
                         e.stopPropagation();
                         let achievementDetails = "";
-                        if (badge.id === 'b1') {
+                        const index = idx + 1;
+                        if (badge.id === 'b1' || index === 1) {
                           achievementDetails = "Completing 5 lessons in a single day was an exciting milestone on my learning journey!";
-                        } else if (badge.id === 'b2') {
+                        } else if (badge.id === 'b2' || index === 2) {
                           achievementDetails = "Maintaining a 30-day streak of active learning has been a fantastic way to build strong coding habits!";
-                        } else if (badge.id === 'b3') {
+                        } else if (badge.id === 'b3' || index === 3) {
                           achievementDetails = "Scoring 90% or higher on 10 quizzes has really pushed me to master the core concepts!";
-                        } else if (badge.id === 'b4') {
+                        } else if (badge.id === 'b4' || index === 4) {
                           achievementDetails = "Answering 50 community doubts and helping fellow developers has been an incredibly rewarding experience.";
-                        } else if (badge.id === 'b5') {
+                        } else if (badge.id === 'b5' || index === 5) {
                           achievementDetails = "Solving 100 coding problems has significantly leveled up my problem-solving and algorithmic thinking!";
-                        } else if (badge.id === 'b6') {
+                        } else if (badge.id === 'b6' || index === 6) {
                           achievementDetails = "Starting my study sessions before 7 AM for a whole week has built amazing discipline.";
-                        } else if (badge.id === 'b7') {
+                        } else if (badge.id === 'b7' || index === 7) {
                           achievementDetails = "Collaborating to complete 5 group projects taught me hands-on teamwork and software architecture.";
-                        } else if (badge.id === 'b8') {
+                        } else if (badge.id === 'b8' || index === 8) {
                           achievementDetails = "Achieving a perfect score of 100 on 5 assignments shows the high standards of execution I strive for!";
+                        } else {
+                          achievementDetails = `Unlocking the "${badge.name}" badge is an exciting milestone on my learning journey!`;
                         }
 
                         const postText = `Thrilled to share that I have just unlocked the "${badge.name}" badge on AspireNext LMS! 🎓✨\n\n${achievementDetails} AspireNext has been an incredible platform, providing industry-ready skills and an amazing learning experience! 🚀\n\nIf you are looking to elevate your career and master Python, Full Stack, DSA, or AI, I highly recommend checking out AspireNext!\n\n#AspireNext #LMS #ContinuousLearning #Upskilling #${badge.name.replace(/\s+/g, '')} #CareerGrowth #TechEducation`;

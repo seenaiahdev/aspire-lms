@@ -9,7 +9,7 @@ import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
-import { fetchRewards } from '@/lib/api';
+import { fetchRewards, submitRewardClaim, fetchRewardClaims } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 import { rewardsSteps } from '@/lib/tourSteps';
@@ -76,17 +76,57 @@ export function RewardsScreen() {
   const [rewardsState, setRewardsState] = useState<SwagReward[]>([]);
   const [selectedReward, setSelectedReward] = useState<SwagReward | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [claimedId, setClaimedId] = useState<string | null>(null);
-  const [lockedToast, setLockedToast] = useState(false);
+  const [claimedRewards, setClaimedRewards] = useState<Record<string, any>>(() => {
+    try {
+      const saved = localStorage.getItem('aspire_claimed_rewards');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+  const [claimRewardTarget, setClaimRewardTarget] = useState<SwagReward | null>(null);
+  const [shippingName, setShippingName] = useState(user?.name || '');
+  const [shippingPhone, setShippingPhone] = useState(user?.mobile || '');
+  const [shippingDoorNo, setShippingDoorNo] = useState('');
+  const [shippingStreet, setShippingStreet] = useState('');
+  const [shippingVillage, setShippingVillage] = useState('');
+  const [shippingCity, setShippingCity] = useState('');
+  const [shippingState, setShippingState] = useState('');
+  const [shippingPincode, setShippingPincode] = useState('');
+  const [shippingSize, setShippingSize] = useState('M');
+  const [lockedToastReward, setLockedToastReward] = useState<SwagReward | null>(null);
   const [loading, setLoading] = useState(true);
 
   const userXp = user?.xp || 0;
 
   useEffect(() => {
-    const loadRewards = async () => {
+    if (user) {
+      setShippingName(user.name || '');
+      setShippingPhone(user.mobile || '');
+    }
+  }, [user]);
+
+  useEffect(() => {
+    const loadData = async () => {
       try {
-        const data = await fetchRewards();
-        const enhanced = data.map((item: any) => {
+        const [rewardsData, claimsData] = await Promise.all([
+          fetchRewards(),
+          user?.id ? fetchRewardClaims(user.id) : Promise.resolve([])
+        ]);
+
+        const claimsRecord: Record<string, any> = {};
+        (claimsData || []).forEach((c: any) => {
+          claimsRecord[c.reward_id] = {
+            claimedAt: c.claimed_at,
+            name: c.full_name,
+            phone: c.contact_number,
+            address: c.shipping_address,
+            size: c.apparel_size
+          };
+        });
+        setClaimedRewards(claimsRecord);
+
+        const enhanced = rewardsData.map((item: any) => {
           const reqXp = item.reward_required_xp_points ?? item.requiredXp ?? 0;
           let imgUrl = item.reward_image_url || item.productImage || '';
           
@@ -121,7 +161,7 @@ export function RewardsScreen() {
         setLoading(false);
       }
     };
-    loadRewards();
+    loadData();
 
     // Set up real-time subscription for rewards table
     const channel = supabase
@@ -135,22 +175,68 @@ export function RewardsScreen() {
         },
         () => {
           console.log("Real-time rewards table updated, reloading list...");
-          loadRewards();
+          loadData();
+        }
+      )
+      .subscribe();
+
+    // Set up real-time subscription for reward_claims table
+    const claimsChannel = supabase
+      .channel('reward_claims_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reward_claims'
+        },
+        () => {
+          console.log("Real-time reward claims updated, reloading list...");
+          loadData();
         }
       )
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
+      supabase.removeChannel(claimsChannel);
     };
-  }, [userXp]);
+  }, [userXp, user?.id]);
 
-  const unlockedCount = rewardsState.filter(r => r.isUnlocked).length;
+  const unlockedCount = rewardsState.filter(r => r.isUnlocked && !claimedRewards[r.id]).length;
   const lockedCount = rewardsState.filter(r => !r.isUnlocked).length;
 
-  const handleClaimReward = (reward: SwagReward) => {
-    setClaimedId(reward.id);
-    setToastMessage(`Congratulations! ${reward.name} claimed successfully! Free campus shipping dispatched. 🚚🎁`);
+  const handleClaimReward = async (reward: SwagReward, shippingDetails: any) => {
+    try {
+      if (!user?.id) throw new Error('User not logged in');
+
+      // 1. Submit to Supabase table
+      await submitRewardClaim({
+        student_id: user.id,
+        reward_id: reward.id,
+        full_name: shippingDetails.name,
+        contact_number: shippingDetails.phone,
+        shipping_address: shippingDetails.address,
+        apparel_size: shippingDetails.size
+      });
+
+      // 2. Fallback update to local state & localStorage
+      setClaimedRewards((prev) => {
+        const updated = {
+          ...prev,
+          [reward.id]: {
+            claimedAt: new Date().toISOString(),
+            ...shippingDetails
+          }
+        };
+        localStorage.setItem('aspire_claimed_rewards', JSON.stringify(updated));
+        return updated;
+      });
+      setToastMessage(`Success! ${reward.name} claimed successfully. Free express shipping has been dispatched to the provided address.`);
+    } catch (dbErr: any) {
+      console.error('Failed to submit reward claim to Supabase:', dbErr);
+      setToastMessage(`Failed to submit claim: ${dbErr.message || 'database error'}`);
+    }
   };
 
   return (
@@ -220,7 +306,7 @@ export function RewardsScreen() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         {rewardsState.map((reward, index) => {
           const progressPercent = Math.round((reward.currentXp / reward.requiredXp) * 100);
-          const isClaimed = claimedId === reward.id;
+          const isClaimed = !!claimedRewards[reward.id];
 
           return (
             <Card
@@ -233,8 +319,10 @@ export function RewardsScreen() {
                 className="flex flex-col h-full justify-between transition-all duration-500 cursor-pointer"
                 onClick={() => {
                   if (!reward.isUnlocked) {
-                    setLockedToast(true);
-                    setTimeout(() => setLockedToast(false), 3000);
+                    setLockedToastReward(reward);
+                    setTimeout(() => setLockedToastReward(null), 3000);
+                  } else if (!isClaimed) {
+                    setSelectedReward(reward);
                   }
                 }}
               >
@@ -265,6 +353,23 @@ export function RewardsScreen() {
                     </h3>
                   </div>
 
+                  {!reward.isUnlocked && (
+                    <div className="space-y-2 mt-1 py-1">
+                      <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                        <div 
+                          className="bg-[#7c3aed] h-full rounded-full transition-all duration-500" 
+                          style={{ width: `${Math.min(100, (userXp / reward.requiredXp) * 100)}%` }}
+                        />
+                      </div>
+                      <p className="text-[10px] font-medium text-slate-500 text-left">
+                        Progress: <span className="font-bold text-slate-700">{userXp}</span> / <span className="font-bold text-slate-700">{reward.requiredXp} XP</span>
+                        <span className="block mt-0.5 text-[#7c3aed] font-extrabold uppercase tracking-wide text-[9px]">
+                          Earn {reward.requiredXp - userXp} more XP to unlock!
+                        </span>
+                      </p>
+                    </div>
+                  )}
+
                   {/* Unlocked / Locked Actions */}
                   <div className="pt-3 border-t border-slate-100 mt-auto">
                     {isClaimed ? (
@@ -274,7 +379,7 @@ export function RewardsScreen() {
                       </div>
                     ) : reward.isUnlocked ? (
                       <button
-                        onClick={(e) => { e.stopPropagation(); handleClaimReward(reward); }}
+                        onClick={(e) => { e.stopPropagation(); setClaimRewardTarget(reward); }}
                         className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
                       >
                         <ShoppingBag className="w-4 h-4 text-amber-300" />
@@ -284,8 +389,8 @@ export function RewardsScreen() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          setLockedToast(true);
-                          setTimeout(() => setLockedToast(false), 3000);
+                          setLockedToastReward(reward);
+                          setTimeout(() => setLockedToastReward(null), 3000);
                         }}
                         className="w-full py-2.5 px-4 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200/80 font-extrabold text-xs shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer border border-slate-200"
                       >
@@ -378,7 +483,7 @@ export function RewardsScreen() {
 
               {selectedReward.isUnlocked ? (
                 <button
-                  onClick={() => { handleClaimReward(selectedReward); setSelectedReward(null); }}
+                  onClick={() => { setClaimRewardTarget(selectedReward); setSelectedReward(null); }}
                   className="flex-1 py-2.5 px-5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
                 >
                   <ShoppingBag className="w-4 h-4 text-amber-300" />
@@ -400,16 +505,199 @@ export function RewardsScreen() {
         document.body
       )}
 
+      {/* ════════ SHIPPING DETAILS MODAL ════════ */}
+      {claimRewardTarget && createPortal(
+        <div 
+          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
+          onClick={(e) => { if (e.target === e.currentTarget) setClaimRewardTarget(null); }}
+        >
+          <div className="w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto p-6 space-y-6">
+            
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 rounded-full bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 mx-auto">
+                <Truck className="w-6 h-6" />
+              </div>
+              <h3 className="font-extrabold text-slate-900 text-lg leading-tight">Claim {claimRewardTarget.name}</h3>
+              <p className="text-xs text-slate-500">Please provide your delivery details below to dispatch your swag reward.</p>
+            </div>
+
+            <form 
+              onSubmit={(e) => {
+                e.preventDefault();
+                const fullAddress = `Door No: ${shippingDoorNo}, Street: ${shippingStreet}, Village: ${shippingVillage}, City: ${shippingCity}, State: ${shippingState} - Pincode: ${shippingPincode}`;
+                handleClaimReward(claimRewardTarget, {
+                  name: shippingName,
+                  phone: shippingPhone,
+                  address: fullAddress,
+                  size: claimRewardTarget.category === 'APPAREL' ? shippingSize : undefined
+                });
+                setClaimRewardTarget(null);
+                setShippingDoorNo('');
+                setShippingStreet('');
+                setShippingVillage('');
+                setShippingCity('');
+                setShippingState('');
+                setShippingPincode('');
+              }}
+              className="space-y-4 text-left"
+            >
+              {/* Full Name */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Full Name</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={shippingName} 
+                  onChange={(e) => setShippingName(e.target.value)}
+                  placeholder="Enter full name"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                />
+              </div>
+
+              {/* Phone Number */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Contact Number</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={shippingPhone} 
+                  onChange={(e) => setShippingPhone(e.target.value)}
+                  placeholder="Enter phone number"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                />
+              </div>
+
+              {/* Size selector for Apparel */}
+              {claimRewardTarget.category === 'APPAREL' && (
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Size Preference</label>
+                  <select 
+                    value={shippingSize} 
+                    onChange={(e) => setShippingSize(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  >
+                    <option value="S">Small (S)</option>
+                    <option value="M">Medium (M)</option>
+                    <option value="L">Large (L)</option>
+                    <option value="XL">Extra Large (XL)</option>
+                    <option value="XXL">Double Extra Large (XXL)</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Door No & Pincode Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Door Number</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={shippingDoorNo} 
+                    onChange={(e) => setShippingDoorNo(e.target.value)}
+                    placeholder="e.g. 4-12/A or Room 204"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Pincode</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={shippingPincode} 
+                    onChange={(e) => setShippingPincode(e.target.value)}
+                    placeholder="e.g. 500081"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  />
+                </div>
+              </div>
+
+              {/* Street & Village */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Street</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={shippingStreet} 
+                  onChange={(e) => setShippingStreet(e.target.value)}
+                  placeholder="e.g. Landmark Street or Hostel Block B"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Village / Area</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={shippingVillage} 
+                  onChange={(e) => setShippingVillage(e.target.value)}
+                  placeholder="e.g. Madhapur or Campus Campus"
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                />
+              </div>
+
+              {/* City & State Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">City</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={shippingCity} 
+                    onChange={(e) => setShippingCity(e.target.value)}
+                    placeholder="e.g. Hyderabad"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-wider block">State</label>
+                  <input 
+                    type="text" 
+                    required 
+                    value={shippingState} 
+                    onChange={(e) => setShippingState(e.target.value)}
+                    placeholder="e.g. Telangana"
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-1 focus:ring-[#7c3aed]"
+                  />
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex items-center gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setClaimRewardTarget(null)}
+                  className="w-1/2 py-2.5 rounded-xl bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 font-extrabold text-xs transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="w-1/2 py-2.5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <CheckCircle2 className="w-4 h-4" />
+                  <span>Submit Order</span>
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
       {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
-      {lockedToast && (
-        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none">
+      {lockedToastReward && (
+        <div className="fixed bottom-10 left-1/2 transform -translate-x-1/2 z-[100] animate-slide-up pointer-events-none w-max max-w-[90vw]">
           <div className="flex items-center gap-4 px-5 py-3.5 bg-[#090b14]/95 backdrop-blur-xl text-white rounded-2xl shadow-2xl border border-slate-700/80">
             <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center border border-purple-500/40 shrink-0 shadow-inner">
               <Lock className="w-5 h-5 text-purple-300" />
             </div>
-            <div className="pr-2">
-              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Coming Soon</h4>
-              <p className="text-xs text-slate-300 font-medium mt-0.5">This content is currently locked.</p>
+            <div className="pr-2 text-left">
+              <h4 className="font-black text-sm text-slate-50 tracking-wide uppercase">Reward Locked</h4>
+              <p className="text-xs text-slate-300 font-medium mt-0.5">
+                Earn {lockedToastReward.requiredXp - userXp} more XP to unlock the {lockedToastReward.name}!
+              </p>
             </div>
           </div>
         </div>
