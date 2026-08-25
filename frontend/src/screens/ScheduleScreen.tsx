@@ -168,12 +168,17 @@ export function ScheduleScreen() {
       setIsLoading(true);
       try {
         const year = calendarDate.getFullYear();
-        const month = String(calendarDate.getMonth() + 1).padStart(2, '0');
+        const monthNum = calendarDate.getMonth();
+        const startOfMonth = `${year}-${String(monthNum + 1).padStart(2, '0')}-01`;
+        const lastDay = new Date(year, monthNum + 1, 0).getDate();
+        const endOfMonth = `${year}-${String(monthNum + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+
         const { data, error } = await supabase
           .from('daily_schedules')
           .select('*')
           .eq('batch_code', user.batchCode)
-          .like('date', `${year}-${month}-%`);
+          .gte('date', startOfMonth)
+          .lte('date', endOfMonth);
 
         if (data) {
           const formatted = data.map((row: any) => ({
