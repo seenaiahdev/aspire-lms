@@ -1,9 +1,7 @@
-import { useState, useEffect } from 'react';
-import { Bell, FileText, Radio, MessageCircle, Briefcase, Settings, CheckCheck, Trash2, Loader2 } from 'lucide-react';
-import { useUser } from '@/lib/UserContext';
-import { fetchNotifications, updateNotificationReadStatus, markAllNotificationsAsRead, deleteNotificationRow } from '@/lib/api';
-import { Card, CardBody } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
+import { useState } from 'react';
+import { Bell, FileText, Radio, MessageCircle, Briefcase, Settings, CheckCheck, Trash2 } from 'lucide-react';
+import { useNotifications } from '@/lib/NotificationsContext';
+import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { cn } from '@/lib/utils';
@@ -18,60 +16,12 @@ const typeConfig: Record<string, { color: string; icon: any }> = {
 };
 
 export function NotificationsScreen() {
-  const { user } = useUser();
+  const { notifications: items, unreadCount: unread, markRead, markAllRead, deleteNotification } = useNotifications();
   const [tab, setTab] = useState('all');
-  const [items, setItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadItems = async () => {
-      try {
-        if (user?.id) {
-          const data = await fetchNotifications(user.id);
-          setItems(data);
-        }
-      } catch (error) {
-        console.error('Failed to fetch notifications:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadItems();
-  }, [user?.id]);
 
   const filtered = items.filter((n) => tab === 'all' ? true : tab === 'unread' ? !n.read : n.type === tab);
-  const unread = items.filter((n) => !n.read).length;
 
-  const markRead = async (id: string) => {
-    const target = items.find(n => n.id === id);
-    if (target && !target.read) {
-      try {
-        await updateNotificationReadStatus(id, true);
-        setItems(items.map(n => n.id === id ? { ...n, read: true } : n));
-      } catch (err) {
-        console.error('Failed to mark notification as read:', err);
-      }
-    }
-  };
-
-  const markAllRead = async () => {
-    if (!user?.id) return;
-    try {
-      await markAllNotificationsAsRead(user.id);
-      setItems(items.map(n => ({ ...n, read: true })));
-    } catch (err) {
-      console.error('Failed to mark all notifications as read:', err);
-    }
-  };
-
-  const handleDeleteNotification = async (id: string) => {
-    try {
-      await deleteNotificationRow(id);
-      setItems(items.filter(n => n.id !== id));
-    } catch (err) {
-      console.error('Failed to delete notification:', err);
-    }
-  };
+  const handleDeleteNotification = (id: string) => deleteNotification(id);
 
   return (
     <div className="space-y-6">
@@ -98,9 +48,7 @@ export function NotificationsScreen() {
       />
 
       <div className="space-y-2">
-        {loading ? (
-          <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
-        ) : filtered.length === 0 ? (
+        {filtered.length === 0 ? (
           <Card className="p-12 text-center">
             <Bell className="w-10 h-10 text-ink-300 mx-auto mb-3" />
             <p className="text-sm text-ink-500">No notifications yet</p>
@@ -108,7 +56,7 @@ export function NotificationsScreen() {
         ) : (
           filtered.map((n) => {
             const cfg = typeConfig[n.type] || typeConfig.system;
-            const Icon = (Icons as any)[n.icon] as Icons.LucideIcon || cfg.icon;
+            const Icon = (Icons as any)[(n as any).icon] as Icons.LucideIcon || cfg.icon;
             return (
               <Card
                 key={n.id}
@@ -129,7 +77,7 @@ export function NotificationsScreen() {
                       {!n.read && <span className="w-2 h-2 rounded-full bg-primary-500 shrink-0" />}
                     </div>
                     <p className="text-sm text-ink-600 mb-1">{n.message}</p>
-                    <p className="text-xs text-ink-400">{n.time}</p>
+                    <p className="text-xs text-ink-400">{n.time || n.timestamp || 'Just now'}</p>
                   </div>
                   <button 
                     className="text-ink-300 hover:text-error-500 transition-colors p-1" 

@@ -103,6 +103,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
             }
           }
 
+          // Newly-unlocked lessons are detected in NotificationsContext (which watches
+          // user.unlockedLessonIds) so notifications are generated in one place.
+
           const realXp = profile?.xp ?? 0;
 
           const updatedUser = {

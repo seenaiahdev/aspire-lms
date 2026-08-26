@@ -15,7 +15,7 @@ import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusChip } from '@/components/ui/StatusChip';
-import { cn } from '@/lib/utils';
+import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { fetchAllLiveSessions } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
@@ -88,34 +88,16 @@ export function LiveClassesScreen() {
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
     return sorted.map(cls => {
-      let resolvedStatus = cls.status || 'upcoming';
-      const startTime24 = parseStartTime(cls.time);
-      const sessionStart = new Date(`${cls.date}T${startTime24}`);
-      let durationMinutes = 90;
-      if (cls.duration) {
-        const match = cls.duration.match(/(\d+)h/);
-        const matchMin = cls.duration.match(/(\d+)m/);
-        const hours = match ? parseInt(match[1]) : 0;
-        const minutes = matchMin ? parseInt(matchMin[1]) : 0;
-        durationMinutes = hours * 60 + minutes;
-      }
-      const sessionEnd = new Date(sessionStart.getTime() + durationMinutes * 60 * 1000);
-      const isPast = now.getTime() > sessionEnd.getTime();
-      const isDateInPast = cls.date < todayStr;
-
-      if (cls.status === 'completed' || isDateInPast || (cls.date === todayStr && isPast)) {
-        resolvedStatus = 'completed';
-      } else if (cls.status === 'ongoing' || (cls.date === todayStr && now.getTime() >= sessionStart.getTime() && now.getTime() <= sessionEnd.getTime())) {
-        resolvedStatus = 'ongoing';
-      } else {
-        resolvedStatus = 'upcoming';
-      }
+      // A class becomes joinable ("ongoing") 10 minutes before its DB start time, until it ends.
+      const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
+        cls.date, cls.time, cls.duration, cls.status, 10, now
+      );
 
       return {
         id: cls.id,
         title: cls.session_title,
         course: cls.technology || 'Core Programming',
-        instructor: { 
+        instructor: {
           name: cls.instructor || 'Lead Instructor',
           avatar: '',
           title: 'LMS Instructor'
@@ -124,6 +106,7 @@ export function LiveClassesScreen() {
         duration: cls.duration || '1h 30m',
         participants: 120,
         status: resolvedStatus,
+        joinable,
         thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
         link: cls.meeting_link || ''
       };

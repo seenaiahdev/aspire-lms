@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchResources } from '@/lib/api';
+import { getLessonResolver } from '@/lib/lessonLinkResolver';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -167,6 +168,9 @@ export function LessonScreen() {
           .select('id, inner_topic_id, title')
           .eq('course_id', courseIdToFetch);
 
+        // Bridge Scheme A entity links -> Scheme B lesson ids so assessments/projects nest correctly.
+        const resolver = await getLessonResolver([courseIdToFetch], user.batchCode || '');
+
         if (topics && lessons) {
           const stages = topics.map(topic => {
             const subtopics = topic.subtopics || [];
@@ -181,16 +185,16 @@ export function LessonScreen() {
                   duration: sub.durationHours || sub.duration || '5h',
                   lessons: moduleLessons.map((l: any, idx: number) => {
                     const dbPractices = codingQuestions
-                      ? codingQuestions.filter((cq: any) => cq.inner_topic_id === l.id)
+                      ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
                       : [];
                     const dbAssessments = assessments
                       ? assessments.filter((asmnt: any) => {
                           const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
-                          return parts[2] === l.id;
+                          return resolver.resolveLessonId(parts[2]) === l.id;
                         })
                       : [];
                     const dbProjects = projects
-                      ? projects.filter((p: any) => p.inner_topic_id === l.id)
+                      ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
                       : [];
 
                     return {

@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { fetchProjects } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
+import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { Toast } from '@/components/ui/Toast';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -113,6 +114,7 @@ const projectGuides: Record<string, ProjectGuide> = {
 
 export function ProjectsScreen() {
   const { user } = useUser();
+  const { isUnlocked } = useUnlockResolver();
   const { params } = useNav();
   const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone' | 'templates'>('mini');
   const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
@@ -310,7 +312,8 @@ export function ProjectsScreen() {
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
     return projectsState
-      .filter((p: any) => user?.unlockedLessonIds?.includes(p.inner_topic_id))
+      // Bridge Scheme A (l_git_3) -> Scheme B (lesson-…) so unlocked lessons surface their projects.
+      .filter((p: any) => isUnlocked(p.inner_topic_id))
       .map((p: any) => {
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
         let status = (p.status || 'assigned').toLowerCase();
@@ -337,7 +340,7 @@ export function ProjectsScreen() {
           skills: skillsArray
         };
       });
-  }, [projectsState, driveLinks, user?.unlockedLessonIds]);
+  }, [projectsState, driveLinks, isUnlocked]);
 
   useEffect(() => {
     localStorage.setItem('projectDriveLinks', JSON.stringify(driveLinks));

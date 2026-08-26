@@ -1,44 +1,16 @@
-import { useState, useEffect } from 'react';
-import { Bell, X, CheckCheck, Clock, AlertTriangle, Sparkles, FileText, Radio, Check, Loader2 } from 'lucide-react';
+import { Bell, X, CheckCheck, Clock, AlertTriangle, Sparkles, FileText, Radio, Loader2 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { useUser } from '@/lib/UserContext';
-import { fetchNotifications } from '@/lib/api';
+import { useNotifications } from '@/lib/NotificationsContext';
 
 export function NotificationsDrawer() {
   const { notificationsOpen, setNotificationsOpen } = useNav();
-  const { user } = useUser();
-  const [notificationsList, setNotificationsList] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const loadItems = async () => {
-      if (!notificationsOpen || !user?.id) return;
-      setLoading(true);
-      try {
-        const data = await fetchNotifications(user.id);
-        setNotificationsList(data);
-      } catch (error) {
-        console.error('Failed to load notifications', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadItems();
-  }, [notificationsOpen, user?.id]);
+  const { notifications: notificationsList, unreadCount, markRead, markAllRead } = useNotifications();
+  const loading = false;
 
   if (!notificationsOpen) return null;
 
-  const unreadCount = notificationsList.filter((n) => !n.read).length;
-
-  const markAllAsRead = () => {
-    setNotificationsList((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const toggleRead = (id: string) => {
-    setNotificationsList((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, read: !n.read } : n))
-    );
-  };
+  const markAllAsRead = markAllRead;
+  const toggleRead = (id: string) => markRead(id);
 
   return (
     <>
@@ -132,7 +104,7 @@ export function NotificationsDrawer() {
                       </p>
                       <p className="text-[10px] font-semibold text-slate-400 mt-2 flex items-center gap-1">
                         <Clock className="w-3 h-3" />
-                        {item.timestamp}
+                        {item.timestamp || item.time || 'Just now'}
                       </p>
                     </div>
                   </div>

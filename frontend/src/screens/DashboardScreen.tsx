@@ -8,7 +8,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useUser } from '@/lib/UserContext';
 import { fetchLiveSessions, fetchDailySchedules } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
 
@@ -398,27 +398,11 @@ export function DashboardScreen() {
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
     return sorted.map(cls => {
-      let resolvedStatus = cls.status;
-      const sessionStart = new Date(`${cls.date}T${cls.time || '00:00:00'}`);
-      let durationMinutes = 90;
-      if (cls.duration) {
-        const match = cls.duration.match(/(\d+)h/);
-        const matchMin = cls.duration.match(/(\d+)m/);
-        const hours = match ? parseInt(match[1]) : 0;
-        const minutes = matchMin ? parseInt(matchMin[1]) : 0;
-        durationMinutes = hours * 60 + minutes;
-      }
-      const sessionEnd = new Date(sessionStart.getTime() + durationMinutes * 60 * 1000);
-      const isPast = now.getTime() > sessionEnd.getTime();
-      const isDateInPast = cls.date < todayStr;
-
-      if (cls.status === 'completed' || isDateInPast || (cls.date === todayStr && isPast)) {
-        resolvedStatus = 'completed';
-      } else if (cls.status === 'ongoing') {
-        resolvedStatus = 'ongoing';
-      } else {
-        resolvedStatus = 'upcoming';
-      }
+      // Status is derived from the DB date/time/duration. A class becomes joinable
+      // ("ongoing") 10 minutes before its start time and stays so until it ends.
+      const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
+        cls.date, cls.time, cls.duration, cls.status, 10, now
+      );
 
       return {
         id: cls.id,
@@ -428,6 +412,7 @@ export function DashboardScreen() {
         scheduledAt: `${cls.date}T${cls.time || '10:00:00'}`,
         duration: cls.duration || '1h 30m',
         status: resolvedStatus,
+        joinable,
         link: cls.meeting_link
       };
     });

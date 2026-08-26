@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2 } from 'lucide-react';
 import { fetchPracticeProblems, fetchUserSubmissions } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
+import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 
 import { practiceSteps } from '@/lib/tourSteps';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -29,6 +30,7 @@ interface Submission {
 
 export function PracticeScreen() {
   const { user } = useUser();
+  const { isUnlocked } = useUnlockResolver();
   const { navigate } = useNav();
   const [tab, setTab] = useState('problems');
   const [difficulty, setDifficulty] = useState('all');
@@ -108,8 +110,7 @@ export function PracticeScreen() {
 
   const filtered = problems.filter(p => {
     const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
-    const isUnlocked = user?.unlockedLessonIds?.includes(p.inner_topic_id);
-    return matchesDifficulty && isUnlocked;
+    return matchesDifficulty && isUnlocked(p.inner_topic_id);
   });
   const solved = problems.filter(p => p.solved).length;
 

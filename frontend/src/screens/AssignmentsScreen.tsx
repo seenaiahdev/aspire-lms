@@ -113,11 +113,13 @@ const ConfettiBurst = () => {
 };
 
 import { useUser } from '@/lib/UserContext';
+import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { fetchAssignments, submitAssignmentAttempt, fetchAssignmentAttempts } from '@/lib/api';
 import { Loader2 } from 'lucide-react';
 
 export function AssignmentsScreen() {
   const { user } = useUser();
+  const { isUnlocked } = useUnlockResolver();
   const { navigate } = useNav();
   const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>([]);
   const [loading, setLoading] = useState(true);
@@ -211,8 +213,8 @@ export function AssignmentsScreen() {
   // Filter Tasks
   const filteredTasks = courseAssignments.filter((t: any) => {
     const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
-    const isUnlocked = user?.unlockedLessonIds?.includes(lessonId);
-    if (!isUnlocked) return false;
+    // Bridge Scheme A (l_git_1) -> Scheme B (lesson-…) so unlocked lessons surface their assessments.
+    if (!isUnlocked(lessonId)) return false;
 
     if (filterTab === 'pending') return t.status === 'pending';
     if (filterTab === 'completed') return t.status === 'completed';

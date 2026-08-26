@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2 } from 'lucide-react';
 import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
+import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
@@ -70,6 +71,7 @@ function parseScheduleItemDate(item: { date: string; dateKey?: string }, today: 
 
 export function ScheduleScreen() {
   const { user } = useUser();
+  const { isUnlocked } = useUnlockResolver();
   const { navigate } = useNav();
   const today = new Date();
   const [calendarDate, setCalendarDate] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -103,16 +105,16 @@ export function ScheduleScreen() {
         const assessmentsData = await fetchAssignments(user.batchCode || '', user.batchCategory);
         const unlockedAssessments = assessmentsData.filter(t => {
           const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
-          return user.unlockedLessonIds?.includes(lessonId);
+          return isUnlocked(lessonId);
         });
 
         // 2. Unlocked projects
         const projectsData = await fetchProjects(user.batchCode || '', user.batchCategory);
-        const unlockedProjects = projectsData.filter(p => user.unlockedLessonIds?.includes(p.inner_topic_id));
+        const unlockedProjects = projectsData.filter(p => isUnlocked(p.inner_topic_id));
 
         // 3. Unlocked coding problems
         const codingData = await fetchPracticeProblems(courseId);
-        const unlockedCoding = codingData.filter(p => user.unlockedLessonIds?.includes(p.inner_topic_id));
+        const unlockedCoding = codingData.filter(p => isUnlocked(p.inner_topic_id));
 
         const extra: any[] = [];
         unlockedAssessments.forEach(asmnt => {
@@ -160,7 +162,7 @@ export function ScheduleScreen() {
       }
     }
     loadUnlockedExtraEvents();
-  }, [user]);
+  }, [user, isUnlocked]);
 
   useEffect(() => {
     const loadTasks = async () => {

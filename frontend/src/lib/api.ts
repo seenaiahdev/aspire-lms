@@ -154,14 +154,26 @@ export async function fetchPlacementResources() {
 }
 
 /**
+ * Builds a PostgREST `.or()` filter that matches a batch against a live_sessions row via
+ * batch_code (exact), target_batch (comma-list substring), or an "All Batches" target.
+ * A session is targeted to many batches (target_batch = "A26W1, A26W2, A26S1, …"), so
+ * matching only batch_code hides sessions from batches that are actually targeted.
+ */
+function liveSessionBatchFilter(batchCode: string): string {
+  const b = batchCode || '';
+  return `batch_code.eq.${b},target_batch.ilike.%${b}%,target_batch.ilike.%all batches%`;
+}
+
+/**
  * Fetches live and upcoming sessions from the live_sessions table for a specific batch.
+ * NOTE: status is derived from date/time by the caller (the DB stores capitalized labels like
+ * "Upcoming"), so we do not filter by status here.
  */
 export async function fetchLiveSessions(batchCode: string) {
   const { data, error } = await supabase
     .from('live_sessions')
     .select('*')
-    .in('status', ['ongoing', 'upcoming'])
-    .eq('batch_code', batchCode)
+    .or(liveSessionBatchFilter(batchCode))
     .order('date', { ascending: true })
     .order('time', { ascending: true });
 
@@ -174,13 +186,14 @@ export async function fetchLiveSessions(batchCode: string) {
 }
 
 /**
- * Fetches all sessions (ongoing, upcoming, completed) from the live_sessions table for a specific batch.
+ * Fetches all sessions (ongoing, upcoming, completed) from the live_sessions table for a
+ * specific batch (matched via batch_code or target_batch).
  */
 export async function fetchAllLiveSessions(batchCode: string) {
   const { data, error } = await supabase
     .from('live_sessions')
     .select('*')
-    .eq('batch_code', batchCode)
+    .or(liveSessionBatchFilter(batchCode))
     .order('date', { ascending: false })
     .order('time', { ascending: false });
 
@@ -193,22 +206,42 @@ export async function fetchAllLiveSessions(batchCode: string) {
 }
 
 /**
- * Fetches daily schedule tasks and lessons from daily_schedules table for a specific batch.
+ * Fetches the daily schedule/topics for a date + batch from the live_sessions table (the
+ * `daily_schedules` table does not exist in the DB — admin publishes daily classes to
+ * live_sessions). Rows are mapped to the daily-schedule shape the Dashboard expects.
  */
 export async function fetchDailySchedules(dateStr: string, batchCode: string) {
   const { data, error } = await supabase
-    .from('daily_schedules')
+    .from('live_sessions')
     .select('*')
     .eq('date', dateStr)
-    .eq('batch_code', batchCode)
+    .or(liveSessionBatchFilter(batchCode))
     .order('time', { ascending: true });
 
   if (error) {
-    console.error('Error fetching daily schedules:', error);
-    throw error;
+    console.warn('Error fetching daily schedules from live_sessions:', error.message);
+    return [];
   }
 
-  return data || [];
+  return (data || []).map((s: any) => {
+    let meta: any = null;
+    try { meta = JSON.parse(s.description); } catch { /* description may be plain text */ }
+    return {
+      id: s.id,
+      date: s.date,
+      batch_code: s.batch_code,
+      title: s.session_title,
+      subtopic: (meta && meta.subtopicName) || s.technology || '',
+      topic: (meta && meta.moduleName) || s.technology || '',
+      time: s.time,
+      description:
+        (meta && meta.text) ||
+        (meta && meta.moduleName) ||
+        (typeof s.description === 'string' && !meta ? s.description : '') ||
+        'Live class session',
+      status: String(s.status || 'upcoming').toLowerCase(),
+    };
+  });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -235,6 +268,7 @@ export interface StudentProfileRow {
   course_progress?: Record<string, number>;
   attendance?: number;
   gpa?: number;
+  xp?: number;
   updated_at: string;
   created_at: string;
 }
@@ -566,7 +600,46 @@ export async function fetchCertificates(studentId: string) {
 
 // ════════════════════════════════════════════════════════════════
 // NOTIFICATIONS
+// Real table columns: id, student_id, title, content, read, created_at.
+// The UI expects { type, title, message, time/timestamp, icon }, so we
+// normalize each row here (content -> message, created_at -> time) without
+// touching the UI components.
 // ════════════════════════════════════════════════════════════════
+
+function relativeTime(iso?: string): string {
+  if (!iso) return '';
+  const then = new Date(iso).getTime();
+  if (isNaN(then)) return '';
+  const diff = Date.now() - then;
+  const mins = Math.round(diff / 60000);
+  if (mins < 1) return 'Just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+function normalizeNotification(row: any) {
+  const message = row.content ?? row.message ?? '';
+  // Real table has no `type`; infer a sensible one from the id prefix, else 'system'.
+  let type = row.type;
+  if (!type) {
+    const id = String(row.id || '');
+    if (id.startsWith('notif-unlock')) type = 'live';
+    else type = 'system';
+  }
+  const time = relativeTime(row.created_at);
+  return {
+    ...row,
+    type,
+    message,
+    content: message,
+    time,
+    timestamp: time,
+  };
+}
 
 export async function fetchNotifications(studentId: string) {
   try {
@@ -580,10 +653,60 @@ export async function fetchNotifications(studentId: string) {
       console.warn('notifications table not available:', error.message);
       return [];
     }
-    return data || [];
+    return (data || []).map(normalizeNotification);
   } catch {
     return [];
   }
+}
+
+/**
+ * Best-effort persist of a notification row (Approach B). Uses a deterministic id so
+ * repeated calls never duplicate. No-ops quietly if the anon INSERT policy is not yet
+ * applied — realtime popups (Approach A) do not depend on this succeeding.
+ */
+export async function persistNotification(n: {
+  id: string;
+  studentId: string;
+  title: string;
+  content?: string;
+}) {
+  try {
+    const { error } = await supabase
+      .from('notifications')
+      .upsert(
+        {
+          id: n.id,
+          student_id: n.studentId,
+          title: n.title,
+          content: n.content || '',
+          read: false,
+          created_at: new Date().toISOString(),
+        },
+        { onConflict: 'id', ignoreDuplicates: true }
+      );
+    if (error) {
+      // Expected while the anon INSERT RLS policy is not yet applied.
+      console.debug('persistNotification skipped:', error.message);
+      return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Back-compat wrapper for lesson-unlock notifications. */
+export async function createUnlockNotification(studentId: string, lesson: { id: string; title?: string }) {
+  const id = `notif-unlock-${lesson.id}-${studentId}`;
+  await persistNotification({
+    id,
+    studentId,
+    title: 'New lesson unlocked',
+    content: lesson.title
+      ? `"${lesson.title}" is now available. Check your lessons, assessments and practice.`
+      : 'A new lesson is now available.',
+  });
+  return id;
 }
 
 // ════════════════════════════════════════════════════════════════

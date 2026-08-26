@@ -11,6 +11,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchCoursesByIds } from '@/lib/api';
+import { getLessonResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
 
 import { learningSteps } from '@/lib/tourSteps';
@@ -112,7 +113,10 @@ export function LearningScreen() {
       setSyllabusLoading(true);
       try {
         const syllabiMap: Record<string, any> = {};
-        
+        // Bridge Scheme A entity links (l_git_1) -> Scheme B lesson ids (lesson-…) so
+        // assessments/projects nest under the correct lesson in the tree.
+        const resolver = await getLessonResolver(user.enrolledCourses, user.batchCode || '');
+
         await Promise.all(user.enrolledCourses.map(async (courseId) => {
           const [
             { data: topics },
@@ -125,7 +129,7 @@ export function LearningScreen() {
             supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
             supabase.from('assessments').select('id, topic_id, duration_minutes, title').eq('course_id', courseId),
             supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
-            supabase.from('projects').select('id, inner_topic_id, title, type, project_type').eq('course_id', courseId)
+            supabase.from('projects').select('id, inner_topic_id, title, type').eq('course_id', courseId)
           ]);
 
           if (topics && lessons) {
@@ -142,16 +146,16 @@ export function LearningScreen() {
                     duration: sub.durationHours || sub.duration || '5h',
                     lessons: moduleLessons.map((l: any, idx: number) => {
                       const dbPractices = codingQuestions
-                        ? codingQuestions.filter((cq: any) => cq.inner_topic_id === l.id)
+                        ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
                         : [];
                       const dbAssessments = assessments
                         ? assessments.filter((asmnt: any) => {
                             const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
-                            return parts[2] === l.id;
+                            return resolver.resolveLessonId(parts[2]) === l.id;
                           })
                         : [];
                       const dbProjects = projects
-                        ? projects.filter((p: any) => p.inner_topic_id === l.id)
+                        ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
                         : [];
 
                       return {
@@ -159,6 +163,7 @@ export function LearningScreen() {
                         title: l.title,
                         description: l.description,
                         completed: false,
+                        coverTopics: resolver.getCoverTopics(l.id),
                         video: {
                           preview: idx === 0 || localUnlockedLessonIds.includes(l.id),
                           duration: '45m',
@@ -179,7 +184,7 @@ export function LearningScreen() {
                         projects: dbProjects.map((p: any) => ({
                           id: p.id,
                           title: p.title,
-                          type: p.project_type || p.type || 'mini',
+                          type: p.type || 'mini',
                           completed: false
                         }))
                       };
@@ -902,6 +907,33 @@ export function LearningScreen() {
 
                         {isExpanded && !isLessonLocked && (
                           <div className="p-3 pt-4 space-y-3 bg-slate-50 border-t border-purple-100/50">
+                            {/* CLASS TOPICS & SYLLABUS COVERED */}
+                            {lesson.coverTopics && lesson.coverTopics.length > 0 && (
+                              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm">
+                                <div className="flex items-center gap-2 mb-2.5">
+                                  <BookOpen className="w-4 h-4 text-[#7c3aed]" />
+                                  <span className="text-[11px] font-extrabold uppercase tracking-wide text-slate-700">
+                                    Class Topics & Syllabus Covered ({lesson.coverTopics.length} Topic{lesson.coverTopics.length > 1 ? 's' : ''})
+                                  </span>
+                                </div>
+                                <div className="space-y-2">
+                                  {lesson.coverTopics.map((topic: any, tIdx: number) => (
+                                    <div key={tIdx} className="flex items-start gap-2.5">
+                                      <span className="w-5 h-5 rounded-md bg-purple-100 text-[#7c3aed] text-[10px] font-black flex items-center justify-center shrink-0 mt-0.5">
+                                        {tIdx + 1}
+                                      </span>
+                                      <div className="min-w-0">
+                                        <h5 className="font-bold text-slate-800 text-xs leading-snug">{topic.title}</h5>
+                                        {topic.agenda && (
+                                          <p className="text-[10px] text-slate-500 mt-0.5 leading-relaxed">{topic.agenda}</p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
                             {/* VIDEO ITEM */}
                             {lesson.video && (
                               <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-200 transition-all flex items-center justify-between gap-3">
