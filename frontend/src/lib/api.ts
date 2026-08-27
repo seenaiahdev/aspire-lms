@@ -289,6 +289,11 @@ export async function fetchStudentProfile(studentId: string): Promise<StudentPro
     return null;
   }
 
+  if (data) {
+    // Recalculate streak asynchronously to ensure correctness (e.g. if a day was missed)
+    recalculateUserStreak(studentId, (data as any).attendance ?? 0);
+  }
+
   return data as StudentProfileRow | null;
 }
 
@@ -381,7 +386,9 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
     if (!data) return [];
 
     return data.map((item: any) => {
-      const type = (item.coding_count > 0 ? 'coding' : 'mcq') as 'coding' | 'mcq';
+      // Assessments are taken entirely as MCQs — a code-based question is shown as a code
+      // snippet inside the MCQ (options to pick the correct answer), never a separate IDE.
+      const type = 'mcq' as 'coding' | 'mcq';
       return {
         id: item.id,
         slug: item.id,
@@ -389,7 +396,8 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
         title: item.title,
         category: item.course_name || 'General',
         difficulty: 'Intermediate' as const,
-        xp: 150,
+        // Admin stores the XP reward in the `total_marks` field.
+        xp: item.total_marks ?? 100,
         timeEstimate: `${item.duration_minutes || 45} mins`,
         description: item.topic_name ? `Topic: ${item.topic_name.split('||').pop()}` : 'Assessment test',
         status: 'pending' as 'pending' | 'completed',
@@ -424,12 +432,13 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
 // QUIZZES
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchQuizzes(batchCode: string) {
+export async function fetchQuizzes(courseIds: string[]) {
   try {
+    if (!courseIds || courseIds.length === 0) return [];
     const { data, error } = await supabase
       .from('quizzes')
       .select('*')
-      .eq('batch_code', batchCode)
+      .in('course_id', courseIds)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -439,6 +448,57 @@ export async function fetchQuizzes(batchCode: string) {
     return data || [];
   } catch {
     return [];
+  }
+}
+
+export async function fetchQuizAttempts(userId: string) {
+  try {
+    const { data, error } = await supabase
+      .from('quiz_attempts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('attempted_at', { ascending: false });
+
+    if (error) {
+      console.warn('quiz_attempts table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  } catch {
+    return [];
+  }
+}
+
+export async function submitQuizAttempt(userId: string, quizId: string, score: number) {
+  try {
+    const { data, error } = await supabase
+      .from('quiz_attempts')
+      .insert({
+        user_id: userId,
+        quiz_id: quizId,
+        score,
+        status: 'attempted',
+        attempted_at: new Date().toISOString()
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error inserting quiz attempt:', error.message);
+      throw error;
+    }
+
+    try {
+      await incrementUserXP(userId, 50);
+      await recalculateUserStreak(userId);
+    } catch (xpErr) {
+      console.warn('Failed to increment XP / recalculate streak after quiz attempt:', xpErr);
+    }
+
+    return data;
+  } catch (err) {
+    console.error('submitQuizAttempt failed:', err);
+    throw err;
   }
 }
 
@@ -855,43 +915,168 @@ export async function incrementUserXP(userId: string, amount: number) {
   }
 }
 
+export async function recalculateUserStreak(userId: string, currentStreak?: number): Promise<number> {
+  try {
+    let finalCurrentStreak = currentStreak;
+    if (finalCurrentStreak === undefined) {
+      const { data } = await supabase
+        .from('student_profiles')
+        .select('attendance')
+        .eq('student_id', userId)
+        .maybeSingle();
+      finalCurrentStreak = data?.attendance ?? 0;
+    }
+
+    const { data: practiceData, error: practiceError } = await supabase
+      .from('practice_submissions')
+      .select('submitted_at')
+      .eq('student_id', userId);
+
+    const { data: assessmentData, error: assessmentError } = await supabase
+      .from('assessment_attempts')
+      .select('submitted_at')
+      .eq('student_id', userId);
+
+    if (practiceError) console.error('Error fetching practice submissions for streak:', practiceError);
+    if (assessmentError) console.error('Error fetching assessment attempts for streak:', assessmentError);
+
+    const allDates = new Set<string>();
+
+    const addLocalDates = (items: any[]) => {
+      (items || []).forEach(item => {
+        const dateVal = item.submitted_at || item.created_at;
+        if (dateVal) {
+          const d = new Date(dateVal);
+          const yyyy = d.getFullYear();
+          const mm = String(d.getMonth() + 1).padStart(2, '0');
+          const dd = String(d.getDate()).padStart(2, '0');
+          allDates.add(`${yyyy}-${mm}-${dd}`);
+        }
+      });
+    };
+
+    addLocalDates(practiceData || []);
+    addLocalDates(assessmentData || []);
+
+    const getLocalDateString = (d: Date) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const todayStr = getLocalDateString(new Date());
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = getLocalDateString(yesterday);
+
+    let streak = 0;
+    if (allDates.has(todayStr) || allDates.has(yesterdayStr)) {
+      let checkDate = new Date();
+      if (allDates.has(todayStr)) {
+        streak = 1;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        streak = 1;
+        checkDate.setDate(checkDate.getDate() - 2);
+      }
+
+      while (true) {
+        const dateStr = getLocalDateString(checkDate);
+        if (allDates.has(dateStr)) {
+          streak++;
+          checkDate.setDate(checkDate.getDate() - 1);
+        } else {
+          break;
+        }
+      }
+    }
+
+    if (streak !== finalCurrentStreak) {
+      console.log(`Updating streak from ${finalCurrentStreak} to ${streak} for user ${userId}`);
+      await supabase
+        .from('student_profiles')
+        .update({ attendance: streak })
+        .eq('student_id', userId);
+    }
+
+    return streak;
+  } catch (err) {
+    console.error('Error in recalculateUserStreak:', err);
+    return currentStreak ?? 0;
+  }
+}
+
+/**
+ * Records a practice/coding-lab submission in `practice_submissions` (student-keyed, clean —
+ * no profiles FK / streak trigger). The actual files live in Supabase Storage; the DB keeps only
+ * the URL + metadata (low DB consumption). One row per (student, problem):
+ *   - 1st solve → INSERT + award 100 XP.
+ *   - re-solve  → UPDATE the same row to the latest submission (storage_url/metadata, attempt_count+1); no XP.
+ * `storageUrl` should be the real Supabase Storage public URL (see `uploadSubmissionBundle`).
+ */
 export async function submitPracticeProblem(
   userId: string,
   problemId: string,
   language: string,
-  code?: string,
-  sandboxUrl?: string,
+  _code?: string,
+  _sandboxUrl?: string,
   storageUrl?: string,
   projectName?: string,
-  fileCount: number = 1
+  fileCount: number = 1,
+  totalSize: number = 0
 ) {
-  const { data, error } = await supabase
-    .from('submissions')
-    .insert({
-      user_id: userId,
-      problem_id: problemId,
-      language: language,
-      code: code,
-      status: 'solved',
-      sandbox_url: sandboxUrl,
-      storage_url: storageUrl,
-      project_name: projectName,
-      file_count: fileCount,
-      created_at: new Date().toISOString()
-    })
-    .select()
-    .single();
+  // Find an existing submission for this student + problem.
+  let priorRow: { id: string; attempt_count?: number } | null = null;
+  try {
+    const { data } = await supabase
+      .from('practice_submissions')
+      .select('id, attempt_count')
+      .eq('student_id', userId)
+      .eq('problem_id', problemId)
+      .maybeSingle();
+    priorRow = data;
+  } catch {
+    priorRow = null;
+  }
+
+  const meta = {
+    storage_url: storageUrl,
+    project_name: projectName,
+    file_count: fileCount,
+    total_size: totalSize,
+    language,
+    status: 'solved',
+    submitted_at: new Date().toISOString(),
+  };
+
+  // Re-solve: update the same row to the latest work (admin reviews the latest); no XP.
+  if (priorRow) {
+    try {
+      await supabase
+        .from('practice_submissions')
+        .update({ ...meta, attempt_count: (priorRow.attempt_count || 1) + 1 })
+        .eq('id', priorRow.id);
+    } catch (e) {
+      console.warn('Failed to update practice submission:', e);
+    }
+    return priorRow;
+  }
+
+  // First solve: store one row + award XP.
+  const row = { id: `psub-${Date.now()}`, student_id: userId, problem_id: problemId, attempt_count: 1, ...meta };
+  const { data, error } = await supabase.from('practice_submissions').insert(row).select().single();
 
   if (error) {
-    console.error('Error submitting practice problem:', error);
+    console.error('Error storing practice submission:', error.message);
     throw error;
   }
 
-  // Increment user XP by 100 for solving a coding problem
   try {
     await incrementUserXP(userId, 100);
+    await recalculateUserStreak(userId);
   } catch (xpErr) {
-    console.warn('Failed to increment XP after solving problem:', xpErr);
+    console.warn('Failed to increment XP / recalculate streak after solving problem:', xpErr);
   }
 
   return data;
@@ -899,59 +1084,91 @@ export async function submitPracticeProblem(
 
 export async function fetchUserSubmissions(userId: string) {
   const { data, error } = await supabase
-    .from('submissions')
+    .from('practice_submissions')
     .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false });
+    .eq('student_id', userId)
+    .order('submitted_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching user submissions:', error);
+    console.warn('practice_submissions table not available:', error.message);
     return [];
   }
   return data || [];
 }
 
+/**
+ * Records an assessment attempt in `assessment_attempts` (a clean student-keyed table,
+ * following the working `personal_tasks`/`reward_claims` pattern — no profiles FK / triggers).
+ *
+ * To keep DB writes low and preserve a single reviewable result:
+ *   - 1st attempt  → INSERT one row (score, attempt_count=1) and award XP (score% × reward).
+ *   - Retry (2nd+) → do NOT insert; bump `attempt_count` on the existing row (score kept), no XP.
+ *
+ * `grade` is the score % (0–100). `feedback`/`attachments` are unused (kept for call-site compat).
+ */
 export async function submitAssignmentAttempt(
   userId: string,
   assignmentId: string,
   status: 'pending' | 'submitted' | 'reviewed' | 'overdue',
   grade?: number,
-  feedback?: string,
-  attachments: number = 0
+  _feedback?: string,
+  _attachments: number = 0,
+  rewardXp?: number
 ) {
-  const { data, error } = await supabase
-    .from('assignment_submissions')
-    .insert({
-      user_id: userId,
-      assignment_id: assignmentId,
-      status: status,
-      grade: grade,
-      feedback: feedback,
-      attachments: attachments,
-      submitted_at: new Date().toISOString()
-    })
-    .select()
-    .single();
+  const score = grade ?? 0;
+
+  // Look for an existing (first) attempt for this student + assessment.
+  let priorRow: { id: string; attempt_count?: number } | null = null;
+  try {
+    const { data } = await supabase
+      .from('assessment_attempts')
+      .select('id, attempt_count')
+      .eq('student_id', userId)
+      .eq('assignment_id', assignmentId)
+      .maybeSingle();
+    priorRow = data;
+  } catch {
+    priorRow = null;
+  }
+
+  // Retry: only bump the counter (keep the 1st score for review); no XP.
+  if (priorRow) {
+    try {
+      await supabase
+        .from('assessment_attempts')
+        .update({ attempt_count: (priorRow.attempt_count || 1) + 1 })
+        .eq('id', priorRow.id);
+    } catch (e) {
+      console.warn('Failed to bump assessment attempt_count:', e);
+    }
+    return priorRow;
+  }
+
+  // First attempt: store one row.
+  const row = {
+    id: `aatt-${Date.now()}`,
+    student_id: userId,
+    assignment_id: assignmentId,
+    score,
+    status,
+    attempt_count: 1,
+    submitted_at: new Date().toISOString(),
+  };
+  const { data, error } = await supabase.from('assessment_attempts').insert(row).select().single();
 
   if (error) {
-    console.error('Error submitting assignment attempt:', error);
+    console.error('Error storing assessment attempt:', error.message);
     throw error;
   }
 
-  // Increment user XP dynamically based on score
+  // XP earned = score% × reward (assessment total_marks), first attempt only.
   try {
-    let pointsAwarded = 50; // Participation XP
-    const score = grade ?? 0;
-    if (score >= 100) {
-      pointsAwarded = 250; // Base 200 + 50 perfect first-try bonus
-    } else if (score >= 70) {
-      pointsAwarded = Math.round(200 * (score / 100));
-    } else if (score > 0) {
-      pointsAwarded = Math.max(50, Math.round(200 * (score / 100)));
-    }
+    const reward = rewardXp ?? 100;
+    const pointsAwarded = Math.max(0, Math.round((score / 100) * reward));
     await incrementUserXP(userId, pointsAwarded);
+    await recalculateUserStreak(userId);
   } catch (xpErr) {
-    console.warn('Failed to increment XP after assignment attempt:', xpErr);
+    console.warn('Failed to increment XP / recalculate streak after assessment attempt:', xpErr);
   }
 
   return data;
@@ -959,13 +1176,13 @@ export async function submitAssignmentAttempt(
 
 export async function fetchAssignmentAttempts(userId: string) {
   const { data, error } = await supabase
-    .from('assignment_submissions')
+    .from('assessment_attempts')
     .select('*')
-    .eq('user_id', userId)
+    .eq('student_id', userId)
     .order('submitted_at', { ascending: false });
 
   if (error) {
-    console.error('Error fetching assignment attempts:', error);
+    console.warn('assessment_attempts table not available:', error.message);
     return [];
   }
   return data || [];
@@ -1164,7 +1381,7 @@ export async function updateNotificationReadStatus(id: string, read: boolean) {
 export async function markAllNotificationsAsRead(studentId: string) {
   const { data, error } = await supabase
     .from('notifications')
-    .update({ read: true })
+    .delete()
     .eq('student_id', studentId);
 
   if (error) {

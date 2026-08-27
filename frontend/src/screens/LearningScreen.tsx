@@ -123,13 +123,15 @@ export function LearningScreen() {
             { data: lessons },
             { data: assessments },
             { data: codingQuestions },
-            { data: projects }
+            { data: projects },
+            { data: quizzes }
           ] = await Promise.all([
             supabase.from('course_topics').select('*').eq('course_id', courseId).order('id', { ascending: true }),
             supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
             supabase.from('assessments').select('id, topic_id, duration_minutes, title').eq('course_id', courseId),
             supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
-            supabase.from('projects').select('id, inner_topic_id, title, type').eq('course_id', courseId)
+            supabase.from('projects').select('id, inner_topic_id, title, type').eq('course_id', courseId),
+            supabase.from('quizzes').select('id, inner_topic_id, duration_minutes, title').eq('course_id', courseId)
           ]);
 
           if (topics && lessons) {
@@ -156,6 +158,9 @@ export function LearningScreen() {
                         : [];
                       const dbProjects = projects
                         ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
+                        : [];
+                      const dbQuizzes = quizzes
+                        ? quizzes.filter((q: any) => resolver.resolveLessonId(q.inner_topic_id) === l.id)
                         : [];
 
                       return {
@@ -185,6 +190,12 @@ export function LearningScreen() {
                           id: p.id,
                           title: p.title,
                           type: p.type || 'mini',
+                          completed: false
+                        })),
+                        quizzes: dbQuizzes.map((q: any) => ({
+                          id: q.id,
+                          title: q.title,
+                          duration: `${q.duration_minutes || 30}m`,
                           completed: false
                         }))
                       };
@@ -1010,6 +1021,33 @@ export function LearningScreen() {
                                  </button>
                                </div>
                              ))}
+
+                              {/* QUIZ ITEMS */}
+                              {lesson.quizzes && lesson.quizzes.map((quiz: any) => (
+                                <div key={quiz.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                                  <div className="flex items-start gap-3">
+                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-indigo-500/20">
+                                      <ClipboardCheck className="w-4 h-4" />
+                                    </div>
+                                    <div>
+                                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-indigo-600 bg-indigo-50 border-indigo-100">
+                                        QUIZ
+                                      </span>
+                                      <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{quiz.title}</h4>
+                                      <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                        <Clock className="w-3 h-3" /> {quiz.duration}
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <button 
+                                    onClick={() => { setSelectedTopicDrawer(null); navigate('quizzes'); }} 
+                                    className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                                  >
+                                    <span>TAKE</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              ))}
 
                              {/* PROJECT ITEMS */}
                              {lesson.projects && lesson.projects.map((proj: any) => (

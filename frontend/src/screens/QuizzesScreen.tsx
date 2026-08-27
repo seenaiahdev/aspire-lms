@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2 } from 'lucide-react';
-import { fetchQuizzes, fetchLeaderboard } from '@/lib/api';
+import { fetchQuizzes, fetchLeaderboard, fetchQuizAttempts, submitQuizAttempt } from '@/lib/api';
+import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -17,29 +18,49 @@ import { LockedOverlay } from '@/components/ui/LockedOverlay';
 export function QuizzesScreen() {
   const { user } = useUser();
   const { navigate } = useNav();
+  const { isUnlocked } = useUnlockResolver();
   const [tab, setTab] = useState('upcoming');
   const [quizzes, setQuizzes] = useState<any[]>([]);
+  const [attempts, setAttempts] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        if (user?.batchCode) {
-          const q = await fetchQuizzes(user.batchCode);
-          setQuizzes(q || []);
-        }
-        const l = await fetchLeaderboard();
-        setLeaderboard(l || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      if (user?.enrolledCourses && user?.enrolledCourses.length > 0) {
+        const q = await fetchQuizzes(user.enrolledCourses);
+        const mapped = (q || []).map((item: any) => ({
+          id: item.id,
+          course_id: item.course_id,
+          title: item.title,
+          questions: item.mcqs && item.mcqs.length > 0 ? item.mcqs.length : (item.total_questions || 10),
+          duration: `${item.duration_minutes || 30} mins`,
+          durationMinutes: item.duration_minutes || 30,
+          maxScore: item.total_marks || 100,
+          dueDate: item.due_date ? new Date(item.due_date).toLocaleDateString() : 'No date',
+          inner_topic_id: item.inner_topic_id,
+          status: 'upcoming',
+          mcqs: item.mcqs || []
+        }));
+        setQuizzes(mapped);
       }
-    };
-    load();
-  }, [user?.batchCode]);
+      if (user?.id) {
+        const att = await fetchQuizAttempts(user.id);
+        setAttempts(att || []);
+      }
+      const l = await fetchLeaderboard();
+      setLeaderboard(l || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, [user?.enrolledCourses, user?.id]);
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<any>(() => {
     try {
@@ -59,6 +80,11 @@ export function QuizzesScreen() {
   const [reviewMarked, setReviewMarked] = useState<Record<number, boolean>>({});
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
   const [confirmExamAction, setConfirmExamAction] = useState<'submit' | 'exit' | null>(null);
+  const [fullscreenExits, setFullscreenExits] = useState(0);
+  const [showFullscreenWarning, setShowFullscreenWarning] = useState(false);
+  const [autoSubmittedScore, setAutoSubmittedScore] = useState<number | null>(null);
+  const [reviewQuizAttempt, setReviewQuizAttempt] = useState<{ quiz: any, attempt: any } | null>(null);
+  const isExitingIntentionally = useRef(false);
 
   useEffect(() => {
     let timer: any;
@@ -89,12 +115,92 @@ export function QuizzesScreen() {
       setReviewMarked({});
     }
   }, [selectedQuiz, isExamStarted]);
+  
+  const autoSubmitExam = async () => {
+    if (selectedQuiz && user?.id) {
+      const totalQs = selectedQuiz.questions || 10;
+      let correctCount = 0;
+      if (selectedQuiz.mcqs && selectedQuiz.mcqs.length > 0) {
+        correctCount = selectedQuiz.mcqs.filter((q: any, qIdx: number) => {
+          return answers[qIdx] === q.correctIndex;
+        }).length;
+      } else {
+        correctCount = Object.keys(answers).filter((qIdx) => {
+          const val = answers[Number(qIdx)];
+          return (Number(qIdx) + val) % 2 === 0;
+        }).length;
+      }
+
+      const calculatedScore = Math.round((correctCount / totalQs) * 100);
+
+      try {
+        isExitingIntentionally.current = true;
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore);
+        await loadData();
+        setAutoSubmittedScore(calculatedScore);
+      } catch (err) {
+        console.error('Failed to auto-submit quiz attempt:', err);
+      }
+    }
+    finalizeExam();
+  };
+
+  useEffect(() => {
+    if (!isExamStarted) {
+      setFullscreenExits(0);
+      setShowFullscreenWarning(false);
+      return;
+    }
+
+    // Force check after 1 second buffer to handle initial failures or page refreshes
+    const checkTimer = setTimeout(() => {
+      if (!document.fullscreenElement && isExamStarted && !isExitingIntentionally.current) {
+        setFullscreenExits((prev) => {
+          const next = prev === 0 ? 1 : prev;
+          setShowFullscreenWarning(true);
+          return next;
+        });
+      }
+    }, 1000);
+
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && isExamStarted && !isExitingIntentionally.current) {
+        const next = fullscreenExits + 1;
+        setFullscreenExits(next);
+        if (next >= 3) {
+          autoSubmitExam();
+        } else {
+          setShowFullscreenWarning(true);
+        }
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => {
+      clearTimeout(checkTimer);
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, [isExamStarted, selectedQuiz, answers, fullscreenExits]);
 
   const handleStartExam = () => {
+    isExitingIntentionally.current = false;
+    setFullscreenExits(0);
+    setShowFullscreenWarning(false);
+    setAutoSubmittedScore(null);
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(() => {});
     }
     setIsExamStarted(true);
+  };
+
+  const handleResumeFullscreen = () => {
+    if (document.documentElement.requestFullscreen) {
+      document.documentElement.requestFullscreen()
+        .then(() => {
+          setShowFullscreenWarning(false);
+        })
+        .catch(() => {});
+    }
   };
 
   const handleNextQuestion = () => {
@@ -104,6 +210,7 @@ export function QuizzesScreen() {
   };
 
   const finalizeExam = () => {
+    isExitingIntentionally.current = true;
     if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
     setIsExamStarted(false);
     setConfirmExamAction(null);
@@ -118,10 +225,32 @@ export function QuizzesScreen() {
     setConfirmExamAction(action);
   };
 
-  const handleConfirmExamAction = () => {
-    if (confirmExamAction === 'submit' || confirmExamAction === 'exit') {
-      finalizeExam();
+  const handleConfirmExamAction = async () => {
+    isExitingIntentionally.current = true;
+    if (confirmExamAction === 'submit' && selectedQuiz && user?.id) {
+      const totalQs = selectedQuiz.questions || 10;
+      let correctCount = 0;
+      if (selectedQuiz.mcqs && selectedQuiz.mcqs.length > 0) {
+        correctCount = selectedQuiz.mcqs.filter((q: any, qIdx: number) => {
+          return answers[qIdx] === q.correctIndex;
+        }).length;
+      } else {
+        correctCount = Object.keys(answers).filter((qIdx) => {
+          const val = answers[Number(qIdx)];
+          return (Number(qIdx) + val) % 2 === 0;
+        }).length;
+      }
+
+      const calculatedScore = Math.round((correctCount / totalQs) * 100);
+
+      try {
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore);
+        await loadData();
+      } catch (err) {
+        console.error('Failed to submit quiz attempt:', err);
+      }
     }
+    finalizeExam();
   };
 
   // Mock Question Data
@@ -152,7 +281,10 @@ export function QuizzesScreen() {
               <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto mb-4" />
               <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Quizzes...</h3>
             </div>
-          ) : quizzes.filter(q => q.status === 'upcoming').length === 0 ? (
+          ) : quizzes.filter(q => {
+            const isLocked = !isUnlocked(q.inner_topic_id);
+            return !isLocked;
+          }).length === 0 ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
                 <CheckCircle2 className="w-8 h-8 text-slate-400" />
@@ -162,28 +294,48 @@ export function QuizzesScreen() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {quizzes.filter(q => q.status === 'upcoming').map((q) => {
-                const isLocked = false; // All unlocked
+              {quizzes.filter(q => {
+                const isLocked = !isUnlocked(q.inner_topic_id);
+                return !isLocked;
+              }).map((q) => {
+                const attempt = attempts.find(a => a.quiz_id === q.id);
+                const isCompleted = !!attempt;
                 return (
                   <Card 
                     key={q.id} 
                     onClick={() => {
-                      setSelectedQuiz(q);
+                      if (isCompleted) {
+                        setReviewQuizAttempt({ quiz: q, attempt });
+                      } else {
+                        setSelectedQuiz(q);
+                      }
                     }}
-                    className="p-6 bg-white border border-slate-200/60 rounded-[2rem] flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-300"
+                    className={cn(
+                      "p-6 bg-white border border-slate-200/60 rounded-[2rem] flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-indigo-500/10",
+                      isCompleted ? "hover:border-slate-350" : "hover:border-indigo-300"
+                    )}
                   >
                     <div>
                       <div className="flex items-start justify-between mb-5">
                         <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 rounded-[1.25rem] bg-gradient-to-br from-indigo-50 to-purple-50 flex items-center justify-center border border-indigo-100/50 shadow-sm shrink-0">
-                            <ClipboardCheck className="w-6 h-6 text-indigo-600" />
+                          <div className={cn(
+                            "w-12 h-12 rounded-[1.25rem] flex items-center justify-center border shadow-sm shrink-0",
+                            isCompleted 
+                              ? "bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100/50" 
+                              : "bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-100/50"
+                          )}>
+                            <ClipboardCheck className={cn("w-6 h-6", isCompleted ? "text-emerald-600" : "text-indigo-600")} />
                           </div>
                           <div>
-                            <h3 className="font-extrabold text-slate-900 text-[17px] leading-snug mb-1 group-hover:text-indigo-700 transition-colors">{q.title}</h3>
+                            <h3 className={cn("font-extrabold text-slate-900 text-[17px] leading-snug mb-1 transition-colors", isCompleted ? "group-hover:text-slate-800" : "group-hover:text-indigo-700")}>{q.title}</h3>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-500">{q.course}</span>
+                              <span className="text-xs font-bold text-slate-500">{q.course || 'Core Course'}</span>
                               <span className="w-1 h-1 rounded-full bg-slate-300" />
-                              <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
+                              {isCompleted ? (
+                                <span className="text-[10px] uppercase tracking-wider font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Score: {attempt.score}%</span>
+                              ) : (
+                                <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -196,17 +348,31 @@ export function QuizzesScreen() {
                       </div>
                     </div>
 
-                    <button 
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedQuiz(q);
-                      }}
-                      className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20 cursor-pointer"
-                    >
-                      <Play className="w-4 h-4 fill-current" />
-                      <span>Start Quiz</span>
-                    </button>
+                    {isCompleted ? (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setReviewQuizAttempt({ quiz: q, attempt });
+                        }}
+                        className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border cursor-pointer bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300"
+                      >
+                        <Award className="w-4 h-4 text-emerald-500" />
+                        <span>Review Attempt</span>
+                      </button>
+                    ) : (
+                      <button 
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedQuiz(q);
+                        }}
+                        className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border cursor-pointer bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20"
+                      >
+                        <Play className="w-4 h-4 fill-current" />
+                        <span>Start Quiz</span>
+                      </button>
+                    )}
                   </Card>
                 )
               })}
@@ -217,11 +383,53 @@ export function QuizzesScreen() {
 
       {tab === 'results' && (
         <div className="space-y-4">
-          <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
-            <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-            <h3 className="font-extrabold text-slate-800 text-base">No Previous Results</h3>
-            <p className="text-xs text-slate-500 mt-1">You haven't completed any quizzes yet.</p>
-          </Card>
+          {attempts.length === 0 ? (
+            <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
+              <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="font-extrabold text-slate-800 text-base">No Previous Results</h3>
+              <p className="text-xs text-slate-500 mt-1">You haven't completed any quizzes yet.</p>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              {attempts.map((attempt) => {
+                const quiz = quizzes.find((q) => q.id === attempt.quiz_id);
+                if (!quiz) return null;
+                const percent = attempt.score;
+                return (
+                  <Card key={attempt.id} className="p-6 bg-white border border-slate-200/60 rounded-[2rem] shadow-sm flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3.5">
+                          <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center shrink-0">
+                            <ClipboardCheck className="w-5.5 h-5.5 text-emerald-600" />
+                          </div>
+                          <div>
+                            <h3 className="font-extrabold text-slate-900 text-[15px] leading-tight mb-0.5">{quiz.title}</h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completed Quiz</p>
+                          </div>
+                        </div>
+                        <div className={cn(
+                          "px-3 py-1 rounded-full text-xs font-black tracking-wide flex items-center gap-1.5 border",
+                          percent >= 70 
+                            ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
+                            : "bg-amber-50 text-amber-700 border-amber-100"
+                        )}>
+                          <Star className="w-3.5 h-3.5 fill-current" />
+                          <span>{percent}% Score</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-xs font-bold text-slate-500 pt-4 border-t border-slate-100 mt-4">
+                        <span>{quiz.questions} questions</span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                        <span>Completed {new Date(attempt.attempted_at).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
@@ -385,18 +593,30 @@ export function QuizzesScreen() {
                   <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
                     <div className="flex items-center justify-between mb-4 shrink-0">
                       <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[11px] font-black tracking-widest uppercase">
-                        Question {currentQuestionIdx + 1} of {selectedQuiz.questions}
+                        Question ${currentQuestionIdx + 1} of ${selectedQuiz.questions}
                       </span>
                     </div>
 
                     <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug mb-6 shrink-0">
-                      {currentQuestionIdx % 2 === 0 
-                        ? "What is the primary purpose of the `useState` hook in React applications?"
-                        : "Which of the following is true regarding React's `useEffect` hook dependencies array?"}
+                      {selectedQuiz.mcqs && selectedQuiz.mcqs.length > 0
+                        ? selectedQuiz.mcqs[currentQuestionIdx]?.question
+                        : (currentQuestionIdx % 2 === 0 
+                          ? "What is the primary purpose of the `useState` hook in React applications?"
+                          : "Which of the following is true regarding React's `useEffect` hook dependencies array?")
+                      }
                     </h2>
 
+                    {selectedQuiz.mcqs && selectedQuiz.mcqs[currentQuestionIdx]?.codeSnippet && (
+                      <pre className="bg-slate-900 text-slate-100 p-4 rounded-xl font-mono text-xs overflow-x-auto mb-6 shrink-0">
+                        <code>{selectedQuiz.mcqs[currentQuestionIdx].codeSnippet}</code>
+                      </pre>
+                    )}
+
                     <div className="space-y-3 mb-6 shrink-0">
-                      {mockOptions.map((opt, i) => {
+                      {(selectedQuiz.mcqs && selectedQuiz.mcqs[currentQuestionIdx]?.options
+                        ? selectedQuiz.mcqs[currentQuestionIdx].options
+                        : mockOptions
+                      ).map((opt: string, i: number) => {
                         const isSelected = answers[currentQuestionIdx] === i;
                         return (
                           <button
@@ -582,6 +802,119 @@ export function QuizzesScreen() {
           </div>
         </div>
       )}
+
+      {/* 🛡️ PROCTORING FULL SCREEN WARNING MODAL */}
+      <Modal open={showFullscreenWarning} onClose={() => {}} size="sm">
+        <div className="p-6 sm:p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+            <AlertTriangle className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-extrabold text-slate-900">
+              Full Screen Exit Detected!
+            </h3>
+            <p className="text-sm font-semibold text-rose-500">
+              Warning: Attempt {fullscreenExits} of 3
+            </p>
+            <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+              Exiting full screen mode is not allowed during assessments. Exiting 3 times will result in your quiz being automatically submitted.
+            </p>
+          </div>
+          <div className="pt-3">
+            <button
+              type="button"
+              onClick={handleResumeFullscreen}
+              className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>Resume Exam in Full Screen</span>
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* ⚠️ AUTO-SUBMITTED FEEDBACK MODAL */}
+      <Modal open={autoSubmittedScore !== null} onClose={() => setAutoSubmittedScore(null)} size="sm">
+        <div className="p-6 sm:p-8 text-center space-y-4">
+          <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mx-auto border border-amber-200">
+            <Info className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <h3 className="text-xl font-extrabold text-slate-900">
+              Quiz Auto-Submitted
+            </h3>
+            <p className="text-xs font-semibold text-slate-500 leading-relaxed font-bold">
+              Your quiz attempt has been automatically recorded and graded because you exited full screen mode 3 times.
+            </p>
+            <div className="inline-block px-5 py-2 bg-indigo-50 border border-indigo-100 rounded-2xl mt-2">
+              <span className="text-[10px] font-bold text-slate-400 block uppercase tracking-wider">Your Score</span>
+              <span className="text-2xl font-black text-indigo-600">{autoSubmittedScore}%</span>
+            </div>
+          </div>
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setAutoSubmittedScore(null)}
+              className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 📊 QUIZ ATTEMPT REVIEW MODAL */}
+      <Modal open={reviewQuizAttempt !== null} onClose={() => setReviewQuizAttempt(null)} size="sm">
+        <div className="p-6 sm:p-8 space-y-5">
+          <div className="text-center space-y-2">
+            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
+              <Award className="w-7 h-7" />
+            </div>
+            <h3 className="text-xl font-extrabold text-slate-900 leading-tight">
+              {reviewQuizAttempt?.quiz?.title}
+            </h3>
+            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
+              Attempt Summary
+            </p>
+          </div>
+
+          <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between text-sm border-b border-slate-150 pb-3">
+              <span className="font-bold text-slate-500">Status</span>
+              <Badge variant="success">Completed</Badge>
+            </div>
+            
+            <div className="flex items-center justify-between text-sm border-b border-slate-150 pb-3">
+              <span className="font-bold text-slate-500">Attempted Date</span>
+              <span className="font-extrabold text-slate-800">
+                {reviewQuizAttempt?.attempt?.attempted_at 
+                  ? new Date(reviewQuizAttempt.attempt.attempted_at).toLocaleDateString()
+                  : 'N/A'}
+              </span>
+            </div>
+
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-bold text-slate-500">Final Grade</span>
+              <div className="flex items-baseline gap-0.5">
+                <span className="text-2xl font-black text-indigo-600">
+                  {reviewQuizAttempt?.attempt?.score}%
+                </span>
+                <span className="text-xs font-bold text-slate-400">/ 100%</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => setReviewQuizAttempt(null)}
+              className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );

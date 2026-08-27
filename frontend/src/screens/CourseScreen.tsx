@@ -463,10 +463,12 @@ export function CourseScreen() {
           </p>
 
           <div className="flex flex-wrap items-center gap-6 text-xs sm:text-sm font-semibold text-purple-100 pt-2 border-t border-white/20">
+            {/* Hiding reviews rating temporarily
             <span className="flex items-center gap-1.5 font-bold">
               <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
               <span>{course.rating} ({course.reviews} reviews)</span>
             </span>
+            */}
             <span className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />
               <span>{course.students >= 1000 ? `${(course.students / 1000).toFixed(1)}k` : course.students} students</span>
@@ -489,7 +491,7 @@ export function CourseScreen() {
           { id: 'modules', label: 'Modules' },
           { id: 'overview', label: 'Overview' },
           { id: 'resources', label: 'Resources' },
-          { id: 'reviews', label: 'Reviews' },
+          // { id: 'reviews', label: 'Reviews' },
         ].map((t) => (
           <button
             key={t.id}

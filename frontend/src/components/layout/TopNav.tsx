@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Menu, Bell, LogOut, Flame, User, Settings, ChevronDown } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
-import { fetchNotifications } from '@/lib/api';
+import { useNotifications } from '@/lib/NotificationsContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 
@@ -10,16 +10,8 @@ export function TopNav() {
   const { user: currentUser } = useUser();
   const { setSidebarOpen, navigate, logout, route, notificationsOpen, setNotificationsOpen } = useNav();
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const { unreadCount: unread } = useNotifications();
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (currentUser?.id) {
-      fetchNotifications(currentUser.id).then(setNotifications).catch(console.error);
-    }
-  }, [currentUser?.id]);
-
-  const unread = notifications.filter((n) => !n.read).length;
 
   // Close dropdown on click outside (but not when clicking on tour overlay/tooltips)
   useEffect(() => {

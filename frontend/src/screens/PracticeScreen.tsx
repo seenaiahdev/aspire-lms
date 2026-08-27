@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2 } from 'lucide-react';
 import { fetchPracticeProblems, fetchUserSubmissions } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
@@ -14,6 +14,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
+import { supabase } from '@/lib/supabase';
 
 interface Submission {
   problemId: string;
@@ -31,43 +32,50 @@ interface Submission {
 export function PracticeScreen() {
   const { user } = useUser();
   const { isUnlocked } = useUnlockResolver();
-  const { navigate } = useNav();
-  const [tab, setTab] = useState('problems');
+  const { navigate, params } = useNav();
+  const [tab, setTab] = useState(() => params.tab || 'problems');
+
+  useEffect(() => {
+    if (params.tab) {
+      setTab(params.tab);
+    }
+  }, [params.tab]);
   const [difficulty, setDifficulty] = useState('all');
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [problems, setProblems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lockedToast, setLockedToast] = useState(false);
 
-  useEffect(() => {
-    const load = async () => {
-      setLoading(true);
-      try {
-        const courseId = user?.enrolledCourses?.[0];
-        const dbProblems = await fetchPracticeProblems(courseId);
-        
-        let dbSubmissions: Submission[] = [];
-        if (user?.id) {
-          try {
-            const res = await fetchUserSubmissions(user.id);
-            dbSubmissions = (res || []).map((s: any) => ({
-              problemId: s.problem_id,
-              problemTitle: (dbProblems || []).find((p: any) => p.id === s.problem_id)?.title || s.project_name || 'Practice Solution',
-              language: s.language,
-              code: s.code,
-              sandboxUrl: s.sandbox_url,
-              storageUrl: s.storage_url,
-              projectName: s.project_name,
-              fileCount: s.file_count,
-              timestamp: s.created_at || new Date().toISOString()
-            }));
-          } catch (dbErr) {
-            console.warn('Failed to fetch submissions from Supabase, relying on localStorage:', dbErr);
-          }
+  const loadData = useCallback(async () => {
+    try {
+      const courseId = user?.enrolledCourses?.[0];
+      const dbProblems = await fetchPracticeProblems(courseId);
+      
+      let dbSubmissions: Submission[] = [];
+      let fetchedFromDb = false;
+      if (user?.id) {
+        try {
+          const res = await fetchUserSubmissions(user.id);
+          dbSubmissions = (res || []).map((s: any) => ({
+            problemId: s.problem_id,
+            problemTitle: (dbProblems || []).find((p: any) => p.id === s.problem_id)?.title || s.project_name || 'Practice Solution',
+            language: s.language,
+            code: s.code,
+            sandboxUrl: s.sandbox_url,
+            storageUrl: s.storage_url,
+            projectName: s.project_name,
+            fileCount: s.file_count,
+            timestamp: s.submitted_at || s.created_at || new Date().toISOString()
+          }));
+          fetchedFromDb = true;
+        } catch (dbErr) {
+          console.warn('Failed to fetch submissions from Supabase, relying on localStorage:', dbErr);
         }
+      }
 
-        // Merge with local storage fallback
-        const mergedSubmissions = [...dbSubmissions];
+      // Merge with local storage fallback only if database fetch failed
+      const mergedSubmissions = [...dbSubmissions];
+      if (!fetchedFromDb) {
         (dbProblems || []).forEach((problem: any) => {
           const savedSubmission = localStorage.getItem(`submission_${problem.id}`);
           if (savedSubmission) {
@@ -86,31 +94,60 @@ export function PracticeScreen() {
             }
           }
         });
-
-        mergedSubmissions.sort((a, b) => 
-          new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
-        );
-
-        setSubmissions(mergedSubmissions);
-
-        const updatedProblems = (dbProblems || []).map((p: any) => {
-          const hasSubmission = mergedSubmissions.some(s => s.problemId === p.id);
-          return hasSubmission ? { ...p, solved: true } : p;
-        });
-
-        setProblems(updatedProblems);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
       }
-    };
-    load();
+
+      mergedSubmissions.sort((a, b) => 
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+      );
+
+      setSubmissions(mergedSubmissions);
+
+      const updatedProblems = (dbProblems || []).map((p: any) => {
+        const hasSubmission = mergedSubmissions.some(s => s.problemId === p.id);
+        return hasSubmission ? { ...p, solved: true } : p;
+      });
+
+      setProblems(updatedProblems);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, [user]);
+
+  useEffect(() => {
+    setLoading(true);
+    loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('practice_screen_realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'practice_submissions',
+          filter: `student_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Real-time database submission update received:', payload);
+          loadData();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadData]);
 
   const filtered = problems.filter(p => {
     const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
-    return matchesDifficulty && isUnlocked(p.inner_topic_id);
+    return matchesDifficulty && isUnlocked(p.inner_topic_id) && !p.solved;
   });
   const solved = problems.filter(p => p.solved).length;
 
@@ -246,16 +283,78 @@ export function PracticeScreen() {
 
       {/* ── History Tab ── */}
       {tab === 'history' && (
-        <div className="space-y-4">
-          <Card>
-            <CardBody className="text-center py-12">
-              <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4 border border-purple-100">
-                <CheckCircle2 className="w-8 h-8 text-[#7c3aed]" />
-              </div>
-              <h3 className="font-extrabold text-slate-900 text-base mb-1">No Completed Problems Yet</h3>
-              <p className="text-xs font-medium text-slate-500 mb-2">Start solving coding problems to see your submitted solutions here.</p>
-            </CardBody>
-          </Card>
+        <div className="space-y-4 animate-fade-in">
+          {submissions.length === 0 ? (
+            <Card>
+              <CardBody className="text-center py-12">
+                <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4 border border-purple-100">
+                  <CheckCircle2 className="w-8 h-8 text-[#7c3aed]" />
+                </div>
+                <h3 className="font-extrabold text-slate-900 text-base mb-1">No Completed Problems Yet</h3>
+                <p className="text-xs font-medium text-slate-500 mb-2">Start solving coding problems to see your submitted solutions here.</p>
+              </CardBody>
+            </Card>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {submissions.map((sub) => (
+                <Card
+                  key={sub.problemId}
+                  onClick={() => navigate('workspace', { id: sub.problemId, mode: 'review' })}
+                  className="p-5 border border-slate-200/90 bg-white hover:border-slate-300 transition-all rounded-[2rem] cursor-pointer group shadow-sm flex flex-col justify-between"
+                >
+                  <div className="flex items-start gap-4">
+                    <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                      <Code2 className="w-6 h-6 text-[#7c3aed]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-extrabold text-slate-900 text-sm truncate leading-snug group-hover:text-[#7c3aed] transition-colors">
+                          {sub.problemTitle}
+                        </h4>
+                        <span className="px-2 py-0.5 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-extrabold">
+                          Solved
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-bold text-slate-400 mt-1">
+                        Project Name: {sub.projectName || 'Practice Solution'}
+                      </p>
+                      <div className="flex items-center gap-3 mt-3 text-[10px] text-slate-500 font-medium">
+                        <span className="flex items-center gap-1">
+                          <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
+                          {sub.fileCount ?? 1} file{sub.fileCount !== 1 ? 's' : ''}
+                        </span>
+                        <span className="w-1 h-1 rounded-full bg-slate-300" />
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3.5 h-3.5 text-slate-400" />
+                          {new Date(sub.timestamp).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-4 pt-4 border-t border-slate-100 flex items-center justify-between">
+                    <span className="text-[9px] text-slate-400 font-mono truncate max-w-[150px] sm:max-w-xs">
+                      {sub.storageUrl?.split('/').pop() || 'local'}
+                    </span>
+                    <Button
+                      size="xs"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate('workspace', { id: sub.problemId, mode: 'review' });
+                      }}
+                      className="bg-purple-50 text-[#7c3aed] hover:bg-purple-100 border border-purple-100 text-[10px] font-bold px-3 py-1"
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" /> View Solution
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

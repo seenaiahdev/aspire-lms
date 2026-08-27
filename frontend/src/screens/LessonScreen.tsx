@@ -168,6 +168,11 @@ export function LessonScreen() {
           .select('id, inner_topic_id, title')
           .eq('course_id', courseIdToFetch);
 
+        const { data: quizzes } = await supabase
+          .from('quizzes')
+          .select('id, inner_topic_id, title, duration_minutes')
+          .eq('course_id', courseIdToFetch);
+
         // Bridge Scheme A entity links -> Scheme B lesson ids so assessments/projects nest correctly.
         const resolver = await getLessonResolver([courseIdToFetch], user.batchCode || '');
 
@@ -196,6 +201,9 @@ export function LessonScreen() {
                     const dbProjects = projects
                       ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
                       : [];
+                    const dbQuizzes = quizzes
+                      ? quizzes.filter((q: any) => resolver.resolveLessonId(q.inner_topic_id) === l.id)
+                      : [];
 
                     return {
                       id: l.id,
@@ -222,6 +230,12 @@ export function LessonScreen() {
                       projects: dbProjects.map((p: any) => ({
                         id: p.id,
                         title: p.title,
+                        completed: false
+                      })),
+                      quizzes: dbQuizzes.map((q: any) => ({
+                        id: q.id,
+                        title: q.title,
+                        duration: `${q.duration_minutes || 30}m`,
                         completed: false
                       }))
                     };
@@ -643,85 +657,24 @@ export function LessonScreen() {
           </div>
         </div>
 
-        {/* Flexible Tabs & Note Taking Area */}
-        <div className="flex flex-col bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden p-4 shrink-0 min-h-[350px]">
-          
-          {/* Custom Tabs Bar */}
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-2 shrink-0">
-            {[
-              { id: 'notes', label: 'Notes', icon: PenLine },
-              { id: 'transcript', label: 'Transcript', icon: FileText },
-              { id: 'resources', label: 'Resources', icon: Download },
-            ].map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
-                className={cn(
-                  "px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all",
-                  tab === t.id
-                    ? "bg-purple-50 text-[#7c3aed] border border-purple-100"
-                    : "text-slate-500 hover:bg-slate-50 hover:text-slate-900"
-                )}
-              >
-                <t.icon className="w-3.5 h-3.5" />
-                <span>{t.label}</span>
-              </button>
-            ))}
+        {/* Note Taking Area */}
+        <div className="flex flex-col bg-white rounded-2xl border border-slate-200/90 shadow-sm overflow-hidden p-4 shrink-0 min-h-[300px]">
+          <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5 mb-3 shrink-0">
+            <PenLine className="w-4 h-4 text-[#7c3aed]" />
+            <span className="font-extrabold text-sm text-slate-800">Lesson Notes</span>
           </div>
 
-          {/* Tab Content Box */}
-          <div className="flex-1 overflow-y-auto pt-3">
-            {tab === 'notes' && (
-              <div className="flex flex-col h-full space-y-2.5">
-                <textarea
-                  value={lessonNote}
-                  onChange={(e) => handleSaveNote(e.target.value)}
-                  placeholder="Type your notes here... they are saved in real-time as you type!"
-                  className="w-full flex-1 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 outline-none text-xs font-semibold text-slate-800 min-h-[180px] resize-none"
-                />
-                <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold px-1 shrink-0">
-                  <span>Auto-saving note...</span>
-                  <span>{lessonNote.length} characters</span>
-                </div>
-              </div>
-            )}
-
-            {tab === 'transcript' && (
-              <div className="h-full pr-1 overflow-y-auto">
-                <p className="text-xs font-medium text-slate-600 leading-relaxed bg-slate-50 p-4 rounded-2xl border border-slate-100/50">
-                  {lessonTranscript}
-                </p>
-              </div>
-            )}
-
-            {tab === 'resources' && (
-              <div className="space-y-2">
-                {lessonResources.length === 0 ? (
-                  <div className="flex flex-col h-full justify-center items-center text-center py-4">
-                    <Download className="w-8 h-8 text-slate-200 mb-2" />
-                    <h4 className="text-xs font-bold text-slate-800">No resources attached</h4>
-                    <p className="text-[10px] text-slate-500 mt-1">Check back later for downloadable files.</p>
-                  </div>
-                ) : (
-                  lessonResources.map((res: any) => (
-                    <div key={res.id} className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 border border-slate-100 hover:border-purple-100 transition-all duration-300">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 shadow-2xs">
-                          <Download className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-[11px] font-bold text-slate-900 line-clamp-1">{res.title}</p>
-                          <p className="text-[9px] font-semibold text-slate-400 mt-0.5">{res.size} · {res.type.toUpperCase()}</p>
-                        </div>
-                      </div>
-                      <button className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-[#7c3aed] hover:text-[#7c3aed] text-[10px] font-extrabold shadow-2xs transition-all cursor-pointer shrink-0">
-                        Download
-                      </button>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+          <div className="flex-1 flex flex-col space-y-2.5">
+            <textarea
+              value={lessonNote}
+              onChange={(e) => handleSaveNote(e.target.value)}
+              placeholder="Type your notes here... they are saved in real-time as you type!"
+              className="w-full flex-1 px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 outline-none text-xs font-semibold text-slate-800 min-h-[180px] resize-none"
+            />
+            <div className="flex justify-between items-center text-[10px] text-slate-400 font-bold px-1 shrink-0">
+              <span>Auto-saving note...</span>
+              <span>{lessonNote.length} characters</span>
+            </div>
           </div>
         </div>
 

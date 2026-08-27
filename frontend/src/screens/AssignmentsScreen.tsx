@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   FileText, Clock, Upload, CheckCircle2, AlertCircle, Star, Paperclip, ArrowRight, X,
   HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Compass, RotateCcw, Eye, Lock
@@ -115,6 +115,7 @@ const ConfettiBurst = () => {
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { fetchAssignments, submitAssignmentAttempt, fetchAssignmentAttempts } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 
 export function AssignmentsScreen() {
@@ -124,10 +125,9 @@ export function AssignmentsScreen() {
   const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const loadData = async () => {
+  const loadData = useCallback(async (showSpinner = true) => {
       if (user?.batchCode) {
-        setLoading(true);
+        if (showSpinner) setLoading(true);
         try {
           const courseId = user?.enrolledCourses?.[0];
           const [data, attempts] = await Promise.all([
@@ -136,21 +136,23 @@ export function AssignmentsScreen() {
           ]);
           
           const mappedTasks = (data || []).map((task: any) => {
+            // One stored row per assessment (the 1st attempt); `attempt_count` = total tries.
             const taskAttempts = (attempts || []).filter((a: any) => a.assignment_id === task.id);
-            const passedAttempts = taskAttempts.filter((a: any) => (a.grade || 0) >= 70);
-            const failedAttempts = taskAttempts.filter((a: any) => (a.grade || 0) < 70);
-            const bestScore = taskAttempts.reduce((max: number, a: any) => Math.max(max, a.grade || 0), 0);
-            
-            const attemptHistory = taskAttempts.map((a: any, index: number) => ({
-              id: index + 1,
-              label: `Attempt ${index + 1}`,
-              score: a.grade || 0,
-              status: (a.grade || 0) >= 70 ? 'Passed' : 'Failed',
-              date: a.submitted_at ? new Date(a.submitted_at).toLocaleDateString('en-GB') : 'Recent',
-              reviewSummary: a.feedback || 'Completed.'
-            }));
+            const storedRow = taskAttempts[0];
+            const storedScore = storedRow?.score ?? 0;
+            const totalTries = storedRow?.attempt_count ?? taskAttempts.length;
 
-            // Local storage fallback for attempts not in Supabase yet
+            // Review shows the single stored (1st) attempt.
+            const attemptHistory = storedRow ? [{
+              id: 1,
+              label: 'Attempt 1',
+              score: storedScore,
+              status: (storedScore >= 70 ? 'Passed' : 'Failed') as 'Passed' | 'Failed',
+              date: storedRow.submitted_at ? new Date(storedRow.submitted_at).toLocaleDateString('en-GB') : 'Recent',
+              reviewSummary: 'First attempt (stored for review).'
+            }] : [] as any[];
+
+            // Local storage fallback for attempts not yet synced to Supabase.
             const localSaved = localStorage.getItem(`assignment_attempt_${task.id}`);
             if (localSaved && attemptHistory.length === 0) {
               try {
@@ -166,13 +168,16 @@ export function AssignmentsScreen() {
               } catch {}
             }
 
+            const passed = storedRow ? (storedScore >= 70 ? 1 : 0) : (localSaved && JSON.parse(localSaved).score >= 70 ? 1 : 0);
+            const failed = storedRow ? (storedScore < 70 ? 1 : 0) : (localSaved && JSON.parse(localSaved).score < 70 ? 1 : 0);
+
             return {
               ...task,
-              status: (taskAttempts.length > 0 || localSaved) ? 'completed' : 'pending',
-              attemptsCount: Math.max(taskAttempts.length, localSaved ? 1 : 0),
-              passedCount: passedAttempts.length || (localSaved && JSON.parse(localSaved).score >= 70 ? 1 : 0),
-              failedCount: failedAttempts.length || (localSaved && JSON.parse(localSaved).score < 70 ? 1 : 0),
-              bestScorePercentage: Math.max(bestScore, localSaved ? JSON.parse(localSaved).score : 0),
+              status: (storedRow || localSaved) ? 'completed' : 'pending',
+              attemptsCount: totalTries || (localSaved ? 1 : 0),
+              passedCount: passed,
+              failedCount: failed,
+              bestScorePercentage: storedRow ? storedScore : (localSaved ? JSON.parse(localSaved).score : 0),
               attemptHistory: attemptHistory
             };
           });
@@ -182,12 +187,36 @@ export function AssignmentsScreen() {
           console.error("Failed to fetch assignments:", error);
           setCourseAssignments([]);
         } finally {
-          setLoading(false);
+          if (showSpinner) setLoading(false);
         }
       }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(','), user?.id]);
+
+  // Initial load
+  useEffect(() => { loadData(true); }, [loadData]);
+
+  // Real-time: refresh when the admin changes assessments, or when this student's
+  // attempts change (e.g. a submission lands) — keeps the Practice Hub live.
+  useEffect(() => {
+    if (!user?.id) return;
+    const assessmentsCh = supabase
+      .channel('practicehub_assessments')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, () => loadData(false))
+      .subscribe();
+    const attemptsCh = supabase
+      .channel('practicehub_attempts')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` },
+        () => loadData(false)
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(assessmentsCh);
+      supabase.removeChannel(attemptsCh);
     };
-    loadData();
-  }, [user?.batchCode, user?.batchCategory, user?.enrolledCourses, user?.id]);
+  }, [user?.id, loadData]);
 
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [lockedToast, setLockedToast] = useState(false);
@@ -398,7 +427,9 @@ export function AssignmentsScreen() {
           activeTask.id,
           'submitted',
           score,
-          `Completed on ${new Date().toLocaleDateString('en-GB')}`
+          `Completed on ${new Date().toLocaleDateString('en-GB')}`,
+          0,
+          activeTask.xp
         ).catch(err => {
           console.warn('Failed to save assignment attempt to Supabase:', err);
         });
@@ -553,7 +584,7 @@ export function AssignmentsScreen() {
                   {userScore >= 70 && (
                     <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
                       <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-[0.24em]">Reward Earned</p>
-                      <p className="text-2xl font-black text-slate-900">+{activeTask.xp} XP</p>
+                      <p className="text-2xl font-black text-slate-900">+{Math.round((userScore / 100) * activeTask.xp)} XP</p>
                     </div>
                   )}
 
@@ -740,7 +771,9 @@ export function AssignmentsScreen() {
                           activeTask.id,
                           'submitted',
                           100,
-                          'All test cases passed!'
+                          'All test cases passed!',
+                          0,
+                          activeTask.xp
                         ).catch(err => {
                           console.warn('Failed to save assignment attempt to Supabase:', err);
                         });

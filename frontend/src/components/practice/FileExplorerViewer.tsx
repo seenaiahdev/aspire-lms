@@ -265,40 +265,67 @@ export function FileExplorerViewer({ storageUrl, onClose, inline = false }: File
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load bundle from localStorage using storageUrl as key
+  // Load bundle from localStorage or fetch remotely if needed using storageUrl
   useEffect(() => {
-    setLoading(true);
-    setError(null);
-    try {
-      // Extract the blob key from the URL (everything after last '/')
-      const blobKey = storageUrl.split('/').pop();
-      const raw = localStorage.getItem(`lms_blob_${blobKey}`);
-      if (!raw) throw new Error('Project bundle not found. It may have been cleared from browser storage.');
-      const parsed: ProjectBundle = JSON.parse(raw);
-      setBundle(parsed);
-      const builtTree = buildTree(parsed.files);
-      setTree(builtTree);
+    const loadBundle = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const blobKey = storageUrl.split('/').pop();
+        if (!blobKey) throw new Error('Invalid storage URL.');
 
-      // Auto-expand all directories recursively so deep folder structures (e.g. React apps) are visible
-      const initialExpanded = new Set<string>();
-      const expandAll = (nodes: TreeNode[]) => {
-        nodes.forEach((node) => {
-          if (node.isDir) {
-            initialExpanded.add(node.path);
-            expandAll(node.children);
+        let raw = localStorage.getItem(`lms_blob_${blobKey}`);
+        let parsed: ProjectBundle | null = null;
+
+        if (raw) {
+          parsed = JSON.parse(raw);
+        } else if (storageUrl.startsWith('http')) {
+          // Fetch remote submission JSON bundle from Supabase Storage
+          const response = await fetch(storageUrl);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch project files from storage server (status ${response.status}).`);
           }
-        });
-      };
-      expandAll(builtTree);
-      setExpandedDirs(initialExpanded);
+          parsed = await response.json();
+          // Cache it locally so subsequent page views load instantly
+          try {
+            localStorage.setItem(`lms_blob_${blobKey}`, JSON.stringify(parsed));
+          } catch (cacheErr) {
+            console.warn('Failed to cache project bundle in localStorage:', cacheErr);
+          }
+        }
 
-      // Auto-select first file
-      const firstFile = parsed.files[0];
-      if (firstFile) setSelectedFile(firstFile);
-    } catch (e: any) {
-      setError(e.message ?? 'Failed to load project bundle.');
-    }
-    setLoading(false);
+        if (!parsed) {
+          throw new Error('Project bundle not found. It may have been cleared from browser storage.');
+        }
+
+        setBundle(parsed);
+        const builtTree = buildTree(parsed.files);
+        setTree(builtTree);
+
+        // Auto-expand all directories recursively so deep folder structures are visible
+        const initialExpanded = new Set<string>();
+        const expandAll = (nodes: TreeNode[]) => {
+          nodes.forEach((node) => {
+            if (node.isDir) {
+              initialExpanded.add(node.path);
+              expandAll(node.children);
+            }
+          });
+        };
+        expandAll(builtTree);
+        setExpandedDirs(initialExpanded);
+
+        // Auto-select first file
+        const firstFile = parsed.files[0];
+        if (firstFile) setSelectedFile(firstFile);
+      } catch (e: any) {
+        setError(e.message ?? 'Failed to load project bundle.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadBundle();
   }, [storageUrl]);
 
   const toggleDir = useCallback((path: string) => {

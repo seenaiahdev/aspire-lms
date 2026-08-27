@@ -278,21 +278,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const markRead = useCallback((id: string) => {
     const sid = userRef.current?.id;
     setNotifications((prev) => {
-      const next = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+      const next = prev.filter((n) => n.id !== id);
       if (sid) persistLocal(sid, next);
       return next;
     });
-    updateNotificationReadStatus(id, true).catch(() => {});
+    deleteNotificationRow(id).catch(() => {});
   }, [persistLocal]);
 
   const markAllRead = useCallback(() => {
     const sid = userRef.current?.id;
-    setNotifications((prev) => {
-      const next = prev.map((n) => ({ ...n, read: true }));
-      if (sid) persistLocal(sid, next);
-      return next;
-    });
-    if (sid) markAllNotificationsAsRead(sid).catch(() => {});
+    setNotifications([]);
+    if (sid) {
+      persistLocal(sid, []);
+      markAllNotificationsAsRead(sid).catch(() => {});
+    }
   }, [persistLocal]);
 
   const deleteNotification = useCallback((id: string) => {

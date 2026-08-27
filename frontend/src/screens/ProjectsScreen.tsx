@@ -4,7 +4,8 @@ import {
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
   Upload, FolderOpen, Eye, Lock,
 } from 'lucide-react';
-import { fetchProjects } from '@/lib/api';
+import { fetchProjects, submitPracticeProblem } from '@/lib/api';
+import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { Toast } from '@/components/ui/Toast';
@@ -112,6 +113,20 @@ const projectGuides: Record<string, ProjectGuide> = {
   },
 };
 
+function formatProjectDescription(description: string): string {
+  if (!description) return '';
+  const trimmed = description.trim();
+  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+    try {
+      const parsed = JSON.parse(trimmed);
+      return parsed.text || parsed.description || description;
+    } catch {
+      return description;
+    }
+  }
+  return description;
+}
+
 export function ProjectsScreen() {
   const { user } = useUser();
   const { isUnlocked } = useUnlockResolver();
@@ -186,12 +201,34 @@ export function ProjectsScreen() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadStatusText, setUploadStatusText] = useState('');
   const [processingFileName, setProcessingFileName] = useState('');
+  const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showBrowseDropdown) return;
+    const close = () => setShowBrowseDropdown(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [showBrowseDropdown]);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const processFileList = useCallback(async (files: File[], targetProjectId: string) => {
     if (!files || files.length === 0) return;
+    setErrorMessage(null);
+
+    // Guard: Prevent uploading massive node_modules folder (which freezes the browser and exceeds storage limits)
+    const hasTooManyFiles = files.length > 500 || files.some((f) => {
+      const pathLower = (f.webkitRelativePath || '').toLowerCase();
+      return pathLower.includes('node_modules') || pathLower.includes('/.git/') || pathLower.startsWith('.git/');
+    });
+
+    if (hasTooManyFiles) {
+      setErrorMessage("Please select only your source folder (e.g. 'src') or exclude 'node_modules' / '.git' directories.");
+      setIsProcessing(false);
+      return;
+    }
 
     setIsProcessing(true);
     setUploadProgress(15);
@@ -208,6 +245,9 @@ export function ProjectsScreen() {
       html: 'html', css: 'css', json: 'json', md: 'markdown', txt: 'text',
       go: 'go', rb: 'ruby', php: 'php', kt: 'kotlin', swift: 'swift',
       rs: 'rust',
+      sql: 'sql', yaml: 'yaml', yml: 'yaml', toml: 'toml', xml: 'xml',
+      sh: 'shell', bash: 'shell', bat: 'bat', ps1: 'powershell', svg: 'xml',
+      ini: 'ini', env: 'text', example: 'text'
     };
 
     const readers = files.map((file) =>
@@ -216,8 +256,12 @@ export function ProjectsScreen() {
           ? file.webkitRelativePath.split('/').slice(1).join('/')
           : file.name;
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        const nameLower = file.name.toLowerCase();
 
-        const isCodeExt = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css', 'json', 'md', 'txt', 'go', 'rb', 'php', 'kt', 'swift', 'rs'].includes(ext);
+        const isCodeExt = [
+          'ts', 'tsx', 'js', 'jsx', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css', 'json', 'md', 'txt', 'go', 'rb', 'php', 'kt', 'swift', 'rs',
+          'sql', 'yaml', 'yml', 'toml', 'xml', 'sh', 'bash', 'bat', 'ps1', 'svg', 'ini', 'env', 'example', 'gitignore', 'gitattributes', 'dockerignore', 'dockerfile', 'procfile'
+        ].includes(ext) || nameLower.startsWith('.env') || nameLower === 'dockerfile' || nameLower === 'license' || nameLower === 'procfile';
 
         if (file.size < 1024 * 200 && isCodeExt) {
           const reader = new FileReader();
@@ -259,16 +303,34 @@ export function ProjectsScreen() {
     const totalSize = projectFiles.reduce((s, f) => s + f.size, 0);
     const projectName = nameCandidate;
 
-    const storageUrl = saveBundleToStorage({
+    const bundle = {
       projectName,
       totalFiles: projectFiles.length,
       totalSize,
       uploadedAt: new Date().toISOString(),
       storageUrl: '',
       files: projectFiles,
-    });
+    };
 
-    const updatedDriveLinks = { ...driveLinks, [targetProjectId]: storageUrl };
+    // Local copy for instant review.
+    const localUrl = saveBundleToStorage(bundle);
+
+    // Upload to Supabase Storage + record a tiny row so mentors/admins can review (low DB cost).
+    let remoteUrl: string | null = null;
+    if (user && user.id) {
+      setUploadStatusText('Uploading to review storage...');
+      remoteUrl = await uploadSubmissionBundle(bundle, user.id, targetProjectId, 'project');
+      try {
+        await submitPracticeProblem(
+          user.id, targetProjectId, 'project',
+          undefined, undefined, remoteUrl || localUrl, projectName, projectFiles.length, totalSize
+        );
+      } catch (dbErr) {
+        console.warn('Failed to save project submission to Supabase:', dbErr);
+      }
+    }
+
+    const updatedDriveLinks = { ...driveLinks, [targetProjectId]: remoteUrl || localUrl };
     setDriveLinks(updatedDriveLinks);
     localStorage.setItem('projectDriveLinks', JSON.stringify(updatedDriveLinks));
 
@@ -282,7 +344,7 @@ export function ProjectsScreen() {
     setIsProcessing(false);
     setSubTab('submitted');
     setToastVisible(true);
-  }, [driveLinks, projectsState]);
+  }, [driveLinks, projectsState, user]);
 
   const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>, projectId: string) => {
     if (!e.target.files?.length) return;
@@ -372,7 +434,7 @@ export function ProjectsScreen() {
     [selectedProjectId, effectiveProjects]
   );
   const selectedGuide = selectedProject ? (projectGuides[selectedProject.id] || {
-    brief: selectedProject.description,
+    brief: formatProjectDescription(selectedProject.description),
     techStack: selectedProject.skills,
     fileStructure: [{ path: 'src/App.tsx', purpose: 'Main component layout' }],
     functions: ['renderApp', 'handleSubmit'],
@@ -666,7 +728,7 @@ export function ProjectsScreen() {
                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                 onDragLeave={() => setIsDragging(false)}
                 onDrop={(e) => handleDrop(e, selectedProject.id)}
-                onClick={() => folderInputRef.current?.click()}
+                onClick={() => fileInputRef.current?.click()}
                 className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
                   isDragging
                     ? 'border-[#7c3aed] bg-purple-50/30 scale-[1.01]'
@@ -707,19 +769,54 @@ export function ProjectsScreen() {
                         {isDragging ? 'Drop project here!' : 'Drag & Drop your project file or folder'}
                       </p>
                       <p className="text-xs text-slate-500 mt-1">Accepts single code files (.py, .js, .java, etc.) or full project folders</p>
+                      {errorMessage && (
+                        <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-[11px] font-bold leading-normal max-w-sm mx-auto">
+                          ⚠️ {errorMessage}
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          folderInputRef.current?.click();
-                        }}
-                        className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
-                      >
-                        <Upload className="w-4 h-4" />
-                        Browse File / Folder
-                      </button>
+                    <div className="flex justify-center relative">
+                      <div className="inline-block relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setShowBrowseDropdown(!showBrowseDropdown);
+                          }}
+                          className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Browse File / Folder
+                        </button>
+                        {showBrowseDropdown && (
+                          <div className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-40 rounded-xl bg-white border border-slate-200 shadow-lg py-1.5 z-[100] animate-fade-in text-left">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowBrowseDropdown(false);
+                                fileInputRef.current?.click();
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-2"
+                            >
+                              <Upload className="w-3.5 h-3.5 text-slate-400" />
+                              Upload File
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShowBrowseDropdown(false);
+                                folderInputRef.current?.click();
+                              }}
+                              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-2 border-t border-slate-100"
+                            >
+                              <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
+                              Upload Folder
+                            </button>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -844,7 +941,7 @@ export function ProjectsScreen() {
                       </div>
                     </div>
 
-                    <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{p.description}</p>
+                    <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{formatProjectDescription(p.description)}</p>
                     
                     <div className="flex flex-wrap gap-1.5 mb-4">
                       {p.skills.map((s: string) => (

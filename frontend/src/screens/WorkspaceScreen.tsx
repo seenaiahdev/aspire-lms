@@ -10,6 +10,7 @@ import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type Pr
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
 import { submitPracticeProblem } from '@/lib/api';
+import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 
 
 // ── Problem config ────────────────────────────────────────────────────────────
@@ -108,8 +109,6 @@ export function WorkspaceScreen() {
   const problemId = problemConfig.id;
   const isReviewMode = params.mode === 'review';
 
-  const [isPanelOpen, setIsPanelOpen] = useState(true);
-
   // Upload state
   const [isDragging, setIsDragging] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -121,6 +120,15 @@ export function WorkspaceScreen() {
   // Review mode: inline file viewer
   const [reviewBundle, setReviewBundle] = useState<ReturnType<typeof loadBundleFromStorage> | null>(null);
   const [showFullExplorer, setShowFullExplorer] = useState(false);
+  const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!showBrowseDropdown) return;
+    const close = () => setShowBrowseDropdown(false);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [showBrowseDropdown]);
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -169,25 +177,75 @@ export function WorkspaceScreen() {
     fetchDbProblem();
   }, [params.id]);
 
-  // On mount: load submitted data
+  // On mount: load submitted data and sync with DB status
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`submission_${problemId}`);
-      if (raw) {
-        const data = JSON.parse(raw);
-        if (data.storageUrl) {
-          setUploadedStorageUrl(data.storageUrl);
-          setUploadedFileCount(data.fileCount ?? 0);
-          setUploadedTotalSize(0);
-          setUploadedProjectName(data.projectName ?? '');
-          if (isReviewMode) {
-            const bundle = loadBundleFromStorage(data.storageUrl);
-            setReviewBundle(bundle);
+    const checkSubmission = async () => {
+      // First try to load from database if user is logged in
+      if (user?.id) {
+        try {
+          const { data, error } = await supabase
+            .from('practice_submissions')
+            .select('*')
+            .eq('student_id', user.id)
+            .eq('problem_id', problemId)
+            .maybeSingle();
+
+          if (data) {
+            setUploadedStorageUrl(data.storage_url);
+            setUploadedFileCount(data.file_count ?? 0);
+            setUploadedTotalSize(data.total_size ?? 0);
+            setUploadedProjectName(data.project_name ?? '');
+            
+            // Sync with local storage
+            localStorage.setItem(`submission_${problemId}`, JSON.stringify({
+              storageUrl: data.storage_url,
+              language: data.language || 'project',
+              timestamp: data.submitted_at,
+              solved: true,
+              projectName: data.project_name,
+              fileCount: data.file_count
+            }));
+
+            if (isReviewMode) {
+              const bundle = loadBundleFromStorage(data.storage_url);
+              setReviewBundle(bundle);
+            }
+            return;
+          } else {
+            // Database has no submission, so clean up local storage cache to keep them synced
+            localStorage.removeItem(`submission_${problemId}`);
+            setUploadedStorageUrl(null);
+            setUploadedFileCount(0);
+            setUploadedTotalSize(0);
+            setUploadedProjectName('');
+            setReviewBundle(null);
           }
+        } catch (dbErr) {
+          console.warn('Failed to fetch submission from Supabase:', dbErr);
         }
       }
-    } catch {}
-  }, [problemId, isReviewMode]);
+
+      // Fallback to local storage if offline or not logged in
+      try {
+        const raw = localStorage.getItem(`submission_${problemId}`);
+        if (raw) {
+          const data = JSON.parse(raw);
+          if (data.storageUrl) {
+            setUploadedStorageUrl(data.storageUrl);
+            setUploadedFileCount(data.fileCount ?? 0);
+            setUploadedTotalSize(0);
+            setUploadedProjectName(data.projectName ?? '');
+            if (isReviewMode) {
+              const bundle = loadBundleFromStorage(data.storageUrl);
+              setReviewBundle(bundle);
+            }
+          }
+        }
+      } catch {}
+    };
+
+    checkSubmission();
+  }, [problemId, isReviewMode, user?.id]);
 
   // ── File Processing ─────────────────────────────────────────────────────────
 
@@ -197,6 +255,19 @@ export function WorkspaceScreen() {
 
   const processFileList = useCallback(async (files: File[]) => {
     if (!files || files.length === 0) return;
+    setErrorMessage(null);
+
+    // Guard: Prevent uploading massive node_modules folder (which freezes the browser and exceeds storage limits)
+    const hasTooManyFiles = files.length > 500 || files.some((f) => {
+      const pathLower = (f.webkitRelativePath || '').toLowerCase();
+      return pathLower.includes('node_modules') || pathLower.includes('/.git/') || pathLower.startsWith('.git/');
+    });
+
+    if (hasTooManyFiles) {
+      setErrorMessage("Please select only your source folder (e.g. 'src') or exclude 'node_modules' / '.git' directories.");
+      setIsProcessing(false);
+      return;
+    }
 
     setIsProcessing(true);
     setUploadProgress(15);
@@ -214,6 +285,9 @@ export function WorkspaceScreen() {
       html: 'html', css: 'css', json: 'json', md: 'markdown', txt: 'text',
       go: 'go', rb: 'ruby', php: 'php', kt: 'kotlin', swift: 'swift',
       rs: 'rust',
+      sql: 'sql', yaml: 'yaml', yml: 'yaml', toml: 'toml', xml: 'xml',
+      sh: 'shell', bash: 'shell', bat: 'bat', ps1: 'powershell', svg: 'xml',
+      ini: 'ini', env: 'text', example: 'text'
     };
 
     const readers = files.map((file) =>
@@ -222,8 +296,12 @@ export function WorkspaceScreen() {
           ? file.webkitRelativePath.split('/').slice(1).join('/')
           : file.name;
         const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
+        const nameLower = file.name.toLowerCase();
 
-        const isCodeExt = ['ts', 'tsx', 'js', 'jsx', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css', 'json', 'md', 'txt', 'go', 'rb', 'php', 'kt', 'swift', 'rs'].includes(ext);
+        const isCodeExt = [
+          'ts', 'tsx', 'js', 'jsx', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css', 'json', 'md', 'txt', 'go', 'rb', 'php', 'kt', 'swift', 'rs',
+          'sql', 'yaml', 'yml', 'toml', 'xml', 'sh', 'bash', 'bat', 'ps1', 'svg', 'ini', 'env', 'example', 'gitignore', 'gitattributes', 'dockerignore', 'dockerfile', 'procfile'
+        ].includes(ext) || nameLower.startsWith('.env') || nameLower === 'dockerfile' || nameLower === 'license' || nameLower === 'procfile';
 
         if (file.size < 1024 * 200 && isCodeExt) {
           const reader = new FileReader();
@@ -265,18 +343,30 @@ export function WorkspaceScreen() {
     const totalSize = projectFiles.reduce((s, f) => s + f.size, 0);
     const projectName = nameCandidate;
 
-    const storageUrl = saveBundleToStorage({
+    const bundle = {
       projectName,
       totalFiles: projectFiles.length,
       totalSize,
       uploadedAt: new Date().toISOString(),
       storageUrl: '',
       files: projectFiles,
-    });
+    };
 
-    // Only the link goes to the DB
+    // Keep a local copy for the student's instant review.
+    const localUrl = saveBundleToStorage(bundle);
+
+    // Upload the files to Supabase Storage (cheap object storage) so mentors/admins can
+    // review them; the DB only stores the returned URL + metadata (low DB consumption).
+    let remoteUrl: string | null = null;
+    if (user && user.id) {
+      setUploadStatusText('Uploading to review storage...');
+      remoteUrl = await uploadSubmissionBundle(bundle, user.id, problemId, 'practice');
+    }
+    const submissionUrl = remoteUrl || localUrl;
+
     localStorage.setItem(`submission_${problemId}`, JSON.stringify({
-      storageUrl,
+      storageUrl: localUrl,
+      remoteUrl,
       language: 'project',
       timestamp: new Date().toISOString(),
       solved: true,
@@ -292,9 +382,10 @@ export function WorkspaceScreen() {
           'project',
           undefined,
           undefined,
-          storageUrl,
+          submissionUrl,
           projectName,
-          projectFiles.length
+          projectFiles.length,
+          totalSize
         );
         console.log('Successfully saved submission to Supabase.');
       } catch (dbErr) {
@@ -304,7 +395,7 @@ export function WorkspaceScreen() {
 
 
     setUploadProgress(100);
-    setUploadedStorageUrl(storageUrl);
+    setUploadedStorageUrl(localUrl);
     setUploadedFileCount(projectFiles.length);
     setUploadedTotalSize(totalSize);
     setUploadedProjectName(projectName);
@@ -342,18 +433,10 @@ export function WorkspaceScreen() {
   // ── Left Panel ──────────────────────────────────────────────────────────────
 
   const LeftPanel = (
-    <div className={`transition-all duration-300 ease-in-out bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden ${
-      isPanelOpen ? 'w-full sm:w-[400px]' : 'w-0 border-r-0 opacity-0 pointer-events-none'
-    }`}>
+    <div className="w-full lg:w-1/2 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden">
       <div className="flex items-center border-b border-slate-200 bg-slate-50 px-2 justify-between">
         <button className="px-4 py-3.5 text-xs font-black border-b-2 border-[#7c3aed] text-[#7c3aed] bg-white flex items-center gap-2">
           <BookOpen className="w-3.5 h-3.5" /> Description
-        </button>
-        <button
-          onClick={() => setIsPanelOpen(false)}
-          className="mr-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-xs font-extrabold transition-all border border-slate-200"
-        >
-          <ChevronLeft className="w-3.5 h-3.5" /> Hide
         </button>
       </div>
 
@@ -429,7 +512,7 @@ export function WorkspaceScreen() {
         {/* Header */}
         <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
-            <button onClick={() => navigate('practice')} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
+            <button onClick={() => navigate('practice', { tab: 'history' })} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </button>
             <div>
@@ -454,7 +537,7 @@ export function WorkspaceScreen() {
                 Expand View
               </Button>
             )}
-            <Button size="sm" variant="secondary" onClick={() => navigate('practice')}
+            <Button size="sm" variant="secondary" onClick={() => navigate('practice', { tab: 'history' })}
               className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs">
               Back to Practice
             </Button>
@@ -463,29 +546,23 @@ export function WorkspaceScreen() {
 
         {/* Layout: Left = Question | Right = File Structure */}
         <div className="flex-1 flex overflow-hidden">
-          {/* Collapsed sidebar */}
-          {!isPanelOpen && (
-            <div className="w-12 bg-slate-100 border-r border-slate-200 flex flex-col items-center py-4 gap-4 shrink-0">
-              <button onClick={() => setIsPanelOpen(true)}
-                className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-
           {LeftPanel}
 
           {/* Right: Submitted File Structure */}
           <div className="flex-1 flex flex-col overflow-hidden bg-white">
-            {reviewBundle ? (
+            {uploadedStorageUrl ? (
               <>
                 {/* File tree header */}
                 <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
                   <div className="flex items-center gap-2 text-xs text-slate-500">
                     <FolderOpen className="w-4 h-4 text-yellow-500" />
-                    <span className="font-extrabold text-slate-800">{reviewBundle.projectName}</span>
-                    <span>•</span>
-                    <span>{reviewBundle.totalFiles} file{reviewBundle.totalFiles !== 1 ? 's' : ''}</span>
+                    <span className="font-extrabold text-slate-800">{uploadedProjectName || 'Project Solution'}</span>
+                    {uploadedFileCount > 0 && (
+                      <>
+                        <span>•</span>
+                        <span>{uploadedFileCount} file{uploadedFileCount !== 1 ? 's' : ''}</span>
+                      </>
+                    )}
                   </div>
                   <span className="text-[10px] text-[#7c3aed] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-50 border border-purple-200/80">
                     Read Only
@@ -495,7 +572,7 @@ export function WorkspaceScreen() {
                 {/* Inline FileExplorerViewer (not fullscreen) */}
                 <div className="flex-1 overflow-hidden">
                   <FileExplorerViewer
-                    storageUrl={uploadedStorageUrl!}
+                    storageUrl={uploadedStorageUrl}
                     onClose={() => {}}
                     inline
                   />
@@ -510,7 +587,7 @@ export function WorkspaceScreen() {
                   <p className="text-slate-800 font-bold">No project files found</p>
                   <p className="text-slate-500 text-xs mt-1">This submission may not have file data available</p>
                 </div>
-                <Button size="sm" onClick={() => navigate('practice')} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">
+                <Button size="sm" onClick={() => navigate('practice', { tab: 'history' })} className="bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200">
                   Back to Practice
                 </Button>
               </div>
@@ -529,7 +606,7 @@ export function WorkspaceScreen() {
       {/* Header */}
       <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm">
         <div className="flex items-center gap-3">
-          <button onClick={() => navigate('practice')} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
+          <button onClick={() => navigate('practice', uploadedStorageUrl ? { tab: 'history' } : undefined)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
             <ArrowLeft className="w-4 h-4" />
           </button>
           <div>
@@ -545,7 +622,7 @@ export function WorkspaceScreen() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          <Button size="sm" variant="secondary" onClick={() => navigate('practice')}
+          <Button size="sm" variant="secondary" onClick={() => navigate('practice', uploadedStorageUrl ? { tab: 'history' } : undefined)}
             className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs">
             Back to Practice
           </Button>
@@ -559,15 +636,6 @@ export function WorkspaceScreen() {
 
       {/* Main layout */}
       <div className="flex-1 flex overflow-hidden">
-        {!isPanelOpen && (
-          <div className="w-12 bg-slate-100 border-r border-slate-200 flex flex-col items-center py-4 gap-4 shrink-0">
-            <button onClick={() => setIsPanelOpen(true)}
-              className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
         {LeftPanel}
 
         {/* Right: Upload area */}
@@ -621,7 +689,7 @@ export function WorkspaceScreen() {
                     View Submitted Files
                   </button>
                   <button
-                    onClick={() => navigate('practice')}
+                    onClick={() => navigate('practice', { tab: 'history' })}
                     className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all border border-slate-200 shadow-3xs"
                   >
                     <ArrowLeft className="w-5 h-5" />
@@ -695,7 +763,7 @@ export function WorkspaceScreen() {
                         onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                         onDragLeave={() => setIsDragging(false)}
                         onDrop={handleDrop}
-                        onClick={() => folderInputRef.current?.click()}
+                        onClick={() => fileInputRef.current?.click()}
                         className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
                           isDragging
                             ? 'border-[#7c3aed] bg-purple-50/30 scale-[1.01]'
@@ -737,19 +805,54 @@ export function WorkspaceScreen() {
                                 {isDragging ? 'Drop solution here!' : 'Drag & Drop your solution file or folder'}
                               </p>
                               <p className="text-xs text-slate-500 mt-1">Accepts single code files (.py, .js, .java, etc.) or full project folders</p>
+                              {errorMessage && (
+                                <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-[11px] font-bold leading-normal max-w-sm mx-auto">
+                                  ⚠️ {errorMessage}
+                                </div>
+                              )}
                             </div>
-                            <div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  folderInputRef.current?.click();
-                                }}
-                                className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
-                              >
-                                <Upload className="w-4 h-4" />
-                                Browse File / Folder
-                              </button>
+                            <div className="flex justify-center relative">
+                              <div className="inline-block relative">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setShowBrowseDropdown(!showBrowseDropdown);
+                                  }}
+                                  className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
+                                >
+                                  <Upload className="w-4 h-4" />
+                                  Browse File / Folder
+                                </button>
+                                {showBrowseDropdown && (
+                                  <div className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-40 rounded-xl bg-white border border-slate-200 shadow-lg py-1.5 z-[100] animate-fade-in text-left">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowBrowseDropdown(false);
+                                        fileInputRef.current?.click();
+                                      }}
+                                      className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-2"
+                                    >
+                                      <Upload className="w-3.5 h-3.5 text-slate-400" />
+                                      Upload File
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShowBrowseDropdown(false);
+                                        folderInputRef.current?.click();
+                                      }}
+                                      className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-2 border-t border-slate-100"
+                                    >
+                                      <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
+                                      Upload Folder
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
                           </div>
                         )}

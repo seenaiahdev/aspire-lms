@@ -2,23 +2,13 @@ import { useState, useEffect } from 'react';
 import { Home, GraduationCap, Code2, Bell, User } from 'lucide-react';
 import { bottomNavItems, type Route } from '@/lib/routes';
 import { useNav } from '@/lib/nav';
-import { useUser } from '@/lib/UserContext';
-import { fetchNotifications } from '@/lib/api';
+import { useNotifications } from '@/lib/NotificationsContext';
 import { cn } from '@/lib/utils';
 import * as Icons from 'lucide-react';
 
 export function BottomNav() {
   const { route, navigate } = useNav();
-  const { user } = useUser();
-  const [notifications, setNotifications] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (user?.id) {
-      fetchNotifications(user.id).then(setNotifications).catch(console.error);
-    }
-  }, [user?.id]);
-
-  const unread = notifications.filter((n) => !n.read).length;
+  const { unreadCount: unread } = useNotifications();
 
   return (
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/90 backdrop-blur-xl border-t border-ink-100 px-2 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]">
