@@ -32,6 +32,7 @@ interface PythonTaskAttempt {
   status: 'Passed' | 'Failed';
   date: string;
   reviewSummary: string;
+  answers?: number[];
 }
 
 interface PythonTask {
@@ -149,7 +150,8 @@ export function AssignmentsScreen() {
               score: storedScore,
               status: (storedScore >= 70 ? 'Passed' : 'Failed') as 'Passed' | 'Failed',
               date: storedRow.submitted_at ? new Date(storedRow.submitted_at).toLocaleDateString('en-GB') : 'Recent',
-              reviewSummary: 'First attempt (stored for review).'
+              reviewSummary: 'First attempt (stored for review).',
+              answers: Array.isArray(storedRow.answers) ? storedRow.answers : []
             }] : [] as any[];
 
             // Local storage fallback for attempts not yet synced to Supabase.
@@ -277,11 +279,16 @@ export function AssignmentsScreen() {
     setSelectedAttemptReview(attempt);
 
     if (task.mcqQuestions) {
-      const reviewAnswers = task.mcqQuestions.map((question, index) => {
-        if (attempt.status === 'Passed') return question.correctIndex;
-        if (index === 0) return (question.correctIndex + 1) % question.options.length;
-        return question.correctIndex;
-      });
+      // Prefer the student's real stored answers; only fall back to the legacy approximation
+      // for old attempts saved before answers were persisted.
+      const hasStored = Array.isArray(attempt.answers) && attempt.answers.length > 0;
+      const reviewAnswers = hasStored
+        ? task.mcqQuestions.map((_, index) => attempt.answers![index] ?? -1)
+        : task.mcqQuestions.map((question, index) => {
+            if (attempt.status === 'Passed') return question.correctIndex;
+            if (index === 0) return (question.correctIndex + 1) % question.options.length;
+            return question.correctIndex;
+          });
       setUserAnswers(reviewAnswers);
     } else {
       setUserAnswers([]);
@@ -355,11 +362,14 @@ export function AssignmentsScreen() {
               const attempt = match.attemptHistory?.find((a) => a.id === reviewAttemptId);
               if (attempt) {
                 setSelectedAttemptReview(attempt);
-                const reviewAnswers = match.mcqQuestions.map((question, index) => {
-                  if (attempt.status === 'Passed') return question.correctIndex;
-                  if (index === 0) return (question.correctIndex + 1) % question.options.length;
-                  return question.correctIndex;
-                });
+                const hasStored = Array.isArray(attempt.answers) && attempt.answers.length > 0;
+                const reviewAnswers = hasStored
+                  ? match.mcqQuestions.map((_, index) => attempt.answers![index] ?? -1)
+                  : match.mcqQuestions.map((question, index) => {
+                      if (attempt.status === 'Passed') return question.correctIndex;
+                      if (index === 0) return (question.correctIndex + 1) % question.options.length;
+                      return question.correctIndex;
+                    });
                 setUserAnswers(reviewAnswers);
                 setUserScore(attempt.score);
               } else {
@@ -429,7 +439,8 @@ export function AssignmentsScreen() {
           score,
           `Completed on ${new Date().toLocaleDateString('en-GB')}`,
           0,
-          activeTask.xp
+          activeTask.xp,
+          [...userAnswers]
         ).catch(err => {
           console.warn('Failed to save assignment attempt to Supabase:', err);
         });

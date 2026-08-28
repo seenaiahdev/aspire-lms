@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2 } from 'lucide-react';
 import { fetchQuizzes, fetchLeaderboard, fetchQuizAttempts, submitQuizAttempt } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { useUser } from '@/lib/UserContext';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -61,6 +62,30 @@ export function QuizzesScreen() {
   useEffect(() => {
     loadData();
   }, [user?.enrolledCourses, user?.id]);
+
+  // Real-time: refresh when the admin adds/edits quizzes, or when this student's attempts change
+  // (so a completed quiz moves to the Completed tab live).
+  useEffect(() => {
+    if (!user?.id) return;
+    const quizzesCh = supabase
+      .channel('quizzes_realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, () => loadData())
+      .subscribe();
+    const attemptsCh = supabase
+      .channel('quiz_attempts_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` },
+        () => loadData()
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(quizzesCh);
+      supabase.removeChannel(attemptsCh);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<any>(() => {
     try {
@@ -116,26 +141,25 @@ export function QuizzesScreen() {
     }
   }, [selectedQuiz, isExamStarted]);
   
+  // Grade strictly against the quiz's real MCQ answer keys. Returns a 0-100 percentage.
+  const computeScore = (): number => {
+    const mcqs = selectedQuiz?.mcqs || [];
+    if (!mcqs.length) return 0;
+    const correctCount = mcqs.filter((q: any, qIdx: number) => answers[qIdx] === q.correctIndex).length;
+    return Math.round((correctCount / mcqs.length) * 100);
+  };
+
+  // Convert the in-memory answers map into a positional array (index = question, value = choice).
+  const answersToArray = (): number[] =>
+    (selectedQuiz?.mcqs || []).map((_: any, i: number) => (answers[i] ?? -1));
+
   const autoSubmitExam = async () => {
     if (selectedQuiz && user?.id) {
-      const totalQs = selectedQuiz.questions || 10;
-      let correctCount = 0;
-      if (selectedQuiz.mcqs && selectedQuiz.mcqs.length > 0) {
-        correctCount = selectedQuiz.mcqs.filter((q: any, qIdx: number) => {
-          return answers[qIdx] === q.correctIndex;
-        }).length;
-      } else {
-        correctCount = Object.keys(answers).filter((qIdx) => {
-          const val = answers[Number(qIdx)];
-          return (Number(qIdx) + val) % 2 === 0;
-        }).length;
-      }
-
-      const calculatedScore = Math.round((correctCount / totalQs) * 100);
+      const calculatedScore = computeScore();
 
       try {
         isExitingIntentionally.current = true;
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore);
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, selectedQuiz.maxScore, answersToArray());
         await loadData();
         setAutoSubmittedScore(calculatedScore);
       } catch (err) {
@@ -145,6 +169,21 @@ export function QuizzesScreen() {
     finalizeExam();
   };
 
+  // Keep the latest auto-submit in a ref so proctoring listeners never grade with stale answers.
+  const autoSubmitRef = useRef(autoSubmitExam);
+  autoSubmitRef.current = autoSubmitExam;
+
+  // Auto-submit when the timer runs out during an active exam.
+  useEffect(() => {
+    if (isExamStarted && timeLeft === 0) {
+      autoSubmitExam();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExamStarted, timeLeft]);
+
+  // ── Proctoring: strict full-screen + catch every escape route (exit full-screen, tab switch,
+  //    minimize, window blur). 3 strikes → auto-submit. Also blocks the context menu and the
+  //    common escape/reload keyboard shortcuts while the exam is live. ──
   useEffect(() => {
     if (!isExamStarted) {
       setFullscreenExits(0);
@@ -152,41 +191,67 @@ export function QuizzesScreen() {
       return;
     }
 
-    // Force check after 1 second buffer to handle initial failures or page refreshes
-    const checkTimer = setTimeout(() => {
-      if (!document.fullscreenElement && isExamStarted && !isExitingIntentionally.current) {
-        setFullscreenExits((prev) => {
-          const next = prev === 0 ? 1 : prev;
-          setShowFullscreenWarning(true);
-          return next;
-        });
-      }
-    }, 1000);
-
-    const handleFullscreenChange = () => {
-      if (!document.fullscreenElement && isExamStarted && !isExitingIntentionally.current) {
-        const next = fullscreenExits + 1;
-        setFullscreenExits(next);
+    let lastEscapeAt = 0;
+    const registerEscape = () => {
+      if (isExitingIntentionally.current) return;
+      const now = Date.now();
+      // Debounce: a single user action can fire blur + visibilitychange + fullscreenchange together.
+      if (now - lastEscapeAt < 800) return;
+      lastEscapeAt = now;
+      setFullscreenExits((prev) => {
+        const next = prev + 1;
         if (next >= 3) {
-          autoSubmitExam();
+          autoSubmitRef.current();
         } else {
           setShowFullscreenWarning(true);
         }
+        return next;
+      });
+    };
+
+    // Initial buffer: if full-screen never engaged shortly after start, count it as a strike.
+    const checkTimer = setTimeout(() => {
+      if (!document.fullscreenElement && isExamStarted && !isExitingIntentionally.current) {
+        registerEscape();
+      }
+    }, 1000);
+
+    const onFullscreenChange = () => { if (!document.fullscreenElement) registerEscape(); };
+    const onVisibility = () => { if (document.hidden) registerEscape(); };
+    const onBlur = () => registerEscape();
+    const onContextMenu = (e: Event) => e.preventDefault();
+    const onKeyDown = (e: KeyboardEvent) => {
+      const k = e.key.toLowerCase();
+      if (e.key === 'F11' || e.key === 'Escape' ||
+          ((e.ctrlKey || e.metaKey) && ['r', 'w', 't', 'n', 'p', 's'].includes(k))) {
+        e.preventDefault();
       }
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('fullscreenchange', onFullscreenChange);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    document.addEventListener('contextmenu', onContextMenu);
+    document.addEventListener('keydown', onKeyDown, true);
+
     return () => {
       clearTimeout(checkTimer);
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('fullscreenchange', onFullscreenChange);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
+      document.removeEventListener('contextmenu', onContextMenu);
+      document.removeEventListener('keydown', onKeyDown, true);
     };
-  }, [isExamStarted, selectedQuiz, answers, fullscreenExits]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExamStarted]);
 
   const handleStartExam = () => {
     isExitingIntentionally.current = false;
     setFullscreenExits(0);
     setShowFullscreenWarning(false);
     setAutoSubmittedScore(null);
+    // Timer reflects the quiz's own duration (falls back to 30 min if unset).
+    setTimeLeft((selectedQuiz?.durationMinutes || 30) * 60);
     if (document.documentElement.requestFullscreen) {
       document.documentElement.requestFullscreen().catch(() => {});
     }
@@ -228,23 +293,10 @@ export function QuizzesScreen() {
   const handleConfirmExamAction = async () => {
     isExitingIntentionally.current = true;
     if (confirmExamAction === 'submit' && selectedQuiz && user?.id) {
-      const totalQs = selectedQuiz.questions || 10;
-      let correctCount = 0;
-      if (selectedQuiz.mcqs && selectedQuiz.mcqs.length > 0) {
-        correctCount = selectedQuiz.mcqs.filter((q: any, qIdx: number) => {
-          return answers[qIdx] === q.correctIndex;
-        }).length;
-      } else {
-        correctCount = Object.keys(answers).filter((qIdx) => {
-          const val = answers[Number(qIdx)];
-          return (Number(qIdx) + val) % 2 === 0;
-        }).length;
-      }
-
-      const calculatedScore = Math.round((correctCount / totalQs) * 100);
+      const calculatedScore = computeScore();
 
       try {
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore);
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, selectedQuiz.maxScore, answersToArray());
         await loadData();
       } catch (err) {
         console.error('Failed to submit quiz attempt:', err);
@@ -253,13 +305,12 @@ export function QuizzesScreen() {
     finalizeExam();
   };
 
-  // Mock Question Data
-  const mockOptions = [
-    "It allows side-effects in function components.",
-    "It optimizes rendering performance by caching values.",
-    "It directly manipulates the physical DOM elements.",
-    "It creates a local state variable and a setter function."
-  ];
+  const hasQuestions = !!(selectedQuiz?.mcqs && selectedQuiz.mcqs.length > 0);
+
+  // A weekly quiz is single-attempt: once an attempt exists it leaves "Upcoming" for "Completed".
+  const attemptFor = (quizId: string) => attempts.find((a) => a.quiz_id === quizId);
+  const pendingQuizzes = quizzes.filter((q) => isUnlocked(q.inner_topic_id) && !attemptFor(q.id));
+  const completedQuizzes = quizzes.filter((q) => !!attemptFor(q.id));
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
@@ -267,7 +318,7 @@ export function QuizzesScreen() {
         variant="pills"
         tabs={[
           { id: 'upcoming', label: 'Upcoming' },
-          { id: 'results', label: 'Previous Results' },
+          { id: 'completed', label: 'Completed' },
           { id: 'analytics', label: 'Analytics' },
         ]}
         active={tab}
@@ -281,10 +332,7 @@ export function QuizzesScreen() {
               <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto mb-4" />
               <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Quizzes...</h3>
             </div>
-          ) : quizzes.filter(q => {
-            const isLocked = !isUnlocked(q.inner_topic_id);
-            return !isLocked;
-          }).length === 0 ? (
+          ) : pendingQuizzes.length === 0 ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
                 <CheckCircle2 className="w-8 h-8 text-slate-400" />
@@ -294,109 +342,70 @@ export function QuizzesScreen() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {quizzes.filter(q => {
-                const isLocked = !isUnlocked(q.inner_topic_id);
-                return !isLocked;
-              }).map((q) => {
-                const attempt = attempts.find(a => a.quiz_id === q.id);
-                const isCompleted = !!attempt;
-                return (
-                  <Card 
-                    key={q.id} 
-                    onClick={() => {
-                      if (isCompleted) {
-                        setReviewQuizAttempt({ quiz: q, attempt });
-                      } else {
-                        setSelectedQuiz(q);
-                      }
-                    }}
-                    className={cn(
-                      "p-6 bg-white border border-slate-200/60 rounded-[2rem] flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-indigo-500/10",
-                      isCompleted ? "hover:border-slate-350" : "hover:border-indigo-300"
-                    )}
-                  >
-                    <div>
-                      <div className="flex items-start justify-between mb-5">
-                        <div className="flex items-center gap-4">
-                          <div className={cn(
-                            "w-12 h-12 rounded-[1.25rem] flex items-center justify-center border shadow-sm shrink-0",
-                            isCompleted 
-                              ? "bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100/50" 
-                              : "bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-100/50"
-                          )}>
-                            <ClipboardCheck className={cn("w-6 h-6", isCompleted ? "text-emerald-600" : "text-indigo-600")} />
-                          </div>
-                          <div>
-                            <h3 className={cn("font-extrabold text-slate-900 text-[17px] leading-snug mb-1 transition-colors", isCompleted ? "group-hover:text-slate-800" : "group-hover:text-indigo-700")}>{q.title}</h3>
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-500">{q.course || 'Core Course'}</span>
-                              <span className="w-1 h-1 rounded-full bg-slate-300" />
-                              {isCompleted ? (
-                                <span className="text-[10px] uppercase tracking-wider font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">Score: {attempt.score}%</span>
-                              ) : (
-                                <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
-                              )}
-                            </div>
+              {pendingQuizzes.map((q) => (
+                <Card
+                  key={q.id}
+                  onClick={() => setSelectedQuiz(q)}
+                  className="p-6 bg-white border border-slate-200/60 rounded-[2rem] flex flex-col justify-between relative overflow-hidden group shadow-sm transition-all duration-300 cursor-pointer hover:shadow-lg hover:shadow-indigo-500/10 hover:border-indigo-300"
+                >
+                  <div>
+                    <div className="flex items-start justify-between mb-5">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 rounded-[1.25rem] flex items-center justify-center border shadow-sm shrink-0 bg-gradient-to-br from-indigo-50 to-purple-50 border-indigo-100/50">
+                          <ClipboardCheck className="w-6 h-6 text-indigo-600" />
+                        </div>
+                        <div>
+                          <h3 className="font-extrabold text-slate-900 text-[17px] leading-snug mb-1 transition-colors group-hover:text-indigo-700">{q.title}</h3>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-bold text-slate-500">{q.course || 'Weekly Quiz'}</span>
+                            <span className="w-1 h-1 rounded-full bg-slate-300" />
+                            <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
                           </div>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center gap-5 text-[13px] font-semibold text-slate-500 mb-6 pt-5 border-t border-slate-100">
-                        <span className="flex items-center gap-1.5"><Compass className="w-4 h-4 text-indigo-400" />{q.questions} questions</span>
-                        <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-emerald-500" />{q.duration}</span>
-                        <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-rose-400" />Due {q.dueDate}</span>
-                      </div>
                     </div>
 
-                    {isCompleted ? (
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setReviewQuizAttempt({ quiz: q, attempt });
-                        }}
-                        className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border cursor-pointer bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300"
-                      >
-                        <Award className="w-4 h-4 text-emerald-500" />
-                        <span>Review Attempt</span>
-                      </button>
-                    ) : (
-                      <button 
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedQuiz(q);
-                        }}
-                        className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border cursor-pointer bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20"
-                      >
-                        <Play className="w-4 h-4 fill-current" />
-                        <span>Start Quiz</span>
-                      </button>
-                    )}
-                  </Card>
-                )
-              })}
+                    <div className="flex items-center gap-5 text-[13px] font-semibold text-slate-500 mb-6 pt-5 border-t border-slate-100">
+                      <span className="flex items-center gap-1.5"><Compass className="w-4 h-4 text-indigo-400" />{q.questions} questions</span>
+                      <span className="flex items-center gap-1.5"><Clock className="w-4 h-4 text-emerald-500" />{q.duration}</span>
+                      <span className="flex items-center gap-1.5"><Calendar className="w-4 h-4 text-rose-400" />Due {q.dueDate}</span>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); setSelectedQuiz(q); }}
+                    className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border cursor-pointer bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20"
+                  >
+                    <Play className="w-4 h-4 fill-current" />
+                    <span>Start Quiz</span>
+                  </button>
+                </Card>
+              ))}
             </div>
           )}
         </>
       )}
 
-      {tab === 'results' && (
+      {tab === 'completed' && (
         <div className="space-y-4">
-          {attempts.length === 0 ? (
+          {completedQuizzes.length === 0 ? (
             <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
               <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="font-extrabold text-slate-800 text-base">No Previous Results</h3>
+              <h3 className="font-extrabold text-slate-800 text-base">No Completed Quizzes</h3>
               <p className="text-xs text-slate-500 mt-1">You haven't completed any quizzes yet.</p>
             </Card>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {attempts.map((attempt) => {
-                const quiz = quizzes.find((q) => q.id === attempt.quiz_id);
-                if (!quiz) return null;
-                const percent = attempt.score;
+              {completedQuizzes.map((quiz) => {
+                const attempt = attemptFor(quiz.id);
+                const percent = attempt?.score ?? 0;
                 return (
-                  <Card key={attempt.id} className="p-6 bg-white border border-slate-200/60 rounded-[2rem] shadow-sm flex flex-col justify-between">
+                  <Card
+                    key={quiz.id}
+                    onClick={() => setReviewQuizAttempt({ quiz, attempt })}
+                    className="p-6 bg-white border border-slate-200/60 rounded-[2rem] shadow-sm flex flex-col justify-between cursor-pointer transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 hover:border-emerald-300"
+                  >
                     <div>
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3.5">
@@ -408,23 +417,26 @@ export function QuizzesScreen() {
                             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completed Quiz</p>
                           </div>
                         </div>
-                        <div className={cn(
-                          "px-3 py-1 rounded-full text-xs font-black tracking-wide flex items-center gap-1.5 border",
-                          percent >= 70 
-                            ? "bg-emerald-50 text-emerald-700 border-emerald-100" 
-                            : "bg-amber-50 text-amber-700 border-amber-100"
-                        )}>
-                          <Star className="w-3.5 h-3.5 fill-current" />
-                          <span>{percent}% Score</span>
-                        </div>
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide border bg-amber-50 text-amber-700 border-amber-100">
+                          Not published
+                        </span>
                       </div>
-                      
+
                       <div className="flex items-center gap-4 text-xs font-bold text-slate-500 pt-4 border-t border-slate-100 mt-4">
                         <span>{quiz.questions} questions</span>
                         <span className="w-1 h-1 rounded-full bg-slate-300" />
-                        <span>Completed {new Date(attempt.attempted_at).toLocaleDateString()}</span>
+                        <span>Completed {attempt?.attempted_at ? new Date(attempt.attempted_at).toLocaleDateString() : 'Recent'}</span>
                       </div>
                     </div>
+
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setReviewQuizAttempt({ quiz, attempt }); }}
+                      className="mt-5 w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border cursor-pointer bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 hover:border-slate-300"
+                    >
+                      <Award className="w-4 h-4 text-emerald-500" />
+                      <span>View Score</span>
+                    </button>
                   </Card>
                 );
               })}
@@ -563,13 +575,23 @@ export function QuizzesScreen() {
                     </div>
                   </div>
 
-                  <button 
-                    onClick={handleStartExam}
-                    className="w-full group py-3.5 rounded-xl bg-[#101537] hover:bg-slate-900 text-white font-bold text-sm shadow-lg shadow-slate-900/10 active:scale-95 transition-all flex items-center justify-center gap-2 border border-slate-800"
-                  >
-                    <span>Start Assessment</span>
-                    <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                  </button>
+                  {hasQuestions ? (
+                    <button
+                      onClick={handleStartExam}
+                      className="w-full group py-3.5 rounded-xl bg-[#101537] hover:bg-slate-900 text-white font-bold text-sm shadow-lg shadow-slate-900/10 active:scale-95 transition-all flex items-center justify-center gap-2 border border-slate-800"
+                    >
+                      <span>Start Assessment</span>
+                      <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                    </button>
+                  ) : (
+                    <button
+                      disabled
+                      className="w-full py-3.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-sm border border-slate-200 cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      <Lock className="w-4 h-4" />
+                      <span>Quiz not available yet</span>
+                    </button>
+                  )}
                 </div>
 
               </div>
@@ -593,17 +615,12 @@ export function QuizzesScreen() {
                   <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
                     <div className="flex items-center justify-between mb-4 shrink-0">
                       <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[11px] font-black tracking-widest uppercase">
-                        Question ${currentQuestionIdx + 1} of ${selectedQuiz.questions}
+                        Question {currentQuestionIdx + 1} of {selectedQuiz.questions}
                       </span>
                     </div>
 
                     <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug mb-6 shrink-0">
-                      {selectedQuiz.mcqs && selectedQuiz.mcqs.length > 0
-                        ? selectedQuiz.mcqs[currentQuestionIdx]?.question
-                        : (currentQuestionIdx % 2 === 0 
-                          ? "What is the primary purpose of the `useState` hook in React applications?"
-                          : "Which of the following is true regarding React's `useEffect` hook dependencies array?")
-                      }
+                      {selectedQuiz.mcqs?.[currentQuestionIdx]?.question}
                     </h2>
 
                     {selectedQuiz.mcqs && selectedQuiz.mcqs[currentQuestionIdx]?.codeSnippet && (
@@ -613,10 +630,7 @@ export function QuizzesScreen() {
                     )}
 
                     <div className="space-y-3 mb-6 shrink-0">
-                      {(selectedQuiz.mcqs && selectedQuiz.mcqs[currentQuestionIdx]?.options
-                        ? selectedQuiz.mcqs[currentQuestionIdx].options
-                        : mockOptions
-                      ).map((opt: string, i: number) => {
+                      {(selectedQuiz.mcqs?.[currentQuestionIdx]?.options || []).map((opt: string, i: number) => {
                         const isSelected = answers[currentQuestionIdx] === i;
                         return (
                           <button
@@ -864,7 +878,7 @@ export function QuizzesScreen() {
       </Modal>
 
       {/* 📊 QUIZ ATTEMPT REVIEW MODAL */}
-      <Modal open={reviewQuizAttempt !== null} onClose={() => setReviewQuizAttempt(null)} size="sm">
+      <Modal open={reviewQuizAttempt !== null} onClose={() => setReviewQuizAttempt(null)} size="md">
         <div className="p-6 sm:p-8 space-y-5">
           <div className="text-center space-y-2">
             <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
@@ -901,6 +915,18 @@ export function QuizzesScreen() {
                 </span>
                 <span className="text-xs font-bold text-slate-400">/ 100%</span>
               </div>
+            </div>
+          </div>
+
+          {/* Detailed answer review stays hidden until the weekly results are officially published. */}
+          <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-100">
+            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-extrabold text-amber-800">Results not published yet</p>
+              <p className="text-xs text-amber-700/80 mt-0.5 leading-relaxed">
+                Your answers are recorded. The detailed question-by-question review will unlock once the
+                official weekly results are published.
+              </p>
             </div>
           </div>
 

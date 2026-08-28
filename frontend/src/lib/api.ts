@@ -469,27 +469,53 @@ export async function fetchQuizAttempts(userId: string) {
   }
 }
 
-export async function submitQuizAttempt(userId: string, quizId: string, score: number) {
+export async function submitQuizAttempt(
+  userId: string,
+  quizId: string,
+  score: number,
+  rewardXp?: number,
+  answers?: number[]
+) {
   try {
-    const { data, error } = await supabase
-      .from('quiz_attempts')
-      .insert({
-        user_id: userId,
-        quiz_id: quizId,
-        score,
-        status: 'attempted',
-        attempted_at: new Date().toISOString()
-      })
-      .select()
-      .single();
+    const baseRow = {
+      user_id: userId,
+      quiz_id: quizId,
+      score,
+      status: 'attempted',
+      attempted_at: new Date().toISOString(),
+    };
 
-    if (error) {
-      console.error('Error inserting quiz attempt:', error.message);
-      throw error;
+    // Persist the chosen answers when the column exists; fall back gracefully if the
+    // `answers` migration has not been applied yet (unknown-column error).
+    let data: any = null;
+    {
+      const { data: withAns, error } = await supabase
+        .from('quiz_attempts')
+        .insert({ ...baseRow, answers: answers ?? [] })
+        .select()
+        .single();
+      if (error) {
+        console.warn('Quiz attempt insert with answers failed, retrying without:', error.message);
+        const { data: noAns, error: err2 } = await supabase
+          .from('quiz_attempts')
+          .insert(baseRow)
+          .select()
+          .single();
+        if (err2) {
+          console.error('Error inserting quiz attempt:', err2.message);
+          throw err2;
+        }
+        data = noAns;
+      } else {
+        data = withAns;
+      }
     }
 
+    // XP earned = score% × reward (quiz total_marks), matching the assessment formula.
     try {
-      await incrementUserXP(userId, 50);
+      const reward = rewardXp ?? 100;
+      const pointsAwarded = Math.max(0, Math.round((score / 100) * reward));
+      await incrementUserXP(userId, pointsAwarded);
       await recalculateUserStreak(userId);
     } catch (xpErr) {
       console.warn('Failed to increment XP / recalculate streak after quiz attempt:', xpErr);
@@ -1113,7 +1139,8 @@ export async function submitAssignmentAttempt(
   grade?: number,
   _feedback?: string,
   _attachments: number = 0,
-  rewardXp?: number
+  rewardXp?: number,
+  answers?: number[]
 ) {
   const score = grade ?? 0;
 
@@ -1154,11 +1181,31 @@ export async function submitAssignmentAttempt(
     attempt_count: 1,
     submitted_at: new Date().toISOString(),
   };
-  const { data, error } = await supabase.from('assessment_attempts').insert(row).select().single();
 
-  if (error) {
-    console.error('Error storing assessment attempt:', error.message);
-    throw error;
+  // Persist the chosen answers when the column exists; fall back gracefully if the
+  // `answers` migration has not been applied yet (unknown-column error).
+  let data: any = null;
+  {
+    const { data: withAns, error } = await supabase
+      .from('assessment_attempts')
+      .insert({ ...row, answers: answers ?? [] })
+      .select()
+      .single();
+    if (error) {
+      console.warn('Assessment attempt insert with answers failed, retrying without:', error.message);
+      const { data: noAns, error: err2 } = await supabase
+        .from('assessment_attempts')
+        .insert(row)
+        .select()
+        .single();
+      if (err2) {
+        console.error('Error storing assessment attempt:', err2.message);
+        throw err2;
+      }
+      data = noAns;
+    } else {
+      data = withAns;
+    }
   }
 
   // XP earned = score% × reward (assessment total_marks), first attempt only.
