@@ -191,54 +191,47 @@ export function QuizzesScreen() {
       return;
     }
 
+    // Grace period so the fullscreen ENTER/exit transitions at exam start don't count as strikes.
+    const startedAt = Date.now();
     let lastEscapeAt = 0;
     const registerEscape = () => {
       if (isExitingIntentionally.current) return;
+      if (Date.now() - startedAt < 1500) return;       // ignore startup noise
       const now = Date.now();
-      // Debounce: a single user action can fire blur + visibilitychange + fullscreenchange together.
-      if (now - lastEscapeAt < 800) return;
+      if (now - lastEscapeAt < 800) return;            // debounce overlapping events
       lastEscapeAt = now;
       setFullscreenExits((prev) => {
         const next = prev + 1;
         if (next >= 3) {
-          autoSubmitRef.current();
+          autoSubmitRef.current();                      // 3rd strike → auto-submit
         } else {
-          setShowFullscreenWarning(true);
+          setShowFullscreenWarning(true);               // 1st/2nd strike → warning popup
         }
         return next;
       });
     };
 
-    // Initial buffer: if full-screen never engaged shortly after start, count it as a strike.
-    const checkTimer = setTimeout(() => {
-      if (!document.fullscreenElement && isExamStarted && !isExitingIntentionally.current) {
-        registerEscape();
-      }
-    }, 1000);
-
+    // Only DELIBERATE escapes count: leaving full-screen, or hiding the tab (switch/minimize).
+    // (No window-blur listener — it false-fires on fullscreen transitions and dev-tools.)
     const onFullscreenChange = () => { if (!document.fullscreenElement) registerEscape(); };
     const onVisibility = () => { if (document.hidden) registerEscape(); };
-    const onBlur = () => registerEscape();
     const onContextMenu = (e: Event) => e.preventDefault();
     const onKeyDown = (e: KeyboardEvent) => {
+      // Block reload/close/new-tab/print/save; let Esc/F11 toggle fullscreen so the exit is detected.
       const k = e.key.toLowerCase();
-      if (e.key === 'F11' || e.key === 'Escape' ||
-          ((e.ctrlKey || e.metaKey) && ['r', 'w', 't', 'n', 'p', 's'].includes(k))) {
+      if (k === 'f5' || ((e.ctrlKey || e.metaKey) && ['r', 'w', 't', 'n', 'p', 's'].includes(k))) {
         e.preventDefault();
       }
     };
 
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('visibilitychange', onVisibility);
-    window.addEventListener('blur', onBlur);
     document.addEventListener('contextmenu', onContextMenu);
     document.addEventListener('keydown', onKeyDown, true);
 
     return () => {
-      clearTimeout(checkTimer);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('visibilitychange', onVisibility);
-      window.removeEventListener('blur', onBlur);
       document.removeEventListener('contextmenu', onContextMenu);
       document.removeEventListener('keydown', onKeyDown, true);
     };
