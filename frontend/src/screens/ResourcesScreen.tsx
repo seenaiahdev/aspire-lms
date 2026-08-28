@@ -46,8 +46,8 @@ export function ResourcesScreen() {
   const [lockedToast, setLockedToast] = useState(false);
 
   useEffect(() => {
-    const load = async () => {
-      setLoading(true);
+    const load = async (showSpinner = true) => {
+      if (showSpinner) setLoading(true);
       try {
         const courseId = user?.enrolledCourses?.[0];
         const data = await fetchResources(courseId);
@@ -58,7 +58,7 @@ export function ResourcesScreen() {
         setLoading(false);
       }
     };
-    load();
+    load(true);
 
     const channel = supabase
       .channel('resources_realtime')
@@ -71,7 +71,7 @@ export function ResourcesScreen() {
         },
         () => {
           console.log("Real-time resources updated, reloading...");
-          load();
+          load(false);
         }
       )
       .subscribe();
@@ -79,7 +79,7 @@ export function ResourcesScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user]);
+  }, [user?.id, user?.enrolledCourses?.[0]]);
 
   const handleDownload = (id: string, title: string, linkUrl?: string) => {
     if (linkUrl) {

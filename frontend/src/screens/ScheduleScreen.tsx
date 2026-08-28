@@ -101,23 +101,23 @@ export function ScheduleScreen() {
       try {
         const courseId = user.enrolledCourses?.[0];
         
-        // 1. Unlocked assessments
-        const assessmentsData = await fetchAssignments(user.batchCode || '', user.batchCategory);
-        const unlockedAssessments = assessmentsData.filter(t => {
+        const [assessmentsData, projectsData, codingData] = await Promise.all([
+          fetchAssignments(user.batchCode || '', user.batchCategory),
+          fetchProjects(user.batchCode || '', user.batchCategory),
+          fetchPracticeProblems(courseId)
+        ]);
+
+        const unlockedAssessments = assessmentsData.filter((t: any) => {
           const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
           return isUnlocked(lessonId);
         });
 
-        // 2. Unlocked projects
-        const projectsData = await fetchProjects(user.batchCode || '', user.batchCategory);
-        const unlockedProjects = projectsData.filter(p => isUnlocked(p.inner_topic_id));
+        const unlockedProjects = projectsData.filter((p: any) => isUnlocked(p.inner_topic_id));
 
-        // 3. Unlocked coding problems
-        const codingData = await fetchPracticeProblems(courseId);
-        const unlockedCoding = codingData.filter(p => isUnlocked(p.inner_topic_id));
+        const unlockedCoding = codingData.filter((p: any) => isUnlocked(p.inner_topic_id));
 
         const extra: any[] = [];
-        unlockedAssessments.forEach(asmnt => {
+        unlockedAssessments.forEach((asmnt: any) => {
           extra.push({
             id: asmnt.id,
             title: asmnt.title,
@@ -130,7 +130,7 @@ export function ScheduleScreen() {
           });
         });
 
-        unlockedProjects.forEach(proj => {
+        unlockedProjects.forEach((proj: any) => {
           extra.push({
             id: proj.id,
             title: proj.title,
@@ -143,7 +143,7 @@ export function ScheduleScreen() {
           });
         });
 
-        unlockedCoding.forEach(p => {
+        unlockedCoding.forEach((p: any) => {
           extra.push({
             id: p.id,
             title: p.title,
@@ -162,7 +162,7 @@ export function ScheduleScreen() {
       }
     }
     loadUnlockedExtraEvents();
-  }, [user, isUnlocked]);
+  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.join(',')]);
 
   useEffect(() => {
     const loadTasks = async () => {

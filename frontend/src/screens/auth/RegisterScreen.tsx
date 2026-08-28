@@ -24,7 +24,7 @@ export function RegisterScreen() {
       <div className="w-full max-w-md animate-fade-up">
         <div className="flex items-center gap-3 mb-6 justify-center">
           <div className="w-11 h-11 rounded-full overflow-hidden shadow-md border border-white shrink-0 bg-white">
-            <img src={aspireLogo} alt="AspireNext Logo" className="w-full h-full object-cover scale-110" />
+            <img src={aspireLogo} alt="AspireNext Logo" loading="lazy" className="w-full h-full object-cover scale-110" />
           </div>
           <span className="font-display font-bold text-2xl text-ink-900">Aspire<span className="text-primary-600">Next</span></span>
         </div>

@@ -1,7 +1,7 @@
 import { TrendingUp, Clock, BookOpen, Award, Flame, BarChart3, Calendar, Loader2 } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useUser } from '@/lib/UserContext';
-import { fetchCoursesByIds, fetchStudentProfile } from '@/lib/api';
+import { fetchCoursesByIds } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -12,7 +12,6 @@ export function ProgressScreen() {
   const { user: currentUser } = useUser();
   const [enrolled, setEnrolled] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [profile, setProfile] = useState<any>(null);
 
   useEffect(() => {
     const loadData = async () => {
@@ -25,11 +24,6 @@ export function ProgressScreen() {
         } else {
           setEnrolled([]);
         }
-
-        if (currentUser?.id) {
-          const profileData = await fetchStudentProfile(currentUser.id);
-          setProfile(profileData);
-        }
       } catch (error) {
         console.error('Error loading progress data:', error);
       } finally {
@@ -37,7 +31,7 @@ export function ProgressScreen() {
       }
     };
     loadData();
-  }, [currentUser]);
+  }, [currentUser?.id, currentUser?.enrolledCourses?.join(',')]);
 
   return (
     <div className="space-y-6">

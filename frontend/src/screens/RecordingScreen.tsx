@@ -174,6 +174,7 @@ export function RecordingScreen() {
             <img 
               src={recording.thumbnail} 
               alt={recording.title} 
+              loading="lazy"
               className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity group-hover:scale-105 transition-transform duration-700" 
             />
             <div className="absolute inset-0 bg-gradient-to-t from-[#090b14] via-[#090b14]/20 to-[#090b14]/70" />

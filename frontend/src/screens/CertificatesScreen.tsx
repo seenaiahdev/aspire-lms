@@ -79,22 +79,27 @@ export function CertificatesScreen() {
   useEffect(() => {
     const loadData = async () => {
       try {
-        // 1. Fetch courses table
-        const { data: dbCourses, error: coursesError } = await supabase
-          .from('courses')
-          .select('*');
-
-        if (coursesError) {
-          console.error("Error loading courses for certificates:", coursesError.message);
+        const enrolledIds = user.enrolledCourses || [];
+        if (enrolledIds.length === 0) {
+          setCerts([]);
+          setLoading(false);
           return;
         }
 
-        // 2. Filter courses the user is enrolled in
-        const enrolledIds = user.enrolledCourses || [];
-        const userCourses = dbCourses?.filter(c => enrolledIds.includes(c.id)) || [];
+        // 1. Fetch courses table
+        const { data: userCourses, error: coursesError } = await supabase
+          .from('courses')
+          .select('*')
+          .in('id', enrolledIds);
+
+        if (coursesError) {
+          console.error("Error loading courses for certificates:", coursesError.message);
+          setLoading(false);
+          return;
+        }
 
         // 3. Map to CourseCertificate objects
-        const mappedCerts: CourseCertificate[] = userCourses.map(course => {
+        const mappedCerts: CourseCertificate[] = (userCourses || []).map(course => {
           const progress = (user.courseProgress && user.courseProgress[course.id] !== undefined)
             ? user.courseProgress[course.id]
             : (user.enrolledCourses && user.enrolledCourses[0] === course.id)
@@ -125,7 +130,7 @@ export function CertificatesScreen() {
       }
     };
     loadData();
-  }, [user.id, user.enrolledCourses, user.courseProgress, user.progress]);
+  }, [user.id, user.enrolledCourses?.join(',')]);
 
   const unlockedCount = certs.filter(c => c.progress >= 100).length;
   const lockedCount = certs.filter(c => c.progress < 100).length;
@@ -229,6 +234,7 @@ export function CertificatesScreen() {
                   <img
                     src={cert.certificateBg}
                     alt={cert.courseTitle}
+                    loading="lazy"
                     className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
                   />
                   <div className="absolute inset-3 border-2 border-amber-400/40 rounded-xl pointer-events-none z-10 flex flex-col justify-between p-3">
@@ -373,7 +379,7 @@ export function CertificatesScreen() {
                   {/* Top Header: AspireNext Logo & Title */}
                   <div className="flex flex-col items-center text-center space-y-1.5 pb-4 sm:pb-5 border-b border-slate-100">
                     <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-[#7c3aed] p-0.5 shadow-md bg-white">
-                      <img src={aspireLogo} alt="AspireNext Logo" className="w-full h-full object-cover rounded-full" />
+                      <img src={aspireLogo} alt="AspireNext Logo" loading="lazy" className="w-full h-full object-cover rounded-full" />
                     </div>
 
                     <div>

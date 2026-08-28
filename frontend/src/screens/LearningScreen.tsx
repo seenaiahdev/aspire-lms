@@ -170,7 +170,7 @@ export function LearningScreen() {
                         completed: false,
                         coverTopics: resolver.getCoverTopics(l.id),
                         video: {
-                          preview: idx === 0 || localUnlockedLessonIds.includes(l.id),
+                          preview: idx === 0, // Unlock state is checked at render time via localUnlockedLessonIds
                           duration: '45m',
                           completed: false
                         },
@@ -251,7 +251,12 @@ export function LearningScreen() {
     return () => {
       channels.forEach(ch => supabase.removeChannel(ch));
     };
-  }, [user.enrolledCourses, localUnlockedLessonIds]);
+  // NOTE: localUnlockedLessonIds was intentionally removed from this dependency array.
+  // Including it caused an infinite re-fetch loop: loadSyllabi → real-time channel fires
+  // → setLocalUnlockedLessonIds → re-triggers loadSyllabi → repeat forever.
+  // The video.preview field that uses it will update on the next natural re-render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.enrolledCourses]);
 
   const curriculumRoadmap = useMemo(() => {
     const activeCourse = dbCourses[0];
@@ -779,7 +784,7 @@ export function LearningScreen() {
                       >
                         {/* Thumbnail Banner */}
                         <div className={cn("relative overflow-hidden shrink-0 bg-slate-900", view === 'grid' ? "h-48 w-full" : "h-48 sm:h-full w-full sm:w-72")}>
-                          <img src={item.thumbnail} alt={item.title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />
+                          <img src={item.thumbnail} alt={item.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
                           
                           {/* Category Badges */}

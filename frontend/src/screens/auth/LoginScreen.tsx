@@ -310,6 +310,7 @@ export function LoginScreen() {
                 <img
                   src={aspireLogo}
                   alt="AspireLMS Logo"
+                  loading="lazy"
                   className="w-full h-full object-cover scale-110"
                 />
               </div>

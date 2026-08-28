@@ -107,6 +107,7 @@ export function CourseScreen() {
 
   const [dbCourse, setDbCourse] = useState<any>(null);
   const [dbSyllabus, setDbSyllabus] = useState<any>(null);
+  const [courseDataLists, setCourseDataLists] = useState<{ topics: any[], lessons: any[] }>({ topics: [], lessons: [] });
   const [loading, setLoading] = useState(true);
 
   const batchCategory = user.batchCategory || 'Weekday';
@@ -146,6 +147,34 @@ export function CourseScreen() {
   }, [courseIdToFetch]);
 
   useEffect(() => {
+    const { topics, lessons } = courseDataLists;
+    if (topics && topics.length > 0 && lessons && lessons.length > 0) {
+      const stages = topics.map(topic => {
+        const subtopics = topic.subtopics || [];
+        return {
+          id: topic.id,
+          title: topic.title,
+          modules: subtopics.map((sub: any) => {
+            const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
+            return {
+              id: sub.id,
+              title: sub.title,
+              duration: sub.durationHours || sub.duration || '5h',
+              lessons: moduleLessons.map((l: any) => ({
+                id: l.id,
+                title: l.title,
+                description: l.description,
+                completed: false
+              }))
+            };
+          })
+        };
+      });
+      setDbSyllabus({ id: courseIdToFetch, stages });
+    }
+  }, [courseDataLists, courseIdToFetch]);
+
+  useEffect(() => {
     async function fetchCourseAndSyllabus() {
       setLoading(true);
       try {
@@ -162,52 +191,28 @@ export function CourseScreen() {
           setDbCourse(courseData);
         }
 
-        // 2. Fetch Syllabus stages & lessons from DB
-        const { data: topics } = await supabase
-          .from('course_topics')
-          .select('*')
-          .eq('course_id', courseIdToFetch)
-          .order('id', { ascending: true });
+        if (!courseData) return;
 
-        const { data: lessons } = await supabase
-          .from('course_lessons')
-          .select('*')
-          .eq('course_id', courseIdToFetch)
-          .order('sort_order', { ascending: true });
+        // 2. Fetch Syllabus stages & lessons from DB
+        const [
+          { data: topics },
+          { data: lessons },
+          { data: instructorCoursesData }
+        ] = await Promise.all([
+          supabase.from('course_topics').select('*').eq('course_id', courseData.id).order('id', { ascending: true }),
+          supabase.from('course_lessons').select('*').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
+          supabase.from('courses').select('id, instructor, enrolled_count, rating').eq('instructor', courseData.instructor)
+        ]);
 
         if (topics && lessons) {
-          const stages = topics.map(topic => {
-            const subtopics = topic.subtopics || [];
-            return {
-              id: topic.id,
-              title: topic.title,
-              modules: subtopics.map((sub: any) => {
-                const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
-                return {
-                  id: sub.id,
-                  title: sub.title,
-                  duration: sub.durationHours || sub.duration || '5h',
-                  lessons: moduleLessons.map((l: any) => ({
-                    id: l.id,
-                    title: l.title,
-                    description: l.description,
-                    completed: false
-                  }))
-                };
-              })
-            };
-          });
-          setDbSyllabus({ id: courseIdToFetch, stages });
+          setCourseDataLists({ topics, lessons });
         } else {
           setDbSyllabus(null);
         }
 
-        // 3. Fetch all courses to calculate instructor stats in real-time
-        const { data: allCoursesData } = await supabase
-          .from('courses')
-          .select('*');
-        if (allCoursesData) {
-          setAllCourses(allCoursesData);
+        // 3. Fetch instructor stats
+        if (instructorCoursesData) {
+          setAllCourses(instructorCoursesData);
         }
       } catch (err) {
         console.error("Exception loading course details:", err);
@@ -248,7 +253,10 @@ export function CourseScreen() {
         },
         () => {
           console.log("Real-time course_topics update, reloading...");
-          fetchCourseAndSyllabus();
+          supabase.from('course_topics').select('*').eq('course_id', courseIdToFetch).order('id', { ascending: true })
+            .then(({ data }) => {
+              if (data) setCourseDataLists((prev) => ({ ...prev, topics: data }));
+            });
         }
       )
       .subscribe();
@@ -265,7 +273,10 @@ export function CourseScreen() {
         },
         () => {
           console.log("Real-time course_lessons update, reloading...");
-          fetchCourseAndSyllabus();
+          supabase.from('course_lessons').select('*').eq('course_id', courseIdToFetch).order('sort_order', { ascending: true })
+            .then(({ data }) => {
+              if (data) setCourseDataLists((prev) => ({ ...prev, lessons: data }));
+            });
         }
       )
       .subscribe();

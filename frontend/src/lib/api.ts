@@ -1,6 +1,5 @@
 import { supabase } from './supabase';
-
-/**
+import { cachedQuery, invalidateCache } from './queryCache';/**
  * Clean phone number to compare suffixes (removes non-digits and takes last 10 digits)
  */
 function cleanPhoneSuffix(phone: string): string {
@@ -136,21 +135,23 @@ export async function fetchJobs(batchCategory: string, batchCode: string = '') {
  * Fetches placement preparation resources.
  */
 export async function fetchPlacementResources() {
-  try {
-    const { data, error } = await supabase
-      .from('placement_resources')
-      .select('*')
-      .eq('publish_status', 'Published')
-      .order('created_at', { ascending: false });
+  return cachedQuery('placement_resources', async () => {
+    try {
+      const { data, error } = await supabase
+        .from('placement_resources')
+        .select('*')
+        .eq('publish_status', 'Published')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.error('Error fetching placement resources:', error);
-      throw error;
+      if (error) {
+        console.error('Error fetching placement resources:', error);
+        throw error;
+      }
+      return data || [];
+    } catch {
+      return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  });
 }
 
 /**
@@ -328,17 +329,19 @@ export async function upsertStudentProfile(
 export async function fetchCoursesByIds(courseIds: string[]) {
   if (!courseIds || courseIds.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .in('id', courseIds);
+  return cachedQuery(`courses:${[...courseIds].sort().join(',')}`, async () => {
+    const { data, error } = await supabase
+      .from('courses')
+      .select('*')
+      .in('id', courseIds);
 
-  if (error) {
-    console.error('Error fetching enrolled courses:', error);
-    throw error;
-  }
+    if (error) {
+      console.error('Error fetching enrolled courses:', error);
+      throw error;
+    }
 
-  return data || [];
+    return data || [];
+  });
 }
 
 /**
@@ -550,41 +553,43 @@ export async function fetchProjects(batchCode: string, batchCategory?: string, c
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchResources(courseId?: string) {
-  try {
-    const { data, error } = await supabase
-      .from('placement_resources')
-      .select('*')
-      .eq('publish_status', 'Published')
-      .order('created_at', { ascending: false });
+  return cachedQuery('resources', async () => {
+    try {
+      const { data, error } = await supabase
+        .from('placement_resources')
+        .select('*')
+        .eq('publish_status', 'Published')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('placement_resources table not available:', error.message);
+      if (error) {
+        console.warn('placement_resources table not available:', error.message);
+        return [];
+      }
+
+      return (data || []).map((item: any) => {
+        const typeLower = (item.type || '').toLowerCase();
+        let finalType = 'notes';
+        if (typeLower.includes('pdf')) finalType = 'pdf';
+        else if (typeLower.includes('note')) finalType = 'notes';
+        else if (typeLower.includes('cheat')) finalType = 'cheatsheet';
+        else if (typeLower.includes('road')) finalType = 'roadmap';
+        else if (typeLower.includes('temp')) finalType = 'template';
+
+        return {
+          id: item.id,
+          title: item.title || 'Untitled Resource',
+          category: item.category || 'General',
+          type: finalType,
+          updatedAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent',
+          downloads: 0,
+          size: item.read_time || '5 min read',
+          link_url: item.link_url || ''
+        };
+      });
+    } catch {
       return [];
     }
-
-    return (data || []).map((item: any) => {
-      const typeLower = (item.type || '').toLowerCase();
-      let finalType = 'notes';
-      if (typeLower.includes('pdf')) finalType = 'pdf';
-      else if (typeLower.includes('note')) finalType = 'notes';
-      else if (typeLower.includes('cheat')) finalType = 'cheatsheet';
-      else if (typeLower.includes('road')) finalType = 'roadmap';
-      else if (typeLower.includes('temp')) finalType = 'template';
-
-      return {
-        id: item.id,
-        title: item.title || 'Untitled Resource',
-        category: item.category || 'General',
-        type: finalType,
-        updatedAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent',
-        downloads: 0,
-        size: item.read_time || '5 min read',
-        link_url: item.link_url || ''
-      };
-    });
-  } catch {
-    return [];
-  }
+  });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -592,37 +597,41 @@ export async function fetchResources(courseId?: string) {
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchCommunityPosts() {
-  try {
-    const { data, error } = await supabase
-      .from('community_posts')
-      .select('*')
-      .order('created_at', { ascending: false });
+  return cachedQuery('community_posts', async () => {
+    try {
+      const { data, error } = await supabase
+        .from('community_posts')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('community_posts table not available:', error.message);
+      if (error) {
+        console.warn('community_posts table not available:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  });
 }
 
 export async function fetchAnnouncements() {
-  try {
-    const { data, error } = await supabase
-      .from('announcements')
-      .select('*')
-      .order('created_at', { ascending: false });
+  return cachedQuery('announcements', async () => {
+    try {
+      const { data, error } = await supabase
+        .from('announcements')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('announcements table not available:', error.message);
+      if (error) {
+        console.warn('announcements table not available:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  });
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -630,20 +639,22 @@ export async function fetchAnnouncements() {
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchBadges() {
-  try {
-    const { data, error } = await supabase
-      .from('badges')
-      .select('*')
-      .order('created_at', { ascending: true });
+  return cachedQuery('badges', async () => {
+    try {
+      const { data, error } = await supabase
+        .from('badges')
+        .select('*')
+        .order('created_at', { ascending: true });
 
-    if (error) {
-      console.warn('badges table not available:', error.message);
+      if (error) {
+        console.warn('badges table not available:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  });
 }
 
 // ════════════════════════════════════════════════════════════════

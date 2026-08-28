@@ -26,12 +26,17 @@ export function QuizzesScreen() {
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
-      if (user?.enrolledCourses && user?.enrolledCourses.length > 0) {
-        const q = await fetchQuizzes(user.enrolledCourses);
-        const mapped = (q || []).map((item: any) => ({
+      const [q, att, l] = await Promise.all([
+        (user?.enrolledCourses && user?.enrolledCourses.length > 0) ? fetchQuizzes(user.enrolledCourses) : Promise.resolve([]),
+        user?.id ? fetchQuizAttempts(user.id) : Promise.resolve([]),
+        fetchLeaderboard()
+      ]);
+
+      if (q) {
+        const mapped = q.map((item: any) => ({
           id: item.id,
           course_id: item.course_id,
           title: item.title,
@@ -45,22 +50,21 @@ export function QuizzesScreen() {
           mcqs: item.mcqs || []
         }));
         setQuizzes(mapped);
+      } else {
+        setQuizzes([]);
       }
-      if (user?.id) {
-        const att = await fetchQuizAttempts(user.id);
-        setAttempts(att || []);
-      }
-      const l = await fetchLeaderboard();
+
+      setAttempts(att || []);
       setLeaderboard(l || []);
     } catch (err) {
       console.error(err);
     } finally {
-      setLoading(false);
+      if (showSpinner) setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    loadData(true);
   }, [user?.enrolledCourses, user?.id]);
 
   // Real-time: refresh when the admin adds/edits quizzes, or when this student's attempts change
@@ -69,14 +73,14 @@ export function QuizzesScreen() {
     if (!user?.id) return;
     const quizzesCh = supabase
       .channel('quizzes_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, () => loadData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, () => loadData(false))
       .subscribe();
     const attemptsCh = supabase
       .channel('quiz_attempts_realtime')
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` },
-        () => loadData()
+        () => loadData(false)
       )
       .subscribe();
     return () => {

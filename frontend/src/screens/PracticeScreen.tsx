@@ -46,17 +46,30 @@ export function PracticeScreen() {
   const [loading, setLoading] = useState(true);
   const [lockedToast, setLockedToast] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (showSpinner = true) => {
+    if (showSpinner) setLoading(true);
     try {
       const courseId = user?.enrolledCourses?.[0];
-      const dbProblems = await fetchPracticeProblems(courseId);
+      
+      let submissionsError: any = null;
+      const [dbProblems, submissionsResult] = await Promise.all([
+        fetchPracticeProblems(courseId),
+        user?.id 
+          ? fetchUserSubmissions(user.id).catch(err => {
+              submissionsError = err;
+              return null;
+            })
+          : Promise.resolve(null)
+      ]);
       
       let dbSubmissions: Submission[] = [];
       let fetchedFromDb = false;
+      
       if (user?.id) {
-        try {
-          const res = await fetchUserSubmissions(user.id);
-          dbSubmissions = (res || []).map((s: any) => ({
+        if (submissionsError) {
+          console.warn('Failed to fetch submissions from Supabase, relying on localStorage:', submissionsError);
+        } else {
+          dbSubmissions = (submissionsResult || []).map((s: any) => ({
             problemId: s.problem_id,
             problemTitle: (dbProblems || []).find((p: any) => p.id === s.problem_id)?.title || s.project_name || 'Practice Solution',
             language: s.language,
@@ -68,8 +81,6 @@ export function PracticeScreen() {
             timestamp: s.submitted_at || s.created_at || new Date().toISOString()
           }));
           fetchedFromDb = true;
-        } catch (dbErr) {
-          console.warn('Failed to fetch submissions from Supabase, relying on localStorage:', dbErr);
         }
       }
 
@@ -113,11 +124,10 @@ export function PracticeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [user?.id, user?.enrolledCourses?.[0]]);
 
   useEffect(() => {
-    setLoading(true);
-    loadData();
+    loadData(true);
   }, [loadData]);
 
   useEffect(() => {
@@ -135,7 +145,7 @@ export function PracticeScreen() {
         },
         (payload) => {
           console.log('Real-time database submission update received:', payload);
-          loadData();
+          loadData(false);
         }
       )
       .subscribe();

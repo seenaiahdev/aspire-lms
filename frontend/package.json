@@ -11,10 +11,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.app.json"
   },
   "dependencies": {
-    "@monaco-editor/react": "^4.7.0",
-    "@stackblitz/sdk": "^1.11.1",
     "@supabase/supabase-js": "^2.57.4",
-    "codesandbox": "^2.2.3",
     "firebase": "^12.18.0",
     "lucide-react": "^0.344.0",
     "react": "^18.3.1",

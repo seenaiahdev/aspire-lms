@@ -107,7 +107,8 @@ export function RewardsScreen() {
   }, [user]);
 
   useEffect(() => {
-    const loadData = async () => {
+    const loadData = async (showSpinner = true) => {
+      if (showSpinner) setLoading(true);
       try {
         const [rewardsData, claimsData] = await Promise.all([
           fetchRewards(),
@@ -158,7 +159,7 @@ export function RewardsScreen() {
       } catch (error) {
         console.error('Failed to fetch rewards:', error);
       } finally {
-        setLoading(false);
+        if (showSpinner) setLoading(false);
       }
     };
     loadData();
@@ -175,7 +176,7 @@ export function RewardsScreen() {
         },
         () => {
           console.log("Real-time rewards table updated, reloading list...");
-          loadData();
+          loadData(false);
         }
       )
       .subscribe();
@@ -192,7 +193,7 @@ export function RewardsScreen() {
         },
         () => {
           console.log("Real-time reward claims updated, reloading list...");
-          loadData();
+          loadData(false);
         }
       )
       .subscribe();
@@ -332,6 +333,9 @@ export function RewardsScreen() {
                   <img
                     src={reward.productImage}
                     alt={reward.name}
+                    loading="lazy"
+                    width={400}
+                    height={400}
                     className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-700 ease-out"
                   />
                 </div>
@@ -428,7 +432,7 @@ export function RewardsScreen() {
 
             {/* Product Header Image (Seamless Edge-to-Edge Modern Design) */}
             <div className="relative h-80 w-full overflow-hidden shrink-0 bg-slate-100">
-              <img src={selectedReward.productImage} alt={selectedReward.name} className="w-full h-full object-cover" />
+              <img src={selectedReward.productImage} alt={selectedReward.name} loading="lazy" width={400} height={400} className="w-full h-full object-cover" />
             </div>
 
             {/* Product Body */}

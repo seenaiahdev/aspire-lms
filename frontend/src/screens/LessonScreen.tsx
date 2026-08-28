@@ -118,10 +118,89 @@ export function LessonScreen() {
 
   const [dbCourse, setDbCourse] = useState<any>(null);
   const [dbSyllabus, setDbSyllabus] = useState<any>(null);
+  const [courseDataLists, setCourseDataLists] = useState<{
+    topics: any[], lessons: any[], assessments: any[], codingQuestions: any[], projects: any[], quizzes: any[], resolver: any
+  }>({
+    topics: null as any, lessons: null as any, assessments: null as any, codingQuestions: null as any, projects: null as any, quizzes: null as any, resolver: null as any
+  });
   const [loading, setLoading] = useState(true);
 
   const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
   const batchCategory = user.batchCategory || 'Weekday';
+
+  useEffect(() => {
+    const { topics, lessons, assessments, codingQuestions, projects, quizzes, resolver } = courseDataLists;
+    if (topics && lessons && resolver) {
+      const stages = topics.map(topic => {
+        const subtopics = topic.subtopics || [];
+        return {
+          id: topic.id,
+          title: topic.title,
+          modules: subtopics.map((sub: any) => {
+            const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
+            return {
+              id: sub.id,
+              title: sub.title,
+              duration: sub.durationHours || sub.duration || '5h',
+              lessons: moduleLessons.map((l: any, idx: number) => {
+                const dbPractices = codingQuestions
+                  ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
+                  : [];
+                const dbAssessments = assessments
+                  ? assessments.filter((asmnt: any) => {
+                      const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
+                      return resolver.resolveLessonId(parts[2]) === l.id;
+                    })
+                  : [];
+                const dbProjects = projects
+                  ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
+                  : [];
+                const dbQuizzes = quizzes
+                  ? quizzes.filter((q: any) => resolver.resolveLessonId(q.inner_topic_id) === l.id)
+                  : [];
+
+                return {
+                  id: l.id,
+                  title: l.title,
+                  description: l.description,
+                  completed: false,
+                  video: {
+                    preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
+                    duration: '45m',
+                    completed: false
+                  },
+                  practices: dbPractices.map((cq: any) => ({
+                    id: cq.id,
+                    title: cq.title,
+                    duration: '20m',
+                    completed: false
+                  })),
+                  assessments: dbAssessments.map((asmnt: any) => ({
+                    id: asmnt.id,
+                    title: asmnt.title,
+                    duration: `${asmnt.duration_minutes || 15}m`,
+                    completed: false
+                  })),
+                  projects: dbProjects.map((p: any) => ({
+                    id: p.id,
+                    title: p.title,
+                    completed: false
+                  })),
+                  quizzes: dbQuizzes.map((q: any) => ({
+                    id: q.id,
+                    title: q.title,
+                    duration: `${q.duration_minutes || 30}m`,
+                    completed: false
+                  }))
+                };
+              })
+            };
+          })
+        };
+      });
+      setDbSyllabus({ id: courseIdToFetch, stages });
+    }
+  }, [courseDataLists, courseIdToFetch, user?.unlockedLessonIds]);
 
   useEffect(() => {
     async function fetchCourseAndSyllabus() {
@@ -140,111 +219,29 @@ export function LessonScreen() {
           setDbCourse(courseData);
         }
 
+        if (!courseData) return;
+
         // 2. Fetch Syllabus stages & lessons from DB
-        const { data: topics } = await supabase
-          .from('course_topics')
-          .select('*')
-          .eq('course_id', courseIdToFetch)
-          .order('id', { ascending: true });
-
-        const { data: lessons } = await supabase
-          .from('course_lessons')
-          .select('*')
-          .eq('course_id', courseIdToFetch)
-          .order('sort_order', { ascending: true });
-
-        const { data: assessments } = await supabase
-          .from('assessments')
-          .select('id, topic_id, duration_minutes, title')
-          .eq('course_id', courseIdToFetch);
-
-        const { data: codingQuestions } = await supabase
-          .from('coding_questions')
-          .select('id, inner_topic_id, title')
-          .eq('course_id', courseIdToFetch);
-
-        const { data: projects } = await supabase
-          .from('projects')
-          .select('id, inner_topic_id, title')
-          .eq('course_id', courseIdToFetch);
-
-        const { data: quizzes } = await supabase
-          .from('quizzes')
-          .select('id, inner_topic_id, title, duration_minutes')
-          .eq('course_id', courseIdToFetch);
-
-        // Bridge Scheme A entity links -> Scheme B lesson ids so assessments/projects nest correctly.
-        const resolver = await getLessonResolver([courseIdToFetch], user.batchCode || '');
+        const [
+          { data: topics },
+          { data: lessons },
+          { data: assessments },
+          { data: codingQuestions },
+          { data: projects },
+          { data: quizzes },
+          resolver
+        ] = await Promise.all([
+          supabase.from('course_topics').select('*').eq('course_id', courseData.id).order('id', { ascending: true }),
+          supabase.from('course_lessons').select('*').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
+          supabase.from('assessments').select('id, topic_id, duration_minutes, title').eq('course_id', courseData.id),
+          supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseData.id),
+          supabase.from('projects').select('id, inner_topic_id, title, type').eq('course_id', courseData.id),
+          supabase.from('quizzes').select('id, inner_topic_id, duration_minutes, title').eq('course_id', courseData.id),
+          getLessonResolver(user?.enrolledCourses || [], user?.batchCode || '')
+        ]);
 
         if (topics && lessons) {
-          const stages = topics.map(topic => {
-            const subtopics = topic.subtopics || [];
-            return {
-              id: topic.id,
-              title: topic.title,
-              modules: subtopics.map((sub: any) => {
-                const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
-                return {
-                  id: sub.id,
-                  title: sub.title,
-                  duration: sub.durationHours || sub.duration || '5h',
-                  lessons: moduleLessons.map((l: any, idx: number) => {
-                    const dbPractices = codingQuestions
-                      ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
-                      : [];
-                    const dbAssessments = assessments
-                      ? assessments.filter((asmnt: any) => {
-                          const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
-                          return resolver.resolveLessonId(parts[2]) === l.id;
-                        })
-                      : [];
-                    const dbProjects = projects
-                      ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
-                      : [];
-                    const dbQuizzes = quizzes
-                      ? quizzes.filter((q: any) => resolver.resolveLessonId(q.inner_topic_id) === l.id)
-                      : [];
-
-                    return {
-                      id: l.id,
-                      title: l.title,
-                      description: l.description,
-                      completed: false,
-                      video: {
-                        preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
-                        duration: '45m',
-                        completed: false
-                      },
-                      practices: dbPractices.map((cq: any) => ({
-                        id: cq.id,
-                        title: cq.title,
-                        duration: '20m',
-                        completed: false
-                      })),
-                      assessments: dbAssessments.map((asmnt: any) => ({
-                        id: asmnt.id,
-                        title: asmnt.title,
-                        duration: `${asmnt.duration_minutes || 15}m`,
-                        completed: false
-                      })),
-                      projects: dbProjects.map((p: any) => ({
-                        id: p.id,
-                        title: p.title,
-                        completed: false
-                      })),
-                      quizzes: dbQuizzes.map((q: any) => ({
-                        id: q.id,
-                        title: q.title,
-                        duration: `${q.duration_minutes || 30}m`,
-                        completed: false
-                      }))
-                    };
-                  })
-                };
-              })
-            };
-          });
-          setDbSyllabus({ id: courseIdToFetch, stages });
+          setCourseDataLists({ topics, lessons, assessments, codingQuestions, projects, quizzes, resolver });
         } else {
           setDbSyllabus(null);
         }
@@ -287,7 +284,10 @@ export function LessonScreen() {
         },
         () => {
           console.log("Real-time course_topics update inside Lesson Player, reloading...");
-          fetchCourseAndSyllabus();
+          supabase.from('course_topics').select('*').eq('course_id', courseIdToFetch).order('id', { ascending: true })
+            .then(({ data }) => {
+              if (data) setCourseDataLists((prev: any) => ({ ...prev, topics: data }));
+            });
         }
       )
       .subscribe();
@@ -304,7 +304,10 @@ export function LessonScreen() {
         },
         () => {
           console.log("Real-time course_lessons update inside Lesson Player, reloading...");
-          fetchCourseAndSyllabus();
+          supabase.from('course_lessons').select('*').eq('course_id', courseIdToFetch).order('sort_order', { ascending: true })
+            .then(({ data }) => {
+              if (data) setCourseDataLists((prev: any) => ({ ...prev, lessons: data }));
+            });
         }
       )
       .subscribe();

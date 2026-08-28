@@ -163,17 +163,16 @@ export function PlacementScreen() {
     const loadJobsAndResources = async () => {
       setIsLoading(true);
       try {
-        const jobsData = await fetchJobs(user?.batchCategory || 'Weekday', user?.batchCode || '');
-        
-        let appliedJobIds: string[] = [];
-        if (user?.id) {
-          try {
-            const dbApps = await fetchJobApplications(user.id);
-            appliedJobIds = dbApps.map((a: any) => a.job_id);
-          } catch (dbErr) {
+        const [jobsData, dbApps, prepData] = await Promise.all([
+          fetchJobs(user?.batchCategory || 'Weekday', user?.batchCode || ''),
+          user?.id ? fetchJobApplications(user.id).catch(dbErr => {
             console.error('Failed to fetch job applications from DB:', dbErr);
-          }
-        }
+            return [];
+          }) : Promise.resolve([]),
+          fetchPlacementResources()
+        ]);
+        
+        let appliedJobIds: string[] = dbApps.map((a: any) => a.job_id);
 
         const savedApplied = localStorage.getItem('aspire_applied_jobs');
         const localAppliedMap = savedApplied ? JSON.parse(savedApplied) : {};
@@ -187,8 +186,6 @@ export function PlacementScreen() {
         });
 
         setJobsList(mergedJobs);
-        
-        const prepData = await fetchPlacementResources();
         setPrepList(prepData || []);
       } catch (err) {
         console.error(err);
@@ -462,6 +459,7 @@ export function PlacementScreen() {
                            <img
                              src={job.logo}
                              alt={job.company}
+                             loading="lazy"
                              className="h-8 object-contain rounded-md"
                            />
                          </div>
@@ -573,7 +571,7 @@ export function PlacementScreen() {
             <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4 bg-slate-50/60">
               <div className="flex items-start gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 p-2 flex items-center justify-center shrink-0 shadow-sm">
-                  <img src={selectedJob.logo} alt={selectedJob.company} className="w-full h-full object-contain" />
+                  <img src={selectedJob.logo} alt={selectedJob.company} loading="lazy" className="w-full h-full object-contain" />
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
@@ -735,7 +733,7 @@ export function PlacementScreen() {
             <div className="text-center space-y-2">
               {applyJobTarget.logo ? (
                 <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center p-2 mx-auto shadow-sm overflow-hidden shrink-0">
-                  <img src={applyJobTarget.logo} alt={applyJobTarget.company} className="w-full h-full object-contain" />
+                  <img src={applyJobTarget.logo} alt={applyJobTarget.company} loading="lazy" className="w-full h-full object-contain" />
                 </div>
               ) : (
                 <div className="w-12 h-12 rounded-full bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 mx-auto">
