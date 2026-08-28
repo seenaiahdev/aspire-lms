@@ -1,43 +1,28 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
-import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
-import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { useUser } from '@/lib/UserContext';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
 
-// The app handles 10-digit Indian mobile numbers; Firebase needs E.164 (+countrycode).
-const COUNTRY_CODE = '+91';
-// Firebase SMS codes are 6 digits; the demo fallback uses 4.
-const OTP_LENGTH = isFirebaseConfigured ? 6 : 4;
+// Login OTP is emailed to the student's registered email via the /api/send-otp serverless function.
+const OTP_LENGTH = 6;
 
 export function LoginScreen() {
-  const { navigate, login } = useNav();
+  const { login } = useNav();
   const { refetchUser } = useUser();
   const [mobile, setMobile] = useState('');
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
   const [otp, setOtp] = useState<string[]>(() => new Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [generatedOtp, setGeneratedOtp] = useState('');
+  const [generatedOtp, setGeneratedOtp] = useState('');            // demo fallback code only
+  const [emailHint, setEmailHint] = useState('');                  // masked email we sent to
+  const [otpMode, setOtpMode] = useState<'email' | 'demo'>('email');
 
-  // Firebase phone-auth handles (only used when Firebase is configured).
-  const confirmationRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
-
-  const resetRecaptcha = () => {
-    try { recaptchaRef.current?.clear(); } catch { /* ignore */ }
-    recaptchaRef.current = null;
-  };
-
-  const getRecaptcha = () => {
-    if (!recaptchaRef.current) {
-      recaptchaRef.current = new RecaptchaVerifier(getFirebaseAuth(), 'recaptcha-container', { size: 'invisible' });
-    }
-    return recaptchaRef.current;
-  };
+  // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp.
+  const otpTokenRef = useRef<string>('');
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -56,7 +41,7 @@ export function LoginScreen() {
     setError('');
     setIsSubmitting(true);
     try {
-      // 1. Gate on Supabase: only registered students get an OTP (avoids texting strangers).
+      // 1. Gate on Supabase: only registered students get an OTP.
       const student = await fetchStudentByPhone(mobile);
       if (!student) {
         setIsSubmitting(false);
@@ -67,38 +52,43 @@ export function LoginScreen() {
       localStorage.setItem('aspire_logged_in_mobile', mobile);
       setOtp(new Array(OTP_LENGTH).fill(''));
 
-      if (isFirebaseConfigured) {
-        // 2a. Real SMS OTP via Firebase.
-        try {
-          const confirmation = await signInWithPhoneNumber(getFirebaseAuth(), `${COUNTRY_CODE}${mobile}`, getRecaptcha());
-          confirmationRef.current = confirmation;
+      // 2. Ask the serverless function to email the OTP to the student's registered email.
+      try {
+        const resp = await fetch('/api/send-otp', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ phone: mobile }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          otpTokenRef.current = data.token || '';
+          setEmailHint(data.emailHint || student.email || '');
+          setOtpMode('email');
           setGeneratedOtp('');
           setStep('otp');
-        } catch (fbErr: any) {
-          console.error('Firebase OTP send failed:', fbErr);
-          resetRecaptcha();
-          const code = fbErr?.code || '';
-          if (code === 'auth/too-many-requests') {
-            setError('Too many attempts. Please wait a while and try again.');
-          } else if (code === 'auth/invalid-phone-number') {
-            setError('This mobile number is not valid for SMS. Please check it.');
-          } else {
-            setError('Could not send the OTP. Please try again.');
-          }
-        } finally {
           setIsSubmitting(false);
+          return;
         }
-      } else {
-        // 2b. Demo fallback (no Firebase config): generate a client-side code shown on screen.
-        const code = Math.floor(1000 + Math.random() * 9000).toString();
+        if (resp.status === 404) {
+          setIsSubmitting(false);
+          setError('No email is on file for this number. Please contact your admin.');
+          return;
+        }
+        throw new Error(`send-otp failed: ${resp.status}`);
+      } catch (apiErr) {
+        // 3. Fallback (e.g. local `npm run dev`, where /api isn't served): show a demo code on screen.
+        console.warn('Email OTP unavailable, using demo code:', apiErr);
+        const code = String(Math.floor(100000 + Math.random() * 900000));
         setGeneratedOtp(code);
+        setOtpMode('demo');
+        setEmailHint(student.email || '');
         setStep('otp');
         setIsSubmitting(false);
       }
     } catch (err) {
       setIsSubmitting(false);
       console.error(err);
-      setError('An error occurred during verification. Please try again.');
+      setError('An error occurred. Please try again.');
     }
   };
 
@@ -162,22 +152,26 @@ export function LoginScreen() {
       return;
     }
 
-    if (isFirebaseConfigured) {
-      // Verify the SMS code with Firebase.
-      if (!confirmationRef.current) {
-        setError('Your session expired. Please request a new code.');
-        setStep('mobile');
-        return;
-      }
+    if (otpMode === 'email') {
+      // Verify the emailed code server-side (/api/verify-otp).
       setIsSubmitting(true);
       try {
-        await confirmationRef.current.confirm(enteredOtp);
+        const resp = await fetch('/api/verify-otp', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ token: otpTokenRef.current, code: enteredOtp }),
+        });
+        const data = await resp.json().catch(() => ({ ok: false }));
         setIsSubmitting(false);
-        completeLogin();
+        if (data.ok) {
+          completeLogin();
+        } else {
+          setError(data.reason === 'expired' ? 'This code expired. Please request a new one.' : 'Invalid verification code.');
+        }
       } catch (err) {
-        console.error('Firebase OTP verify failed:', err);
+        console.error('Email OTP verify failed:', err);
         setIsSubmitting(false);
-        setError('Invalid verification code. Please enter the correct code.');
+        setError('Could not verify the code. Please try again.');
       }
       return;
     }
@@ -202,9 +196,6 @@ export function LoginScreen() {
         background: 'radial-gradient(ellipse at 25% 30%, #321d72 0%, #47269f 45%, #0c0f26 100%)',
       }}
     >
-      {/* Invisible reCAPTCHA mount point for Firebase phone auth (anti-abuse verifier). */}
-      <div id="recaptcha-container" />
-
       {/* 3D Ambient Mesh Glow Orbs across Full Screen (Logo Midnight Navy, Royal Cobalt & Crimson Accent) */}
       <div 
         className="absolute top-[-10%] left-[-5%] w-[650px] h-[650px] rounded-full pointer-events-none opacity-40 blur-[160px] animate-[pulse_8s_infinite]"
@@ -403,16 +394,18 @@ export function LoginScreen() {
                     <ShieldCheck className="w-4 h-4 text-primary-600" /> Verification Code
                   </div>
                   <p className="text-xs text-slate-500 font-normal">
-                    Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span>
+                    {otpMode === 'email' && emailHint
+                      ? <>Code sent to <span className="font-semibold text-slate-700">{emailHint}</span></>
+                      : <>For <span className="font-semibold text-slate-700">+91 {mobile}</span></>}
                   </p>
-                  {isFirebaseConfigured ? (
+                  {otpMode === 'email' ? (
                     <p className="text-[10px] text-slate-500 font-medium mt-2.5">
-                      Enter the {OTP_LENGTH}-digit code sent to your phone via SMS.
+                      Enter the {OTP_LENGTH}-digit code sent to your email.
                     </p>
                   ) : (
                     <p className="text-[10px] text-primary-700 font-bold mt-2.5 flex items-center justify-center gap-1.5 bg-primary-50 px-3.5 py-1.5 rounded-xl mx-auto w-fit border border-primary-200/50 shadow-xs animate-pulse">
                       <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-ping" />
-                      Verification Code: {generatedOtp}
+                      Demo code: {generatedOtp}
                     </p>
                   )}
                 </div>

@@ -1,6 +1,9 @@
 {
   "name": "aspire-lms-root",
   "private": true,
+  "dependencies": {
+    "nodemailer": "^6.9.14"
+  },
   "scripts": {
     "build": "npm install --prefix frontend && npm run build --prefix frontend && cp -r frontend/dist ./dist"
   }
