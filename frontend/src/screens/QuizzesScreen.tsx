@@ -219,6 +219,9 @@ export function QuizzesScreen() {
       }
     };
     const onVisibility = () => { if (document.hidden) strike(); };
+    // Window blur catches Alt-Tab / app-switch / minimize / Win-key (these fire blur, not
+    // visibilitychange). Also force the block up since we're no longer focused/fullscreen.
+    const onBlur = () => { setShowFullscreenWarning(true); strike(); };
     const onContextMenu = (e: Event) => e.preventDefault();
     const onKeyDown = (e: KeyboardEvent) => {
       // Block reload/close/new-tab/print/save; let Esc/F11 toggle fullscreen so the exit is detected.
@@ -237,6 +240,7 @@ export function QuizzesScreen() {
 
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
     document.addEventListener('contextmenu', onContextMenu);
     document.addEventListener('keydown', onKeyDown, true);
 
@@ -244,6 +248,7 @@ export function QuizzesScreen() {
       clearInterval(poll);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onBlur);
       document.removeEventListener('contextmenu', onContextMenu);
       document.removeEventListener('keydown', onKeyDown, true);
     };
