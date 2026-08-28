@@ -191,30 +191,34 @@ export function QuizzesScreen() {
       return;
     }
 
-    // Grace period so the fullscreen ENTER/exit transitions at exam start don't count as strikes.
     const startedAt = Date.now();
-    let lastEscapeAt = 0;
-    const registerEscape = () => {
+    let lastStrikeAt = 0;
+    const inFullscreen = () => !!document.fullscreenElement;
+
+    // Count a strike (leaving fullscreen / hiding the tab). 3 → auto-submit; 1st & 2nd → warning.
+    const strike = () => {
       if (isExitingIntentionally.current) return;
-      if (Date.now() - startedAt < 1500) return;       // ignore startup noise
+      if (Date.now() - startedAt < 1500) return;   // grace while fullscreen first engages
       const now = Date.now();
-      if (now - lastEscapeAt < 800) return;            // debounce overlapping events
-      lastEscapeAt = now;
+      if (now - lastStrikeAt < 800) return;         // debounce overlapping events
+      lastStrikeAt = now;
       setFullscreenExits((prev) => {
         const next = prev + 1;
-        if (next >= 3) {
-          autoSubmitRef.current();                      // 3rd strike → auto-submit
-        } else {
-          setShowFullscreenWarning(true);               // 1st/2nd strike → warning popup
-        }
+        if (next >= 3) autoSubmitRef.current();
+        else setShowFullscreenWarning(true);
         return next;
       });
     };
 
-    // Only DELIBERATE escapes count: leaving full-screen, or hiding the tab (switch/minimize).
-    // (No window-blur listener — it false-fires on fullscreen transitions and dev-tools.)
-    const onFullscreenChange = () => { if (!document.fullscreenElement) registerEscape(); };
-    const onVisibility = () => { if (document.hidden) registerEscape(); };
+    const onFullscreenChange = () => {
+      if (inFullscreen()) {
+        setShowFullscreenWarning(false);            // back in fullscreen → clear the block
+      } else {
+        setShowFullscreenWarning(true);             // left fullscreen → block immediately …
+        strike();                                   // … and count it (after grace)
+      }
+    };
+    const onVisibility = () => { if (document.hidden) strike(); };
     const onContextMenu = (e: Event) => e.preventDefault();
     const onKeyDown = (e: KeyboardEvent) => {
       // Block reload/close/new-tab/print/save; let Esc/F11 toggle fullscreen so the exit is detected.
@@ -224,12 +228,20 @@ export function QuizzesScreen() {
       }
     };
 
+    // STRICT enforcement: keep the fullscreen prompt up whenever the exam isn't in fullscreen —
+    // this also covers the case where fullscreen never engaged (so there's no exit event to catch).
+    const poll = setInterval(() => {
+      if (isExitingIntentionally.current) return;
+      if (!inFullscreen() && Date.now() - startedAt >= 1500) setShowFullscreenWarning(true);
+    }, 1000);
+
     document.addEventListener('fullscreenchange', onFullscreenChange);
     document.addEventListener('visibilitychange', onVisibility);
     document.addEventListener('contextmenu', onContextMenu);
     document.addEventListener('keydown', onKeyDown, true);
 
     return () => {
+      clearInterval(poll);
       document.removeEventListener('fullscreenchange', onFullscreenChange);
       document.removeEventListener('visibilitychange', onVisibility);
       document.removeEventListener('contextmenu', onContextMenu);
@@ -467,7 +479,7 @@ export function QuizzesScreen() {
                 </div>
                 <div>
                   <h3 className="font-extrabold text-slate-900 text-sm leading-tight">{selectedQuiz.title}</h3>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Assessment</p>
+                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Quiz</p>
                 </div>
               </div>
             )}
@@ -509,7 +521,7 @@ export function QuizzesScreen() {
 
                   <div className="space-y-7 pt-8 border-t border-slate-100">
                     <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
-                      Assessment Guidelines
+                      Quiz Guidelines
                     </h3>
                     
                     <div className="flex gap-4 items-start">
@@ -540,7 +552,7 @@ export function QuizzesScreen() {
 
                 {/* RIGHT SIDE - Stats & Action */}
                 <div className="w-full lg:w-[380px] bg-slate-50/50 p-8 sm:p-12 border-t lg:border-t-0 lg:border-l border-slate-100 flex flex-col justify-center shrink-0">
-                  <h3 className="text-lg font-extrabold text-slate-900 mb-8">Assessment Details</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900 mb-8">Quiz Details</h3>
                   
                   <div className="space-y-6 mb-10">
                     <div className="flex items-center justify-between pb-6 border-b border-slate-100">
@@ -573,7 +585,7 @@ export function QuizzesScreen() {
                       onClick={handleStartExam}
                       className="w-full group py-3.5 rounded-xl bg-[#101537] hover:bg-slate-900 text-white font-bold text-sm shadow-lg shadow-slate-900/10 active:scale-95 transition-all flex items-center justify-center gap-2 border border-slate-800"
                     >
-                      <span>Start Assessment</span>
+                      <span>Start Quiz</span>
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </button>
                   ) : (
@@ -791,6 +803,31 @@ export function QuizzesScreen() {
               </Modal>
             </div>
           )}
+          {/* 🛡️ Strict full-screen enforcement — rendered INSIDE the exam portal so it sits
+              ABOVE the exam (the old Modal was z-50, behind the z-99999 exam, so it was invisible). */}
+          {isExamStarted && showFullscreenWarning && (
+            <div className="absolute inset-0 z-[100] bg-slate-900/85 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
+              <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
+                <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+                  <AlertTriangle className="w-8 h-8" />
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900">Full Screen Required</h3>
+                <p className="text-sm font-semibold text-rose-500">Exit {fullscreenExits} of 3</p>
+                <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+                  This quiz must run in full screen. Leaving full screen or switching tabs 3 times will
+                  automatically submit your quiz.
+                </p>
+                <button
+                  type="button"
+                  onClick={handleResumeFullscreen}
+                  className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Play className="w-4 h-4 fill-current" />
+                  <span>Resume in Full Screen</span>
+                </button>
+              </div>
+            </div>
+          )}
         </div>,
         document.body
       )}
@@ -809,36 +846,6 @@ export function QuizzesScreen() {
           </div>
         </div>
       )}
-
-      {/* 🛡️ PROCTORING FULL SCREEN WARNING MODAL */}
-      <Modal open={showFullscreenWarning} onClose={() => {}} size="sm">
-        <div className="p-6 sm:p-8 text-center space-y-4">
-          <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
-            <AlertTriangle className="w-8 h-8" />
-          </div>
-          <div className="space-y-2">
-            <h3 className="text-xl font-extrabold text-slate-900">
-              Full Screen Exit Detected!
-            </h3>
-            <p className="text-sm font-semibold text-rose-500">
-              Warning: Attempt {fullscreenExits} of 3
-            </p>
-            <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-              Exiting full screen mode is not allowed during assessments. Exiting 3 times will result in your quiz being automatically submitted.
-            </p>
-          </div>
-          <div className="pt-3">
-            <button
-              type="button"
-              onClick={handleResumeFullscreen}
-              className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Resume Exam in Full Screen</span>
-            </button>
-          </div>
-        </div>
-      </Modal>
 
       {/* ⚠️ AUTO-SUBMITTED FEEDBACK MODAL */}
       <Modal open={autoSubmittedScore !== null} onClose={() => setAutoSubmittedScore(null)} size="sm">
