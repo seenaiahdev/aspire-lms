@@ -67,29 +67,6 @@ export function QuizzesScreen() {
     loadData(true);
   }, [user?.enrolledCourses, user?.id]);
 
-  // Real-time: refresh when the admin adds/edits quizzes, or when this student's attempts change
-  // (so a completed quiz moves to the Completed tab live).
-  useEffect(() => {
-    if (!user?.id) return;
-    const quizzesCh = supabase
-      .channel('quizzes_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, () => loadData(false))
-      .subscribe();
-    const attemptsCh = supabase
-      .channel('quiz_attempts_realtime')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` },
-        () => loadData(false)
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(quizzesCh);
-      supabase.removeChannel(attemptsCh);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
-
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<any>(() => {
     try {

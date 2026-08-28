@@ -163,45 +163,6 @@ export function RewardsScreen() {
       }
     };
     loadData();
-
-    // Set up real-time subscription for rewards table
-    const channel = supabase
-      .channel('rewards_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'rewards'
-        },
-        () => {
-          console.log("Real-time rewards table updated, reloading list...");
-          loadData(false);
-        }
-      )
-      .subscribe();
-
-    // Set up real-time subscription for reward_claims table
-    const claimsChannel = supabase
-      .channel('reward_claims_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'reward_claims'
-        },
-        () => {
-          console.log("Real-time reward claims updated, reloading list...");
-          loadData(false);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-      supabase.removeChannel(claimsChannel);
-    };
   }, [userXp, user?.id]);
 
   const unlockedCount = rewardsState.filter(r => r.isUnlocked && !claimedRewards[r.id]).length;

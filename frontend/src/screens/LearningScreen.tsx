@@ -67,41 +67,7 @@ export function LearningScreen() {
     return dbSyllabi[firstCourseId] || null;
   }, [dbSyllabi, user.enrolledCourses]);
 
-  useEffect(() => {
-    if (!user?.batchCode) return;
 
-    const locksChan = supabase
-      .channel('milestone_locks_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'milestone_locks',
-          filter: `batch_code=eq.${user.batchCode}`
-        },
-        async () => {
-          console.log('Real-time milestone locks updated, reloading...');
-          const { data: locks } = await supabase
-            .from('milestone_locks')
-            .select('lesson_id, is_locked, unlock_datetime')
-            .eq('batch_code', user.batchCode);
-          
-          if (locks) {
-            const now = new Date();
-            const freshUnlockedIds = locks
-              .filter((l: any) => !l.is_locked || (l.unlock_datetime && new Date(l.unlock_datetime) <= now))
-              .map((l: any) => l.lesson_id);
-            setLocalUnlockedLessonIds(freshUnlockedIds);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(locksChan);
-    };
-  }, [user?.batchCode]);
 
   useEffect(() => {
     async function loadSyllabi() {
@@ -216,41 +182,6 @@ export function LearningScreen() {
     }
 
     loadSyllabi();
-
-    const channels: any[] = [];
-    if (user.enrolledCourses) {
-      for (const courseId of user.enrolledCourses) {
-        const topicsChan = supabase
-          .channel(`topics_${courseId}_realtime`)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'course_topics', filter: `course_id=eq.${courseId}` },
-            () => {
-              console.log(`Real-time topics update for ${courseId}`);
-              loadSyllabi();
-            }
-          )
-          .subscribe();
-
-        const lessonsChan = supabase
-          .channel(`lessons_${courseId}_realtime`)
-          .on(
-            'postgres_changes',
-            { event: '*', schema: 'public', table: 'course_lessons', filter: `course_id=eq.${courseId}` },
-            () => {
-              console.log(`Real-time lessons update for ${courseId}`);
-              loadSyllabi();
-            }
-          )
-          .subscribe();
-
-        channels.push(topicsChan, lessonsChan);
-      }
-    }
-
-    return () => {
-      channels.forEach(ch => supabase.removeChannel(ch));
-    };
   // NOTE: localUnlockedLessonIds was intentionally removed from this dependency array.
   // Including it caused an infinite re-fetch loop: loadSyllabi → real-time channel fires
   // → setLocalUnlockedLessonIds → re-triggers loadSyllabi → repeat forever.
@@ -295,31 +226,7 @@ export function LearningScreen() {
       }
     }
 
-    loadEnrolledCourses();
-
-    // Set up a real-time listener for the courses table changes
-    if (user.enrolledCourses && user.enrolledCourses.length > 0) {
-      const channel = supabase
-        .channel('courses_realtime_changes')
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, and DELETE
-            schema: 'public',
-            table: 'courses'
-          },
-          (payload) => {
-            console.log("Real-time course updates detected. Reloading courses...", payload);
-            loadEnrolledCourses();
-          }
-        )
-        .subscribe();
-
-      return () => {
-        supabase.removeChannel(channel);
-      };
-    }
-  }, [user.enrolledCourses]);
+    loadEnrolledCourses();  }, [user.enrolledCourses]);
 
   const learningItems = useMemo(() => {
     // 1. Dynamic Courses from DB

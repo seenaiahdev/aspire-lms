@@ -198,14 +198,9 @@ export function AssignmentsScreen() {
   // Initial load
   useEffect(() => { loadData(true); }, [loadData]);
 
-  // Real-time: refresh when the admin changes assessments, or when this student's
-  // attempts change (e.g. a submission lands) — keeps the Practice Hub live.
+  // Real-time: refresh when this student's attempts change (e.g. a submission lands)
   useEffect(() => {
     if (!user?.id) return;
-    const assessmentsCh = supabase
-      .channel('practicehub_assessments')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, () => loadData(false))
-      .subscribe();
     const attemptsCh = supabase
       .channel('practicehub_attempts')
       .on(
@@ -215,7 +210,6 @@ export function AssignmentsScreen() {
       )
       .subscribe();
     return () => {
-      supabase.removeChannel(assessmentsCh);
       supabase.removeChannel(attemptsCh);
     };
   }, [user?.id, loadData]);

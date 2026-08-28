@@ -189,6 +189,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         )
         .subscribe();
 
+      const locksFilter = user.batchCode ? `batch_code=eq.${user.batchCode}` : undefined;
+
       const locksChannel = supabase
         .channel('milestone_locks_realtime')
         .on(
@@ -196,7 +198,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
           {
             event: '*',
             schema: 'public',
-            table: 'milestone_locks'
+            table: 'milestone_locks',
+            ...(locksFilter ? { filter: locksFilter } : {})
           },
           () => {
             console.log("Real-time milestone locks updated inside Context, reloading...");
@@ -212,7 +215,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
           {
             event: 'UPDATE',
             schema: 'public',
-            table: 'student_profiles'
+            table: 'student_profiles',
+            filter: `student_id=eq.${user.id}`
           },
           (payload) => {
             const cached = localStorage.getItem('aspire_cached_user');
@@ -236,7 +240,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
           {
             event: '*',
             schema: 'public',
-            table: 'submissions'
+            table: 'submissions',
+            filter: `student_id=eq.${user.id}`
           },
           () => {
             console.log("Real-time practice submissions changed, reloading User XP context...");
@@ -252,7 +257,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
           {
             event: '*',
             schema: 'public',
-            table: 'assignment_submissions'
+            table: 'assignment_submissions',
+            filter: `student_id=eq.${user.id}`
           },
           () => {
             console.log("Real-time assessment submissions changed, reloading User XP context...");
@@ -269,7 +275,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         supabase.removeChannel(attemptsChannel);
       };
     }
-  }, [refetchUser]);
+  }, [refetchUser, user?.id, user?.batchCode]);
 
   const updateUser = (updates: Partial<ExtendedUser>) => {
     setUser((prevUser) => {

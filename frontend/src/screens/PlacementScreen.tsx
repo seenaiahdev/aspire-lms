@@ -196,34 +196,7 @@ export function PlacementScreen() {
 
     if (user?.batchCategory) {
       loadJobsAndResources();
-    }
-
-    // Real-time subscription for placement prep resources table
-    const prepChannel = supabase
-      .channel('placement_resources_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'placement_resources'
-        },
-        async () => {
-          console.log("Real-time placement prep resources updated, reloading...");
-          try {
-            const prepData = await fetchPlacementResources();
-            setPrepList(prepData || []);
-          } catch (err) {
-            console.error(err);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(prepChannel);
-    };
-  }, [user?.batchCategory, user?.batchCode, user?.id]);
+    }  }, [user?.batchCategory, user?.batchCode, user?.id]);
 
   const totalCount = jobsList.length;
   const appliedCount = jobsList.filter((j) => j.status === 'applied').length;

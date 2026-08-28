@@ -221,72 +221,7 @@ export function CourseScreen() {
       }
     }
 
-    fetchCourseAndSyllabus();
-
-    // Setup real-time updates for courses, topics, and lessons
-    const coursesChannel = supabase
-      .channel('course_details_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'courses',
-          filter: `id=eq.${courseIdToFetch}`
-        },
-        (payload) => {
-          console.log("Real-time course detail update:", payload.new);
-          setDbCourse(payload.new);
-        }
-      )
-      .subscribe();
-
-    const topicsChannel = supabase
-      .channel('course_topics_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'course_topics',
-          filter: `course_id=eq.${courseIdToFetch}`
-        },
-        () => {
-          console.log("Real-time course_topics update, reloading...");
-          supabase.from('course_topics').select('*').eq('course_id', courseIdToFetch).order('id', { ascending: true })
-            .then(({ data }) => {
-              if (data) setCourseDataLists((prev) => ({ ...prev, topics: data }));
-            });
-        }
-      )
-      .subscribe();
-
-    const lessonsChannel = supabase
-      .channel('course_lessons_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'course_lessons',
-          filter: `course_id=eq.${courseIdToFetch}`
-        },
-        () => {
-          console.log("Real-time course_lessons update, reloading...");
-          supabase.from('course_lessons').select('*').eq('course_id', courseIdToFetch).order('sort_order', { ascending: true })
-            .then(({ data }) => {
-              if (data) setCourseDataLists((prev) => ({ ...prev, lessons: data }));
-            });
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(coursesChannel);
-      supabase.removeChannel(topicsChannel);
-      supabase.removeChannel(lessonsChannel);
-    };
-  }, [courseIdToFetch]);
+    fetchCourseAndSyllabus();  }, [courseIdToFetch]);
 
   const course = useMemo(() => {
     // If not loaded yet from Supabase, return a loading placeholder

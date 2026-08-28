@@ -59,26 +59,6 @@ export function ResourcesScreen() {
       }
     };
     load(true);
-
-    const channel = supabase
-      .channel('resources_realtime')
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'placement_resources'
-        },
-        () => {
-          console.log("Real-time resources updated, reloading...");
-          load(false);
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user?.id, user?.enrolledCourses?.[0]]);
 
   const handleDownload = (id: string, title: string, linkUrl?: string) => {
