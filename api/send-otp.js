@@ -38,17 +38,71 @@ module.exports = async (req, res) => {
       service: 'gmail',
       auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
     });
+
+    const displayName = (student.name || 'there').toString();
+    const year = new Date().getFullYear();
+
+    const html = `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5fb;margin:0;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+  <tr>
+    <td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #ececf3;">
+        <tr>
+          <td style="background:#5b21b6;background:linear-gradient(135deg,#6d28d9 0%,#4c1d95 100%);padding:26px 32px;">
+            <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.3px;">Aspire<span style="color:#c4b5fd;">Next</span></span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:36px 32px 4px;">
+            <p style="margin:0 0 6px;font-size:15px;color:#111827;font-weight:600;">Hi ${displayName},</p>
+            <p style="margin:0 0 24px;font-size:14px;line-height:22px;color:#4b5563;">Use the verification code below to sign in to your AspireNext account. This code is valid for <strong>5 minutes</strong>.</p>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td align="center" style="padding:4px 0 24px;">
+                  <div style="display:inline-block;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:18px 34px;">
+                    <span style="font-size:34px;font-weight:800;letter-spacing:10px;color:#5b21b6;">${code}</span>
+                  </div>
+                </td>
+              </tr>
+            </table>
+            <p style="margin:0 0 26px;font-size:13px;line-height:20px;color:#6b7280;">If you didn't request this code, you can safely ignore this email — no changes will be made to your account.</p>
+          </td>
+        </tr>
+        <tr><td style="padding:0 32px;"><div style="border-top:1px solid #eef0f5;"></div></td></tr>
+        <tr>
+          <td style="padding:18px 32px 30px;">
+            <p style="margin:0;font-size:12px;line-height:18px;color:#9ca3af;">For your security, never share this code with anyone. AspireNext staff will never ask you for it.</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#fafafe;padding:18px 32px;border-top:1px solid #eef0f5;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">© ${year} AspireNext · Learn. Practice. Achieve.</p>
+            <p style="margin:6px 0 0;font-size:11px;color:#b6bcc9;">This is an automated message — please do not reply.</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+</table>`;
+
+    const text = `AspireNext — Sign in
+
+Hi ${displayName},
+
+Your verification code is: ${code}
+This code is valid for 5 minutes.
+
+If you didn't request this, you can ignore this email.
+For your security, never share this code with anyone.
+
+© ${year} AspireNext`;
+
     await transporter.sendMail({
       from: `AspireNext <${GMAIL_USER}>`,
       to: email,
-      subject: `${code} is your AspireNext login code`,
-      html: `
-        <div style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;max-width:480px;margin:auto;padding:24px;border:1px solid #eee;border-radius:16px">
-          <h2 style="color:#7c3aed;margin:0 0 8px">AspireNext Login</h2>
-          <p style="color:#333;font-size:14px">Hi ${student.name || 'Student'}, use this one-time code to sign in:</p>
-          <div style="font-size:34px;font-weight:800;letter-spacing:8px;color:#111;margin:18px 0;text-align:center">${code}</div>
-          <p style="color:#888;font-size:12px">This code expires in 5 minutes. If you didn't request it, you can ignore this email.</p>
-        </div>`,
+      subject: `${code} is your AspireNext verification code`,
+      text,
+      html,
     });
 
     const emailHint = email.replace(/^(.).*(@.*)$/, (_, a, b) => `${a}****${b}`);
