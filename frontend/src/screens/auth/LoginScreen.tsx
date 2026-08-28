@@ -1,20 +1,43 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
+import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { useUser } from '@/lib/UserContext';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
+
+// The app handles 10-digit Indian mobile numbers; Firebase needs E.164 (+countrycode).
+const COUNTRY_CODE = '+91';
+// Firebase SMS codes are 6 digits; the demo fallback uses 4.
+const OTP_LENGTH = isFirebaseConfigured ? 6 : 4;
 
 export function LoginScreen() {
   const { navigate, login } = useNav();
   const { refetchUser } = useUser();
   const [mobile, setMobile] = useState('');
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
-  const [otp, setOtp] = useState(['', '', '', '']);
+  const [otp, setOtp] = useState<string[]>(() => new Array(OTP_LENGTH).fill(''));
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');
+
+  // Firebase phone-auth handles (only used when Firebase is configured).
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+
+  const resetRecaptcha = () => {
+    try { recaptchaRef.current?.clear(); } catch { /* ignore */ }
+    recaptchaRef.current = null;
+  };
+
+  const getRecaptcha = () => {
+    if (!recaptchaRef.current) {
+      recaptchaRef.current = new RecaptchaVerifier(getFirebaseAuth(), 'recaptcha-container', { size: 'invisible' });
+    }
+    return recaptchaRef.current;
+  };
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -33,17 +56,45 @@ export function LoginScreen() {
     setError('');
     setIsSubmitting(true);
     try {
+      // 1. Gate on Supabase: only registered students get an OTP (avoids texting strangers).
       const student = await fetchStudentByPhone(mobile);
-      setIsSubmitting(false);
       if (!student) {
+        setIsSubmitting(false);
         setError('Mobile number not registered. Please try another number.');
         return;
       }
-      // Generate a unique 4-digit verification code for the session
-      const code = Math.floor(1000 + Math.random() * 9000).toString();
-      setGeneratedOtp(code);
+
       localStorage.setItem('aspire_logged_in_mobile', mobile);
-      setStep('otp');
+      setOtp(new Array(OTP_LENGTH).fill(''));
+
+      if (isFirebaseConfigured) {
+        // 2a. Real SMS OTP via Firebase.
+        try {
+          const confirmation = await signInWithPhoneNumber(getFirebaseAuth(), `${COUNTRY_CODE}${mobile}`, getRecaptcha());
+          confirmationRef.current = confirmation;
+          setGeneratedOtp('');
+          setStep('otp');
+        } catch (fbErr: any) {
+          console.error('Firebase OTP send failed:', fbErr);
+          resetRecaptcha();
+          const code = fbErr?.code || '';
+          if (code === 'auth/too-many-requests') {
+            setError('Too many attempts. Please wait a while and try again.');
+          } else if (code === 'auth/invalid-phone-number') {
+            setError('This mobile number is not valid for SMS. Please check it.');
+          } else {
+            setError('Could not send the OTP. Please try again.');
+          }
+        } finally {
+          setIsSubmitting(false);
+        }
+      } else {
+        // 2b. Demo fallback (no Firebase config): generate a client-side code shown on screen.
+        const code = Math.floor(1000 + Math.random() * 9000).toString();
+        setGeneratedOtp(code);
+        setStep('otp');
+        setIsSubmitting(false);
+      }
     } catch (err) {
       setIsSubmitting(false);
       console.error(err);
@@ -64,7 +115,7 @@ export function LoginScreen() {
     newOtp[index] = digit;
     setOtp(newOtp);
 
-    if (index < 3) {
+    if (index < otp.length - 1) {
       const nextInput = document.getElementById(`otp-input-${index + 1}`);
       nextInput?.focus();
     }
@@ -85,26 +136,53 @@ export function LoginScreen() {
 
   const handleOtpPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 4);
+    const pastedData = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, otp.length);
     if (pastedData.length > 0) {
       const newOtp = [...otp];
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < otp.length; i++) {
         newOtp[i] = pastedData[i] || '';
       }
       setOtp(newOtp);
-      const focusIndex = Math.min(pastedData.length - 1, 3);
+      const focusIndex = Math.min(pastedData.length - 1, otp.length - 1);
       const focusInput = document.getElementById(`otp-input-${focusIndex}`);
       focusInput?.focus();
     }
   };
 
-  const handleOtpSubmit = (e: React.FormEvent) => {
+  const completeLogin = () => {
+    localStorage.setItem('aspire_logged_in', 'true');
+    refetchUser().then(() => login());
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const enteredOtp = otp.join('');
-    if (enteredOtp.length < 4) {
-      setError('Please enter the 4-digit code');
+    if (enteredOtp.length < OTP_LENGTH) {
+      setError(`Please enter the ${OTP_LENGTH}-digit code`);
       return;
     }
+
+    if (isFirebaseConfigured) {
+      // Verify the SMS code with Firebase.
+      if (!confirmationRef.current) {
+        setError('Your session expired. Please request a new code.');
+        setStep('mobile');
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        await confirmationRef.current.confirm(enteredOtp);
+        setIsSubmitting(false);
+        completeLogin();
+      } catch (err) {
+        console.error('Firebase OTP verify failed:', err);
+        setIsSubmitting(false);
+        setError('Invalid verification code. Please enter the correct code.');
+      }
+      return;
+    }
+
+    // Demo fallback: compare against the client-generated code.
     if (enteredOtp !== generatedOtp) {
       setError('Invalid verification code. Please enter the correct code.');
       return;
@@ -112,8 +190,7 @@ export function LoginScreen() {
     setIsSubmitting(true);
     setTimeout(() => {
       setIsSubmitting(false);
-      localStorage.setItem('aspire_logged_in', 'true');
-      refetchUser().then(() => login());
+      completeLogin();
     }, 600);
   };
 
@@ -125,6 +202,9 @@ export function LoginScreen() {
         background: 'radial-gradient(ellipse at 25% 30%, #321d72 0%, #47269f 45%, #0c0f26 100%)',
       }}
     >
+      {/* Invisible reCAPTCHA mount point for Firebase phone auth (anti-abuse verifier). */}
+      <div id="recaptcha-container" />
+
       {/* 3D Ambient Mesh Glow Orbs across Full Screen (Logo Midnight Navy, Royal Cobalt & Crimson Accent) */}
       <div 
         className="absolute top-[-10%] left-[-5%] w-[650px] h-[650px] rounded-full pointer-events-none opacity-40 blur-[160px] animate-[pulse_8s_infinite]"
@@ -324,10 +404,16 @@ export function LoginScreen() {
                   <p className="text-xs text-slate-500 font-normal">
                     Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span>
                   </p>
-                  <p className="text-[10px] text-primary-700 font-bold mt-2.5 flex items-center justify-center gap-1.5 bg-primary-50 px-3.5 py-1.5 rounded-xl mx-auto w-fit border border-primary-200/50 shadow-xs animate-pulse">
-                    <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-ping" /> 
-                    Verification Code: {generatedOtp}
-                  </p>
+                  {isFirebaseConfigured ? (
+                    <p className="text-[10px] text-slate-500 font-medium mt-2.5">
+                      Enter the {OTP_LENGTH}-digit code sent to your phone via SMS.
+                    </p>
+                  ) : (
+                    <p className="text-[10px] text-primary-700 font-bold mt-2.5 flex items-center justify-center gap-1.5 bg-primary-50 px-3.5 py-1.5 rounded-xl mx-auto w-fit border border-primary-200/50 shadow-xs animate-pulse">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-ping" />
+                      Verification Code: {generatedOtp}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-2.5 justify-center mb-6">

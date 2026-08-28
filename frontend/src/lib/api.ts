@@ -473,7 +473,6 @@ export async function submitQuizAttempt(
   userId: string,
   quizId: string,
   score: number,
-  rewardXp?: number,
   answers?: number[]
 ) {
   try {
@@ -485,43 +484,28 @@ export async function submitQuizAttempt(
       attempted_at: new Date().toISOString(),
     };
 
+    // Quizzes ONLY record the attempt — they do NOT award XP and do NOT affect the streak.
+    // (Only assessments and practice submissions count toward XP/streak.)
     // Persist the chosen answers when the column exists; fall back gracefully if the
     // `answers` migration has not been applied yet (unknown-column error).
-    let data: any = null;
-    {
-      const { data: withAns, error } = await supabase
-        .from('quiz_attempts')
-        .insert({ ...baseRow, answers: answers ?? [] })
-        .select()
-        .single();
-      if (error) {
-        console.warn('Quiz attempt insert with answers failed, retrying without:', error.message);
-        const { data: noAns, error: err2 } = await supabase
-          .from('quiz_attempts')
-          .insert(baseRow)
-          .select()
-          .single();
-        if (err2) {
-          console.error('Error inserting quiz attempt:', err2.message);
-          throw err2;
-        }
-        data = noAns;
-      } else {
-        data = withAns;
-      }
-    }
+    const { data: withAns, error } = await supabase
+      .from('quiz_attempts')
+      .insert({ ...baseRow, answers: answers ?? [] })
+      .select()
+      .single();
+    if (!error) return withAns;
 
-    // XP earned = score% × reward (quiz total_marks), matching the assessment formula.
-    try {
-      const reward = rewardXp ?? 100;
-      const pointsAwarded = Math.max(0, Math.round((score / 100) * reward));
-      await incrementUserXP(userId, pointsAwarded);
-      await recalculateUserStreak(userId);
-    } catch (xpErr) {
-      console.warn('Failed to increment XP / recalculate streak after quiz attempt:', xpErr);
+    console.warn('Quiz attempt insert with answers failed, retrying without:', error.message);
+    const { data: noAns, error: err2 } = await supabase
+      .from('quiz_attempts')
+      .insert(baseRow)
+      .select()
+      .single();
+    if (err2) {
+      console.error('Error inserting quiz attempt:', err2.message);
+      throw err2;
     }
-
-    return data;
+    return noAns;
   } catch (err) {
     console.error('submitQuizAttempt failed:', err);
     throw err;

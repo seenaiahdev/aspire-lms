@@ -159,7 +159,7 @@ export function QuizzesScreen() {
 
       try {
         isExitingIntentionally.current = true;
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, selectedQuiz.maxScore, answersToArray());
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray());
         await loadData();
         setAutoSubmittedScore(calculatedScore);
       } catch (err) {
@@ -296,7 +296,7 @@ export function QuizzesScreen() {
       const calculatedScore = computeScore();
 
       try {
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, selectedQuiz.maxScore, answersToArray());
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray());
         await loadData();
       } catch (err) {
         console.error('Failed to submit quiz attempt:', err);
