@@ -200,11 +200,17 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
         .filter((t: CoverTopic) => t.title);
       if (topics.length === 0) continue;
 
-      // Link the session to its lesson: prefer the Scheme A moduleId, fall back to the module name.
-      const rawLessonId = desc.moduleId || '';
-      let bId = rawLessonId ? resolveLessonId(rawLessonId) : '';
-      if (!bIds.has(bId)) {
-        bId = titleToBId.get(norm(desc.moduleName || session?.session_title)) || bId;
+      // Link the session to its lesson. Prefer the session_title matched to a course_lessons title — the
+      // session title reflects the real class content, so this auto-corrects admin mis-tags where a
+      // session's moduleId/moduleName point at the WRONG lesson (e.g. a "Bootstrap Components" session
+      // mistakenly tagged onto the Git lesson). Fall back to the Scheme A moduleId, then the module name.
+      let bId = titleToBId.get(norm(session?.session_title)) || '';
+      if (!bId) {
+        const rawLessonId = desc.moduleId || '';
+        bId = rawLessonId ? resolveLessonId(rawLessonId) : '';
+        if (!bIds.has(bId)) {
+          bId = titleToBId.get(norm(desc.moduleName)) || bId;
+        }
       }
       if (!bId) continue;
 

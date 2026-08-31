@@ -19,6 +19,7 @@ import { AccordionItem } from '@/components/ui/Accordion';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { supabase } from '@/lib/supabase';
+import { clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 
 const lessonIcons: Record<string, any> = {
   video: Play, reading: FileText, quiz: ClipboardCheck, project: FolderGit2,
@@ -109,6 +110,8 @@ export function CourseScreen() {
   const [dbSyllabus, setDbSyllabus] = useState<any>(null);
   const [courseDataLists, setCourseDataLists] = useState<{ topics: any[], lessons: any[] }>({ topics: [], lessons: [] });
   const [loading, setLoading] = useState(true);
+  // Bumped by the realtime channel to re-fetch this course's syllabus on admin edits.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const batchCategory = user.batchCategory || 'Weekday';
   const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
@@ -221,7 +224,32 @@ export function CourseScreen() {
       }
     }
 
-    fetchCourseAndSyllabus();  }, [courseIdToFetch]);
+    fetchCourseAndSyllabus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseIdToFetch, reloadKey]);
+
+  // Realtime: reflect admin edits to this course's structure/content without a manual reload.
+  useEffect(() => {
+    if (!courseIdToFetch) return;
+    let timer: any = null;
+    const bump = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        clearLessonResolverCache();
+        setReloadKey((k) => k + 1);
+      }, 600);
+    };
+    const tables = ['course_topics', 'course_lessons', 'courses', 'live_sessions'];
+    const channel = supabase.channel('course_detail_realtime');
+    tables.forEach((table) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
+    });
+    channel.subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+  }, [courseIdToFetch]);
 
   const course = useMemo(() => {
     // If not loaded yet from Supabase, return a loading placeholder

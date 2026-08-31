@@ -80,6 +80,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     (n: AppNotification, opts: { showToast?: boolean; persistDb?: boolean } = {}) => {
       const sid = userRef.current?.id;
       if (!sid || sid === 'guest') return;
+
+      // Respect the student's Settings toggles (student_profiles.notif_*). 'system'/admin-pushed and
+      // any unknown type are always allowed.
+      const prefs = userRef.current?.notifPrefs;
+      if (prefs) {
+        if (n.type === 'assignment' && prefs.assignments === false) return;
+        if (n.type === 'live' && prefs.live === false) return;
+        if (n.type === 'placement' && prefs.placement === false) return;
+      }
+
       const existing = listRef.current;
       if (existing.some((x) => x.id === n.id)) return; // dedupe
       const next = [n, ...existing].slice(0, MAX_STORED);

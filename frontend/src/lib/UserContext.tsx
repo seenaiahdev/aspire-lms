@@ -41,6 +41,7 @@ interface ExtendedUser extends User {
   enrolledCourses?: string[];
   courseProgress?: Record<string, number>;
   unlockedLessonIds?: string[];
+  notifPrefs?: { assignments: boolean; live: boolean; placement: boolean; weekly: boolean };
 }
 
 interface UserContextType {
@@ -161,6 +162,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
             enrolledCourses: effectiveCourses,
             courseProgress: profile?.course_progress || {},
             unlockedLessonIds: unlockedLessonIds,
+            notifPrefs: {
+              assignments: profile?.notif_assignments ?? true,
+              live: profile?.notif_live ?? true,
+              placement: profile?.notif_placement ?? true,
+              weekly: profile?.notif_weekly ?? true,
+            },
           };
 
           setUser(updatedUser);
