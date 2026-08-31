@@ -93,7 +93,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             const { data: locks } = await supabase
               .from('milestone_locks')
               .select('lesson_id, is_locked, unlock_datetime')
-              .eq('batch_code', student.batch);
+              .in('batch_code', [student.batch, 'ALL']);
             
             if (locks) {
               const now = new Date();
@@ -189,7 +189,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         )
         .subscribe();
 
-      const locksFilter = user.batchCode ? `batch_code=eq.${user.batchCode}` : undefined;
+      // Include global ("ALL") locks alongside the student's own batch.
+      const locksFilter = user.batchCode ? `batch_code=in.(${user.batchCode},ALL)` : undefined;
 
       const locksChannel = supabase
         .channel('milestone_locks_realtime')
