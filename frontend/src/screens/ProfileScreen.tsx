@@ -206,7 +206,7 @@ export function ProfileScreen() {
           </div>
  
           {/* Stats Bar */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/20">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-8 pt-6 border-t border-white/20">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
               <p className="text-3xl font-black tracking-tight">{displayBatch}</p>
               <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Batch</p>
@@ -218,12 +218,8 @@ export function ProfileScreen() {
               <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Reg No</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
-              <p className="text-3xl font-black tracking-tight">{(user.gpa ?? user.rank ?? 0).toFixed(2)}</p>
-              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">GPA</p>
-            </div>
-            <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
-              <p className="text-3xl font-black tracking-tight">{user.status || 'Active'}</p>
-              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Status</p>
+              <p className="text-3xl font-black tracking-tight">{totalXP} XP</p>
+              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Total XP</p>
             </div>
           </div>
         </div>
