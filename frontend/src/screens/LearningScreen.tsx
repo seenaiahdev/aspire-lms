@@ -915,7 +915,7 @@ export function LearningScreen() {
                                     </span>
                                   </div>
                                 </div>
-                                <button onClick={() => { setSelectedTopicDrawer(null); navigate('lesson'); }} className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all">
+                                <button onClick={() => { setSelectedTopicDrawer(null); navigate('lesson', { id: user.enrolledCourses?.[0], lesson: lesson.id }); }} className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all">
                                   <span>WATCH</span><ExternalLink className="w-3 h-3" />
                                 </button>
                               </div>
