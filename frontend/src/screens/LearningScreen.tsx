@@ -85,6 +85,16 @@ export function LearningScreen() {
         // assessments/projects nest under the correct lesson in the tree.
         const resolver = await getLessonResolver(user.enrolledCourses, user.batchCode || '');
 
+        // The student's completed coursework → drives the milestone completion ticks.
+        const [aaRes, qaRes, psRes] = await Promise.all([
+          supabase.from('assessment_attempts').select('assignment_id').eq('student_id', user.id),
+          supabase.from('quiz_attempts').select('quiz_id').eq('user_id', user.id),
+          supabase.from('practice_submissions').select('problem_id').eq('student_id', user.id),
+        ]);
+        const doneAssess = new Set((aaRes.data || []).map((r: any) => r.assignment_id));
+        const doneQuiz = new Set((qaRes.data || []).map((r: any) => r.quiz_id));
+        const donePractice = new Set((psRes.data || []).map((r: any) => r.problem_id));
+
         await Promise.all(user.enrolledCourses.map(async (courseId) => {
           const [
             { data: topics },
@@ -131,41 +141,37 @@ export function LearningScreen() {
                         ? quizzes.filter((q: any) => resolver.resolveLessonId(q.inner_topic_id) === l.id)
                         : [];
 
+                      const practices = dbPractices.map((cq: any) => ({
+                        id: cq.id, title: cq.title, duration: '20m', completed: donePractice.has(cq.id)
+                      }));
+                      const lessonAssessments = dbAssessments.map((asmnt: any) => ({
+                        id: asmnt.id, title: asmnt.title, duration: `${asmnt.duration_minutes || 15}m`, completed: doneAssess.has(asmnt.id)
+                      }));
+                      const lessonProjects = dbProjects.map((p: any) => ({
+                        id: p.id, title: p.title, type: p.type || 'mini', completed: donePractice.has(p.id)
+                      }));
+                      const lessonQuizzes = dbQuizzes.map((q: any) => ({
+                        id: q.id, title: q.title, duration: `${q.duration_minutes || 30}m`, completed: doneQuiz.has(q.id)
+                      }));
+                      // A lesson counts as completed when it has coursework and all of it is done.
+                      const items = [...practices, ...lessonAssessments, ...lessonProjects, ...lessonQuizzes];
+                      const lessonCompleted = items.length > 0 && items.every((it: any) => it.completed);
+
                       return {
                         id: l.id,
                         title: l.title,
                         description: l.description,
-                        completed: false,
+                        completed: lessonCompleted,
                         coverTopics: resolver.getCoverTopics(l.id),
                         video: {
                           preview: idx === 0, // Unlock state is checked at render time via localUnlockedLessonIds
                           duration: '45m',
                           completed: false
                         },
-                        practices: dbPractices.map((cq: any) => ({
-                          id: cq.id,
-                          title: cq.title,
-                          duration: '20m',
-                          completed: false
-                        })),
-                        assessments: dbAssessments.map((asmnt: any) => ({
-                          id: asmnt.id,
-                          title: asmnt.title,
-                          duration: `${asmnt.duration_minutes || 15}m`,
-                          completed: false
-                        })),
-                        projects: dbProjects.map((p: any) => ({
-                          id: p.id,
-                          title: p.title,
-                          type: p.type || 'mini',
-                          completed: false
-                        })),
-                        quizzes: dbQuizzes.map((q: any) => ({
-                          id: q.id,
-                          title: q.title,
-                          duration: `${q.duration_minutes || 30}m`,
-                          completed: false
-                        }))
+                        practices,
+                        assessments: lessonAssessments,
+                        projects: lessonProjects,
+                        quizzes: lessonQuizzes
                       };
                     })
                   };
@@ -248,6 +254,8 @@ export function LearningScreen() {
     const tables = [
       'live_sessions', 'course_lessons', 'course_topics', 'assessments',
       'quizzes', 'projects', 'coding_questions', 'milestones_data',
+      // The student's own completions → refresh the milestone ticks live.
+      'assessment_attempts', 'quiz_attempts', 'practice_submissions',
     ];
     const channel = supabase.channel('learning_content_realtime');
     tables.forEach((table) => {
@@ -930,13 +938,19 @@ export function LearningScreen() {
                                      </span>
                                    </div>
                                  </div>
-                                 <button 
-                                   onClick={() => { setSelectedTopicDrawer(null); navigate('practice'); }} 
+                                 {practice.completed ? (
+                                   <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                     <CheckCircle2 className="w-4 h-4" /> Done
+                                   </span>
+                                 ) : (
+                                 <button
+                                   onClick={() => { setSelectedTopicDrawer(null); navigate('practice'); }}
                                    className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95"
                                  >
                                    <span>SOLVE</span>
                                    <ExternalLink className="w-3 h-3" />
                                  </button>
+                                 )}
                                </div>
                              ))}
 
@@ -957,13 +971,19 @@ export function LearningScreen() {
                                      </span>
                                    </div>
                                  </div>
-                                 <button 
-                                   onClick={() => { setSelectedTopicDrawer(null); navigate('assignments'); }} 
+                                 {assessment.completed ? (
+                                   <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                     <CheckCircle2 className="w-4 h-4" /> Done
+                                   </span>
+                                 ) : (
+                                 <button
+                                   onClick={() => { setSelectedTopicDrawer(null); navigate('assignments'); }}
                                    className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95"
                                  >
                                    <span>TAKE</span>
                                    <ExternalLink className="w-3 h-3" />
                                  </button>
+                                 )}
                                </div>
                              ))}
 
@@ -984,13 +1004,19 @@ export function LearningScreen() {
                                       </span>
                                     </div>
                                   </div>
-                                  <button 
-                                    onClick={() => { setSelectedTopicDrawer(null); navigate('quizzes'); }} 
+                                  {quiz.completed ? (
+                                    <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                                      <CheckCircle2 className="w-4 h-4" /> Done
+                                    </span>
+                                  ) : (
+                                  <button
+                                    onClick={() => { setSelectedTopicDrawer(null); navigate('quizzes'); }}
                                     className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
                                   >
                                     <span>TAKE</span>
                                     <ExternalLink className="w-3 h-3" />
                                   </button>
+                                  )}
                                 </div>
                               ))}
 
