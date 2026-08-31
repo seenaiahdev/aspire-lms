@@ -191,30 +191,11 @@ export function LiveClassesScreen() {
             const isReminderSet = reminders[cls.id];
             return (
               <Card key={cls.id} id={index === 0 ? 'tour-live-card-0' : undefined} className="relative overflow-hidden group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white">
-                {cls.status === 'completed' && (
-                  <div 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    className="absolute inset-0 bg-[#090b14]/75 backdrop-blur-md z-30 flex flex-col items-center justify-center select-none cursor-not-allowed rounded-2xl p-4 text-center"
-                  >
-                    <div className="space-y-3">
-                      <div className="w-14 h-14 rounded-full border border-slate-700/80 bg-[#0c0f1d] flex items-center justify-center shadow-2xl mx-auto">
-                        <Lock className="w-5 h-5 text-slate-400 stroke-[1.8]" />
-                      </div>
-                      <div className="inline-block px-3.5 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/30 text-purple-200 text-[10px] font-black uppercase tracking-widest">
-                        COMING SOON
-                      </div>
-                    </div>
-                  </div>
-                )}
                 <div 
-                  className={cn(
-                    "relative h-44 overflow-hidden",
-                    cls.status === 'completed' ? "cursor-not-allowed" : "cursor-pointer"
-                  )}
-                  onClick={(e) => {
+                  className="relative h-44 overflow-hidden cursor-pointer"
+                  onClick={() => {
                     if (cls.status === 'completed') {
-                      e.preventDefault();
-                      e.stopPropagation();
+                      navigate('recording', { id: cls.id });
                     } else if (cls.status === 'ongoing') {
                       if (cls.link) {
                         window.open(cls.link, '_blank');
@@ -240,15 +221,15 @@ export function LiveClassesScreen() {
                   )}
                   {cls.status === 'completed' && (
                     <>
-                      {/* Top Right Locked Status badge */}
-                      <div className="absolute top-3 right-3 bg-slate-900/95 border border-slate-700/80 px-2.5 py-1 rounded-xl backdrop-blur-md flex items-center gap-1.5 shadow-md">
-                        <Lock className="w-3.5 h-3.5 text-purple-300" />
-                        <span className="text-[9px] font-black text-purple-250 tracking-wider uppercase">Locked</span>
+                      {/* Top Right Recorded Status badge */}
+                      <div className="absolute top-3 right-3 bg-slate-900/90 border border-slate-700/80 px-2.5 py-1 rounded-xl backdrop-blur-md flex items-center gap-1.5 shadow-md">
+                        <Play className="w-3 h-3 text-purple-300 fill-purple-300" />
+                        <span className="text-[9px] font-black text-purple-200 tracking-wider uppercase">Recorded</span>
                       </div>
-                      {/* Circular lock icon overlay in center of thumbnail */}
+                      {/* Center Play Button */}
                       <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-14 h-14 rounded-full bg-[#0c0f1d]/90 border border-slate-700/85 flex items-center justify-center shadow-2xl">
-                          <Lock className="w-5 h-5 text-slate-400 stroke-[1.8]" />
+                        <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md border border-white/40 flex items-center justify-center text-white group-hover:scale-110 group-hover:bg-[#7c3aed] transition-all shadow-lg">
+                          <Play className="w-5 h-5 fill-white ml-0.5" />
                         </div>
                       </div>
                     </>
@@ -290,11 +271,10 @@ export function LiveClassesScreen() {
                   </button>
                 ) : cls.status === 'completed' ? (
                   <button 
-                    onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                    className="w-full py-3 rounded-xl bg-purple-50/40 text-[#7c3aed]/40 text-xs font-extrabold flex items-center justify-center gap-2 border border-purple-100/30 cursor-not-allowed select-none"
-                    disabled
+                    onClick={() => navigate('recording', { id: cls.id })}
+                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 cursor-pointer"
                   >
-                    <Lock className="w-4 h-4 text-[#7c3aed]/40" /> Watch Recording (Locked)
+                    <Play className="w-4 h-4 fill-white" /> Watch Recording
                   </button>
                 ) : (
                   <button 

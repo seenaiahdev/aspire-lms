@@ -18,7 +18,7 @@ export function RecordingScreen() {
   const [recording, setRecording] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
   
-  const [isLocked, setIsLocked] = useState(true);
+  const [isLocked, setIsLocked] = useState(false);
   const [playing, setPlaying] = useState(true);
   const [tab, setTab] = useState('overview');
   const [isBookmarked, setIsBookmarked] = useState(false);
