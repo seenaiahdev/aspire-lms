@@ -313,7 +313,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
       progressChannel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, bumpProgress)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` }, bumpProgress)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, bumpProgress);
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, bumpProgress)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress', filter: `student_id=eq.${user.id}` }, bumpProgress);
       // Coursework totals (any change re-derives the denominator).
       ['assessments', 'quizzes', 'coding_questions', 'projects'].forEach((table) => {
         progressChannel.on('postgres_changes', { event: '*', schema: 'public', table }, bumpProgress);

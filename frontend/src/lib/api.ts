@@ -1045,34 +1045,70 @@ export async function recalculateUserStreak(userId: string, currentStreak?: numb
   }
 }
 
+/** Mark a lesson (video) as completed for a student — idempotent upsert on a deterministic id. */
+export async function markLessonComplete(userId: string, lessonId: string, courseId?: string): Promise<void> {
+  try {
+    await supabase.from('lesson_progress').upsert(
+      {
+        id: `lp-${userId}-${lessonId}`,
+        student_id: userId,
+        lesson_id: lessonId,
+        course_id: courseId || null,
+        completed: true,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'id' }
+    );
+  } catch (e) {
+    console.warn('markLessonComplete skipped:', e);
+  }
+}
+
+/** Returns the set of lesson ids this student has marked complete. */
+export async function fetchCompletedLessons(userId: string): Promise<Set<string>> {
+  try {
+    const { data } = await supabase
+      .from('lesson_progress')
+      .select('lesson_id, completed')
+      .eq('student_id', userId);
+    return new Set((data || []).filter((r: any) => r.completed).map((r: any) => r.lesson_id));
+  } catch {
+    return new Set();
+  }
+}
+
 /**
- * Computes a student's completion % for a course from their real coursework: how many of the course's
- * assessments + quizzes + coding practices + projects the student has attempted/submitted, over the total.
- * Pure read — does not write. There is no separate lesson-completion signal, so progress tracks coursework.
+ * Computes a student's completion % for a course. Every VIDEO LESSON and every coursework item
+ * (assessment + quiz + coding practice + project) counts as ONE unit; a lesson is "done" when the student
+ * marks it complete (lesson_progress), coursework when attempted/submitted. Pure read — does not write.
  */
 export async function computeCourseProgress(userId: string, courseId: string): Promise<number> {
   try {
-    const [aRes, qRes, cRes, pRes] = await Promise.all([
+    const [lRes, aRes, qRes, cRes, pRes] = await Promise.all([
+      supabase.from('course_lessons').select('id').eq('course_id', courseId),
       supabase.from('assessments').select('id').eq('course_id', courseId),
       supabase.from('quizzes').select('id').eq('course_id', courseId),
       supabase.from('coding_questions').select('id').eq('course_id', courseId),
       supabase.from('projects').select('id').eq('course_id', courseId),
     ]);
+    const lessonIds = new Set((lRes.data || []).map((r: any) => r.id));
     const assessIds = new Set((aRes.data || []).map((r: any) => r.id));
     const quizIds = new Set((qRes.data || []).map((r: any) => r.id));
     const practiceIds = new Set<string>([
       ...(cRes.data || []).map((r: any) => r.id),
       ...(pRes.data || []).map((r: any) => r.id),
     ]);
-    const total = assessIds.size + quizIds.size + practiceIds.size;
+    const total = lessonIds.size + assessIds.size + quizIds.size + practiceIds.size;
     if (total === 0) return 0;
 
-    const [aa, qa, ps] = await Promise.all([
+    const [lp, aa, qa, ps] = await Promise.all([
+      supabase.from('lesson_progress').select('lesson_id, completed').eq('student_id', userId),
       supabase.from('assessment_attempts').select('assignment_id').eq('student_id', userId),
       supabase.from('quiz_attempts').select('quiz_id').eq('user_id', userId),
       supabase.from('practice_submissions').select('problem_id').eq('student_id', userId),
     ]);
     const done =
+      new Set((lp.data || []).filter((r: any) => r.completed).map((r: any) => r.lesson_id).filter((id: any) => lessonIds.has(id))).size +
       new Set((aa.data || []).map((r: any) => r.assignment_id).filter((id: any) => assessIds.has(id))).size +
       new Set((qa.data || []).map((r: any) => r.quiz_id).filter((id: any) => quizIds.has(id))).size +
       new Set((ps.data || []).map((r: any) => r.problem_id).filter((id: any) => practiceIds.has(id))).size;

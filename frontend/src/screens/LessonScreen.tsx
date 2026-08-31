@@ -6,7 +6,7 @@ import {
   SkipBack, SkipForward, Maximize2, Lock, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { fetchResources } from '@/lib/api';
+import { fetchResources, markLessonComplete, fetchCompletedLessons } from '@/lib/api';
 import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -114,6 +114,8 @@ export function LessonScreen() {
 
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(new Set());
+  const [markingComplete, setMarkingComplete] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState('1.0x');
   const [quality, setQuality] = useState('1080p');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -287,7 +289,7 @@ export function LessonScreen() {
     };
     const tables = [
       'live_sessions', 'course_lessons', 'course_topics', 'assessments',
-      'quizzes', 'projects', 'coding_questions', 'milestones_data',
+      'quizzes', 'projects', 'coding_questions', 'milestones_data', 'lesson_progress',
     ];
     const channel = supabase.channel('lesson_content_realtime');
     tables.forEach((table) => {
@@ -364,6 +366,26 @@ export function LessonScreen() {
   const currentLesson = allLessons[safeCurrentIdx];
   const prevLesson = safeCurrentIdx > 0 ? allLessons[safeCurrentIdx - 1] : null;
   const nextLesson = safeCurrentIdx < allLessons.length - 1 ? allLessons[safeCurrentIdx + 1] : null;
+
+  const lessonDone = !!currentLesson && completedLessonIds.has(currentLesson.id);
+
+  // Load which lessons this student has already marked complete (re-runs on realtime reload).
+  useEffect(() => {
+    if (!user?.id || user.id === 'guest') return;
+    let alive = true;
+    fetchCompletedLessons(user.id).then((s) => { if (alive) setCompletedLessonIds(s); });
+    return () => { alive = false; };
+  }, [user?.id, reloadKey]);
+
+  const handleMarkComplete = async () => {
+    if (!currentLesson || !user?.id || lessonDone) return;
+    setMarkingComplete(true);
+    setCompletedLessonIds((prev) => new Set(prev).add(currentLesson.id)); // optimistic
+    try {
+      await markLessonComplete(user.id, currentLesson.id, courseIdToFetch);
+    } catch { /* stays optimistic; realtime will reconcile */ }
+    setMarkingComplete(false);
+  };
 
   const currentStageIndex = course.stages?.findIndex((s: any) => 
     s.modules.some((m: any) => m.lessons.some((l: any) => l.id === currentLesson?.id))
@@ -602,6 +624,21 @@ export function LessonScreen() {
 
           {/* Lesson Navigation Actions */}
           <div className="flex items-center gap-2 shrink-0">
+            {lessonDone ? (
+              <span className="inline-flex items-center gap-1.5 rounded-xl font-extrabold text-xs px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                <Check className="w-4 h-4" /> Completed
+              </span>
+            ) : (
+              <Button
+                size="sm"
+                onClick={handleMarkComplete}
+                disabled={markingComplete}
+                leftIcon={<Check className="w-4 h-4" />}
+                className="rounded-xl font-extrabold text-xs bg-emerald-500 hover:bg-emerald-600 text-white"
+              >
+                Mark as Complete
+              </Button>
+            )}
             {!sidebarOpen && (
               <Button
                 size="sm"

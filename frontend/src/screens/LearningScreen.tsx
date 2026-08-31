@@ -12,6 +12,7 @@ import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchCoursesByIds } from '@/lib/api';
 import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
+import { fetchCompletedLessons } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 import { learningSteps } from '@/lib/tourSteps';
@@ -85,11 +86,12 @@ export function LearningScreen() {
         // assessments/projects nest under the correct lesson in the tree.
         const resolver = await getLessonResolver(user.enrolledCourses, user.batchCode || '');
 
-        // The student's completed coursework → drives the milestone completion ticks.
-        const [aaRes, qaRes, psRes] = await Promise.all([
+        // The student's completed videos + coursework → drives the milestone completion ticks & progress.
+        const [aaRes, qaRes, psRes, doneLessons] = await Promise.all([
           supabase.from('assessment_attempts').select('assignment_id').eq('student_id', user.id),
           supabase.from('quiz_attempts').select('quiz_id').eq('user_id', user.id),
           supabase.from('practice_submissions').select('problem_id').eq('student_id', user.id),
+          fetchCompletedLessons(user.id),
         ]);
         const doneAssess = new Set((aaRes.data || []).map((r: any) => r.assignment_id));
         const doneQuiz = new Set((qaRes.data || []).map((r: any) => r.quiz_id));
@@ -153,20 +155,22 @@ export function LearningScreen() {
                       const lessonQuizzes = dbQuizzes.map((q: any) => ({
                         id: q.id, title: q.title, duration: `${q.duration_minutes || 30}m`, completed: doneQuiz.has(q.id)
                       }));
-                      // A lesson counts as completed when it has coursework and all of it is done.
+                      // A lesson is complete when its video is marked done AND all its coursework is done.
+                      const videoCompleted = doneLessons.has(l.id);
                       const items = [...practices, ...lessonAssessments, ...lessonProjects, ...lessonQuizzes];
-                      const lessonCompleted = items.length > 0 && items.every((it: any) => it.completed);
+                      const lessonCompleted = videoCompleted && items.every((it: any) => it.completed);
 
                       return {
                         id: l.id,
                         title: l.title,
                         description: l.description,
                         completed: lessonCompleted,
+                        videoCompleted,
                         coverTopics: resolver.getCoverTopics(l.id),
                         video: {
                           preview: idx === 0, // Unlock state is checked at render time via localUnlockedLessonIds
                           duration: '45m',
-                          completed: false
+                          completed: videoCompleted
                         },
                         practices,
                         assessments: lessonAssessments,
@@ -214,6 +218,10 @@ export function LearningScreen() {
       const lessons = mod.lessons || [];
       let moduleAllDone = lessons.length > 0;
       for (const l of lessons) {
+        // The video lesson itself is one unit …
+        totalItems += 1;
+        if (l.videoCompleted) doneItems += 1;
+        // … plus each coursework item.
         const items = [...(l.practices || []), ...(l.assessments || []), ...(l.quizzes || []), ...(l.projects || [])];
         totalItems += items.length;
         doneItems += items.filter((it: any) => it.completed).length;
@@ -271,7 +279,7 @@ export function LearningScreen() {
       'live_sessions', 'course_lessons', 'course_topics', 'assessments',
       'quizzes', 'projects', 'coding_questions', 'milestones_data',
       // The student's own completions → refresh the milestone ticks live.
-      'assessment_attempts', 'quiz_attempts', 'practice_submissions',
+      'assessment_attempts', 'quiz_attempts', 'practice_submissions', 'lesson_progress',
     ];
     const channel = supabase.channel('learning_content_realtime');
     tables.forEach((table) => {
@@ -931,9 +939,16 @@ export function LearningScreen() {
                                     </span>
                                   </div>
                                 </div>
-                                <button onClick={() => { setSelectedTopicDrawer(null); navigate('lesson', { id: user.enrolledCourses?.[0] || '', lesson: lesson.id }); }} className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all">
-                                  <span>WATCH</span><ExternalLink className="w-3 h-3" />
-                                </button>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {lesson.videoCompleted && (
+                                    <span className="px-2 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      <CheckCircle2 className="w-4 h-4" /> Done
+                                    </span>
+                                  )}
+                                  <button onClick={() => { setSelectedTopicDrawer(null); navigate('lesson', { id: user.enrolledCourses?.[0] || '', lesson: lesson.id }); }} className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all">
+                                    <span>WATCH</span><ExternalLink className="w-3 h-3" />
+                                  </button>
+                                </div>
                               </div>
                             )}
 
