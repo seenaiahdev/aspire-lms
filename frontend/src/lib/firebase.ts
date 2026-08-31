@@ -8,7 +8,7 @@ import { getAuth, type Auth } from 'firebase/auth';
  * built-in demo OTP so login keeps working without a Firebase project.
  */
 const firebaseConfig = {
-  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || "AIzaSyCbfahCOpBprqewPzzaU84NjL7lUL74Ovg",
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || "",
   authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || "apirelms.firebaseapp.com",
   projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || "apirelms",
   storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || "apirelms.firebasestorage.app",
