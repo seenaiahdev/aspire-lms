@@ -122,7 +122,7 @@ export function CertificatesScreen() {
           const issued = !!row;
           const issuedDate = row?.issued_date
             ? new Date(row.issued_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-            : (progress >= 100 ? 'Aug 19, 2026' : undefined);
+            : undefined;
 
           return {
             id: course.id,

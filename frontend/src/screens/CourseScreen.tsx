@@ -133,16 +133,7 @@ export function CourseScreen() {
   useEffect(() => {
     async function loadReviews() {
       const dbReviews = await fetchCourseReviews(courseIdToFetch);
-      if (dbReviews && dbReviews.length > 0) {
-        setCourseReviewsList(dbReviews);
-      } else if (courseIdToFetch === 'crs-1786624019154-w') {
-        setCourseReviewsList([
-          { id: 1, author: 'Saurabh K.', rating: 5, date: '2 days ago', comment: `The course structure is exceptional. The Git and Django backend modules are very clear.` },
-          { id: 2, author: 'Megha S.', rating: 4.8, date: '1 week ago', comment: `Loved the OOP and Python fundamentals. The practice problems are very helpful.` }
-        ]);
-      } else {
-        setCourseReviewsList([]);
-      }
+      setCourseReviewsList(dbReviews && dbReviews.length > 0 ? dbReviews : []);
     }
     if (courseIdToFetch) {
       loadReviews();
@@ -313,15 +304,9 @@ export function CourseScreen() {
       ? parseFloat((ratedCourses.reduce((acc, c) => acc + Number(c.rating), 0) / ratedCourses.length).toFixed(1)) 
       : 5.0;
 
-    let role = 'LMS Specialist';
-    let bio = `${instructorName} is a senior engineer with years of experience building and optimizing large scale applications.`;
-    if (instructorName.toLowerCase().includes('siva')) {
-      role = 'Senior Software Architect';
-      bio = 'Siva V is a veteran software architect with 10+ years of experience specializing in Python, backend engineering, Distributed Systems, and AI integrations.';
-    } else if (instructorName.toLowerCase().includes('david') || instructorName.toLowerCase().includes('chen')) {
-      role = 'Career Coach & Soft Skills Mentor';
-      bio = 'David Chen is a career consultant and soft skills trainer helping students master communication, build stellar resumes, and ace technical interviews.';
-    }
+    // Instructor role/bio come from the DB when available; otherwise a neutral, non-fabricated fallback.
+    const role = dbCourse.instructor_role || 'Course Instructor';
+    const bio = dbCourse.instructor_bio || `${instructorName} leads this program.`;
 
     return {
       id: dbCourse.id,
@@ -361,16 +346,7 @@ export function CourseScreen() {
   useEffect(() => {
     if (course.id) {
       const saved = localStorage.getItem(`aspire_comments_${course.id}`);
-      if (saved) {
-        setComments(JSON.parse(saved));
-      } else {
-        const initialComments = [
-          { id: 'c_1', author: 'Vikram Singh', avatar: '', content: 'Is there a prerequisite for stage 2? Do I need to be fluent in JS?', time: '3h ago' },
-          { id: 'c_2', author: 'Anusha Goud (Mentor)', avatar: '', content: 'Basic JS is fine, Vikram. We will cover Python from scratch in Stage 2!', time: '2h ago' }
-        ];
-        setComments(initialComments);
-        localStorage.setItem(`aspire_comments_${course.id}`, JSON.stringify(initialComments));
-      }
+      setComments(saved ? JSON.parse(saved) : []);
     }
   }, [course.id]);
 

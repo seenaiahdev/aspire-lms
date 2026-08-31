@@ -1046,6 +1046,69 @@ export async function recalculateUserStreak(userId: string, currentStreak?: numb
 }
 
 /**
+ * Computes a student's completion % for a course from their real coursework: how many of the course's
+ * assessments + quizzes + coding practices + projects the student has attempted/submitted, over the total.
+ * Pure read — does not write. There is no separate lesson-completion signal, so progress tracks coursework.
+ */
+export async function computeCourseProgress(userId: string, courseId: string): Promise<number> {
+  try {
+    const [aRes, qRes, cRes, pRes] = await Promise.all([
+      supabase.from('assessments').select('id').eq('course_id', courseId),
+      supabase.from('quizzes').select('id').eq('course_id', courseId),
+      supabase.from('coding_questions').select('id').eq('course_id', courseId),
+      supabase.from('projects').select('id').eq('course_id', courseId),
+    ]);
+    const assessIds = new Set((aRes.data || []).map((r: any) => r.id));
+    const quizIds = new Set((qRes.data || []).map((r: any) => r.id));
+    const practiceIds = new Set<string>([
+      ...(cRes.data || []).map((r: any) => r.id),
+      ...(pRes.data || []).map((r: any) => r.id),
+    ]);
+    const total = assessIds.size + quizIds.size + practiceIds.size;
+    if (total === 0) return 0;
+
+    const [aa, qa, ps] = await Promise.all([
+      supabase.from('assessment_attempts').select('assignment_id').eq('student_id', userId),
+      supabase.from('quiz_attempts').select('quiz_id').eq('user_id', userId),
+      supabase.from('practice_submissions').select('problem_id').eq('student_id', userId),
+    ]);
+    const done =
+      new Set((aa.data || []).map((r: any) => r.assignment_id).filter((id: any) => assessIds.has(id))).size +
+      new Set((qa.data || []).map((r: any) => r.quiz_id).filter((id: any) => quizIds.has(id))).size +
+      new Set((ps.data || []).map((r: any) => r.problem_id).filter((id: any) => practiceIds.has(id))).size;
+
+    return Math.min(100, Math.round((done / total) * 100));
+  } catch (err) {
+    console.error('computeCourseProgress failed:', err);
+    return 0;
+  }
+}
+
+/**
+ * Auto-issues a certificate row when a course is 100% complete (idempotent via a deterministic id).
+ * Stores only metadata + a placeholder verify id — the admin attaches the real certificate_url (PDF) later.
+ */
+export async function issueCertificateIfComplete(userId: string, courseId: string, courseTitle: string): Promise<void> {
+  try {
+    await supabase.from('certificates').upsert(
+      {
+        id: `cert-${userId}-${courseId}`,
+        student_id: userId,
+        course_id: courseId,
+        title: courseTitle || 'Course Certificate',
+        verify_id: `verify-${courseId}-${userId}`,
+        issued_date: new Date().toISOString(),
+        status: 'earned',
+      },
+      { onConflict: 'id', ignoreDuplicates: true }
+    );
+  } catch (e) {
+    // Expected until the anon INSERT policy on certificates is applied.
+    console.debug('issueCertificateIfComplete skipped:', e);
+  }
+}
+
+/**
  * Records a practice/coding-lab submission in `practice_submissions` (student-keyed, clean —
  * no profiles FK / streak trigger). The actual files live in Supabase Storage; the DB keeps only
  * the URL + metadata (low DB consumption). One row per (student, problem):

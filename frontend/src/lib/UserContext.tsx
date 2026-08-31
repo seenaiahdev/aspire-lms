@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User } from '@/types';
-import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile, fetchUserSubmissions, fetchAssignmentAttempts, courseTargetsBatch } from '@/lib/api';
+import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile, fetchUserSubmissions, fetchAssignmentAttempts, courseTargetsBatch, computeCourseProgress, issueCertificateIfComplete } from '@/lib/api';
 import { supabase } from './supabase';
 
 const initialUser: ExtendedUser = {
@@ -89,10 +89,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
           // batch (courses.target_batch = "All Batches" / category / their batch code). Admin releases
           // courses by batch, so MyLearning (and all content keyed off enrolledCourses) must include them.
           let effectiveCourses: string[] = [...(student.enrolled_courses || [])];
+          const courseTitleById: Record<string, string> = {};
           try {
             const { data: allCourses } = await supabase
               .from('courses')
-              .select('id, target_batch, publish_status');
+              .select('id, title, target_batch, publish_status');
+            (allCourses || []).forEach((c: any) => { courseTitleById[c.id] = c.title; });
             const released = (allCourses || [])
               .filter((c: any) => {
                 const pub = String(c.publish_status || '').toLowerCase();
@@ -105,7 +107,31 @@ export function UserProvider({ children }: { children: ReactNode }) {
             console.warn('Failed to load batch-released courses:', e);
           }
 
-          const realProgress = profile?.progress ?? 0;
+          // Compute REAL course progress from coursework completions (there is no other progress source).
+          const newCourseProgress: Record<string, number> = { ...(profile?.course_progress || {}) };
+          for (const cid of effectiveCourses) {
+            try { newCourseProgress[cid] = await computeCourseProgress(student.id, cid); } catch {}
+          }
+          const primaryPct = effectiveCourses.length ? (newCourseProgress[effectiveCourses[0]] ?? 0) : (profile?.progress ?? 0);
+
+          // Persist only when it changed (avoids a student_profiles realtime → refetch loop).
+          const prevCP = profile?.course_progress || {};
+          const cpChanged = JSON.stringify(prevCP) !== JSON.stringify(newCourseProgress) || (profile?.progress ?? 0) !== primaryPct;
+          if (cpChanged) {
+            try {
+              await supabase.from('student_profiles')
+                .update({ course_progress: newCourseProgress, progress: primaryPct })
+                .eq('student_id', student.id);
+            } catch (e) { console.warn('Failed to persist course progress:', e); }
+          }
+          // Auto-issue a certificate for any course that is now 100% complete.
+          for (const cid of effectiveCourses) {
+            if (newCourseProgress[cid] === 100) {
+              issueCertificateIfComplete(student.id, cid, courseTitleById[cid] || 'Course Certificate');
+            }
+          }
+
+          const realProgress = primaryPct;
           const realStreak = profile?.attendance ?? 0;
           const realGpa = profile?.gpa ?? 0.00;
 
@@ -160,7 +186,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             status: student.status,
             registrationId: student.registration_id,
             enrolledCourses: effectiveCourses,
-            courseProgress: profile?.course_progress || {},
+            courseProgress: newCourseProgress,
             unlockedLessonIds: unlockedLessonIds,
             notifPrefs: {
               assignments: profile?.notif_assignments ?? true,

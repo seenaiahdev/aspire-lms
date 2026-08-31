@@ -894,12 +894,12 @@ export function QuizzesScreen() {
             </div>
 
             <div className="flex items-center justify-between text-sm">
-              <span className="font-bold text-slate-500">Final Grade</span>
+              <span className="font-bold text-slate-500">Questions Answered</span>
               <div className="flex items-baseline gap-0.5">
                 <span className="text-2xl font-black text-indigo-600">
-                  {reviewQuizAttempt?.attempt?.score}%
+                  {((reviewQuizAttempt?.attempt?.answers as any[]) || []).filter((a) => typeof a === 'number' && a >= 0).length}
                 </span>
-                <span className="text-xs font-bold text-slate-400">/ 100%</span>
+                <span className="text-xs font-bold text-slate-400">/ {reviewQuizAttempt?.quiz?.questions ?? 0}</span>
               </div>
             </div>
           </div>

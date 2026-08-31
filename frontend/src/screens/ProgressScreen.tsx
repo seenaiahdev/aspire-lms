@@ -19,8 +19,11 @@ export function ProgressScreen() {
       try {
         if (currentUser?.enrolledCourses && currentUser.enrolledCourses.length > 0) {
           const coursesData = await fetchCoursesByIds(currentUser.enrolledCourses);
-          // Mock progress for now if not available in DB
-          setEnrolled(coursesData.map(c => ({ ...c, progress: Math.floor(Math.random() * 60) + 40 })));
+          // Real progress computed from coursework completion (UserContext) — no more random mock.
+          setEnrolled(coursesData.map(c => ({
+            ...c,
+            progress: currentUser.courseProgress?.[c.id] ?? (currentUser.enrolledCourses?.[0] === c.id ? (currentUser.progress ?? 0) : 0),
+          })));
         } else {
           setEnrolled([]);
         }

@@ -405,16 +405,7 @@ export function LessonScreen() {
   useEffect(() => {
     if (course.id && currentLesson?.id) {
       const saved = localStorage.getItem(`aspire_comments_${course.id}_${currentLesson.id}`);
-      if (saved) {
-        setLessonComments(JSON.parse(saved));
-      } else {
-        const initial = [
-          { id: 'lc_1', author: 'Saurabh K.', avatar: '', content: `Can anyone explain why the bracket count logic is used here?`, time: '4h ago' },
-          { id: 'lc_2', author: 'Alex Rivera (Instructor)', avatar: '', content: `It's standard parsing logic, Saurabh. It helps match start and end blocks cleanly.`, time: '3h ago' }
-        ];
-        setLessonComments(initial);
-        localStorage.setItem(`aspire_comments_${course.id}_${currentLesson.id}`, JSON.stringify(initial));
-      }
+      setLessonComments(saved ? JSON.parse(saved) : []);
     }
   }, [course.id, currentLesson?.id]);
 
