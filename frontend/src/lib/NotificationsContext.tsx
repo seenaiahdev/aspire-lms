@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { Bell, FileText, Radio, Sparkles, Gift, X } from 'lucide-react';
+import {
+  Bell, FileText, Radio, BookOpen, GraduationCap, Gift, Award, Briefcase, HelpCircle, Code2, X
+} from 'lucide-react';
 import { useUser } from './UserContext';
 import { supabase } from './supabase';
 import {
@@ -12,7 +14,7 @@ import {
 export interface AppNotification {
   id: string;
   student_id?: string;
-  type: string;          // 'live' | 'assignment' | 'system' | 'community' | 'placement'
+  type: string;          // 'course' | 'live' | 'assignment' | 'system' | 'community' | 'placement'
   title: string;
   message: string;
   content?: string;
@@ -164,7 +166,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           {
             id: `notif-unlock-${lessonId}-${sid}`,
             student_id: sid,
-            type: 'live',
+            type: 'course',
             title: 'New lesson unlocked',
             message: titleById[lessonId]
               ? `"${titleById[lessonId]}" is now available.`
@@ -277,7 +279,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (pub && !pub.includes('publish')) return;
       if (!courseTargetsBatch(row.target_batch, batch, category)) return;
       addNotification(
-        { id: `notif-course-${row.id}`, student_id: sid, type: 'live',
+        { id: `notif-course-${row.id}`, student_id: sid, type: 'course',
           title: 'New course available', message: row.title || 'A new course was added to your learning.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
@@ -394,16 +396,112 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   );
 }
 
+export interface NotificationIconConfig {
+  Icon: React.ComponentType<{ className?: string }>;
+  bg: string;
+  toastBg: string;
+}
+
+export function getNotificationIconConfig(n: { type?: string; title?: string; message?: string }): NotificationIconConfig {
+  const title = (n.title || '').toLowerCase();
+  const type = (n.type || '').toLowerCase();
+  const msg = (n.message || '').toLowerCase();
+
+  // 1. Courses & Curriculum
+  if (type === 'course' || title.includes('course') || title.includes('curriculum') || title.includes('syllabus') || title.includes('track')) {
+    return {
+      Icon: BookOpen,
+      bg: 'bg-blue-50 text-blue-600 border border-blue-100',
+      toastBg: 'bg-gradient-to-br from-blue-600 to-indigo-600',
+    };
+  }
+
+  // 2. Lessons & Modules
+  if (title.includes('lesson') || title.includes('unlock') || title.includes('module')) {
+    return {
+      Icon: GraduationCap,
+      bg: 'bg-purple-50 text-[#7c3aed] border border-purple-100',
+      toastBg: 'bg-gradient-to-br from-[#7c3aed] to-[#6d28d9]',
+    };
+  }
+
+  // 3. Live Sessions / Webinars
+  if (type === 'live' || title.includes('live') || title.includes('class') || title.includes('session') || title.includes('webinar')) {
+    return {
+      Icon: Radio,
+      bg: 'bg-rose-50 text-rose-600 border border-rose-100',
+      toastBg: 'bg-gradient-to-br from-rose-600 to-red-600',
+    };
+  }
+
+  // 4. Quizzes
+  if (title.includes('quiz') || msg.includes('quiz')) {
+    return {
+      Icon: HelpCircle,
+      bg: 'bg-amber-50 text-amber-600 border border-amber-100',
+      toastBg: 'bg-gradient-to-br from-amber-500 to-orange-600',
+    };
+  }
+
+  // 5. Coding Projects
+  if (title.includes('project') || msg.includes('project') || title.includes('coding')) {
+    return {
+      Icon: Code2,
+      bg: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
+      toastBg: 'bg-gradient-to-br from-indigo-600 to-purple-600',
+    };
+  }
+
+  // 6. Assessments / Assignments / Tests
+  if (type === 'assignment' || title.includes('assessment') || title.includes('assignment') || title.includes('test')) {
+    return {
+      Icon: FileText,
+      bg: 'bg-amber-50 text-amber-600 border border-amber-100',
+      toastBg: 'bg-gradient-to-br from-amber-500 to-amber-600',
+    };
+  }
+
+  // 7. Badges & Achievements
+  if (title.includes('badge') || title.includes('achievement') || title.includes('trophy')) {
+    return {
+      Icon: Award,
+      bg: 'bg-amber-50 text-amber-600 border border-amber-100',
+      toastBg: 'bg-gradient-to-br from-amber-400 to-amber-600',
+    };
+  }
+
+  // 8. Swag Rewards & Store
+  if (title.includes('reward') || title.includes('swag') || title.includes('merch') || title.includes('store')) {
+    return {
+      Icon: Gift,
+      bg: 'bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100',
+      toastBg: 'bg-gradient-to-br from-fuchsia-600 to-pink-600',
+    };
+  }
+
+  // 9. Jobs & Placements
+  if (type === 'placement' || title.includes('job') || title.includes('placement') || title.includes('hiring') || title.includes('internship')) {
+    return {
+      Icon: Briefcase,
+      bg: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+      toastBg: 'bg-gradient-to-br from-emerald-600 to-teal-600',
+    };
+  }
+
+  // Default Fallback
+  return {
+    Icon: Bell,
+    bg: 'bg-purple-50 text-[#7c3aed] border border-purple-100',
+    toastBg: 'bg-gradient-to-br from-[#7c3aed] to-[#6d28d9]',
+  };
+}
+
 function NotificationToast({ n, onClose }: { n: AppNotification; onClose: () => void }) {
-  const Icon =
-    n.type === 'assignment' ? FileText :
-    n.type === 'live' ? Radio :
-    n.title.toLowerCase().includes('reward') ? Gift :
-    n.title.toLowerCase().includes('badge') ? Sparkles : Bell;
+  const { Icon, toastBg } = getNotificationIconConfig(n);
   return (
     <div className="fixed top-20 right-4 z-[100000] w-80 max-w-[90vw] animate-slide-left">
       <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-slate-200 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)]">
-        <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white flex items-center justify-center shrink-0 shadow-sm">
+        <div className={`w-9 h-9 rounded-xl ${toastBg} text-white flex items-center justify-center shrink-0 shadow-sm`}>
           <Icon className="w-4 h-4" />
         </div>
         <div className="min-w-0 flex-1">

@@ -1,6 +1,6 @@
-import { Bell, X, CheckCheck, Clock, AlertTriangle, Sparkles, FileText, Radio, Loader2 } from 'lucide-react';
+import { Bell, X, CheckCheck, Clock, Loader2 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { useNotifications } from '@/lib/NotificationsContext';
+import { useNotifications, getNotificationIconConfig } from '@/lib/NotificationsContext';
 
 export function NotificationsDrawer() {
   const { notificationsOpen, setNotificationsOpen } = useNav();
@@ -69,6 +69,7 @@ export function NotificationsDrawer() {
           ) : (
             notificationsList.map((item) => {
               const isUnread = !item.read;
+              const { Icon, bg } = getNotificationIconConfig(item);
               return (
                 <div
                   key={item.id}
@@ -84,15 +85,8 @@ export function NotificationsDrawer() {
                   )}
 
                   <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 ${
-                      item.type === 'assignment' ? 'bg-amber-100 text-amber-700' :
-                      item.type === 'class' ? 'bg-indigo-100 text-indigo-700' :
-                      item.type === 'system' ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-700'
-                    }`}>
-                      {item.type === 'assignment' ? <FileText className="w-4 h-4" /> :
-                       item.type === 'class' ? <Radio className="w-4 h-4" /> :
-                       item.type === 'system' ? <AlertTriangle className="w-4 h-4" /> :
-                       <Sparkles className="w-4 h-4" />}
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${bg}`}>
+                      <Icon className="w-4 h-4" />
                     </div>
 
                     <div className="flex-1 min-w-0 pr-4">

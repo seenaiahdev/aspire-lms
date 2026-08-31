@@ -1,19 +1,10 @@
 import { useState } from 'react';
-import { Bell, FileText, Radio, MessageCircle, Briefcase, Settings, CheckCheck, Trash2 } from 'lucide-react';
-import { useNotifications } from '@/lib/NotificationsContext';
+import { Bell, CheckCheck, Trash2 } from 'lucide-react';
+import { useNotifications, getNotificationIconConfig } from '@/lib/NotificationsContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Tabs } from '@/components/ui/Tabs';
 import { cn } from '@/lib/utils';
-import * as Icons from 'lucide-react';
-
-const typeConfig: Record<string, { color: string; icon: any }> = {
-  assignment: { color: 'warning', icon: FileText },
-  live: { color: 'error', icon: Radio },
-  community: { color: 'accent', icon: MessageCircle },
-  placement: { color: 'primary', icon: Briefcase },
-  system: { color: 'ink', icon: Settings },
-};
 
 export function NotificationsScreen() {
   const { notifications: items, unreadCount: unread, markRead, markAllRead, deleteNotification } = useNotifications();
@@ -55,8 +46,7 @@ export function NotificationsScreen() {
           </Card>
         ) : (
           filtered.map((n) => {
-            const cfg = typeConfig[n.type] || typeConfig.system;
-            const Icon = (Icons as any)[(n as any).icon] as Icons.LucideIcon || cfg.icon;
+            const { Icon, bg } = getNotificationIconConfig(n);
             return (
               <Card
                 key={n.id}
@@ -66,10 +56,10 @@ export function NotificationsScreen() {
               >
                 <div className="flex items-start gap-4">
                   <div className={cn(
-                    'w-10 h-10 rounded-xl flex items-center justify-center shrink-0',
-                    cfg.color === 'ink' ? 'bg-ink-100' : `bg-${cfg.color}-100`,
+                    'w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-2xs',
+                    bg
                   )}>
-                    <Icon className={cn('w-5 h-5', cfg.color === 'ink' ? 'text-ink-500' : `text-${cfg.color}-600`)} />
+                    <Icon className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-0.5">
