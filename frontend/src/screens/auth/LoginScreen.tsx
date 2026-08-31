@@ -1,12 +1,14 @@
-import { useState, useRef } from 'react';
-import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle, MessageSquare } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
+import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
 
-// Login OTP is emailed to the student's registered email via the /api/send-otp serverless function.
+// OTP Length is 6 digits
 const OTP_LENGTH = 6;
 
 export function LoginScreen() {
@@ -19,10 +21,26 @@ export function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');            // demo fallback code only
   const [emailHint, setEmailHint] = useState('');                  // masked email we sent to
-  const [otpMode, setOtpMode] = useState<'email' | 'demo'>('email');
+  const [otpMode, setOtpMode] = useState<'firebase' | 'email' | 'demo'>('firebase');
 
-  // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp.
+  // Firebase ConfirmationResult for SMS OTP verification
+  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
+  // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp (email fallback).
   const otpTokenRef = useRef<string>('');
+
+  // Cleanup recaptcha on unmount
+  useEffect(() => {
+    return () => {
+      if (recaptchaVerifierRef.current) {
+        try {
+          recaptchaVerifierRef.current.clear();
+        } catch (_) {}
+        recaptchaVerifierRef.current = null;
+      }
+    };
+  }, []);
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -52,7 +70,45 @@ export function LoginScreen() {
       localStorage.setItem('aspire_logged_in_mobile', mobile);
       setOtp(new Array(OTP_LENGTH).fill(''));
 
-      // 2. Ask the serverless function to email the OTP to the student's registered email.
+      // 2. Primary: Send real SMS OTP to the student's mobile number via Firebase Auth
+      if (isFirebaseConfigured) {
+        try {
+          const auth = getFirebaseAuth();
+
+          // Initialize invisible reCAPTCHA verifier if not already created
+          if (!recaptchaVerifierRef.current) {
+            recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+              size: 'invisible',
+              callback: () => {
+                // reCAPTCHA solved
+              },
+              'expired-callback': () => {
+                if (recaptchaVerifierRef.current) {
+                  try { recaptchaVerifierRef.current.clear(); } catch (_) {}
+                  recaptchaVerifierRef.current = null;
+                }
+              }
+            });
+          }
+
+          const formattedPhone = `+91${mobile}`;
+          const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifierRef.current);
+          confirmationResultRef.current = confirmation;
+          setOtpMode('firebase');
+          setGeneratedOtp('');
+          setStep('otp');
+          setIsSubmitting(false);
+          return;
+        } catch (firebaseErr: any) {
+          console.warn('Firebase SMS OTP failed, trying fallback:', firebaseErr);
+          if (recaptchaVerifierRef.current) {
+            try { recaptchaVerifierRef.current.clear(); } catch (_) {}
+            recaptchaVerifierRef.current = null;
+          }
+        }
+      }
+
+      // 3. Fallback: Ask the serverless function to email the OTP if Firebase SMS fails
       try {
         const resp = await fetch('/api/send-otp', {
           method: 'POST',
@@ -69,22 +125,17 @@ export function LoginScreen() {
           setIsSubmitting(false);
           return;
         }
-        if (resp.status === 404) {
-          setIsSubmitting(false);
-          setError('No email is on file for this number. Please contact your admin.');
-          return;
-        }
-        throw new Error(`send-otp failed: ${resp.status}`);
       } catch (apiErr) {
-        // 3. Fallback (e.g. local `npm run dev`, where /api isn't served): show a demo code on screen.
         console.warn('Email OTP unavailable, using demo code:', apiErr);
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        setGeneratedOtp(code);
-        setOtpMode('demo');
-        setEmailHint(student.email || '');
-        setStep('otp');
-        setIsSubmitting(false);
       }
+
+      // 4. Local dev / demo fallback code
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      setGeneratedOtp(code);
+      setOtpMode('demo');
+      setEmailHint(student.email || '');
+      setStep('otp');
+      setIsSubmitting(false);
     } catch (err) {
       setIsSubmitting(false);
       console.error(err);
@@ -149,6 +200,27 @@ export function LoginScreen() {
     const enteredOtp = otp.join('');
     if (enteredOtp.length < OTP_LENGTH) {
       setError(`Please enter the ${OTP_LENGTH}-digit code`);
+      return;
+    }
+
+    if (otpMode === 'firebase' && confirmationResultRef.current) {
+      setIsSubmitting(true);
+      setError('');
+      try {
+        await confirmationResultRef.current.confirm(enteredOtp);
+        setIsSubmitting(false);
+        completeLogin();
+      } catch (err: any) {
+        console.error('Firebase SMS OTP verify error:', err);
+        setIsSubmitting(false);
+        if (err?.code === 'auth/invalid-verification-code') {
+          setError('Invalid SMS OTP code. Please check the code sent to your phone.');
+        } else if (err?.code === 'auth/code-expired') {
+          setError('SMS OTP code has expired. Please request a new code.');
+        } else {
+          setError('Verification failed. Please check the code and try again.');
+        }
+      }
       return;
     }
 
@@ -382,6 +454,9 @@ export function LoginScreen() {
                   )}
                 </button>
 
+                {/* Invisible reCAPTCHA container for Firebase Phone Auth */}
+                <div id="recaptcha-container"></div>
+
                 <p className="text-[11px] text-slate-400 text-center mt-5 font-medium">
                   An OTP will be sent to your mobile number.
                 </p>
@@ -394,11 +469,18 @@ export function LoginScreen() {
                     <ShieldCheck className="w-4 h-4 text-primary-600" /> Verification Code
                   </div>
                   <p className="text-xs text-slate-500 font-normal">
-                    {otpMode === 'email' && emailHint
+                    {otpMode === 'firebase'
+                      ? <>SMS OTP sent to <span className="font-semibold text-slate-700">+91 {mobile}</span></>
+                      : otpMode === 'email' && emailHint
                       ? <>Code sent to <span className="font-semibold text-slate-700">{emailHint}</span></>
                       : <>For <span className="font-semibold text-slate-700">+91 {mobile}</span></>}
                   </p>
-                  {otpMode === 'email' ? (
+                  {otpMode === 'firebase' ? (
+                    <p className="text-[10px] text-primary-700 font-medium mt-2.5 flex items-center justify-center gap-1">
+                      <MessageSquare className="w-3 h-3 text-[#7c3aed]" />
+                      Enter the {OTP_LENGTH}-digit SMS code sent to your phone.
+                    </p>
+                  ) : otpMode === 'email' ? (
                     <p className="text-[10px] text-slate-500 font-medium mt-2.5">
                       Enter the {OTP_LENGTH}-digit code sent to your email.
                     </p>
