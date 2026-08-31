@@ -141,6 +141,32 @@ export function LiveClassesScreen() {
     }, 4000);
   };
 
+  const handleWatchRecording = async (cls: any) => {
+    const defaultCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
+    try {
+      const cleanTitle = (cls.title || '').trim();
+      const firstWords = cleanTitle.split(',')[0].split('&')[0].trim();
+      
+      const { data: matchedLessons } = await supabase
+        .from('course_lessons')
+        .select('id, title, course_id')
+        .or(`title.ilike.%${cleanTitle}%,title.ilike.%${firstWords}%`)
+        .limit(1);
+
+      if (matchedLessons && matchedLessons.length > 0) {
+        navigate('lesson', {
+          id: matchedLessons[0].course_id || defaultCourseId,
+          lesson: matchedLessons[0].id
+        });
+        return;
+      }
+    } catch (err) {
+      console.error('Error finding matching course lesson for recording:', err);
+    }
+
+    navigate('lesson', { id: defaultCourseId });
+  };
+
   const filtered = useMemo(() => {
     return mappedSessions.filter((c) =>
       tab === 'upcoming' ? c.status === 'upcoming' || c.status === 'ongoing' :
@@ -195,7 +221,7 @@ export function LiveClassesScreen() {
                   className="relative h-44 overflow-hidden cursor-pointer"
                   onClick={() => {
                     if (cls.status === 'completed') {
-                      navigate('recording', { id: cls.id });
+                      handleWatchRecording(cls);
                     } else if (cls.status === 'ongoing') {
                       if (cls.link) {
                         window.open(cls.link, '_blank');
@@ -271,7 +297,7 @@ export function LiveClassesScreen() {
                   </button>
                 ) : cls.status === 'completed' ? (
                   <button 
-                    onClick={() => navigate('recording', { id: cls.id })}
+                    onClick={() => handleWatchRecording(cls)}
                     className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 cursor-pointer"
                   >
                     <Play className="w-4 h-4 fill-white" /> Watch Recording
