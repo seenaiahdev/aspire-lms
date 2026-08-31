@@ -124,6 +124,9 @@ export function CertificatesScreen() {
             ? new Date(row.issued_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
             : undefined;
 
+          const isPython = (row?.title || course.title || '').toLowerCase().includes('python');
+          const certBg = (course.thumbnail && (course.thumbnail !== '/python-full-stack.png' || isPython)) ? course.thumbnail : undefined;
+
           return {
             id: course.id,
             courseTitle: row?.title || course.title,
@@ -134,7 +137,7 @@ export function CertificatesScreen() {
             progress: issued ? 100 : progress,
             issuedDate: issuedDate,
             verifyId: row?.verify_id || `verify-${course.id}-${user.id}`,
-            certificateBg: course.thumbnail || '/python-full-stack.png',
+            certificateBg: certBg,
             certificateUrl: row?.certificate_url || undefined,
             issued,
           };
@@ -258,13 +261,17 @@ export function CertificatesScreen() {
               <div className={cn("flex flex-col h-full justify-between transition-all duration-500", !isUnlocked && "blur-[3px] opacity-40 select-none pointer-events-none")}>
                 
                 {/* Certificate Background Image Preview */}
-                <div className="relative h-48 w-full bg-slate-900 overflow-hidden shrink-0">
-                  <img
-                    src={cert.certificateBg}
-                    alt={cert.courseTitle}
-                    loading="lazy"
-                    className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
-                  />
+                <div className="relative h-48 w-full bg-[#0c0f1d] overflow-hidden shrink-0">
+                  {cert.certificateBg ? (
+                    <img
+                      src={cert.certificateBg}
+                      alt={cert.courseTitle}
+                      loading="lazy"
+                      className="w-full h-full object-cover opacity-90 group-hover:scale-105 transition-transform duration-500"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-[#0c0f1d] via-[#161338] to-[#250d36] opacity-95" />
+                  )}
                   <div className="absolute inset-3 border-2 border-amber-400/40 rounded-xl pointer-events-none z-10 flex flex-col justify-between p-3">
                     <div className="flex justify-between items-center text-amber-300/70 text-[9px] font-black uppercase tracking-widest">
                       <span>ASPIRE NEXT</span>

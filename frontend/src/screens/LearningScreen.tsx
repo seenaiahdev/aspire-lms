@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2
+  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -16,6 +16,83 @@ import { fetchCompletedLessons } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 import { learningSteps } from '@/lib/tourSteps';
+
+export function getCourseBanner(course: { title: string; thumbnail?: string }) {
+  const title = (course.title || '').toLowerCase();
+  const thumb = course.thumbnail || '';
+  const isPythonCourse = title.includes('python');
+
+  // If thumbnail is provided and not a mismatched python-full-stack.png for a non-python course
+  if (thumb && (thumb !== '/python-full-stack.png' || isPythonCourse)) {
+    return { type: 'image' as const, url: thumb };
+  }
+
+  // Determine appropriate gradient & icon based on technology / title
+  if (title.includes('ai') || title.includes('machine learning') || title.includes('generative') || title.includes('data science') || title.includes('artificial')) {
+    return {
+      type: 'gradient' as const,
+      gradient: 'from-[#070d1e] via-[#120f2e] to-[#250d40]',
+      accentColor: 'text-violet-400',
+      tagBg: 'bg-violet-500/20 text-violet-300 border-violet-500/30',
+      Icon: Brain,
+      label: 'AI & GENERATIVE AI'
+    };
+  }
+
+  if (title.includes('java')) {
+    return {
+      type: 'gradient' as const,
+      gradient: 'from-[#140b07] via-[#24130c] to-[#38180e]',
+      accentColor: 'text-orange-400',
+      tagBg: 'bg-orange-500/20 text-orange-300 border-orange-500/30',
+      Icon: Code2,
+      label: 'JAVA FULL STACK'
+    };
+  }
+
+  if (title.includes('react') || title.includes('frontend') || title.includes('web')) {
+    return {
+      type: 'gradient' as const,
+      gradient: 'from-[#05131f] via-[#072430] to-[#0c3645]',
+      accentColor: 'text-cyan-400',
+      tagBg: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
+      Icon: Globe,
+      label: 'FRONTEND DEVELOPMENT'
+    };
+  }
+
+  if (title.includes('cloud') || title.includes('devops') || title.includes('aws') || title.includes('azure')) {
+    return {
+      type: 'gradient' as const,
+      gradient: 'from-[#091424] via-[#0d2238] to-[#172f4d]',
+      accentColor: 'text-sky-400',
+      tagBg: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
+      Icon: Server,
+      label: 'CLOUD & DEVOPS'
+    };
+  }
+
+  if (title.includes('data') || title.includes('sql') || title.includes('database')) {
+    return {
+      type: 'gradient' as const,
+      gradient: 'from-[#071917] via-[#0b2923] to-[#103a30]',
+      accentColor: 'text-emerald-400',
+      tagBg: 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30',
+      Icon: Database,
+      label: 'DATABASE & DATA'
+    };
+  }
+
+  // Default tech track gradient banner
+  return {
+    type: 'gradient' as const,
+    gradient: 'from-[#0a0f1d] via-[#151336] to-[#250d36]',
+    accentColor: 'text-purple-400',
+    tagBg: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+    Icon: Layers,
+    label: 'ADVANCED TECH TRACK'
+  };
+}
 
 export interface LearningItem {
   id: string;
@@ -345,7 +422,7 @@ export function LearningScreen() {
         categoryLabel,
         title: course.title,
         subtitle: course.description || 'Master this program.',
-        thumbnail: course.thumbnail || '/python-full-stack.png',
+        thumbnail: course.thumbnail || '',
         level: (course.level || 'Intermediate') as 'Beginner' | 'Intermediate' | 'Advanced',
         duration: durationStr,
         lessonsCount: lessonsCount,
@@ -753,28 +830,67 @@ export function LearningScreen() {
                         )}
                       >
                         {/* Thumbnail Banner */}
-                        <div className={cn("relative overflow-hidden shrink-0 bg-slate-900", view === 'grid' ? "h-48 w-full" : "h-48 sm:h-full w-full sm:w-72")}>
-                          <img src={item.thumbnail} alt={item.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-                          
-                          {/* Category Badges */}
-                          <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
-                            <span className="px-3 py-1 rounded-full bg-white/95 backdrop-blur-md text-slate-900 text-xs font-extrabold shadow-sm border border-slate-200/60">
-                              {item.categoryLabel}
-                            </span>
-                          </div>
+                        {(() => {
+                          const banner = getCourseBanner(item);
+                          return (
+                            <div className={cn("relative overflow-hidden shrink-0 bg-slate-900", view === 'grid' ? "h-48 w-full" : "h-48 sm:h-full w-full sm:w-72")}>
+                              {banner.type === 'image' ? (
+                                <>
+                                  <img src={banner.url} alt={item.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-95" />
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+                                </>
+                              ) : (
+                                <div className={cn("w-full h-full bg-gradient-to-br p-5 flex flex-col justify-between relative overflow-hidden group-hover:scale-[1.02] transition-transform duration-500", banner.gradient)}>
+                                  {/* Subtle Ambient Background Icon */}
+                                  <div className="absolute -right-6 -bottom-6 opacity-15 pointer-events-none">
+                                    <banner.Icon className="w-36 h-36 text-white" />
+                                  </div>
+                                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.12),transparent_60%)]" />
 
-                          {/* Progress Bar Badge on Image */}
-                          <div className="absolute bottom-3 left-3 right-3 z-10 space-y-1">
-                            <div className="flex items-center justify-between text-[11px] font-extrabold text-white">
-                              <span>Progress</span>
-                              <span>{item.progress}%</span>
+                                  {/* Top Banner Tag */}
+                                  <div className="relative z-10 flex items-center justify-end">
+                                    <span className={cn("px-2.5 py-1 rounded-lg text-[9px] font-black tracking-widest uppercase border backdrop-blur-md", banner.tagBg)}>
+                                      {banner.label}
+                                    </span>
+                                  </div>
+
+                                  {/* Center Tech Icon & Title */}
+                                  <div className="relative z-10 my-auto py-2">
+                                    <div className="flex items-center gap-2 mb-1.5">
+                                      <div className="w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md border border-white/15 flex items-center justify-center shadow-inner">
+                                        <banner.Icon className={cn("w-4 h-4", banner.accentColor)} />
+                                      </div>
+                                      <span className="text-white/70 text-[10px] font-bold uppercase tracking-wider">AspireNext Specialization</span>
+                                    </div>
+                                    <h4 className="text-white font-black text-sm sm:text-base leading-tight line-clamp-2 drop-shadow-sm">
+                                      {item.title}
+                                    </h4>
+                                  </div>
+
+                                  <div className="absolute inset-0 bg-gradient-to-t from-black/75 via-transparent to-transparent pointer-events-none" />
+                                </div>
+                              )}
+                              
+                              {/* Category Badges */}
+                              <div className="absolute top-3 left-3 flex items-center gap-2 z-10">
+                                <span className="px-3 py-1 rounded-full bg-white/95 backdrop-blur-md text-slate-900 text-xs font-extrabold shadow-sm border border-slate-200/60">
+                                  {item.categoryLabel}
+                                </span>
+                              </div>
+
+                              {/* Progress Bar Badge on Image */}
+                              <div className="absolute bottom-3 left-3 right-3 z-10 space-y-1">
+                                <div className="flex items-center justify-between text-[11px] font-extrabold text-white">
+                                  <span>Progress</span>
+                                  <span>{item.progress}%</span>
+                                </div>
+                                <div className="w-full h-1.5 rounded-full bg-white/30 overflow-hidden backdrop-blur-xs">
+                                  <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{ width: `${item.progress}%` }} />
+                                </div>
+                              </div>
                             </div>
-                            <div className="w-full h-1.5 rounded-full bg-white/30 overflow-hidden backdrop-blur-xs">
-                              <div className="h-full bg-emerald-400 rounded-full transition-all duration-500" style={{ width: `${item.progress}%` }} />
-                            </div>
-                          </div>
-                        </div>
+                          );
+                        })()}
 
                         {/* Card Body */}
                         <div className={cn("p-5 space-y-4 flex-1 flex flex-col justify-between", view === 'list' && "sm:p-6")}>
