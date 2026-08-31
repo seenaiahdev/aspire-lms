@@ -8,11 +8,13 @@ import { getAuth, type Auth } from 'firebase/auth';
  * built-in demo OTP so login keeps working without a Firebase project.
  */
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string | undefined,
+  apiKey: (import.meta.env.VITE_FIREBASE_API_KEY as string) || "AIzaSyCbfahCOpBprqewPzzaU84NjL7lUL74Ovg",
+  authDomain: (import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string) || "apirelms.firebaseapp.com",
+  projectId: (import.meta.env.VITE_FIREBASE_PROJECT_ID as string) || "apirelms",
+  storageBucket: (import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string) || "apirelms.firebasestorage.app",
+  messagingSenderId: (import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID as string) || "360412624184",
+  appId: (import.meta.env.VITE_FIREBASE_APP_ID as string) || "1:360412624184:web:15348ef41365a669ac7dcd",
+  measurementId: (import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string) || "G-CCYDPR31QQ",
 };
 
 /** True only when the minimum config needed for phone auth is present. */
