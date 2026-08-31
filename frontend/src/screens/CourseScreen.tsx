@@ -150,8 +150,11 @@ export function CourseScreen() {
   }, [courseIdToFetch]);
 
   useEffect(() => {
-    const { topics, lessons } = courseDataLists;
-    if (topics && topics.length > 0 && lessons && lessons.length > 0) {
+    const { topics } = courseDataLists;
+    const lessons = courseDataLists.lessons || [];
+    // Render stages as soon as the admin creates them — a stage with no modules/lessons yet should
+    // still show (its content fills in as the admin adds it), not collapse the whole syllabus to "0 stages".
+    if (topics && topics.length > 0) {
       const stages = topics.map(topic => {
         const subtopics = topic.subtopics || [];
         return {

@@ -6,6 +6,7 @@ import { supabase } from './supabase';
 import {
   fetchNotifications, persistNotification,
   updateNotificationReadStatus, markAllNotificationsAsRead, deleteNotificationRow,
+  courseTargetsBatch,
 } from './api';
 
 export interface AppNotification {
@@ -184,6 +185,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const sid = user?.id;
     if (!sid || sid === 'guest') return;
     const batch = user?.batchCode || '';
+    const category = user?.batchCategory || '';
     const courses = user?.enrolledCourses || [];
 
     const channels: any[] = [];
@@ -267,6 +269,74 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       );
     });
 
+    // New course released to this student's batch (INSERT, or UPDATE that publishes it)
+    sub('notif_courses', 'courses', (payload) => {
+      if (payload.eventType === 'DELETE') return;
+      const row = payload.new || {};
+      const pub = norm(row.publish_status);
+      if (pub && !pub.includes('publish')) return;
+      if (!courseTargetsBatch(row.target_batch, batch, category)) return;
+      addNotification(
+        { id: `notif-course-${row.id}`, student_id: sid, type: 'live',
+          title: 'New course available', message: row.title || 'A new course was added to your learning.',
+          read: false, created_at: new Date().toISOString() },
+        { showToast: true, persistDb: true }
+      );
+    });
+
+    // New quizzes (INSERT) for the student's batch or course
+    sub('notif_quizzes', 'quizzes', (payload) => {
+      if (payload.eventType !== 'INSERT') return;
+      const row = payload.new || {};
+      if (!(targetsBatch(row.target_batch, batch) || courses.includes(row.course_id))) return;
+      addNotification(
+        { id: `notif-quiz-${row.id}`, student_id: sid, type: 'assignment',
+          title: 'New quiz posted', message: row.title || 'A new quiz is available.',
+          read: false, created_at: new Date().toISOString() },
+        { showToast: true, persistDb: true }
+      );
+    });
+
+    // New placement resources (INSERT, published)
+    sub('notif_placement_resources', 'placement_resources', (payload) => {
+      if (payload.eventType !== 'INSERT') return;
+      const row = payload.new || {};
+      const pub = norm(row.publish_status);
+      if (pub && !pub.includes('publish')) return;
+      addNotification(
+        { id: `notif-plres-${row.id}`, student_id: sid, type: 'placement',
+          title: 'New placement resource', message: row.title || 'A new placement resource is available.',
+          read: false, created_at: new Date().toISOString() },
+        { showToast: true, persistDb: true }
+      );
+    });
+
+    // New jobs (INSERT) targeted to the student's batch
+    sub('notif_jobs', 'jobs', (payload) => {
+      if (payload.eventType !== 'INSERT') return;
+      const row = payload.new || {};
+      if (!targetsBatch(row.target_batch, batch)) return;
+      addNotification(
+        { id: `notif-job-${row.id}`, student_id: sid, type: 'placement',
+          title: 'New job posted', message: row.job_title || row.company || 'A new job opening is available.',
+          read: false, created_at: new Date().toISOString() },
+        { showToast: true, persistDb: true }
+      );
+    });
+
+    // Certificate issued for this student (INSERT)
+    sub('notif_certificates', 'certificates', (payload) => {
+      if (payload.eventType !== 'INSERT') return;
+      const row = payload.new || {};
+      if (row.student_id !== sid) return;
+      addNotification(
+        { id: `notif-cert-${row.id}`, student_id: sid, type: 'system',
+          title: 'Certificate issued 🎉', message: row.title || 'Your certificate is ready.',
+          read: false, created_at: new Date().toISOString() },
+        { showToast: true, persistDb: true }
+      );
+    }, `student_id=eq.${sid}`);
+
     // Admin notifications inserted directly into the notifications table for this student
     sub('notif_admin', 'notifications', (payload) => {
       if (payload.eventType === 'DELETE') return;
@@ -282,7 +352,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     return () => { channels.forEach((c) => supabase.removeChannel(c)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, user?.batchCode, (user?.enrolledCourses || []).join(',')]);
+  }, [user?.id, user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(',')]);
 
   // ── Actions ──
   const markRead = useCallback((id: string) => {
