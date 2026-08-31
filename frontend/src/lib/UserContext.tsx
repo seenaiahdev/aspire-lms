@@ -300,47 +300,33 @@ export function UserProvider({ children }: { children: ReactNode }) {
         )
         .subscribe();
 
-      const submissionsChannel = supabase
-        .channel('submissions_realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'submissions',
-            filter: `student_id=eq.${user.id}`
-          },
-          () => {
-            console.log("Real-time practice submissions changed, reloading User XP context...");
-            refetchUser();
-          }
-        )
-        .subscribe();
-
-      const attemptsChannel = supabase
-        .channel('assignment_submissions_realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'assignment_submissions',
-            filter: `student_id=eq.${user.id}`
-          },
-          () => {
-            console.log("Real-time assessment submissions changed, reloading User XP context...");
-            refetchUser();
-          }
-        )
-        .subscribe();
+      // Recompute course progress + XP + auto-issue certificate whenever the numbers change: the student's
+      // OWN completions (attempt tables) OR the coursework TOTALS (admin adds/removes an item). Debounced so
+      // a burst of changes triggers a single refetch. Replaces the old legacy submissions channels (empty).
+      let progressTimer: any = null;
+      const bumpProgress = () => {
+        if (progressTimer) clearTimeout(progressTimer);
+        progressTimer = setTimeout(() => refetchUser(), 700);
+      };
+      const progressChannel = supabase.channel('progress_realtime');
+      // Student completions (student-filtered).
+      progressChannel
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, bumpProgress)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` }, bumpProgress)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, bumpProgress);
+      // Coursework totals (any change re-derives the denominator).
+      ['assessments', 'quizzes', 'coding_questions', 'projects'].forEach((table) => {
+        progressChannel.on('postgres_changes', { event: '*', schema: 'public', table }, bumpProgress);
+      });
+      progressChannel.subscribe();
 
       return () => {
         supabase.removeChannel(channel);
         supabase.removeChannel(locksChannel);
         supabase.removeChannel(coursesChannel);
         supabase.removeChannel(profileChannel);
-        supabase.removeChannel(submissionsChannel);
-        supabase.removeChannel(attemptsChannel);
+        if (progressTimer) clearTimeout(progressTimer);
+        supabase.removeChannel(progressChannel);
       };
     }
   }, [refetchUser, user?.id, user?.batchCode]);

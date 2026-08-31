@@ -205,15 +205,31 @@ export function LearningScreen() {
     }
 
     const stages = dbSyllabus.stages || [];
-    const totalModules = stages.reduce((acc: number, stage: any) => 
-      acc + (stage.modules?.length || 0)
-    , 0);
+    const allModules = stages.flatMap((stage: any) => stage.modules || []);
+    const totalModules = allModules.length;
+
+    // Live, self-recalculating progress from the syllabus item completion flags.
+    let totalItems = 0, doneItems = 0, completedModules = 0;
+    for (const mod of allModules) {
+      const lessons = mod.lessons || [];
+      let moduleAllDone = lessons.length > 0;
+      for (const l of lessons) {
+        const items = [...(l.practices || []), ...(l.assessments || []), ...(l.quizzes || []), ...(l.projects || [])];
+        totalItems += items.length;
+        doneItems += items.filter((it: any) => it.completed).length;
+        if (!l.completed) moduleAllDone = false;
+      }
+      if (moduleAllDone) completedModules += 1;
+    }
+    const overallPct = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
 
     return {
       title: activeCourse.title,
       subtitle: activeCourse.description || 'Master this program.',
       stages: stages,
-      totalModules: totalModules
+      totalModules,
+      completedModules,
+      overallPct
     };
   }, [dbCourses, dbSyllabus]);
 
@@ -420,7 +436,7 @@ export function LearningScreen() {
                       <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/20 border border-white/20 text-sm font-bold shadow-sm">
                         <Trophy className="w-4 h-4 text-amber-300" />
                         <span>
-                          0 / {curriculumRoadmap.totalModules} Modules Completed
+                          {curriculumRoadmap.completedModules} / {curriculumRoadmap.totalModules} Modules Completed
                         </span>
                       </div>
                     </div>
@@ -429,10 +445,10 @@ export function LearningScreen() {
                   <div className="space-y-2 pt-2">
                     <div className="flex items-center justify-between text-xs font-extrabold text-white">
                       <span>Overall Track Completion</span>
-                      <span>0%</span>
+                      <span>{curriculumRoadmap.overallPct}%</span>
                     </div>
                     <div className="w-full h-2 rounded-full bg-white/20 overflow-hidden">
-                      <div className="h-full bg-white rounded-full w-[0%]" />
+                      <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: `${curriculumRoadmap.overallPct}%` }} />
                     </div>
                   </div>
                 </div>
