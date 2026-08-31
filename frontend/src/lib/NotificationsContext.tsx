@@ -407,17 +407,8 @@ export function getNotificationIconConfig(n: { type?: string; title?: string; me
   const type = (n.type || '').toLowerCase();
   const msg = (n.message || '').toLowerCase();
 
-  // 1. Courses & Curriculum
-  if (type === 'course' || title.includes('course') || title.includes('curriculum') || title.includes('syllabus') || title.includes('track')) {
-    return {
-      Icon: BookOpen,
-      bg: 'bg-blue-50 text-blue-600 border border-blue-100',
-      toastBg: 'bg-gradient-to-br from-blue-600 to-indigo-600',
-    };
-  }
-
-  // 2. Lessons & Modules
-  if (title.includes('lesson') || title.includes('unlock') || title.includes('module')) {
+  // 1. My Learning & Courses (Exact Sidebar GraduationCap icon)
+  if (type === 'course' || type === 'learning' || title.includes('course') || title.includes('lesson') || title.includes('unlock') || title.includes('curriculum') || title.includes('syllabus') || title.includes('module')) {
     return {
       Icon: GraduationCap,
       bg: 'bg-purple-50 text-[#7c3aed] border border-purple-100',
@@ -425,7 +416,7 @@ export function getNotificationIconConfig(n: { type?: string; title?: string; me
     };
   }
 
-  // 3. Live Sessions / Webinars
+  // 2. Live Classes (Exact Sidebar Radio icon)
   if (type === 'live' || title.includes('live') || title.includes('class') || title.includes('session') || title.includes('webinar')) {
     return {
       Icon: Radio,
@@ -434,26 +425,17 @@ export function getNotificationIconConfig(n: { type?: string; title?: string; me
     };
   }
 
-  // 4. Quizzes
-  if (title.includes('quiz') || msg.includes('quiz')) {
+  // 3. Milestones (Exact Sidebar MapPin icon)
+  if (type === 'milestones' || title.includes('milestone') || title.includes('stage') || title.includes('roadmap')) {
     return {
-      Icon: HelpCircle,
-      bg: 'bg-amber-50 text-amber-600 border border-amber-100',
-      toastBg: 'bg-gradient-to-br from-amber-500 to-orange-600',
+      Icon: MapPin,
+      bg: 'bg-sky-50 text-sky-600 border border-sky-100',
+      toastBg: 'bg-gradient-to-br from-sky-600 to-blue-600',
     };
   }
 
-  // 5. Coding Projects
-  if (title.includes('project') || msg.includes('project') || title.includes('coding')) {
-    return {
-      Icon: Code2,
-      bg: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
-      toastBg: 'bg-gradient-to-br from-indigo-600 to-purple-600',
-    };
-  }
-
-  // 6. Assessments / Assignments / Tests
-  if (type === 'assignment' || title.includes('assessment') || title.includes('assignment') || title.includes('test')) {
+  // 4. Practice Hub / Assessments / Quizzes (Exact Sidebar FileText icon)
+  if (type === 'assignment' || title.includes('assessment') || title.includes('assignment') || title.includes('quiz') || title.includes('test')) {
     return {
       Icon: FileText,
       bg: 'bg-amber-50 text-amber-600 border border-amber-100',
@@ -461,8 +443,44 @@ export function getNotificationIconConfig(n: { type?: string; title?: string; me
     };
   }
 
-  // 7. Badges & Achievements
-  if (title.includes('badge') || title.includes('achievement') || title.includes('trophy')) {
+  // 5. Practice Lab (Exact Sidebar Code2 icon)
+  if (type === 'practice' || title.includes('practice') || title.includes('problem') || title.includes('compiler') || title.includes('coding')) {
+    return {
+      Icon: Code2,
+      bg: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
+      toastBg: 'bg-gradient-to-br from-emerald-600 to-teal-600',
+    };
+  }
+
+  // 6. Projects (Exact Sidebar FolderGit2 icon)
+  if (type === 'projects' || title.includes('project')) {
+    return {
+      Icon: FolderGit2,
+      bg: 'bg-indigo-50 text-indigo-600 border border-indigo-100',
+      toastBg: 'bg-gradient-to-br from-indigo-600 to-purple-600',
+    };
+  }
+
+  // 7. Resources (Exact Sidebar Library icon)
+  if (type === 'resources' || title.includes('resource') || title.includes('material') || title.includes('document')) {
+    return {
+      Icon: Library,
+      bg: 'bg-blue-50 text-blue-600 border border-blue-100',
+      toastBg: 'bg-gradient-to-br from-blue-600 to-indigo-600',
+    };
+  }
+
+  // 8. Placement Hub (Exact Sidebar Briefcase icon)
+  if (type === 'placement' || title.includes('job') || title.includes('placement') || title.includes('hiring') || title.includes('internship')) {
+    return {
+      Icon: Briefcase,
+      bg: 'bg-teal-50 text-teal-600 border border-teal-100',
+      toastBg: 'bg-gradient-to-br from-teal-600 to-emerald-600',
+    };
+  }
+
+  // 9. Certifications (Exact Sidebar Award icon)
+  if (type === 'certifications' || title.includes('certif') || title.includes('badge') || title.includes('achievement')) {
     return {
       Icon: Award,
       bg: 'bg-amber-50 text-amber-600 border border-amber-100',
@@ -470,21 +488,12 @@ export function getNotificationIconConfig(n: { type?: string; title?: string; me
     };
   }
 
-  // 8. Swag Rewards & Store
-  if (title.includes('reward') || title.includes('swag') || title.includes('merch') || title.includes('store')) {
+  // 10. Rewards (Exact Sidebar Gift icon)
+  if (type === 'rewards' || title.includes('reward') || title.includes('swag') || title.includes('merch')) {
     return {
       Icon: Gift,
       bg: 'bg-fuchsia-50 text-fuchsia-600 border border-fuchsia-100',
       toastBg: 'bg-gradient-to-br from-fuchsia-600 to-pink-600',
-    };
-  }
-
-  // 9. Jobs & Placements
-  if (type === 'placement' || title.includes('job') || title.includes('placement') || title.includes('hiring') || title.includes('internship')) {
-    return {
-      Icon: Briefcase,
-      bg: 'bg-emerald-50 text-emerald-600 border border-emerald-100',
-      toastBg: 'bg-gradient-to-br from-emerald-600 to-teal-600',
     };
   }
 
