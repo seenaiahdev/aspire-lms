@@ -11,7 +11,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchCoursesByIds } from '@/lib/api';
-import { getLessonResolver } from '@/lib/lessonLinkResolver';
+import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
 
 import { learningSteps } from '@/lib/tourSteps';
@@ -61,6 +61,8 @@ export function LearningScreen() {
 
   const [dbSyllabi, setDbSyllabi] = useState<Record<string, any>>({});
   const [syllabusLoading, setSyllabusLoading] = useState(true);
+  // Bumped by the realtime channel to force a syllabus re-fetch when admin edits content.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const dbSyllabus = useMemo(() => {
     const firstCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
@@ -186,8 +188,9 @@ export function LearningScreen() {
   // Including it caused an infinite re-fetch loop: loadSyllabi → real-time channel fires
   // → setLocalUnlockedLessonIds → re-triggers loadSyllabi → repeat forever.
   // The video.preview field that uses it will update on the next natural re-render.
+  // reloadKey is bumped by the realtime channel to re-fetch on admin content edits.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.enrolledCourses]);
+  }, [user.enrolledCourses, reloadKey]);
 
   const curriculumRoadmap = useMemo(() => {
     const activeCourse = dbCourses[0];
@@ -226,7 +229,37 @@ export function LearningScreen() {
       }
     }
 
-    loadEnrolledCourses();  }, [user.enrolledCourses]);
+    loadEnrolledCourses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.enrolledCourses, reloadKey]);
+
+  // ── Realtime: when admin edits course content or live-session topics, invalidate the resolver
+  //    cache and re-fetch the syllabus so MyLearning / Milestones update live. One debounced channel. ──
+  useEffect(() => {
+    if (!user.enrolledCourses || user.enrolledCourses.length === 0) return;
+    let timer: any = null;
+    const bump = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        clearLessonResolverCache();
+        setReloadKey((k) => k + 1);
+      }, 600);
+    };
+    const tables = [
+      'live_sessions', 'course_lessons', 'course_topics', 'assessments',
+      'quizzes', 'projects', 'coding_questions', 'milestones_data',
+    ];
+    const channel = supabase.channel('learning_content_realtime');
+    tables.forEach((table) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
+    });
+    channel.subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.enrolledCourses?.join(',')]);
 
   const learningItems = useMemo(() => {
     // 1. Dynamic Courses from DB

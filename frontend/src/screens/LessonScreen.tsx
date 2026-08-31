@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchResources } from '@/lib/api';
-import { getLessonResolver } from '@/lib/lessonLinkResolver';
+import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -124,6 +124,8 @@ export function LessonScreen() {
     topics: null as any, lessons: null as any, assessments: null as any, codingQuestions: null as any, projects: null as any, quizzes: null as any, resolver: null as any
   });
   const [loading, setLoading] = useState(true);
+  // Bumped by the realtime channel to re-fetch this lesson's content on admin edits.
+  const [reloadKey, setReloadKey] = useState(0);
 
   const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
   const batchCategory = user.batchCategory || 'Weekday';
@@ -241,7 +243,7 @@ export function LessonScreen() {
         ]);
 
         if (topics && lessons) {
-          setCourseDataLists({ topics, lessons, assessments, codingQuestions, projects, quizzes, resolver });
+          setCourseDataLists({ topics, lessons, assessments: assessments || [], codingQuestions: codingQuestions || [], projects: projects || [], quizzes: quizzes || [], resolver });
         } else {
           setDbSyllabus(null);
         }
@@ -253,6 +255,33 @@ export function LessonScreen() {
     }
 
     fetchCourseAndSyllabus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseIdToFetch, reloadKey]);
+
+  // Realtime: re-fetch this lesson's content + cover topics when admin edits sessions/content.
+  useEffect(() => {
+    if (!courseIdToFetch) return;
+    let timer: any = null;
+    const bump = () => {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        clearLessonResolverCache();
+        setReloadKey((k) => k + 1);
+      }, 600);
+    };
+    const tables = [
+      'live_sessions', 'course_lessons', 'course_topics', 'assessments',
+      'quizzes', 'projects', 'coding_questions', 'milestones_data',
+    ];
+    const channel = supabase.channel('lesson_content_realtime');
+    tables.forEach((table) => {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
+    });
+    channel.subscribe();
+    return () => {
+      if (timer) clearTimeout(timer);
+      supabase.removeChannel(channel);
+    };
   }, [courseIdToFetch]);
 
   const course = useMemo(() => {

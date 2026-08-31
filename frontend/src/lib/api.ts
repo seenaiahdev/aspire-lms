@@ -68,6 +68,23 @@ export async function fetchCourses(batchCategory: string) {
 }
 
 /**
+ * Whether a `target_batch` string releases content to a given student.
+ * Matches: empty/"all batches"/"all"; the category ("Weekday Batch"/"Weekend Batch"); or a comma-list
+ * that includes the specific batch code (e.g. "A26W1, A26S1"). Used to decide which courses appear in
+ * MyLearning — courses are released by target_batch, NOT only by the student's enrolled_courses array.
+ */
+export function courseTargetsBatch(target: any, batchCode: string, category?: string): boolean {
+  const t = String(target ?? '').trim().toLowerCase();
+  if (!t) return false;
+  if (t.includes('all batch') || t === 'all') return true;
+  const cat = String(category ?? '').trim().toLowerCase();
+  if (cat && (t.includes(`${cat} batch`) || t === cat)) return true;
+  const want = String(batchCode ?? '').trim().toLowerCase();
+  if (!want) return false;
+  return t.split(',').map((s) => s.trim()).includes(want);
+}
+
+/**
  * Fetches the milestones (stages & modules syllabus) for a given batch category.
  */
 export async function fetchMilestones(batchCategory: string) {

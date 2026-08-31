@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
 import { User } from '@/types';
-import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile, fetchUserSubmissions, fetchAssignmentAttempts } from '@/lib/api';
+import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile, fetchUserSubmissions, fetchAssignmentAttempts, courseTargetsBatch } from '@/lib/api';
 import { supabase } from './supabase';
 
 const initialUser: ExtendedUser = {
@@ -83,7 +83,27 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (student) {
           const batchCategory = await fetchBatchCategory(student.batch);
           const profile = await fetchStudentProfile(student.id);
-          
+
+          // Effective course set = the student's enrolled_courses UNION every course RELEASED to their
+          // batch (courses.target_batch = "All Batches" / category / their batch code). Admin releases
+          // courses by batch, so MyLearning (and all content keyed off enrolledCourses) must include them.
+          let effectiveCourses: string[] = [...(student.enrolled_courses || [])];
+          try {
+            const { data: allCourses } = await supabase
+              .from('courses')
+              .select('id, target_batch, publish_status');
+            const released = (allCourses || [])
+              .filter((c: any) => {
+                const pub = String(c.publish_status || '').toLowerCase();
+                const isPublished = !pub || pub.includes('publish');
+                return isPublished && courseTargetsBatch(c.target_batch, student.batch, batchCategory || undefined);
+              })
+              .map((c: any) => c.id);
+            effectiveCourses = Array.from(new Set([...effectiveCourses, ...released]));
+          } catch (e) {
+            console.warn('Failed to load batch-released courses:', e);
+          }
+
           const realProgress = profile?.progress ?? 0;
           const realStreak = profile?.attendance ?? 0;
           const realGpa = profile?.gpa ?? 0.00;
@@ -138,7 +158,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             progress: realProgress,
             status: student.status,
             registrationId: student.registration_id,
-            enrolledCourses: student.enrolled_courses || [],
+            enrolledCourses: effectiveCourses,
             courseProgress: profile?.course_progress || {},
             unlockedLessonIds: unlockedLessonIds,
           };
@@ -209,6 +229,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
         )
         .subscribe();
 
+      // A course released/updated for this batch should appear in MyLearning live.
+      const coursesChannel = supabase
+        .channel('courses_realtime')
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'courses' },
+          () => {
+            console.log('Real-time courses changed, reloading context...');
+            refetchUser();
+          }
+        )
+        .subscribe();
+
       const profileChannel = supabase
         .channel('student_profiles_realtime')
         .on(
@@ -271,6 +304,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       return () => {
         supabase.removeChannel(channel);
         supabase.removeChannel(locksChannel);
+        supabase.removeChannel(coursesChannel);
         supabase.removeChannel(profileChannel);
         supabase.removeChannel(submissionsChannel);
         supabase.removeChannel(attemptsChannel);

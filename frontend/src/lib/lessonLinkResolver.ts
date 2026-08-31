@@ -230,6 +230,11 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
   }
 }
 
+/** Clear the resolver cache so the next getLessonResolver() rebuilds from fresh admin data. */
+export function clearLessonResolverCache(): void {
+  cache.clear();
+}
+
 /** Get (and cache) a resolver for the given enrolled course ids + student batch. */
 export function getLessonResolver(courseIds: string[], batchCode: string = ''): Promise<LessonResolver> {
   const ids = (courseIds || []).filter(Boolean).slice().sort();

@@ -25,6 +25,8 @@ export interface CourseCertificate {
   issuedDate?: string;
   verifyId?: string;
   certificateBg: string;
+  certificateUrl?: string; // real hosted link, present only when admin has issued it
+  issued?: boolean;        // true when a certificates row exists for this course
 }
 
 function CircularProgressLock({ progress, size = 76 }: { progress: number; size?: number }) {
@@ -75,6 +77,7 @@ export function CertificatesScreen() {
   const [selectedCert, setSelectedCert] = useState<CourseCertificate | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     const loadData = async () => {
@@ -98,7 +101,16 @@ export function CertificatesScreen() {
           return;
         }
 
-        // 3. Map to CourseCertificate objects
+        // 2. Real issued certificates from the DB (admin-issued; only the link is stored), by course.
+        let issuedByCourse: Record<string, any> = {};
+        try {
+          const rows = await fetchCertificates(user.id);
+          issuedByCourse = Object.fromEntries((rows || []).map((r: any) => [r.course_id, r]));
+        } catch (e) {
+          console.warn('Failed to load issued certificates:', e);
+        }
+
+        // 3. Map to CourseCertificate objects (a real issued row overrides the progress placeholder).
         const mappedCerts: CourseCertificate[] = (userCourses || []).map(course => {
           const progress = (user.courseProgress && user.courseProgress[course.id] !== undefined)
             ? user.courseProgress[course.id]
@@ -106,19 +118,25 @@ export function CertificatesScreen() {
             ? (user.progress || 0)
             : 0;
 
-          const completed = progress >= 100;
-          const issuedDate = completed ? 'Aug 19, 2026' : undefined;
+          const row = issuedByCourse[course.id];
+          const issued = !!row;
+          const issuedDate = row?.issued_date
+            ? new Date(row.issued_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+            : (progress >= 100 ? 'Aug 19, 2026' : undefined);
 
           return {
             id: course.id,
-            courseTitle: course.title,
+            courseTitle: row?.title || course.title,
             categoryLabel: course.category || 'Professional',
             instructorName: course.instructor || 'Lead Instructor',
             instructorRole: 'Senior Instructor',
-            progress: progress,
+            // An issued certificate always shows as complete (100%) regardless of tracked progress.
+            progress: issued ? 100 : progress,
             issuedDate: issuedDate,
-            verifyId: `verify-${course.id}-${user.id}`,
-            certificateBg: course.thumbnail || '/python-full-stack.png'
+            verifyId: row?.verify_id || `verify-${course.id}-${user.id}`,
+            certificateBg: course.thumbnail || '/python-full-stack.png',
+            certificateUrl: row?.certificate_url || undefined,
+            issued,
           };
         });
 
@@ -130,20 +148,42 @@ export function CertificatesScreen() {
       }
     };
     loadData();
-  }, [user.id, user.enrolledCourses?.join(',')]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user.id, user.enrolledCourses?.join(','), reloadKey]);
+
+  // Realtime: a newly issued certificate (admin insert) appears without a refresh.
+  useEffect(() => {
+    if (!user.id || user.id === 'guest') return;
+    const channel = supabase
+      .channel('certificates_realtime')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'certificates', filter: `student_id=eq.${user.id}` },
+        () => setReloadKey((k) => k + 1)
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [user.id]);
 
   const unlockedCount = certs.filter(c => c.progress >= 100).length;
   const lockedCount = certs.filter(c => c.progress < 100).length;
   const avgProgress = certs.length > 0 ? Math.round(certs.reduce((acc, c) => acc + c.progress, 0) / certs.length) : 0;
 
   const handleDownload = (cert: CourseCertificate) => {
+    // Open the real hosted certificate when the admin has issued one; otherwise the local placeholder.
+    if (cert.certificateUrl) {
+      window.open(cert.certificateUrl, '_blank', 'noopener,noreferrer');
+      setToastMessage(`Opening your AspireNext certificate for ${cert.courseTitle}... 📜`);
+      return;
+    }
     triggerFileDownload(`AspireNext Certificate - ${cert.courseTitle}`);
     setToastMessage(`Downloading official AspireNext PDF certificate for ${cert.courseTitle}... 📜`);
   };
 
   const handleShare = (cert: CourseCertificate) => {
+    const link = cert.certificateUrl || `https://aspirenext.edu/verify/${cert.verifyId || cert.id}`;
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(`https://aspirenext.edu/verify/${cert.verifyId || cert.id}`);
+      navigator.clipboard.writeText(link);
     }
     setToastMessage(`AspireNext certificate link copied to clipboard! Share on LinkedIn & Resume. 🚀`);
   };
