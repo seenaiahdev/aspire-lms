@@ -147,7 +147,14 @@ export function LiveClassesScreen() {
   const [selectedTech, setSelectedTech] = useState('all');
   const [dateFilter, setDateFilter] = useState<'all' | 'today' | 'yesterday' | 'week' | 'custom'>('all');
   const [customDate, setCustomDate] = useState('');
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    return (localStorage.getItem('aspire_live_view_mode') as 'grid' | 'list') || 'list';
+  });
+
+  const handleViewModeChange = (mode: 'grid' | 'list') => {
+    setViewMode(mode);
+    localStorage.setItem('aspire_live_view_mode', mode);
+  };
 
   const hasActiveFilters = searchQuery.trim() !== '' || selectedTech !== 'all' || dateFilter !== 'all' || customDate !== '';
 
@@ -312,7 +319,7 @@ export function LiveClassesScreen() {
             </span>
             <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
               <button
-                onClick={() => setViewMode('grid')}
+                onClick={() => handleViewModeChange('grid')}
                 className={cn(
                   "p-1.5 rounded-lg transition-all",
                   viewMode === 'grid' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
@@ -322,7 +329,7 @@ export function LiveClassesScreen() {
                 <LayoutGrid className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setViewMode('list')}
+                onClick={() => handleViewModeChange('list')}
                 className={cn(
                   "p-1.5 rounded-lg transition-all",
                   viewMode === 'list' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
