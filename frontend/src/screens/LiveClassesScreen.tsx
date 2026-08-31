@@ -18,7 +18,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
-import { fetchAllLiveSessions } from '@/lib/api';
+import { fetchAllLiveSessions, fetchCoursesByIds } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 export function LiveClassesScreen() {
@@ -30,9 +30,30 @@ export function LiveClassesScreen() {
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string } | null>(null);
   const [dbSessions, setDbSessions] = useState<any[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
+  const [userCourses, setUserCourses] = useState<any[]>([]);
 
   const { user } = useUser();
   const batchCode = user.batchCode || 'A26W1';
+
+  useEffect(() => {
+    async function loadUserCourses() {
+      try {
+        const enrolled = user.enrolledCourses || ['crs-1786624019154-w'];
+        const data = await fetchCoursesByIds(enrolled);
+        if (data && data.length > 0) {
+          setUserCourses(data);
+        } else {
+          const { data: allCourses } = await supabase.from('courses').select('*').limit(5);
+          if (allCourses && allCourses.length > 0) setUserCourses(allCourses);
+        }
+      } catch (err) {
+        console.error("Failed to load user courses:", err);
+      }
+    }
+    loadUserCourses();
+  }, [user.enrolledCourses]);
+
+  const primaryCourseTitle = userCourses[0]?.title || 'Python Full Stack + DSA with AI';
 
   useEffect(() => {
     async function loadSessions() {
@@ -95,10 +116,15 @@ export function LiveClassesScreen() {
         cls.date, cls.time, cls.duration, cls.status, 10, now
       );
 
+      let courseName = (cls.technology || '').trim();
+      if (!courseName || courseName.toLowerCase() === 'general' || courseName.toLowerCase() === 'core programming') {
+        courseName = primaryCourseTitle;
+      }
+
       return {
         id: cls.id,
         title: cls.session_title,
-        course: cls.technology || 'Core Programming',
+        course: courseName,
         date: cls.date || '',
         time: cls.time || '',
         instructor: {
@@ -115,7 +141,7 @@ export function LiveClassesScreen() {
         link: cls.meeting_link || ''
       };
     });
-  }, [dbSessions]);
+  }, [dbSessions, primaryCourseTitle]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTech, setSelectedTech] = useState('all');
@@ -132,13 +158,23 @@ export function LiveClassesScreen() {
     setCustomDate('');
   };
 
-  const techOptions = useMemo(() => {
+  const courseOptions = useMemo(() => {
     const set = new Set<string>();
+    // Add user's enrolled / unlocked courses from My Learning
+    userCourses.forEach((c) => {
+      if (c.title) set.add(c.title);
+    });
+    if (set.size === 0) {
+      set.add(primaryCourseTitle);
+    }
+    // Also add any other distinct course names from mapped sessions (excluding "General")
     mappedSessions.forEach((s) => {
-      if (s.course) set.add(s.course);
+      if (s.course && s.course.toLowerCase() !== 'general' && s.course.toLowerCase() !== 'core programming') {
+        set.add(s.course);
+      }
     });
     return Array.from(set);
-  }, [mappedSessions]);
+  }, [userCourses, primaryCourseTitle, mappedSessions]);
 
   const handleTabChange = (newTab: string) => {
     setTab(newTab);
@@ -314,16 +350,16 @@ export function LiveClassesScreen() {
               />
             </div>
 
-            {/* Course / Technology Filter */}
-            <div className="w-full md:w-56 shrink-0">
+            {/* Course Filter */}
+            <div className="w-full md:w-64 shrink-0">
               <select
                 value={selectedTech}
                 onChange={(e) => setSelectedTech(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#7c3aed] transition-colors"
               >
-                <option value="all">All Technologies & Courses</option>
-                {techOptions.map((tech) => (
-                  <option key={tech} value={tech}>{tech}</option>
+                <option value="all">All Courses</option>
+                {courseOptions.map((cName) => (
+                  <option key={cName} value={cName}>{cName}</option>
                 ))}
               </select>
             </div>
