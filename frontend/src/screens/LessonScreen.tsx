@@ -17,6 +17,21 @@ import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { supabase } from '@/lib/supabase';
 
+/**
+ * Turns an admin-pasted video link into an embeddable URL. Supports Google Drive share links
+ * (converted to /preview), YouTube (watch/youtu.be/embed), and falls back to the raw URL for a
+ * direct video file or an already-embeddable link. Returns '' when there's no link.
+ */
+function toEmbedVideoUrl(raw?: string): string {
+  const u = String(raw || '').trim();
+  if (!u) return '';
+  const drive = u.match(/drive\.google\.com\/file\/d\/([^/?#]+)/) || u.match(/drive\.google\.com\/open\?id=([^&]+)/);
+  if (drive) return `https://drive.google.com/file/d/${drive[1]}/preview`;
+  const yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  return u;
+}
+
 function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, onToggle }: any) {
   const { user } = useUser();
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
@@ -166,6 +181,7 @@ export function LessonScreen() {
                   title: l.title,
                   description: l.description,
                   completed: false,
+                  videoUrl: l.video_url || '',
                   video: {
                     preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
                     duration: '45m',
@@ -523,13 +539,23 @@ export function LessonScreen() {
             </div>
           </div>
 
-          {/* Center Video Coming Soon Overlay */}
-          <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-3">
-            <div className="px-5 py-2.5 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-2.5 pointer-events-none">
-              <Video className="w-4 h-4 text-purple-300" />
-              <span className="text-white font-extrabold text-sm tracking-wide">Video Coming Soon</span>
+          {/* Lesson video from the admin-stored link (Drive/YouTube), or the "Coming Soon" fallback */}
+          {toEmbedVideoUrl((currentLesson as any)?.videoUrl) ? (
+            <iframe
+              src={toEmbedVideoUrl((currentLesson as any)?.videoUrl)}
+              title={currentLesson?.title || 'Lesson video'}
+              className="absolute inset-0 w-full h-full z-10 border-0"
+              allow="autoplay; encrypted-media; fullscreen"
+              allowFullScreen
+            />
+          ) : (
+            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-3">
+              <div className="px-5 py-2.5 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-2.5 pointer-events-none">
+                <Video className="w-4 h-4 text-purple-300" />
+                <span className="text-white font-extrabold text-sm tracking-wide">Video Coming Soon</span>
+              </div>
             </div>
-          </div>          {/* Bottom Player Controls Dock - HIDDEN for "Coming Soon" state
+          )}          {/* Bottom Player Controls Dock - HIDDEN for "Coming Soon" state
           <div className="absolute bottom-0 left-0 right-0 p-5 z-30 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent space-y-3">
             
             <div className="flex items-center gap-3">
