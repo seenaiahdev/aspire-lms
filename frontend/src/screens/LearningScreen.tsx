@@ -527,9 +527,6 @@ export function LearningScreen() {
                               </div>
 
                               <div className="flex items-center gap-3">
-                                <span className="px-3 py-1 rounded-full bg-slate-100 text-[#7c3aed] border border-purple-100 text-xs font-bold w-fit">
-                                  AVAILABLE
-                                </span>
                                 <div className={cn("w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center border border-slate-100 transition-transform duration-300", isStageExpanded && "rotate-180")}>
                                   <ChevronDown className="w-4 h-4 text-slate-500" />
                                 </div>

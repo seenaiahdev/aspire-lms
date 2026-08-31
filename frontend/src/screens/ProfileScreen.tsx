@@ -7,7 +7,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import * as Icons from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { cn, formatBatchDisplay } from '@/lib/utils';
 
 const badgeMedalStyles: Record<string, { bg: string; border: string; glow: string; icon: string }> = {
   blue: {
@@ -148,6 +148,9 @@ export function ProfileScreen() {
   }, [user?.id]);
 
   const totalXP = user.xp || 0;
+  const displayBatch = formatBatchDisplay(user.batchCode, user.registrationId);
+  const displayRegNo = user.registrationId || 'A26S0002';
+
   const earnedBadges = badges.map((badge) => {
     const earned = evaluateBadgeCriteria(badge, user, submissions, attempts);
     return {
@@ -205,21 +208,21 @@ export function ProfileScreen() {
           {/* Stats Bar */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-8 pt-6 border-t border-white/20">
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
-              <p className="text-3xl font-black tracking-tight">{user.progress}%</p>
-              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Course Progress</p>
+              <p className="text-3xl font-black tracking-tight">{displayBatch}</p>
+              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Batch</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
-              <p className="text-3xl font-black tracking-tight flex items-center justify-center gap-1">
-                {user.streak}%
+              <p className="text-2xl sm:text-3xl font-black tracking-tight truncate px-1">
+                {displayRegNo}
               </p>
-              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Attendance</p>
+              <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Reg No</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
-              <p className="text-3xl font-black tracking-tight">{user.rank.toFixed(2)}</p>
+              <p className="text-3xl font-black tracking-tight">{(user.gpa ?? user.rank ?? 0).toFixed(2)}</p>
               <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">GPA</p>
             </div>
             <div className="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/10 text-center hover:bg-white/20 transition-colors cursor-default">
-              <p className="text-3xl font-black tracking-tight">Active</p>
+              <p className="text-3xl font-black tracking-tight">{user.status || 'Active'}</p>
               <p className="text-[11px] font-bold text-purple-200 uppercase tracking-widest mt-1">Status</p>
             </div>
           </div>

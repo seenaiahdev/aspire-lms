@@ -224,8 +224,7 @@ export function RewardsScreen() {
         </div>
 
         <div id="tour-rewards-balance" className="flex items-center gap-3 shrink-0">
-          <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white font-black text-xs shadow-md flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-white" />
+          <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white font-black text-xs shadow-md flex items-center">
             <span>{userXp} Total Student XP</span>
           </div>
         </div>

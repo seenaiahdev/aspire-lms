@@ -216,7 +216,7 @@ export function AssignmentsScreen() {
 
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
   const [lockedToast, setLockedToast] = useState(false);
-  const [filterTab, setFilterTab] = useState<'all' | 'pending' | 'completed'>('all');
+  const [filterTab, setFilterTab] = useState<'pending' | 'completed' | 'all'>('pending');
 
   // Currently Selected Task for Pre-Start Quiz Details Modal
   const [selectedDetailTask, setSelectedDetailTask] = useState<PythonTask | null>(null);
@@ -1132,15 +1132,15 @@ export function AssignmentsScreen() {
           {/* Sub-Filter Tabs for Assessments */}
           <div id="tour-assignments-filters" className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-md">
             {[
-              { id: 'all', label: 'All Assessments' },
               { id: 'pending', label: 'Pending' },
               { id: 'completed', label: 'Completed' },
+              { id: 'all', label: 'All Assessments' },
             ].map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setFilterTab(t.id as any)}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all ${
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                   filterTab === t.id
                     ? 'bg-white text-primary-900 shadow-xs border border-slate-200/60 font-bold'
                     : 'text-slate-600 hover:text-slate-900'

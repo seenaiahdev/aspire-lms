@@ -206,8 +206,8 @@ export function CertificatesScreen() {
         </p>
       </div>
 
-      {/* Top 3 Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      {/* Top Metric Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         
         {/* Unlocked */}
         <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
@@ -230,18 +230,6 @@ export function CertificatesScreen() {
             <p className="text-xs font-extrabold text-[#7c3aed]">Locked (In Progress)</p>
           </div>
         </Card>
-
-        {/* Avg Course Progress */}
-        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
-          <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
-            <Sparkles className="w-5.5 h-5.5 text-[#7c3aed]" />
-          </div>
-          <div>
-            <p className="text-2xl font-black text-slate-900 tracking-tight">{avgProgress}%</p>
-            <p className="text-xs font-extrabold text-[#7c3aed]">Overall Completion</p>
-          </div>
-        </Card>
-
       </div>
 
 

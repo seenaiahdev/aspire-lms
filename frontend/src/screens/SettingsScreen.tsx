@@ -4,7 +4,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { useUser } from '@/lib/UserContext';
 import { fetchStudentProfile, upsertStudentProfile } from '@/lib/api';
-import { cn } from '@/lib/utils';
+import { cn, formatBatchDisplay } from '@/lib/utils';
 
 interface SearchableYearSelectProps {
   label: string;
@@ -420,6 +420,22 @@ export function SettingsScreen() {
                     <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Email Address</label>
                     <input 
                       value={profileForm.email}
+                      readOnly
+                      className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Registration Number</label>
+                    <input 
+                      value={currentUser.registrationId || 'A26S0002'}
+                      readOnly
+                      className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Batch</label>
+                    <input 
+                      value={formatBatchDisplay(currentUser.batchCode, currentUser.registrationId)}
                       readOnly
                       className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
                     />

@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Menu, Bell, LogOut, Flame, User, Settings, ChevronDown } from 'lucide-react';
+import { Menu, Bell, LogOut, Flame, Zap, User, Settings, ChevronDown } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
 import { useNotifications } from '@/lib/NotificationsContext';
@@ -83,17 +83,28 @@ export function TopNav() {
         </h1>
       </div>
 
-      {/* Right Action Bar (Streak + Notifications + Profile Dropdown) */}
-      <div className="flex items-center gap-3 ml-auto">
+      {/* Right Action Bar (Streak + XP + Notifications + Profile Dropdown) */}
+      <div className="flex items-center gap-2.5 sm:gap-3 ml-auto">
         
-        {/* 🔥 STREAK BADGE AT TOP */}
+        {/* 🔥 STREAK BADGE (Numeric) */}
         <div 
           id="tour-streak"
           onClick={() => navigate('dashboard')}
+          title="Daily Streak"
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-extrabold shadow-sm hover:bg-amber-100 transition-all cursor-pointer"
         >
-          <Flame className="w-4 h-4 text-amber-500 fill-amber-500 animate-bounce" />
-          <span className="hidden sm:inline">{currentUser.streak} Days Streak</span>
+          <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
+          <span>{currentUser.streak}</span>
+        </div>
+
+        {/* ⚡ XP POINTS BADGE */}
+        <div 
+          onClick={() => navigate('rewards')}
+          title="Total Student XP"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-[#7c3aed] text-xs font-extrabold shadow-sm hover:bg-purple-100 transition-all cursor-pointer"
+        >
+          <Zap className="w-4 h-4 text-[#7c3aed] fill-[#7c3aed]" />
+          <span>{currentUser.xp || 0} XP</span>
         </div>
 
         {/* Notifications Bell Button */}

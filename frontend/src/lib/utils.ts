@@ -70,3 +70,31 @@ export function resolveLiveClassStatus(
   if (t >= joinOpen.getTime() && t <= end.getTime()) return { status: 'ongoing', joinable: true };
   return { status: 'upcoming', joinable: false };
 }
+
+/**
+ * Format a student's batch code for display (e.g. extracts "S1", "S2", "W1", "W2", stripping "A26" prefixes).
+ */
+export function formatBatchDisplay(batchCode?: string, registrationId?: string): string {
+  if (batchCode) {
+    const stripped = batchCode.replace(/^A\d+[-_]?/i, '').trim();
+    if (stripped) {
+      return stripped.toUpperCase();
+    }
+  }
+  
+  if (registrationId) {
+    const strippedReg = registrationId.replace(/^A\d+[-_]?/i, '').trim();
+    const matchWithNum = strippedReg.match(/^([a-zA-Z]+)[-_]?([1-9])/);
+    if (matchWithNum) {
+      return `${matchWithNum[1]}${matchWithNum[2]}`.toUpperCase();
+    }
+    const letterMatch = strippedReg.match(/^([a-zA-Z]+)/);
+    if (letterMatch) {
+      const letters = letterMatch[1].toUpperCase();
+      return letters.length === 1 ? `${letters}1` : letters;
+    }
+  }
+
+  return 'S1';
+}
+

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Sparkles, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock, ExternalLink
+  Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock, ExternalLink
 } from 'lucide-react';
 import { fetchJobs, fetchPlacementResources, submitJobApplication, fetchJobApplications } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
@@ -14,129 +14,9 @@ import { supabase } from '@/lib/supabase';
 
 import { placementSteps } from '@/lib/tourSteps';
 
-function TechStackSvg({ name, className = "w-4 h-4" }: { name: string; className?: string }) {
-  const n = name.toLowerCase();
-
-  if (n.includes('react')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <circle cx="64" cy="64" r="20" fill="#61dafb" />
-        <g fill="none" stroke="#61dafb" strokeWidth="10">
-          <ellipse cx="64" cy="64" rx="48" ry="16" />
-          <ellipse cx="64" cy="64" rx="48" ry="16" transform="rotate(60 64 64)" />
-          <ellipse cx="64" cy="64" rx="48" ry="16" transform="rotate(120 64 64)" />
-        </g>
-      </svg>
-    );
-  }
-
-  if (n.includes('typescript') || n.includes('ts')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <rect width="128" height="128" rx="24" fill="#3178C6" />
-        <path fill="#fff" d="M36 36h56v14H52v42H36V36zm36 32h24v14H72v-14z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('js') || n.includes('javascript')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <rect width="128" height="128" rx="24" fill="#F7DF1E" />
-        <path fill="#000" d="M96.6 92.9c-1.6 3-3.4 5.5-7 7.2-3.6 1.7-7.4 1.3-9.8.7-1.2-.3-2.4-1-3.4-2.3l7.2-4.3c.6 1 1.1 1.6 2 1.9 1 .3 2 .1 2.8-.8.8-.9 1.1-2.3.6-3.9l-10.1-27c-.5-1.4-1.4-2.5-3.2-2.5-1.4 0-2.4.5-3.2 1.6L66 84.6c-.5 1.1-.6 2-.2 2.7.5.8 1.4 1.3 2.8 1.5 1.4.2 2.8-.1 3.9-.9 1-.8 1.6-2 1.6-3.3V64h11v28.9zM54.3 92.9c-1.6 3-3.4 5.5-7 7.2-3.6 1.7-7.4 1.3-9.8.7-1.2-.3-2.4-1-3.4-2.3l7.2-4.3c.6 1 1.1 1.6 2 1.9 1 .3 2 .1 2.8-.8.8-.9 1.1-2.3.6-3.9l-10.1-27c-.5-1.4-1.4-2.5-3.2-2.5-1.4 0-2.4.5-3.2 1.6L23.7 84.6c-.5 1.1-.6 2-.2 2.7.5.8 1.4 1.3 2.8 1.5 1.4.2 2.8-.1 3.9-.9 1-.8 1.6-2 1.6-3.3V64h11v28.9z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('tailwind')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <path fill="#06B6D4" d="M30 48c18 0 28-9 30-24h18c-5 28-26 32-48 32-7 0-14-.9-20-2.5V48zm0 32c18 0 28-9 30-24h18c-5 28-26 32-48 32-7 0-14-.9-20-2.5V80z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('python')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <path fill="#3776AB" d="M42 15c-1-1-4-2-8-2H26c-5 0-8 3-8 8v14c0 5 4 8 8 8h6c3 0 5 2 5 5v10c0 5-3 8-8 8H26c-5 0-8 4-8 8v14c0 5 3 8 8 8h10c4 0 7-1 8-2 0 0 3-2 3-7v-9c0-8 7-14 15-14h14c8 0 15-6 15-14V39c0-8-7-14-15-14H59c-8 0-15 6-15 14v6c0 4-3 7-7 7H42z" />
-        <circle cx="38" cy="32" r="6" fill="#ffd43b" />
-      </svg>
-    );
-  }
-
-  if (n.includes('tensorflow') || n.includes('scikit') || n.includes('ml')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <path fill="#FF6F00" d="M28 30h40v14H43v50H28V30zM60 84h40V70H65V36H60v48z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('node')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <path fill="#339933" d="M64 10L15 36v56l49 26 49-26V36L64 10zm0 18l30 16v38L64 96 34 82V44l30-16z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('aws') || n.includes('cloud')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <path fill="#FF9900" d="M32 64c0-18 14-32 32-32s32 14 32 32H32z" />
-        <path fill="#232F3E" d="M24 70h80c0 22-18 40-40 40S24 92 24 70z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('postgres') || n.includes('sql')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <circle cx="64" cy="64" r="56" fill="#336791" />
-        <path fill="#fff" d="M44 82c0-22 18-40 40-40v20c-11 0-20 9-20 20H44z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('docker') || n.includes('container')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <path fill="#2496ED" d="M22 76h84v18H22z" />
-        <path fill="#2496ED" d="M38 40h14v16H38zm18 0h14v16H74z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('html') || n.includes('html5')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <path fill="#E34F26" d="M24 10h80l-8 84L64 118 32 94 24 10z" />
-        <path fill="#fff" d="M64 88l21-10 2-24H64V44h20l-1 16-14 5v10l22 6-2 22-32 9-32-9-2-22 22-6V59H44V44h20v12z" />
-      </svg>
-    );
-  }
-
-  if (n.includes('redis')) {
-    return (
-      <svg className={className} viewBox="0 0 128 128">
-        <circle cx="64" cy="64" r="54" fill="#DC382D" />
-        <path fill="#fff" d="M36 42h56v14H36V42zm0 20h56v14H36V62zm0 20h40v14H36V82z" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg className={className} viewBox="0 0 128 128">
-      <rect width="128" height="128" rx="28" fill="#64748b" />
-      <path fill="#fff" d="M38 56h52v8H38zm0 16h38v8H38z" />
-    </svg>
-  );
-}
-
 export function PlacementScreen() {
   const { user } = useUser();
-  const [activeFilter, setActiveFilter] = useState<'open' | 'applied' | 'closed' | 'all' | 'prep'>('open');
+  const [activeFilter, setActiveFilter] = useState<'open' | 'applied' | 'closed' | 'all'>('open');
   const [searchQuery, setSearchQuery] = useState('');
   const [jobsList, setJobsList] = useState<any[]>([]);
   const [prepList, setPrepList] = useState<any[]>([]);
@@ -347,7 +227,6 @@ export function PlacementScreen() {
             { id: 'applied', label: `Applied Jobs (${appliedCount})` },
             { id: 'closed', label: `Closed Jobs (${closedCount})` },
             { id: 'all', label: `All Jobs (${totalCount})` },
-            { id: 'prep', label: `Prep Resources (${prepList.length})` },
           ]}
           active={activeFilter}
           onChange={(id) => setActiveFilter(id as any)}
@@ -361,42 +240,6 @@ export function PlacementScreen() {
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
           </div>
-        ) : activeFilter === 'prep' ? (
-          filteredPrep.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
-              {filteredPrep.map((res) => (
-                <Card key={res.id} className="p-6 bg-white border border-slate-200/90 rounded-[1.8rem] shadow-sm flex flex-col justify-between h-full hover:border-[#7c3aed]/40 hover:shadow-md transition-all duration-300">
-                  <div>
-                    <div className="flex justify-between items-start mb-3">
-                      <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider border border-purple-100">
-                        {res.category}
-                      </span>
-                      <span className="text-xs font-bold text-slate-400">{res.read_time}</span>
-                    </div>
-                    <h3 className="text-lg font-extrabold text-slate-900 mb-2 leading-snug">{res.title}</h3>
-                    <p className="text-xs text-slate-500 mb-4 font-medium leading-relaxed">{res.snippet}</p>
-                  </div>
-                  <div className="pt-4 border-t border-slate-100 flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-400">By {res.author}</span>
-                    {res.link_url && (
-                      <a href={res.link_url} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs font-extrabold text-[#7c3aed] hover:text-[#6d28d9] transition-colors">
-                        <span>Open Link</span>
-                        <ExternalLink className="w-3.5 h-3.5" />
-                      </a>
-                    )}
-                  </div>
-                </Card>
-              ))}
-            </div>
-          ) : (
-            <div className="p-12 text-center bg-white rounded-[2rem] border border-slate-200 space-y-2">
-              <div className="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200">
-                <Briefcase className="w-8 h-8 text-slate-400" />
-              </div>
-              <h3 className="font-extrabold text-slate-800 text-base">No prep resources found</h3>
-              <p className="text-xs font-medium text-slate-500">There are no prep resources matching your search query.</p>
-            </div>
-          )
         ) : filteredJobs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
             {filteredJobs.map((job, index) => {
@@ -633,8 +476,7 @@ export function PlacementScreen() {
                 <h4 className="text-xs font-black text-slate-400 uppercase tracking-wider">Required Tech Stack & Skills</h4>
                 <div className="flex flex-wrap gap-2">
                   {selectedJob.skills.map((skill: string) => (
-                    <span key={skill} className="px-3 py-1.5 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-extrabold flex items-center gap-1.5 shadow-2xs">
-                      <TechStackSvg name={skill} className="w-4 h-4" />
+                    <span key={skill} className="px-3.5 py-1.5 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-extrabold flex items-center shadow-2xs">
                       <span>{skill}</span>
                     </span>
                   ))}
@@ -668,7 +510,6 @@ export function PlacementScreen() {
                   onClick={() => setApplyJobTarget(selectedJob)}
                   className="flex-1 py-3 px-6 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Sparkles className="w-4 h-4 text-amber-300" />
                   <span>Apply</span>
                 </button>
               ) : selectedJob.status === 'applied' ? (

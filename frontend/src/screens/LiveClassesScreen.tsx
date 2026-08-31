@@ -152,10 +152,6 @@ export function LiveClassesScreen() {
     return tab === 'upcoming' ? filtered.slice(0, 2) : filtered;
   }, [filtered, tab]);
 
-  const upcomingCount = useMemo(() => {
-    return Math.min(2, mappedSessions.filter(c => c.status === 'ongoing' || c.status === 'upcoming').length);
-  }, [mappedSessions]);
-
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12 relative">
 
@@ -170,8 +166,8 @@ export function LiveClassesScreen() {
         id="tour-live-tabs"
         variant="pills"
         tabs={[
-          { id: 'upcoming', label: 'Upcoming & Live', badge: upcomingCount },
-          { id: 'completed', label: 'Recordings', badge: mappedSessions.filter(c => c.status === 'completed').length },
+          { id: 'upcoming', label: 'Upcoming & Live' },
+          { id: 'completed', label: 'Recordings' },
         ]}
         active={tab}
         onChange={handleTabChange}
