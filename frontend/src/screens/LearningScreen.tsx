@@ -275,23 +275,24 @@ export function LearningScreen() {
         setReloadKey((k) => k + 1);
       }, 600);
     };
-    const tables = [
-      'live_sessions', 'course_lessons', 'course_topics', 'assessments',
-      'quizzes', 'projects', 'coding_questions', 'milestones_data',
-      // The student's own completions → refresh the milestone ticks live.
-      'assessment_attempts', 'quiz_attempts', 'practice_submissions', 'lesson_progress',
-    ];
     const channel = supabase.channel('learning_content_realtime');
-    tables.forEach((table) => {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
-    });
+    // Admin content (edits are rare) — watched unfiltered.
+    ['live_sessions', 'course_lessons', 'course_topics', 'assessments', 'quizzes', 'projects', 'coding_questions', 'milestones_data']
+      .forEach((table) => channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump));
+    // The student's OWN completions — filtered by student so one student's submission never re-fetches
+    // every other student's syllabus (avoids a realtime thundering herd at scale).
+    channel
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress', filter: `student_id=eq.${user.id}` }, bump);
     channel.subscribe();
     return () => {
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.enrolledCourses?.join(',')]);
+  }, [user.enrolledCourses?.join(','), user.id]);
 
   const learningItems = useMemo(() => {
     // 1. Dynamic Courses from DB

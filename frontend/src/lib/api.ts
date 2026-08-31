@@ -10,24 +10,24 @@ function cleanPhoneSuffix(phone: string): string {
  * Resolves a student record from Supabase matching their mobile number.
  */
 export async function fetchStudentByPhone(phone: string) {
-  // Fetch all students (max 1000) to match by suffix
-  const { data, error } = await supabase
-    .from('students')
-    .select('*');
-
-  if (error) {
-    console.error('Error fetching students:', error);
-    throw error;
-  }
-
   const searchSuffix = cleanPhoneSuffix(phone);
   if (!searchSuffix) return null;
 
-  const student = data?.find(s => {
-    if (!s.mobile_number) return false;
-    return cleanPhoneSuffix(s.mobile_number) === searchSuffix;
-  });
+  // Server-side suffix match returns ~1 row instead of the whole students table — scales past 1000 students
+  // and keeps login O(1) on bandwidth. (A trigram index on mobile_number makes the ilike index-assisted.)
+  const { data, error } = await supabase
+    .from('students')
+    .select('*')
+    .ilike('mobile_number', `%${searchSuffix}`)
+    .limit(5);
 
+  if (error) {
+    console.error('Error fetching student by phone:', error);
+    throw error;
+  }
+
+  // Confirm the exact last-10-digit match (guards against partial/substring collisions).
+  const student = (data || []).find((s: any) => s.mobile_number && cleanPhoneSuffix(s.mobile_number) === searchSuffix);
   return student || null;
 }
 

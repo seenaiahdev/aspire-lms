@@ -287,20 +287,20 @@ export function LessonScreen() {
         setReloadKey((k) => k + 1);
       }, 600);
     };
-    const tables = [
-      'live_sessions', 'course_lessons', 'course_topics', 'assessments',
-      'quizzes', 'projects', 'coding_questions', 'milestones_data', 'lesson_progress',
-    ];
     const channel = supabase.channel('lesson_content_realtime');
-    tables.forEach((table) => {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
-    });
+    // Admin content (unfiltered — rare edits).
+    ['live_sessions', 'course_lessons', 'course_topics', 'assessments', 'quizzes', 'projects', 'coding_questions', 'milestones_data']
+      .forEach((table) => channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump));
+    // This student's own lesson completions only (filtered — avoids a per-student refetch storm at scale).
+    if (user?.id) {
+      channel.on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress', filter: `student_id=eq.${user.id}` }, bump);
+    }
     channel.subscribe();
     return () => {
       if (timer) clearTimeout(timer);
       supabase.removeChannel(channel);
     };
-  }, [courseIdToFetch]);
+  }, [courseIdToFetch, user?.id]);
 
   const course = useMemo(() => {
     // If not loaded yet from Supabase, return a loading placeholder
