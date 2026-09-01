@@ -374,8 +374,8 @@ export function ProjectsScreen() {
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
     return projectsState
-      // Bridge Scheme A (l_git_3) -> Scheme B (lesson-…) so only unlocked lessons surface their projects.
-      .filter((p: any) => isEntityUnlocked(p) || isUnlocked(p.inner_topic_id))
+      // Only surface projects belonging to lessons that are unlocked in Milestones for this student.
+      .filter((p: any) => isEntityUnlocked(p))
       .map((p: any) => {
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
         let status = (p.status || 'assigned').toLowerCase();

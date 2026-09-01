@@ -35,6 +35,8 @@ export interface CoverTopic {
 export interface LessonResolver {
   /** Map any lesson-link id (Scheme A or B) to the canonical Scheme B course_lessons id. */
   resolveLessonId: (rawId: string) => string;
+  /** Map any entity (project, assessment, quiz, practice problem) to its canonical Scheme B course_lessons id. */
+  resolveEntityLessonId: (entity: any) => string;
   /** "Class Topics & Syllabus Covered" for a lesson (canonical Scheme B lesson id). */
   getCoverTopics: (lessonId: string) => CoverTopic[];
 }
@@ -48,7 +50,11 @@ const compositeKey = (moduleTitle: any, lessonTitle: any): string =>
 // Session cache: one build per set of course ids.
 const cache = new Map<string, Promise<LessonResolver>>();
 
-const identityResolver: LessonResolver = { resolveLessonId: (id) => id, getCoverTopics: () => [] };
+const identityResolver: LessonResolver = {
+  resolveLessonId: (id) => id,
+  resolveEntityLessonId: (entity) => rawLessonLink(entity),
+  getCoverTopics: () => []
+};
 
 interface CollectedLesson {
   moduleTitle: string;
@@ -232,8 +238,58 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
       bIdToCoverTopics.set(bId, existing);
     }
 
+    const resolveEntityLessonId = (entity: any): string => {
+      if (!entity) return '';
+      // 1. Check description moduleName / lessonTitle (matches LearningScreen projLessonTitle)
+      try {
+        const desc = JSON.parse(entity.description || '{}');
+        if (desc.moduleName) {
+          const bId = titleToBId.get(norm(desc.moduleName));
+          if (bId) return bId;
+        }
+        if (desc.lessonTitle) {
+          const bId = titleToBId.get(norm(desc.lessonTitle));
+          if (bId) return bId;
+        }
+        if (desc.lessonId) {
+          const id = resolveLessonId(String(desc.lessonId).trim());
+          if (id) return id;
+        }
+      } catch {}
+      // 2. Check direct topic_name or lesson_title
+      if (entity.lesson_title) {
+        const bId = titleToBId.get(norm(entity.lesson_title));
+        if (bId) return bId;
+      }
+      if (entity.topic_name) {
+        const t = String(entity.topic_name).split('||').pop() || '';
+        const bId = titleToBId.get(norm(t));
+        if (bId) return bId;
+      }
+      // 3. Check topic_id (e.g. course||module||lesson_id)
+      if (entity.topic_id) {
+        const parts = String(entity.topic_id).split('||');
+        if (parts[2]) {
+          const id = resolveLessonId(String(parts[2]).trim());
+          if (id) return id;
+        }
+      }
+      // 4. Check inner_topic_id
+      if (entity.inner_topic_id) {
+        const id = resolveLessonId(String(entity.inner_topic_id).trim());
+        if (id) return id;
+      }
+      // 5. Check lesson_id
+      if (entity.lesson_id) {
+        const id = resolveLessonId(String(entity.lesson_id).trim());
+        if (id) return id;
+      }
+      return '';
+    };
+
     return {
       resolveLessonId,
+      resolveEntityLessonId,
       getCoverTopics: (lessonId: string) => bIdToCoverTopics.get(lessonId) || [],
     };
   } catch (err) {
@@ -311,8 +367,14 @@ export function useUnlockResolver() {
   );
 
   const isEntityUnlocked = useCallback(
-    (entity: any) => isUnlocked(rawLessonLink(entity)),
-    [isUnlocked]
+    (entity: any) => {
+      if (!entity) return false;
+      const lessonId = resolver ? resolver.resolveEntityLessonId(entity) : rawLessonLink(entity);
+      if (!lessonId) return false;
+      return unlockedIds.includes(lessonId);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [resolver, unlockedKey]
   );
 
   return { isUnlocked, isEntityUnlocked, ready: !!resolver };
