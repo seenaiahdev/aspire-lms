@@ -32,6 +32,19 @@ function toEmbedVideoUrl(raw?: string): string {
   return u;
 }
 
+/**
+ * A "direct" media URL can play in a native <video> with our OWN controls (mp4/webm/… or a
+ * Supabase-Storage public URL). Drive / YouTube links are NOT direct — they can only be shown via
+ * the provider iframe (which carries the provider's controls). Host videos as direct URLs to get
+ * the custom player.
+ */
+function isDirectMediaUrl(raw?: string): boolean {
+  const u = String(raw || '').trim();
+  if (!u) return false;
+  if (/drive\.google\.com|youtube\.com|youtu\.be|vimeo\.com/.test(u)) return false;
+  return /\.(mp4|webm|ogg|ogv|mov|m4v)(\?|#|$)/i.test(u) || /supabase\.co\/storage\//.test(u);
+}
+
 function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, onToggle }: any) {
   const { user } = useUser();
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
@@ -136,9 +149,9 @@ export function LessonScreen() {
   const [dbCourse, setDbCourse] = useState<any>(null);
   const [dbSyllabus, setDbSyllabus] = useState<any>(null);
   const [courseDataLists, setCourseDataLists] = useState<{
-    topics: any[], lessons: any[], assessments: any[], codingQuestions: any[], projects: any[], quizzes: any[], resolver: any
+    topics: any[], lessons: any[], assessments: any[], codingQuestions: any[], projects: any[], quizzes: any[], recordings: any[], resolver: any
   }>({
-    topics: null as any, lessons: null as any, assessments: null as any, codingQuestions: null as any, projects: null as any, quizzes: null as any, resolver: null as any
+    topics: null as any, lessons: null as any, assessments: null as any, codingQuestions: null as any, projects: null as any, quizzes: null as any, recordings: null as any, resolver: null as any
   });
   const [loading, setLoading] = useState(true);
   // Bumped by the realtime channel to re-fetch this lesson's content on admin edits.
@@ -148,8 +161,32 @@ export function LessonScreen() {
   const batchCategory = user.batchCategory || 'Weekday';
 
   useEffect(() => {
-    const { topics, lessons, assessments, codingQuestions, projects, quizzes, resolver } = courseDataLists;
+    const { topics, lessons, assessments, codingQuestions, projects, quizzes, recordings, resolver } = courseDataLists;
     if (topics && lessons && resolver) {
+      // Real class recordings keyed by normalized lesson title (course_lessons.video_url does not
+      // exist in the DB — videos live in the `recordings` table; concept_name/title == lesson title).
+      const normTitle = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+      const batchCat = (user?.batchCategory || '').toLowerCase();
+      // Bridge coursework to lessons by TITLE (the id-scheme resolver can't map every Scheme-A id):
+      // projects carry their lesson title in description.moduleName; assessments in topic_name's last segment.
+      const projLessonTitle = (p: any) => { try { return normTitle(JSON.parse(p.description || '{}').moduleName); } catch { return ''; } };
+      const assessLessonTitle = (a: any) => normTitle(String(a.topic_name || '').split('||').pop());
+      const recMatchesBatch = (r: any) => {
+        const tb = String(r.target_batch || '').toLowerCase();
+        return !tb || tb.includes('all') || (batchCat && tb.includes(batchCat));
+      };
+      const recByTitle = new Map<string, any>();
+      (recordings || []).forEach((r: any) => {
+        if (!r.video_url) return;
+        const pub = String(r.publish_status || '').toLowerCase();
+        if (pub.includes('draft') || pub.includes('hidden')) return;
+        [r.concept_name, r.title].forEach((t: any) => {
+          const k = normTitle(t); if (!k) return;
+          // Show the lesson's recording to ALL batches; prefer the student's own batch as a tiebreaker.
+          const existing = recByTitle.get(k);
+          if (!existing || (!recMatchesBatch(existing) && recMatchesBatch(r))) recByTitle.set(k, r);
+        });
+      });
       const stages = topics.map(topic => {
         const subtopics = topic.subtopics || [];
         return {
@@ -165,28 +202,40 @@ export function LessonScreen() {
                 const dbPractices = codingQuestions
                   ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
                   : [];
+                const lessonTitleKey = normTitle(l.title);
                 const dbAssessments = assessments
                   ? assessments.filter((asmnt: any) => {
                       const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
-                      return resolver.resolveLessonId(parts[2]) === l.id;
+                      if (resolver.resolveLessonId(parts[2]) === l.id) return true;
+                      const t = assessLessonTitle(asmnt);
+                      return !!t && t === lessonTitleKey;
                     })
                   : [];
                 const dbProjects = projects
-                  ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
+                  ? projects.filter((p: any) => {
+                      const t = projLessonTitle(p);
+                      return (!!t && t === lessonTitleKey) || resolver.resolveLessonId(p.inner_topic_id) === l.id;
+                    })
                   : [];
                 const dbQuizzes = quizzes
-                  ? quizzes.filter((q: any) => resolver.resolveLessonId(q.inner_topic_id) === l.id)
+                  ? quizzes.filter((q: any) => {
+                      if (resolver.resolveLessonId(q.inner_topic_id) === l.id) return true;
+                      const t = normTitle(q.topic_name);
+                      return !!t && t === lessonTitleKey;
+                    })
                   : [];
 
+                const rec = recByTitle.get(normTitle(l.title));
                 return {
                   id: l.id,
                   title: l.title,
                   description: l.description,
                   completed: false,
-                  videoUrl: l.video_url || '',
+                  videoUrl: rec?.video_url || l.video_url || '',
+                  videoThumbnail: rec?.thumbnail || '',
                   video: {
                     preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
-                    duration: '45m',
+                    duration: rec?.duration || '45m',
                     completed: false
                   },
                   practices: dbPractices.map((cq: any) => ({
@@ -249,19 +298,21 @@ export function LessonScreen() {
           { data: codingQuestions },
           { data: projects },
           { data: quizzes },
+          { data: recordings },
           resolver
         ] = await Promise.all([
           supabase.from('course_topics').select('*').eq('course_id', courseData.id).order('id', { ascending: true }),
           supabase.from('course_lessons').select('*').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
-          supabase.from('assessments').select('id, topic_id, duration_minutes, title').eq('course_id', courseData.id),
+          supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title').eq('course_id', courseData.id),
           supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseData.id),
-          supabase.from('projects').select('id, inner_topic_id, title, type').eq('course_id', courseData.id),
-          supabase.from('quizzes').select('id, inner_topic_id, duration_minutes, title').eq('course_id', courseData.id),
+          supabase.from('projects').select('id, inner_topic_id, title, type, description').eq('course_id', courseData.id),
+          supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseData.id),
+          supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status'),
           getLessonResolver(user?.enrolledCourses || [], user?.batchCode || '')
         ]);
 
         if (topics && lessons) {
-          setCourseDataLists({ topics, lessons, assessments: assessments || [], codingQuestions: codingQuestions || [], projects: projects || [], quizzes: quizzes || [], resolver });
+          setCourseDataLists({ topics, lessons, assessments: assessments || [], codingQuestions: codingQuestions || [], projects: projects || [], quizzes: quizzes || [], recordings: recordings || [], resolver });
         } else {
           setDbSyllabus(null);
         }
@@ -289,7 +340,7 @@ export function LessonScreen() {
     };
     const channel = supabase.channel('lesson_content_realtime');
     // Admin content (unfiltered — rare edits).
-    ['live_sessions', 'course_lessons', 'course_topics', 'assessments', 'quizzes', 'projects', 'coding_questions', 'milestones_data']
+    ['live_sessions', 'course_lessons', 'course_topics', 'assessments', 'quizzes', 'projects', 'coding_questions', 'milestones_data', 'recordings']
       .forEach((table) => channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump));
     // This student's own lesson completions only (filtered — avoids a per-student refetch storm at scale).
     if (user?.id) {
@@ -561,23 +612,50 @@ export function LessonScreen() {
             </div>
           </div>
 
-          {/* Lesson video from the admin-stored link (Drive/YouTube), or the "Coming Soon" fallback */}
-          {toEmbedVideoUrl((currentLesson as any)?.videoUrl) ? (
-            <iframe
-              src={toEmbedVideoUrl((currentLesson as any)?.videoUrl)}
-              title={currentLesson?.title || 'Lesson video'}
-              className="absolute inset-0 w-full h-full z-10 border-0"
-              allow="autoplay; encrypted-media; fullscreen"
-              allowFullScreen
-            />
-          ) : (
-            <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-3">
-              <div className="px-5 py-2.5 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-2.5 pointer-events-none">
-                <Video className="w-4 h-4 text-purple-300" />
-                <span className="text-white font-extrabold text-sm tracking-wide">Video Coming Soon</span>
-              </div>
-            </div>
-          )}          {/* Bottom Player Controls Dock - HIDDEN for "Coming Soon" state
+          {/* Lesson video. Direct media URL (mp4/Supabase) → native <video> with our own controls.
+              Drive/YouTube → provider iframe, loaded lazily behind a thumbnail so the page is instant. */}
+          {(() => {
+            const rawUrl = (currentLesson as any)?.videoUrl as string | undefined;
+            const thumb = (currentLesson as any)?.videoThumbnail as string | undefined;
+            if (!rawUrl) {
+              return (
+                <div className="absolute inset-0 flex flex-col items-center justify-center z-20 gap-3">
+                  <div className="px-5 py-2.5 rounded-2xl bg-slate-900/40 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-2.5 pointer-events-none">
+                    <Video className="w-4 h-4 text-purple-300" />
+                    <span className="text-white font-extrabold text-sm tracking-wide">Video Coming Soon</span>
+                  </div>
+                </div>
+              );
+            }
+            // Direct media (mp4 / Supabase) → our own player: shows the thumbnail as a poster and
+            // plays with a SINGLE click on the native controls; preload="none" keeps first paint fast.
+            if (isDirectMediaUrl(rawUrl)) {
+              return (
+                <video
+                  key={rawUrl}
+                  src={rawUrl}
+                  poster={thumb || undefined}
+                  controls
+                  controlsList="nodownload"
+                  preload="none"
+                  className="absolute inset-0 w-full h-full z-10 bg-black object-contain"
+                />
+              );
+            }
+            // Drive / YouTube → the provider player embedded directly, so a single click on its play
+            // button starts the video (a Drive iframe can't be auto-started, so an extra custom
+            // overlay would just force a second click). Direct URLs above give the seamless player.
+            return (
+              <iframe
+                key={rawUrl}
+                src={toEmbedVideoUrl(rawUrl)}
+                title={currentLesson?.title || 'Lesson video'}
+                className="absolute inset-0 w-full h-full z-10 border-0"
+                allow="autoplay; encrypted-media; fullscreen"
+                allowFullScreen
+              />
+            );
+          })()}          {/* Bottom Player Controls Dock - HIDDEN for "Coming Soon" state
           <div className="absolute bottom-0 left-0 right-0 p-5 z-30 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent space-y-3">
             
             <div className="flex items-center gap-3">

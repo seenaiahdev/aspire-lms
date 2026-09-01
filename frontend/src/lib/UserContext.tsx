@@ -120,7 +120,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           if (cpChanged) {
             try {
               await supabase.from('student_profiles')
-                .update({ course_progress: newCourseProgress, progress: primaryPct })
+                .update({ progress: primaryPct })
                 .eq('student_id', student.id);
             } catch (e) { console.warn('Failed to persist course progress:', e); }
           }

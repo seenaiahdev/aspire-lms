@@ -52,17 +52,20 @@ export function PlacementScreen() {
           fetchPlacementResources()
         ]);
         
-        let appliedJobIds: string[] = dbApps.map((a: any) => a.job_id);
+        // Fetch real job applications from Supabase for this student
+        let appliedJobIds: string[] = (dbApps || []).map((a: any) => String(a.job_id || '').trim());
 
-        const savedApplied = localStorage.getItem('aspire_applied_jobs');
+        const storageKey = user?.id ? `aspire_applied_jobs_${user.id}` : 'aspire_applied_jobs';
+        const savedApplied = localStorage.getItem(storageKey);
         const localAppliedMap = savedApplied ? JSON.parse(savedApplied) : {};
         const localAppliedIds = Object.keys(localAppliedMap);
 
         const mergedJobs = jobsData.map((job: any) => {
-          if (appliedJobIds.includes(job.id) || localAppliedIds.includes(job.id)) {
+          const isApplied = appliedJobIds.includes(String(job.id).trim()) || localAppliedIds.includes(String(job.id).trim());
+          if (isApplied) {
             return { ...job, status: 'applied' as const };
           }
-          return job;
+          return { ...job, status: job.status || 'open' };
         });
 
         setJobsList(mergedJobs);
@@ -105,13 +108,14 @@ export function PlacementScreen() {
       prev.map((j) => (j.id === jobId ? { ...j, status: 'applied' as const } : j))
     );
 
-    const savedApplied = localStorage.getItem('aspire_applied_jobs');
+    const storageKey = user?.id ? `aspire_applied_jobs_${user.id}` : 'aspire_applied_jobs';
+    const savedApplied = localStorage.getItem(storageKey);
     const appliedMap = savedApplied ? JSON.parse(savedApplied) : {};
     appliedMap[jobId] = {
       appliedAt: new Date().toISOString(),
       ...applicationDetails
     };
-    localStorage.setItem('aspire_applied_jobs', JSON.stringify(appliedMap));
+    localStorage.setItem(storageKey, JSON.stringify(appliedMap));
 
     if (user?.id) {
       try {

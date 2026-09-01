@@ -143,8 +143,8 @@ export function LearningScreen() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const dbSyllabus = useMemo(() => {
-    const firstCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
-    return dbSyllabi[firstCourseId] || null;
+    const firstCourseId = user.enrolledCourses?.[0];
+    return firstCourseId ? (dbSyllabi[firstCourseId] || null) : null;
   }, [dbSyllabi, user.enrolledCourses]);
 
 
@@ -164,15 +164,45 @@ export function LearningScreen() {
         const resolver = await getLessonResolver(user.enrolledCourses, user.batchCode || '');
 
         // The student's completed videos + coursework → drives the milestone completion ticks & progress.
-        const [aaRes, qaRes, psRes, doneLessons] = await Promise.all([
-          supabase.from('assessment_attempts').select('assignment_id').eq('student_id', user.id),
-          supabase.from('quiz_attempts').select('quiz_id').eq('user_id', user.id),
-          supabase.from('practice_submissions').select('problem_id').eq('student_id', user.id),
+        const userLookupIds = [user.id, user.mobile].filter(Boolean) as string[];
+        const [aaRes, qaRes, psRes, recRes, doneLessons] = await Promise.all([
+          supabase.from('assessment_attempts').select('assignment_id').in('student_id', userLookupIds),
+          supabase.from('quiz_attempts').select('quiz_id').in('user_id', userLookupIds),
+          supabase.from('practice_submissions').select('problem_id').in('student_id', userLookupIds),
+          supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status'),
           fetchCompletedLessons(user.id),
         ]);
-        const doneAssess = new Set((aaRes.data || []).map((r: any) => r.assignment_id));
-        const doneQuiz = new Set((qaRes.data || []).map((r: any) => r.quiz_id));
-        const donePractice = new Set((psRes.data || []).map((r: any) => r.problem_id));
+        const doneAssess = new Set((aaRes.data || []).flatMap((r: any) => [String(r.assignment_id || '').trim(), r.assignment_id]));
+        const doneQuiz = new Set((qaRes.data || []).flatMap((r: any) => [String(r.quiz_id || '').trim(), r.quiz_id]));
+        const donePractice = new Set((psRes.data || []).flatMap((r: any) => [String(r.problem_id || '').trim(), r.problem_id]));
+
+        // Real class recordings → keyed by normalized lesson TITLE. Recordings have no reliable id
+        // link to lessons across the two id schemes, but their concept_name/title matches the lesson
+        // title exactly, so we attach the real video_url and play the live recording from MyLearning.
+        const normTitle = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+        const batchCat = (user.batchCategory || '').toLowerCase();
+        // A project carries its lesson title in description.moduleName; assessments carry it as the last
+        // "||" segment of topic_name. We bridge coursework to lessons by TITLE because the id-scheme
+        // resolver can't map every Scheme-A inner_topic_id (e.g. l_git_2/l_git_4 have no bridge).
+        const projLessonTitle = (p: any) => { try { return normTitle(JSON.parse(p.description || '{}').moduleName); } catch { return ''; } };
+        const assessLessonTitle = (a: any) => normTitle(String(a.topic_name || '').split('||').pop());
+        const recByTitle = new Map<string, any>();
+        const recMatchesBatch = (r: any) => {
+          const tb = String(r.target_batch || '').toLowerCase();
+          return !tb || tb.includes('all') || (batchCat && tb.includes(batchCat));
+        };
+        (recRes.data || []).forEach((r: any) => {
+          if (!r.video_url) return;
+          const pub = String(r.publish_status || '').toLowerCase();
+          if (pub.includes('draft') || pub.includes('hidden')) return;
+          [r.concept_name, r.title].forEach((t: any) => {
+            const k = normTitle(t); if (!k) return;
+            // Show a lesson's recording to ALL batches (same content); prefer the student's own batch
+            // only as a tiebreaker when two recordings share the same lesson title.
+            const existing = recByTitle.get(k);
+            if (!existing || (!recMatchesBatch(existing) && recMatchesBatch(r))) recByTitle.set(k, r);
+          });
+        });
 
         await Promise.all(user.enrolledCourses.map(async (courseId) => {
           const [
@@ -185,10 +215,10 @@ export function LearningScreen() {
           ] = await Promise.all([
             supabase.from('course_topics').select('*').eq('course_id', courseId).order('id', { ascending: true }),
             supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
-            supabase.from('assessments').select('id, topic_id, duration_minutes, title').eq('course_id', courseId),
+            supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title').eq('course_id', courseId),
             supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
-            supabase.from('projects').select('id, inner_topic_id, title, type').eq('course_id', courseId),
-            supabase.from('quizzes').select('id, inner_topic_id, duration_minutes, title').eq('course_id', courseId)
+            supabase.from('projects').select('id, inner_topic_id, title, type, description').eq('course_id', courseId),
+            supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseId)
           ]);
 
           if (topics && lessons) {
@@ -207,35 +237,60 @@ export function LearningScreen() {
                       const dbPractices = codingQuestions
                         ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
                         : [];
+                      const lessonTitleKey = normTitle(l.title);
                       const dbAssessments = assessments
                         ? assessments.filter((asmnt: any) => {
                             const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
-                            return resolver.resolveLessonId(parts[2]) === l.id;
+                            if (resolver.resolveLessonId(parts[2]) === l.id) return true;
+                            const t = assessLessonTitle(asmnt);
+                            return !!t && t === lessonTitleKey;
                           })
                         : [];
                       const dbProjects = projects
-                        ? projects.filter((p: any) => resolver.resolveLessonId(p.inner_topic_id) === l.id)
+                        ? projects.filter((p: any) => {
+                            const t = projLessonTitle(p);
+                            return (!!t && t === lessonTitleKey) || resolver.resolveLessonId(p.inner_topic_id) === l.id;
+                          })
                         : [];
                       const dbQuizzes = quizzes
-                        ? quizzes.filter((q: any) => resolver.resolveLessonId(q.inner_topic_id) === l.id)
+                        ? quizzes.filter((q: any) => {
+                            if (resolver.resolveLessonId(q.inner_topic_id) === l.id) return true;
+                            const t = normTitle(q.topic_name);
+                            return !!t && t === lessonTitleKey;
+                          })
                         : [];
 
                       const practices = dbPractices.map((cq: any) => ({
-                        id: cq.id, title: cq.title, duration: '20m', completed: donePractice.has(cq.id)
+                        id: cq.id,
+                        title: cq.title,
+                        duration: '20m',
+                        completed: donePractice.has(cq.id) || donePractice.has(String(cq.id || '').trim())
                       }));
                       const lessonAssessments = dbAssessments.map((asmnt: any) => ({
-                        id: asmnt.id, title: asmnt.title, duration: `${asmnt.duration_minutes || 15}m`, completed: doneAssess.has(asmnt.id)
+                        id: asmnt.id,
+                        title: asmnt.title,
+                        duration: `${asmnt.duration_minutes || 15}m`,
+                        completed: doneAssess.has(asmnt.id) || doneAssess.has(String(asmnt.id || '').trim())
                       }));
                       const lessonProjects = dbProjects.map((p: any) => ({
-                        id: p.id, title: p.title, type: p.type || 'mini', completed: donePractice.has(p.id)
+                        id: p.id,
+                        title: p.title,
+                        type: p.type || 'mini',
+                        completed: donePractice.has(p.id) || donePractice.has(String(p.id || '').trim())
                       }));
                       const lessonQuizzes = dbQuizzes.map((q: any) => ({
-                        id: q.id, title: q.title, duration: `${q.duration_minutes || 30}m`, completed: doneQuiz.has(q.id)
+                        id: q.id,
+                        title: q.title,
+                        duration: `${q.duration_minutes || 30}m`,
+                        completed: doneQuiz.has(q.id) || doneQuiz.has(String(q.id || '').trim())
                       }));
                       // A lesson is complete when its video is marked done AND all its coursework is done.
-                      const videoCompleted = doneLessons.has(l.id);
+                      const videoCompleted = doneLessons.has(l.id) || doneLessons.has(String(l.id || '').trim());
                       const items = [...practices, ...lessonAssessments, ...lessonProjects, ...lessonQuizzes];
                       const lessonCompleted = videoCompleted && items.every((it: any) => it.completed);
+
+                      // Match a real class recording to this lesson by title (see recByTitle above).
+                      const rec = recByTitle.get(normTitle(l.title));
 
                       return {
                         id: l.id,
@@ -246,8 +301,10 @@ export function LearningScreen() {
                         coverTopics: resolver.getCoverTopics(l.id),
                         video: {
                           preview: idx === 0, // Unlock state is checked at render time via localUnlockedLessonIds
-                          duration: '45m',
-                          completed: videoCompleted
+                          duration: rec?.duration || '45m',
+                          completed: videoCompleted,
+                          videoUrl: rec?.video_url || '',
+                          thumbnail: rec?.thumbnail || ''
                         },
                         practices,
                         assessments: lessonAssessments,
@@ -306,7 +363,13 @@ export function LearningScreen() {
       }
       if (moduleAllDone) completedModules += 1;
     }
-    const overallPct = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+    // Single source of truth for the headline %: reuse `user.courseProgress` (computed by
+    // computeCourseProgress in api.ts) so the Milestones banner ALWAYS matches the My Learning
+    // course card for the same course. The local doneItems/totalItems tally only drives the
+    // per-module completion ticks below and is used as a fallback if the shared value is missing.
+    const localPct = totalItems > 0 ? Math.round((doneItems / totalItems) * 100) : 0;
+    const sharedPct = user.courseProgress?.[activeCourse.id];
+    const overallPct = (sharedPct !== undefined && sharedPct !== null) ? sharedPct : localPct;
 
     return {
       title: activeCourse.title,
@@ -316,7 +379,7 @@ export function LearningScreen() {
       completedModules,
       overallPct
     };
-  }, [dbCourses, dbSyllabus]);
+  }, [dbCourses, dbSyllabus, user.courseProgress]);
 
   useEffect(() => {
     async function loadEnrolledCourses() {
@@ -354,15 +417,14 @@ export function LearningScreen() {
     };
     const channel = supabase.channel('learning_content_realtime');
     // Admin content (edits are rare) — watched unfiltered.
-    ['live_sessions', 'course_lessons', 'course_topics', 'assessments', 'quizzes', 'projects', 'coding_questions', 'milestones_data']
+    ['live_sessions', 'course_lessons', 'course_topics', 'assessments', 'quizzes', 'projects', 'coding_questions', 'milestones_data', 'recordings']
       .forEach((table) => channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump));
-    // The student's OWN completions — filtered by student so one student's submission never re-fetches
-    // every other student's syllabus (avoids a realtime thundering herd at scale).
+    // Student completions — debounced bump on any attempt table event
     channel
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, bump)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress', filter: `student_id=eq.${user.id}` }, bump);
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions' }, bump)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress' }, bump);
     channel.subscribe();
     return () => {
       if (timer) clearTimeout(timer);
@@ -409,12 +471,8 @@ export function LearningScreen() {
         }, 0) || 0)
       , 0);
 
-      let durationStr = '0 hours';
-      if (course.id === 'crs-1786624019154-w') {
-        durationStr = '163 hours';
-      } else if (totalHours > 0) {
-        durationStr = `${totalHours} hours`;
-      }
+      // Derive duration from the syllabus hours (no hard-coded per-course overrides — L4).
+      const durationStr = totalHours > 0 ? `${totalHours} hours` : 'Self-paced';
 
       return {
         id: course.id,
@@ -614,10 +672,13 @@ export function LearningScreen() {
                             {isStageExpanded && stage.modules && (
                               <div className="pt-2 space-y-3">
                             {stage.modules.map((mod: any, modIdx: number) => {
+                              // Count the actual coursework arrays on each lesson (fields are
+                              // `practices`/`assessments`/`quizzes` — the old singular `l.practice`/
+                              // `l.assessment` never existed, so these chips always read 0 — see L1).
                               const videos = mod.lessons?.filter((l: any) => !!l.video).length || 0;
-                              const practices = mod.lessons?.filter((l: any) => !!l.practice).length || 0;
-                              const assessments = mod.lessons?.filter((l: any) => !!l.assessment).length || 0;
-                              const coding = 0; // We merged coding into practices for now
+                              const practices = mod.lessons?.reduce((n: number, l: any) => n + (l.practices?.length || 0), 0) || 0;
+                              const assessments = mod.lessons?.reduce((n: number, l: any) => n + (l.assessments?.length || 0) + (l.quizzes?.length || 0), 0) || 0;
+                              const coding = 0; // Coding labs are merged into `practices`.
 
                               const isModLocked = !mod.lessons?.some((l: any) => localUnlockedLessonIds.includes(l.id));
 
@@ -1044,9 +1105,16 @@ export function LearningScreen() {
                                     <Video className="w-4 h-4" />
                                   </div>
                                   <div>
-                                    <span className="text-[10px] font-extrabold uppercase text-[#7c3aed] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
-                                      VIDEO LESSON
-                                    </span>
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-[10px] font-extrabold uppercase text-[#7c3aed] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                                        VIDEO LESSON
+                                      </span>
+                                      {lesson.video.videoUrl && (
+                                        <span className="text-[10px] font-extrabold uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-1">
+                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> Recording
+                                        </span>
+                                      )}
+                                    </div>
                                     <h4 className="font-bold text-slate-900 text-sm mt-1 leading-tight">{lesson.title}</h4>
                                     <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
                                       <Clock className="w-3 h-3" /> {lesson.video.duration}
@@ -1059,7 +1127,15 @@ export function LearningScreen() {
                                       <CheckCircle2 className="w-4 h-4" /> Done
                                     </span>
                                   )}
-                                  <button onClick={() => { setSelectedTopicDrawer(null); navigate('lesson', { id: user.enrolledCourses?.[0] || '', lesson: lesson.id }); }} className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all">
+                                  <button
+                                    onClick={() => {
+                                      // Open the in-app Lesson Player (My Learning course), which plays the
+                                      // linked recording — never the raw Drive tab.
+                                      setSelectedTopicDrawer(null);
+                                      navigate('lesson', { id: user.enrolledCourses?.[0] || '', lesson: lesson.id });
+                                    }}
+                                    className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all"
+                                  >
                                     <span>WATCH</span><ExternalLink className="w-3 h-3" />
                                   </button>
                                 </div>

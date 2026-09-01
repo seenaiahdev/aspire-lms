@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
-import { User, Bell, Palette, Shield, Link2, Check, Camera, Github, Linkedin, Globe, Zap, Plus, X, Loader2, ChevronDown, Search } from 'lucide-react';
+import { User, Bell, Palette, Shield, Link2, Check, Camera, Github, Linkedin, Globe, X, Loader2, ChevronDown, Search } from 'lucide-react';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { useUser } from '@/lib/UserContext';
-import { fetchStudentProfile, upsertStudentProfile } from '@/lib/api';
+import { fetchStudentProfile, upsertStudentProfile, updateStudentAvatar } from '@/lib/api';
 import { cn, formatBatchDisplay } from '@/lib/utils';
 
 interface SearchableYearSelectProps {
@@ -113,6 +113,12 @@ export function SettingsScreen() {
     portfolio: false,
   });
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  // Pending avatar: picked locally but not yet saved to DB
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string>('');
+  const [removeAvatar, setRemoveAvatar] = useState(false);
 
   const [profileForm, setProfileForm] = useState({
     name: currentUser.name,
@@ -124,10 +130,9 @@ export function SettingsScreen() {
     bio: currentUser.bio || '',
   });
 
-  // Skills management state
+  // Skills persisted from the DB — no longer editable in the UI (Skills tab removed), but kept
+  // in state so saving the profile doesn't wipe any skills already stored.
   const [skills, setSkills] = useState<{ name: string; level: number }[]>(currentUser.skills || []);
-  const [newSkillName, setNewSkillName] = useState('');
-  const [newSkillLevel, setNewSkillLevel] = useState(50);
 
   const [statsForm, setStatsForm] = useState({
     progress: currentUser.xp || 0,
@@ -195,6 +200,14 @@ export function SettingsScreen() {
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
+      // Handle avatar changes on save
+      if (removeAvatar) {
+        const { supabase } = await import('@/lib/supabase');
+        await supabase.from('students').update({ avatar: '' }).eq('id', currentUser.id);
+      } else if (pendingAvatarFile) {
+        await updateStudentAvatar(currentUser.id, pendingAvatarFile);
+      }
+
       await upsertStudentProfile(currentUser.id, {
         bio: profileForm.bio,
         program: profileForm.program,
@@ -213,6 +226,10 @@ export function SettingsScreen() {
         skills,
       });
       await refetchUser();
+      // Clear pending avatar state
+      setPendingAvatarFile(null);
+      setAvatarPreview('');
+      setRemoveAvatar(false);
       showToast('Profile details saved successfully.', 'success');
     } catch (e) {
       console.error('Failed to save profile:', e);
@@ -305,31 +322,8 @@ export function SettingsScreen() {
     }
   };
 
-  const addSkill = () => {
-    const trimmedName = newSkillName.trim();
-    if (!trimmedName) return;
-    if (skills.some(s => s.name.toLowerCase() === trimmedName.toLowerCase())) {
-      showToast('This skill already exists.', 'error');
-      return;
-    }
-    setSkills([...skills, { name: trimmedName, level: newSkillLevel }]);
-    setNewSkillName('');
-    setNewSkillLevel(50);
-  };
-
-  const removeSkill = (index: number) => {
-    setSkills(skills.filter((_, i) => i !== index));
-  };
-
-  const updateSkillLevel = (index: number, level: number) => {
-    const updated = [...skills];
-    updated[index] = { ...updated[index], level };
-    setSkills(updated);
-  };
-
   const sections = [
     { id: 'profile', label: 'Profile Details', icon: User },
-    { id: 'skills', label: 'Skills & Expertise', icon: Zap },
     { id: 'notifications', label: 'Notifications', icon: Bell },
     { id: 'connected', label: 'Connected Accounts', icon: Link2 },
   ];
@@ -396,14 +390,88 @@ export function SettingsScreen() {
               <CardBody className="p-6 sm:p-8 space-y-8">
                 
                 <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6 border-b border-slate-100 pb-8">
-                  <div className="relative">
-                    <Avatar src={currentUser.avatar} name={currentUser.name} size="xl" className="w-24 h-24 shadow-sm border-2 border-slate-100" />
+                  <div className="relative group">
+                    {/* Show preview if pending, or current avatar, or initials */}
+                    {avatarPreview && !removeAvatar ? (
+                      <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-slate-100 shadow-sm">
+                        <img src={avatarPreview} alt="Preview" className="w-full h-full object-cover" />
+                      </div>
+                    ) : removeAvatar ? (
+                      <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-dashed border-slate-300 bg-slate-100 flex items-center justify-center">
+                        <span className="text-2xl font-bold text-slate-400">
+                          {currentUser.name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()}
+                        </span>
+                      </div>
+                    ) : (
+                      <Avatar src={currentUser.avatar} name={currentUser.name} size="xl" className="w-24 h-24 shadow-sm border-2 border-slate-100" />
+                    )}
+                    {/* Camera overlay button */}
+                    <button
+                      type="button"
+                      onClick={() => avatarInputRef.current?.click()}
+                      className="absolute inset-0 rounded-full bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center cursor-pointer"
+                    >
+                      <Camera className="w-6 h-6 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </button>
+                    {/* Hidden file input — only stores locally, no upload yet */}
+                    <input
+                      ref={avatarInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        setPendingAvatarFile(file);
+                        setRemoveAvatar(false);
+                        // Create local preview URL
+                        const previewUrl = URL.createObjectURL(file);
+                        setAvatarPreview(previewUrl);
+                        // Reset file input so the same file can be re-selected
+                        if (avatarInputRef.current) avatarInputRef.current.value = '';
+                      }}
+                    />
                   </div>
-                  <div className="text-center sm:text-left space-y-1 self-center">
+                  <div className="text-center sm:text-left space-y-1.5 self-center">
                     <h3 className="font-extrabold text-slate-900 text-lg">Profile Avatar</h3>
                     <p className="text-xs font-semibold text-slate-500 max-w-xs">
-                      Managing profile pictures is disabled for this demo.
+                      {pendingAvatarFile ? 'New photo selected — click "Save Details" to apply.' 
+                        : removeAvatar ? 'Photo marked for removal — click "Save Details" to apply.'
+                        : 'Click on the photo to choose a new picture. JPG, PNG supported.'}
                     </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <button
+                        type="button"
+                        onClick={() => avatarInputRef.current?.click()}
+                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold transition-colors"
+                      >
+                        <Camera className="w-3.5 h-3.5" />
+                        Change Photo
+                      </button>
+                      {(currentUser.avatar || avatarPreview) && !removeAvatar && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRemoveAvatar(true);
+                            setPendingAvatarFile(null);
+                            setAvatarPreview('');
+                          }}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 text-xs font-bold transition-colors border border-red-200"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                          Remove
+                        </button>
+                      )}
+                      {removeAvatar && (
+                        <button
+                          type="button"
+                          onClick={() => setRemoveAvatar(false)}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold transition-colors border border-slate-200"
+                        >
+                          Undo
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -480,15 +548,6 @@ export function SettingsScreen() {
                   />
                 </div>
 
-                <div className="space-y-1.5">
-                  <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Bio & Tagline</label>
-                  <textarea 
-                    value={profileForm.bio}
-                    onChange={(e) => setProfileForm({ ...profileForm, bio: e.target.value })}
-                    className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900 min-h-[100px] resize-none" 
-                  />
-                </div>
-
                 <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
                   <button 
                     onClick={() => setProfileForm({
@@ -512,101 +571,6 @@ export function SettingsScreen() {
                   >
                     {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
                     {saving ? 'Saving...' : 'Save Details'}
-                  </button>
-                </div>
-              </CardBody>
-            </Card>
-          )}
-
-          {/* ════════ SKILLS & EXPERTISE SECTION ════════ */}
-          {section === 'skills' && (
-            <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden">
-              <CardBody className="p-6 sm:p-8 space-y-6">
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg">Skills & Expertise</h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-1">Add your technical skills and set proficiency levels. Changes are saved with your profile.</p>
-                </div>
-
-                {/* Add New Skill */}
-                <div className="flex flex-col sm:flex-row gap-3 p-4 rounded-2xl bg-slate-50/80 border border-slate-100">
-                  <div className="flex-1 space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider">Skill Name</label>
-                    <input
-                      value={newSkillName}
-                      onChange={(e) => setNewSkillName(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && addSkill()}
-                      placeholder="e.g. React, Python, Docker..."
-                      className="w-full px-4 py-2.5 rounded-xl bg-white border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900"
-                    />
-                  </div>
-                  <div className="w-full sm:w-32 space-y-1.5">
-                    <label className="text-[10px] font-extrabold text-slate-600 uppercase tracking-wider">Level ({newSkillLevel}%)</label>
-                    <input
-                      type="range"
-                      min={10}
-                      max={100}
-                      step={5}
-                      value={newSkillLevel}
-                      onChange={(e) => setNewSkillLevel(Number(e.target.value))}
-                      className="w-full accent-[#7c3aed] mt-2"
-                    />
-                  </div>
-                  <div className="flex items-end">
-                    <button
-                      onClick={addSkill}
-                      disabled={!newSkillName.trim()}
-                      className="px-4 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-sm active:scale-95 flex items-center gap-1.5 disabled:opacity-50"
-                    >
-                      <Plus className="w-4 h-4" /> Add
-                    </button>
-                  </div>
-                </div>
-
-                {/* Skills List */}
-                {skills.length === 0 ? (
-                  <div className="text-center py-10 space-y-2 border border-dashed border-slate-200 rounded-2xl bg-slate-50/50">
-                    <Zap className="w-8 h-8 text-slate-300 mx-auto" />
-                    <p className="text-sm font-bold text-slate-500">No skills added yet</p>
-                    <p className="text-xs text-slate-400 max-w-xs mx-auto">Use the form above to add your technical skills.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {skills.map((skill, idx) => (
-                      <div key={idx} className="flex items-center gap-4 p-3.5 rounded-2xl bg-slate-50/50 border border-slate-100 hover:border-purple-200 transition-colors group">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-sm font-extrabold text-slate-800">{skill.name}</span>
-                            <span className="text-[10px] font-black text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md">{skill.level}%</span>
-                          </div>
-                          <input
-                            type="range"
-                            min={10}
-                            max={100}
-                            step={5}
-                            value={skill.level}
-                            onChange={(e) => updateSkillLevel(idx, Number(e.target.value))}
-                            className="w-full accent-[#7c3aed] h-1.5"
-                          />
-                        </div>
-                        <button
-                          onClick={() => removeSkill(idx)}
-                          className="w-8 h-8 rounded-full bg-slate-100 hover:bg-red-50 hover:text-red-500 flex items-center justify-center text-slate-400 transition-colors shrink-0"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex justify-end pt-4 border-t border-slate-100">
-                  <button 
-                    onClick={handleSaveProfile}
-                    disabled={saving}
-                    className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 flex items-center gap-2 disabled:opacity-70"
-                  >
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                    {saving ? 'Saving...' : 'Save Skills'}
                   </button>
                 </div>
               </CardBody>

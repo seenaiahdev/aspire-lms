@@ -9,12 +9,14 @@ import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
+import { useNotifications } from '@/lib/NotificationsContext';
 import { fetchRewards, submitRewardClaim, fetchRewardClaims } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 import { rewardsSteps } from '@/lib/tourSteps';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import aspireBackpackImg from '@/assests/media_1786109472875.jpg';
+import { BadgesPanel } from '@/components/BadgesPanel';
 
 export interface SwagReward {
   id: string;
@@ -73,6 +75,7 @@ function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: 
 export function RewardsScreen() {
   const { navigate } = useNav();
   const { user } = useUser();
+  const { addNotification } = useNotifications();
   const [rewardsState, setRewardsState] = useState<SwagReward[]>([]);
   const [selectedReward, setSelectedReward] = useState<SwagReward | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -96,6 +99,7 @@ export function RewardsScreen() {
   const [shippingSize, setShippingSize] = useState('M');
   const [lockedToastReward, setLockedToastReward] = useState<SwagReward | null>(null);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<'rewards' | 'badges'>('rewards');
 
   const userXp = user?.xp || 0;
 
@@ -165,6 +169,39 @@ export function RewardsScreen() {
     loadData();
   }, [userXp, user?.id]);
 
+  // Notify the student when a reward becomes newly unlocked (baseline silently on first load).
+  useEffect(() => {
+    const sid = user?.id;
+    if (!sid || sid === 'guest' || loading || rewardsState.length === 0) return;
+    const unlockedIds = rewardsState.filter((r) => r.isUnlocked).map((r) => r.id);
+    const key = `aspire_seen_rewards_${sid}`;
+    let seen: string[] | null = null;
+    try { seen = JSON.parse(localStorage.getItem(key) || 'null'); } catch { seen = null; }
+    if (seen === null) {
+      try { localStorage.setItem(key, JSON.stringify(unlockedIds)); } catch {}
+      return;
+    }
+    const seenSet = new Set(seen);
+    const newly = unlockedIds.filter((id) => !seenSet.has(id));
+    if (newly.length > 0) {
+      newly.forEach((id) => {
+        const r = rewardsState.find((x) => x.id === id);
+        addNotification(
+          {
+            id: `notif-reward-${id}-${sid}`,
+            student_id: sid, type: 'achievement',
+            title: 'Reward unlocked! 🎁',
+            message: `You unlocked "${r?.name || 'a reward'}". Claim it in the Rewards store.`,
+            read: false, created_at: new Date().toISOString(),
+          },
+          { showToast: true, persistDb: true }
+        );
+      });
+      try { localStorage.setItem(key, JSON.stringify(unlockedIds)); } catch {}
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rewardsState, loading, user?.id]);
+
   const unlockedCount = rewardsState.filter(r => r.isUnlocked && !claimedRewards[r.id]).length;
   const lockedCount = rewardsState.filter(r => !r.isUnlocked).length;
 
@@ -230,6 +267,34 @@ export function RewardsScreen() {
         </div>
       </div>
 
+      {/* ════════ TAB BAR: MERCHANDISE / BADGES ════════ */}
+      <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 w-fit">
+        {[
+          { id: 'rewards' as const, label: 'Rewards', icon: ShoppingBag },
+          { id: 'badges' as const, label: 'Badges', icon: Award },
+        ].map((t) => {
+          const isActive = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              className={cn(
+                'px-4 sm:px-5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all',
+                isActive ? 'bg-white text-[#7c3aed] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              )}
+            >
+              <t.icon className="w-4 h-4" /> {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ════════ BADGES TAB ════════ */}
+      {tab === 'badges' && <BadgesPanel />}
+
+      {/* ════════ MERCHANDISE TAB ════════ */}
+      {tab === 'rewards' && (
+      <>
       {/* Top 2 Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         
@@ -371,6 +436,8 @@ export function RewardsScreen() {
           );
         })}
       </div>
+      )}
+      </>
       )}
 
 

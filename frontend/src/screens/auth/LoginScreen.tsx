@@ -11,6 +11,14 @@ import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
 // OTP Length is 6 digits
 const OTP_LENGTH = 6;
 
+// Mask an email so the OTP screen never reveals the full address (A3).
+function maskEmail(email?: string): string {
+  if (!email || !email.includes('@')) return 'your email';
+  const [name, domain] = email.split('@');
+  const maskedName = name.length <= 2 ? `${name[0]}*` : `${name.slice(0, 2)}${'*'.repeat(Math.max(1, name.length - 2))}`;
+  return `${maskedName}@${domain}`;
+}
+
 export function LoginScreen() {
   const { login } = useNav();
   const { refetchUser } = useUser();
@@ -29,18 +37,31 @@ export function LoginScreen() {
 
   // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp (email fallback).
   const otpTokenRef = useRef<string>('');
+  // Email of the validated student (for the masked hint + resend); never rendered raw.
+  const studentEmailRef = useRef<string>('');
+  // Resend cooldown in seconds (A2).
+  const [resendIn, setResendIn] = useState(0);
+
+  // Clears any existing invisible reCAPTCHA + confirmation so the next send starts fresh (A1).
+  const clearRecaptcha = () => {
+    if (recaptchaVerifierRef.current) {
+      try { recaptchaVerifierRef.current.clear(); } catch (_) {}
+      recaptchaVerifierRef.current = null;
+    }
+    confirmationResultRef.current = null;
+  };
 
   // Cleanup recaptcha on unmount
   useEffect(() => {
-    return () => {
-      if (recaptchaVerifierRef.current) {
-        try {
-          recaptchaVerifierRef.current.clear();
-        } catch (_) {}
-        recaptchaVerifierRef.current = null;
-      }
-    };
+    return () => { clearRecaptcha(); };
   }, []);
+
+  // Resend cooldown ticker (A2).
+  useEffect(() => {
+    if (resendIn <= 0) return;
+    const t = setTimeout(() => setResendIn((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendIn]);
 
   const handleMobileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value.replace(/\D/g, '');
@@ -48,6 +69,70 @@ export function LoginScreen() {
       setMobile(value);
       if (error) setError('');
     }
+  };
+
+  // Steps 2-4 of OTP delivery (Firebase SMS → emailed code → demo code). Assumes `mobile` is a
+  // validated, registered number and `studentEmailRef` holds the student's email. Shared by the
+  // initial send and "Resend" so both go through the same fresh-verifier path.
+  const requestOtp = async () => {
+    setOtp(new Array(OTP_LENGTH).fill(''));
+    // Always start from a clean verifier so a re-send / number change can't reuse a stale
+    // invisible reCAPTCHA (which Firebase rejects with "reCAPTCHA has already been rendered") — A1.
+    clearRecaptcha();
+
+    // 2. Primary: Send real SMS OTP to the student's mobile number via Firebase Auth
+    if (isFirebaseConfigured) {
+      try {
+        const auth = getFirebaseAuth();
+        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          size: 'invisible',
+          callback: () => {},
+          'expired-callback': () => { clearRecaptcha(); }
+        });
+
+        const formattedPhone = `+91${mobile}`;
+        const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifierRef.current);
+        confirmationResultRef.current = confirmation;
+        setOtpMode('firebase');
+        setGeneratedOtp('');
+        setStep('otp');
+        setResendIn(30);
+        return;
+      } catch (firebaseErr: any) {
+        console.warn('Firebase SMS OTP failed, trying fallback:', firebaseErr);
+        clearRecaptcha();
+      }
+    }
+
+    // 3. Fallback: Ask the serverless function to email the OTP if Firebase SMS fails
+    try {
+      const resp = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: mobile }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        otpTokenRef.current = data.token || '';
+        // Never fall back to the raw, unmasked address (A3).
+        setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
+        setOtpMode('email');
+        setGeneratedOtp('');
+        setStep('otp');
+        setResendIn(30);
+        return;
+      }
+    } catch (apiErr) {
+      console.warn('Email OTP unavailable, using demo code:', apiErr);
+    }
+
+    // 4. Local dev / demo fallback code
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    setGeneratedOtp(code);
+    setOtpMode('demo');
+    setEmailHint(maskEmail(studentEmailRef.current));
+    setStep('otp');
+    setResendIn(30);
   };
 
   const handleLoginClick = async (e: React.FormEvent) => {
@@ -62,84 +147,32 @@ export function LoginScreen() {
       // 1. Gate on Supabase: only registered students get an OTP.
       const student = await fetchStudentByPhone(mobile);
       if (!student) {
-        setIsSubmitting(false);
         setError('Mobile number not registered. Please try another number.');
         return;
       }
-
-      localStorage.setItem('aspire_logged_in_mobile', mobile);
-      setOtp(new Array(OTP_LENGTH).fill(''));
-
-      // 2. Primary: Send real SMS OTP to the student's mobile number via Firebase Auth
-      if (isFirebaseConfigured) {
-        try {
-          const auth = getFirebaseAuth();
-
-          // Initialize invisible reCAPTCHA verifier if not already created
-          if (!recaptchaVerifierRef.current) {
-            recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
-              size: 'invisible',
-              callback: () => {
-                // reCAPTCHA solved
-              },
-              'expired-callback': () => {
-                if (recaptchaVerifierRef.current) {
-                  try { recaptchaVerifierRef.current.clear(); } catch (_) {}
-                  recaptchaVerifierRef.current = null;
-                }
-              }
-            });
-          }
-
-          const formattedPhone = `+91${mobile}`;
-          const confirmation = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifierRef.current);
-          confirmationResultRef.current = confirmation;
-          setOtpMode('firebase');
-          setGeneratedOtp('');
-          setStep('otp');
-          setIsSubmitting(false);
-          return;
-        } catch (firebaseErr: any) {
-          console.warn('Firebase SMS OTP failed, trying fallback:', firebaseErr);
-          if (recaptchaVerifierRef.current) {
-            try { recaptchaVerifierRef.current.clear(); } catch (_) {}
-            recaptchaVerifierRef.current = null;
-          }
-        }
-      }
-
-      // 3. Fallback: Ask the serverless function to email the OTP if Firebase SMS fails
-      try {
-        const resp = await fetch('/api/send-otp', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ phone: mobile }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          otpTokenRef.current = data.token || '';
-          setEmailHint(data.emailHint || student.email || '');
-          setOtpMode('email');
-          setGeneratedOtp('');
-          setStep('otp');
-          setIsSubmitting(false);
-          return;
-        }
-      } catch (apiErr) {
-        console.warn('Email OTP unavailable, using demo code:', apiErr);
-      }
-
-      // 4. Local dev / demo fallback code
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      setGeneratedOtp(code);
-      setOtpMode('demo');
-      setEmailHint(student.email || '');
-      setStep('otp');
-      setIsSubmitting(false);
+      // Persist the mobile only AFTER OTP is verified (see completeLogin) — A4.
+      studentEmailRef.current = student.email || '';
+      await requestOtp();
     } catch (err) {
-      setIsSubmitting(false);
       console.error(err);
       setError('An error occurred. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Resend the code, only once the cooldown has elapsed (A2).
+  const handleResend = async () => {
+    if (resendIn > 0 || isSubmitting) return;
+    setError('');
+    setIsSubmitting(true);
+    try {
+      await requestOtp();
+    } catch (err) {
+      console.error('Resend OTP failed:', err);
+      setError('Could not resend the code. Please try again.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -191,6 +224,8 @@ export function LoginScreen() {
   };
 
   const completeLogin = () => {
+    // Persist identity only now that the OTP is verified (A4).
+    localStorage.setItem('aspire_logged_in_mobile', mobile);
     localStorage.setItem('aspire_logged_in', 'true');
     refetchUser().then(() => login());
   };
@@ -539,10 +574,21 @@ export function LoginScreen() {
                   )}
                 </button>
 
+                {/* Resend OTP with cooldown (A2) */}
                 <button
                   type="button"
-                  onClick={() => { setStep('mobile'); setError(''); }}
-                  className="text-xs font-normal text-primary-700 hover:underline mt-4"
+                  onClick={handleResend}
+                  disabled={resendIn > 0 || isSubmitting}
+                  className="mt-4 text-xs font-semibold text-primary-700 hover:underline disabled:text-slate-400 disabled:no-underline disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
+                  {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend OTP'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setStep('mobile'); setError(''); setResendIn(0); clearRecaptcha(); }}
+                  className="text-xs font-normal text-primary-700 hover:underline mt-2"
                 >
                   Change Mobile Number
                 </button>

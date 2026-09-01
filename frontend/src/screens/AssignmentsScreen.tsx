@@ -138,7 +138,9 @@ export function AssignmentsScreen() {
           
           const mappedTasks = (data || []).map((task: any) => {
             // One stored row per assessment (the 1st attempt); `attempt_count` = total tries.
-            const taskAttempts = (attempts || []).filter((a: any) => a.assignment_id === task.id);
+            const taskAttempts = (attempts || []).filter((a: any) => 
+              String(a.assignment_id || '').trim() === String(task.id || '').trim() || a.assignment_id === task.id
+            );
             const storedRow = taskAttempts[0];
             const storedScore = storedRow?.score ?? 0;
             const totalTries = storedRow?.attempt_count ?? taskAttempts.length;

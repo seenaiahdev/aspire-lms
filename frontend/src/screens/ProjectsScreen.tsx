@@ -129,16 +129,16 @@ function formatProjectDescription(description: string): string {
 
 export function ProjectsScreen() {
   const { user } = useUser();
-  const { isUnlocked } = useUnlockResolver();
+  const { isUnlocked, isEntityUnlocked } = useUnlockResolver();
   const { params } = useNav();
-  const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone' | 'templates'>('mini');
+  const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone'>('mini');
   const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
   // Automatically switch tab based on route params
   useEffect(() => {
-    if (params.tab && ['mini', 'major', 'capstone', 'templates'].includes(params.tab)) {
+    if (params.tab && ['mini', 'major', 'capstone'].includes(params.tab)) {
       setMainCategory(params.tab as any);
     }
   }, [params.tab]);
@@ -374,8 +374,8 @@ export function ProjectsScreen() {
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
     return projectsState
-      // Bridge Scheme A (l_git_3) -> Scheme B (lesson-…) so unlocked lessons surface their projects.
-      .filter((p: any) => isUnlocked(p.inner_topic_id))
+      // Bridge Scheme A (l_git_3) -> Scheme B (lesson-…) so only unlocked lessons surface their projects.
+      .filter((p: any) => isEntityUnlocked(p) || isUnlocked(p.inner_topic_id))
       .map((p: any) => {
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
         let status = (p.status || 'assigned').toLowerCase();
@@ -402,7 +402,7 @@ export function ProjectsScreen() {
           skills: skillsArray
         };
       });
-  }, [projectsState, driveLinks, isUnlocked]);
+  }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked]);
 
   useEffect(() => {
     localStorage.setItem('projectDriveLinks', JSON.stringify(driveLinks));
@@ -416,14 +416,12 @@ export function ProjectsScreen() {
 
   // Category & Sub-Tab Filtering
   const categoryProjects = useMemo(() => {
-    if (mainCategory === 'templates') return [];
     return effectiveProjects.filter((p: any) => (p.projectType || 'mini') === mainCategory);
   }, [effectiveProjects, mainCategory]);
 
   const filtered = useMemo(() => {
-    if (mainCategory === 'templates') return [];
     return categoryProjects.filter((p: any) => p.status === subTab);
-  }, [categoryProjects, mainCategory, subTab]);
+  }, [categoryProjects, subTab]);
 
   const assignedCount = categoryProjects.filter((p: any) => p.status === 'assigned').length;
   const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted').length;
@@ -856,7 +854,6 @@ export function ProjectsScreen() {
           { id: 'mini', label: 'Mini Projects' },
           { id: 'major', label: 'Major Projects' },
           { id: 'capstone', label: 'Capstone Projects' },
-          { id: 'templates', label: 'Templates' },
         ].map((cat) => {
           const isActive = mainCategory === cat.id;
           return (
@@ -877,162 +874,121 @@ export function ProjectsScreen() {
       </div>
 
       {/* ════════ 2. SUB-TABS (ASSIGNED / SUBMITTED / MENTOR FEEDBACK) ════════ */}
-      {mainCategory !== 'templates' && (
-        <div className="space-y-6">
-          <Tabs
-            variant="pills"
-            tabs={[
-              { id: 'assigned', label: `Assigned (${assignedCount})` },
-              { id: 'submitted', label: `Submitted (${submittedCount})` },
-              { id: 'feedback', label: `Mentor Feedback (${feedbackCount})` },
-            ]}
-            active={subTab}
-            onChange={(val) => setSubTab(val as any)}
-          />
+      <div className="space-y-6">
+        <Tabs
+          variant="pills"
+          tabs={[
+            { id: 'assigned', label: `Assigned (${assignedCount})` },
+            { id: 'submitted', label: `Submitted (${submittedCount})` },
+            { id: 'feedback', label: `Mentor Feedback (${feedbackCount})` },
+          ]}
+          active={subTab}
+          onChange={(val) => setSubTab(val as any)}
+        />
 
-          {/* PROJECTS GRID */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {isLoading ? (
-              <div className="col-span-full flex justify-center py-12">
-                <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
-              </div>
-            ) : filtered.length === 0 ? (
-              <div className="col-span-full">
-                <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
-                  <FolderGit2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                  <h3 className="font-extrabold text-slate-800 text-base">No Projects Found</h3>
-                  <p className="text-xs text-slate-500 mt-1">There are no {subTab} projects in this category currently.</p>
-                </Card>
-              </div>
-            ) : (
-              filtered.map((p, index) => {
-                const isLocked = false; // All unlocked
-                return (
-                  <Card 
-                    key={p.id} 
-                    id={`project-card-${p.id}`}
-                    data-tour={index === 0 ? 'tour-projects-card-0' : undefined}
-                    onClick={() => {
-                      if (isLocked) {
-                        setLockedToast(true);
-                        setTimeout(() => setLockedToast(false), 3000);
-                      } else {
-                        setSelectedProjectId(p.id);
-                        window.scrollTo({ top: 0, behavior: 'smooth' });
-                      }
-                    }}
-                    className={cn(
-                      "group p-6 rounded-[2rem] border shadow-sm flex flex-col justify-between relative overflow-hidden transition-all",
-                      isLocked 
-                        ? "cursor-not-allowed border-slate-200/60 bg-slate-50/50 opacity-90 grayscale-[15%]" 
-                        : "cursor-pointer border-slate-200/90 bg-white hover:border-slate-300"
-                    )}
-                  >
-                    <div>
-                    <div className="flex items-start justify-between mb-4 gap-3">
-                      <div className="flex items-center gap-3.5">
-                        <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
-                          <FolderGit2 className="w-6 h-6 text-slate-400" />
-                        </div>
-                        <div>
-                          <h3 className="font-extrabold text-slate-900 text-base leading-snug">{p.title}</h3>
-                          <p className="text-xs font-bold text-slate-500 mt-0.5">{p.course}</p>
-                        </div>
+        {/* PROJECTS GRID */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          {isLoading ? (
+            <div className="col-span-full flex justify-center py-12">
+              <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="col-span-full">
+              <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
+                <FolderGit2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+                <h3 className="font-extrabold text-slate-800 text-base">No Projects Found</h3>
+                <p className="text-xs text-slate-500 mt-1">There are no {subTab} projects in this category currently.</p>
+              </Card>
+            </div>
+          ) : (
+            filtered.map((p, index) => {
+              const isLocked = false; // All unlocked
+              return (
+                <Card 
+                  key={p.id} 
+                  id={`project-card-${p.id}`}
+                  data-tour={index === 0 ? 'tour-projects-card-0' : undefined}
+                  onClick={() => {
+                    if (isLocked) {
+                      setLockedToast(true);
+                      setTimeout(() => setLockedToast(false), 3000);
+                    } else {
+                      setSelectedProjectId(p.id);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }
+                  }}
+                  className={cn(
+                    "group p-6 rounded-[2rem] border shadow-sm flex flex-col justify-between relative overflow-hidden transition-all",
+                    isLocked 
+                      ? "cursor-not-allowed border-slate-200/60 bg-slate-50/50 opacity-90 grayscale-[15%]" 
+                      : "cursor-pointer border-slate-200/90 bg-white hover:border-slate-300"
+                  )}
+                >
+                  <div>
+                  <div className="flex items-start justify-between mb-4 gap-3">
+                    <div className="flex items-center gap-3.5">
+                      <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+                        <FolderGit2 className="w-6 h-6 text-slate-400" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-slate-900 text-base leading-snug">{p.title}</h3>
+                        <p className="text-xs font-bold text-slate-500 mt-0.5">{p.course}</p>
                       </div>
                     </div>
-
-                    <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{formatProjectDescription(p.description)}</p>
-                    
-                    <div className="flex flex-wrap gap-1.5 mb-4">
-                      {p.skills.map((s: string) => (
-                        <span key={s} className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold">
-                          {s}
-                        </span>
-                      ))}
-                    </div>
-
-                    {/* Mentor Feedback Banner */}
-                    {p.status === 'feedback' && p.mentorFeedback && (
-                      <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100 mb-4">
-                        <p className="text-xs font-extrabold text-[#7c3aed] mb-1">Mentor Feedback</p>
-                        <p className="text-xs font-medium text-slate-700 leading-relaxed">{p.mentorFeedback}</p>
-                        {p.grade && (
-                          <div className="mt-2.5 flex items-center gap-2">
-                            <div className="flex-1 h-1.5 bg-purple-200 rounded-full overflow-hidden">
-                              <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: `${p.grade}%` }} />
-                            </div>
-                            <span className="text-xs font-extrabold text-[#7c3aed]">{p.grade}/100</span>
-                          </div>
-                        )}
-                      </div>
-                    )}
                   </div>
 
-                  <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-auto">
-                    <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
-                      <Clock className="w-4 h-4 text-slate-400" />
-                      Due {p.dueDate}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      {isLocked ? (
-                        <button className="px-4 py-2.5 rounded-xl bg-slate-200/50 text-slate-500 font-extrabold text-xs flex items-center gap-1.5 cursor-not-allowed">
-                          <Lock className="w-3.5 h-3.5" />
-                          <span>Coming Soon</span>
-                        </button>
-                      ) : (
-                        <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
-                          <span>View Details</span>
-                          <ArrowRight className="w-3.5 h-3.5" />
-                        </button>
+                  <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{formatProjectDescription(p.description)}</p>
+                  
+                  <div className="flex flex-wrap gap-1.5 mb-4">
+                    {p.skills.map((s: string) => (
+                      <span key={s} className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold">
+                        {s}
+                      </span>
+                    ))}
+                  </div>
+
+                  {/* Mentor Feedback Banner */}
+                  {p.status === 'feedback' && p.mentorFeedback && (
+                    <div className="p-3.5 rounded-2xl bg-purple-50/70 border border-purple-100 mb-4">
+                      <p className="text-xs font-extrabold text-[#7c3aed] mb-1">Mentor Feedback</p>
+                      <p className="text-xs font-medium text-slate-700 leading-relaxed">{p.mentorFeedback}</p>
+                      {p.grade && (
+                        <div className="mt-2.5 flex items-center gap-2">
+                          <div className="flex-1 h-1.5 bg-purple-200 rounded-full overflow-hidden">
+                            <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: `${p.grade}%` }} />
+                          </div>
+                          <span className="text-xs font-extrabold text-[#7c3aed]">{p.grade}/100</span>
+                        </div>
                       )}
                     </div>
-                  </div>
-                </Card>
-              )
-            })
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* ════════ 3. TEMPLATES TAB ════════ */}
-      {mainCategory === 'templates' && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 animate-fade-in">
-          {[
-            { title: 'Semantic HTML5 & CSS3 Starter', desc: 'A clean, dependency-free boilerplate with semantic layout structure and base CSS resets.' },
-            { title: 'Django + Redis Cache Boilerplate', desc: 'Pre-configured Django settings with Redis caching, DRF, and JWT auth setup.' },
-            { title: 'LangChain & Docker AI Template', desc: 'Containerized Python environment with LangChain memory and vector store configs.' },
-            { title: 'Microservices LMS Architecture', desc: 'Docker Compose setup with an Nginx API gateway and independent backend services.' }
-          ].map((t, i) => (
-            <Card 
-              key={i} 
-              onClick={() => {
-                triggerFileDownload('template', t.title);
-              }}
-              className="p-6 bg-white border border-slate-200/90 rounded-[2rem] shadow-sm flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-slate-350 hover:shadow-md transition-all duration-300"
-            >
-              <div>
-                <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mb-4">
-                  <Code2 className="w-6 h-6 text-[#7c3aed]" />
+                  )}
                 </div>
-                <h3 className="font-extrabold text-slate-900 text-base mb-1.5">{t.title}</h3>
-                <p className="text-xs font-medium text-slate-500 leading-relaxed mb-6">{t.desc}</p>
-              </div>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  triggerFileDownload('template', t.title);
-                }}
-                className="w-full mt-6 py-2.5 px-4 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-100 font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
-              >
-                <Download className="w-4 h-4" />
-                <span>Download Template</span>
-              </button>
-            </Card>
-          ))}
+
+                <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-auto">
+                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
+                    <Clock className="w-4 h-4 text-slate-400" />
+                    Due {p.dueDate}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    {isLocked ? (
+                      <button className="px-4 py-2.5 rounded-xl bg-slate-200/50 text-slate-500 font-extrabold text-xs flex items-center gap-1.5 cursor-not-allowed">
+                        <Lock className="w-3.5 h-3.5" />
+                        <span>Coming Soon</span>
+                      </button>
+                    ) : (
+                      <button className="px-4 py-2 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-xs flex items-center gap-1.5 transition-all">
+                        <span>View Details</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </Card>
+            )
+          })
+          )}
         </div>
-      )}
+      </div>
 
       {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
       {lockedToast && (

@@ -340,6 +340,57 @@ export async function upsertStudentProfile(
   return data as StudentProfileRow;
 }
 
+/** Resize/crop an image file to a compact square JPEG data URL (keeps avatars small). */
+function resizeImageToDataUrl(file: File, size = 256): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return reject(new Error('canvas unavailable'));
+        // Cover-crop the largest centered square, then scale down to `size`.
+        const min = Math.min(img.width, img.height);
+        const sx = (img.width - min) / 2;
+        const sy = (img.height - min) / 2;
+        ctx.drawImage(img, sx, sy, min, min, 0, 0, size, size);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.onerror = () => reject(new Error('could not read image'));
+      img.src = reader.result as string;
+    };
+    reader.onerror = () => reject(new Error('could not read file'));
+    reader.readAsDataURL(file);
+  });
+}
+
+/**
+ * Uploads a student avatar: resize → try Supabase Storage (keeps the DB row tiny) → fall back to a
+ * compact data URL if Storage is unavailable. Persists the resulting URL to `students.avatar`
+ * (which UserContext reads) and returns it.
+ */
+export async function updateStudentAvatar(studentId: string, file: File): Promise<string> {
+  const dataUrl = await resizeImageToDataUrl(file, 256);
+  let finalUrl = dataUrl;
+  try {
+    const blob = await (await fetch(dataUrl)).blob();
+    const path = `avatars/${String(studentId).replace(/[^a-zA-Z0-9._-]/g, '_')}-${Date.now()}.jpg`;
+    const { error } = await supabase.storage.from('submissions').upload(path, blob, { upsert: true, contentType: 'image/jpeg' });
+    if (!error) {
+      const { data } = supabase.storage.from('submissions').getPublicUrl(path);
+      if (data?.publicUrl) finalUrl = data.publicUrl;
+    }
+  } catch {
+    // keep the data URL fallback
+  }
+  const { error: updErr } = await supabase.from('students').update({ avatar: finalUrl }).eq('id', studentId);
+  if (updErr) throw updErr;
+  return finalUrl;
+}
+
 /**
  * Fetches course details matching a list of course IDs.
  */
@@ -1091,12 +1142,12 @@ export async function computeCourseProgress(userId: string, courseId: string): P
       supabase.from('coding_questions').select('id').eq('course_id', courseId),
       supabase.from('projects').select('id').eq('course_id', courseId),
     ]);
-    const lessonIds = new Set((lRes.data || []).map((r: any) => r.id));
-    const assessIds = new Set((aRes.data || []).map((r: any) => r.id));
-    const quizIds = new Set((qRes.data || []).map((r: any) => r.id));
+    const lessonIds = new Set((lRes.data || []).map((r: any) => String(r.id || '').trim()));
+    const assessIds = new Set((aRes.data || []).map((r: any) => String(r.id || '').trim()));
+    const quizIds = new Set((qRes.data || []).map((r: any) => String(r.id || '').trim()));
     const practiceIds = new Set<string>([
-      ...(cRes.data || []).map((r: any) => r.id),
-      ...(pRes.data || []).map((r: any) => r.id),
+      ...(cRes.data || []).map((r: any) => String(r.id || '').trim()),
+      ...(pRes.data || []).map((r: any) => String(r.id || '').trim()),
     ]);
     const total = lessonIds.size + assessIds.size + quizIds.size + practiceIds.size;
     if (total === 0) return 0;
@@ -1108,10 +1159,10 @@ export async function computeCourseProgress(userId: string, courseId: string): P
       supabase.from('practice_submissions').select('problem_id').eq('student_id', userId),
     ]);
     const done =
-      new Set((lp.data || []).filter((r: any) => r.completed).map((r: any) => r.lesson_id).filter((id: any) => lessonIds.has(id))).size +
-      new Set((aa.data || []).map((r: any) => r.assignment_id).filter((id: any) => assessIds.has(id))).size +
-      new Set((qa.data || []).map((r: any) => r.quiz_id).filter((id: any) => quizIds.has(id))).size +
-      new Set((ps.data || []).map((r: any) => r.problem_id).filter((id: any) => practiceIds.has(id))).size;
+      new Set((lp.data || []).filter((r: any) => r.completed).map((r: any) => String(r.lesson_id || '').trim()).filter((id: any) => lessonIds.has(id))).size +
+      new Set((aa.data || []).map((r: any) => String(r.assignment_id || '').trim()).filter((id: any) => assessIds.has(id))).size +
+      new Set((qa.data || []).map((r: any) => String(r.quiz_id || '').trim()).filter((id: any) => quizIds.has(id))).size +
+      new Set((ps.data || []).map((r: any) => String(r.problem_id || '').trim()).filter((id: any) => practiceIds.has(id))).size;
 
     return Math.min(100, Math.round((done / total) * 100));
   } catch (err) {

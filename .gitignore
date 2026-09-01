@@ -19,5 +19,9 @@ dist-ssr
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?
 .env
+.env.*
+.env.local
+.env.production
+.env.development
+.claude/
