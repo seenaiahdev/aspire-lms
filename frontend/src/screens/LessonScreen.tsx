@@ -547,67 +547,11 @@ export function LessonScreen() {
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-45 mix-blend-luminosity" />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/30 to-slate-950/70" />
 
-          {/* Top Bar (Title + Quality Subtitle + Back & Settings Actions) */}
-          <div className="absolute top-0 left-0 right-0 p-5 flex items-start justify-between z-30 bg-gradient-to-b from-slate-950/90 via-slate-950/40 to-transparent">
+          {/* Top Bar (Clean Title Overlay) */}
+          <div className="absolute top-0 left-0 right-0 p-5 flex items-center justify-between z-30 bg-gradient-to-b from-slate-950/90 via-slate-950/40 to-transparent pointer-events-none">
             <div>
               <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-white font-extrabold text-sm sm:text-base tracking-tight">{currentLesson?.title || 'Loading...'}</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 relative">
-              <button 
-                onClick={handleBookmark}
-                className={cn(
-                  "w-8 h-8 rounded-xl backdrop-blur-md flex items-center justify-center transition-all",
-                  isBookmarked ? "bg-[#7c3aed] text-white shadow-lg" : "bg-white/10 hover:bg-white/20 text-white/90 hover:text-white"
-                )}
-              >
-                <Bookmark className={cn("w-4 h-4", isBookmarked && "fill-white")} />
-              </button>
-              
-              <div className="relative">
-                <button 
-                  onClick={() => setShowSettings(!showSettings)}
-                  className={cn(
-                    "w-8 h-8 rounded-xl backdrop-blur-md flex items-center justify-center transition-all",
-                    showSettings ? "bg-white/30 text-white" : "bg-white/10 hover:bg-white/20 text-white/90 hover:text-white"
-                  )}
-                >
-                  <Settings className={cn("w-4 h-4 transition-transform duration-300", showSettings && "rotate-90")} />
-                </button>
-
-                {/* Settings Dropdown */}
-                {showSettings && (
-                  <div className="absolute right-0 top-10 w-48 bg-slate-900/95 backdrop-blur-xl border border-white/10 rounded-2xl shadow-2xl overflow-hidden z-50 animate-fade-in text-white text-xs">
-                    <div className="p-2 border-b border-white/10">
-                      <p className="px-2 py-1 font-bold text-white/50 text-[10px] uppercase tracking-wider">Playback Speed</p>
-                      {['0.5x', '1.0x', '1.5x', '2.0x'].map(speed => (
-                        <button
-                          key={speed}
-                          onClick={() => { setPlaybackSpeed(speed); setShowSettings(false); }}
-                          className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                        >
-                          <span>{speed}</span>
-                          {playbackSpeed === speed && <Check className="w-3.5 h-3.5 text-purple-400" />}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="p-2">
-                      <p className="px-2 py-1 font-bold text-white/50 text-[10px] uppercase tracking-wider">Quality</p>
-                      {['1080p', '720p', '480p'].map(q => (
-                        <button
-                          key={q}
-                          onClick={() => { setQuality(q); setShowSettings(false); }}
-                          className="w-full flex items-center justify-between px-2 py-1.5 hover:bg-white/10 rounded-lg transition-colors"
-                        >
-                          <span>{q}</span>
-                          {quality === q && <Check className="w-3.5 h-3.5 text-purple-400" />}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                <span className="text-white font-extrabold text-sm sm:text-base tracking-tight drop-shadow-md">{currentLesson?.title || 'Loading...'}</span>
               </div>
             </div>
           </div>
