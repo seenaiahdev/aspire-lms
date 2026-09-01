@@ -586,18 +586,20 @@ export function LessonScreen() {
                 />
               );
             }
-            // Drive / YouTube → the provider player embedded directly, so a single click on its play
-            // button starts the video (a Drive iframe can't be auto-started, so an extra custom
-            // overlay would just force a second click). Direct URLs above give the seamless player.
+            // Drive / YouTube → framed with top header offset to remove the Google Drive popout button and title chrome
             return (
-              <iframe
-                key={rawUrl}
-                src={toEmbedVideoUrl(rawUrl)}
-                title={currentLesson?.title || 'Lesson video'}
-                className="absolute inset-0 w-full h-full z-10 border-0"
-                allow="autoplay; encrypted-media; fullscreen"
-                allowFullScreen
-              />
+              <div className="absolute inset-0 w-full h-full z-10 overflow-hidden bg-black">
+                <iframe
+                  key={rawUrl}
+                  src={toEmbedVideoUrl(rawUrl)}
+                  title={currentLesson?.title || 'Lesson video'}
+                  className="absolute -top-[56px] left-0 w-full h-[calc(100%+56px)] border-0"
+                  allow="autoplay; encrypted-media; fullscreen"
+                  allowFullScreen
+                />
+                {/* Top-Right Shield: permanently prevents pop-out overlay clicks */}
+                <div className="absolute top-0 right-0 w-28 h-16 z-20 pointer-events-auto" />
+              </div>
             );
           })()}          {/* Bottom Player Controls Dock - HIDDEN for "Coming Soon" state
           <div className="absolute bottom-0 left-0 right-0 p-5 z-30 bg-gradient-to-t from-slate-950 via-slate-950/90 to-transparent space-y-3">
