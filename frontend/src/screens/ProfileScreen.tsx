@@ -214,47 +214,48 @@ export function ProfileScreen() {
             </div>
 
             {/* Student Name & Academic Affiliation */}
-            <div className="pt-1 pr-36">
-              <h1 className="font-black text-2xl sm:text-[27px] text-slate-900 tracking-tight leading-tight">
+            <div className="pt-1.5 pr-36">
+              <h1 className="font-black text-2xl sm:text-[28px] text-slate-900 tracking-tight leading-tight">
                 {studentName}
               </h1>
               
-              <p className="text-[#6722f4] font-bold text-sm sm:text-[15px] mt-0.5">
-                {programName}
-              </p>
-
-              <p className="text-slate-500 text-xs font-semibold mt-0.5">
-                {collegeName} ({startYear} – {endYear})
-              </p>
+              <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#6722f4] font-black text-xs border border-purple-100/80">
+                  {programName}
+                </span>
+                <span className="text-slate-500 text-xs font-semibold">
+                  {collegeName} ({startYear} – {endYear})
+                </span>
+              </div>
             </div>
 
-            {/* 3 Identity Columns (Separated by Vertical Hairline Dividers) */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 py-2.5 my-auto">
-              {/* Column 1: BATCH */}
-              <div className="flex flex-col items-center text-center pr-2 sm:pr-3 border-r border-slate-100">
-                <div className="w-10 h-10 rounded-2xl bg-[#f4effe] flex items-center justify-center text-[#6722f4] mb-1 shadow-sm">
+            {/* 3 Identity Cards (Soft Lilac Tint, Rounded, Eliminates Empty Space) */}
+            <div className="grid grid-cols-3 gap-3 sm:gap-3.5 my-auto">
+              {/* Card 1: BATCH */}
+              <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
+                <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
                   <GraduationCap className="w-5 h-5 text-[#6722f4]" />
                 </div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">BATCH</span>
-                <span className="text-sm font-black text-slate-900 mt-0.5">{displayBatch}</span>
+                <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">BATCH</span>
+                <span className="text-base font-black text-slate-900 mt-0.5 tracking-tight">{displayBatch}</span>
               </div>
 
-              {/* Column 2: REG NO */}
-              <div className="flex flex-col items-center text-center px-2 sm:px-3 border-r border-slate-100">
-                <div className="w-10 h-10 rounded-2xl bg-[#f4effe] flex items-center justify-center text-[#6722f4] mb-1 shadow-sm">
+              {/* Card 2: REG NO */}
+              <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
+                <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
                   <Contact className="w-5 h-5 text-[#6722f4]" />
                 </div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">REG NO</span>
-                <span className="text-sm font-black font-mono text-slate-900 mt-0.5">{displayRegNo}</span>
+                <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">REG NO</span>
+                <span className="text-sm sm:text-[15px] font-black font-mono text-slate-900 mt-0.5 tracking-tight">{displayRegNo}</span>
               </div>
 
-              {/* Column 3: EMAIL (Full Email Display without Clipping) */}
-              <div className="flex flex-col items-center text-center pl-2 sm:pl-3 min-w-0">
-                <div className="w-10 h-10 rounded-2xl bg-[#f4effe] flex items-center justify-center text-[#6722f4] mb-1 shadow-sm">
+              {/* Card 3: EMAIL */}
+              <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
                   <Mail className="w-5 h-5 text-[#6722f4]" />
                 </div>
-                <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider">EMAIL</span>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-800 mt-0.5 break-all sm:break-normal max-w-full px-0.5" title={studentEmail}>
+                <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">EMAIL</span>
+                <span className="text-[11px] sm:text-xs font-bold text-slate-800 mt-0.5 truncate w-full px-1" title={studentEmail}>
                   {studentEmail}
                 </span>
               </div>
