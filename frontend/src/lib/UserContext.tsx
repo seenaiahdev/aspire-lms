@@ -57,6 +57,7 @@ interface ExtendedUser extends User {
 
 interface UserContextType {
   user: ExtendedUser;
+  setUser: React.Dispatch<React.SetStateAction<ExtendedUser>>;
   updateUser: (updates: Partial<ExtendedUser>) => void;
   refetchUser: () => Promise<void>;
   loading: boolean;
@@ -454,7 +455,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <UserContext.Provider value={{ user, updateUser, refetchUser, loading }}>
+    <UserContext.Provider value={{ user, setUser, updateUser, refetchUser, loading }}>
       {children}
     </UserContext.Provider>
   );

@@ -21,7 +21,7 @@ function maskEmail(email?: string): string {
 
 export function LoginScreen() {
   const { login } = useNav();
-  const { refetchUser, setUser } = useUser();
+  const { refetchUser, setUser, updateUser } = useUser();
   const [mobile, setMobile] = useState('');
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
   const [otp, setOtp] = useState<string[]>(() => new Array(OTP_LENGTH).fill(''));
@@ -241,55 +241,65 @@ export function LoginScreen() {
     localStorage.setItem('aspire_logged_in', 'true');
 
     // Pre-populate user cache from the already-fetched student record for instantaneous UI
-    if (studentRecordRef.current) {
-      const student = studentRecordRef.current;
-      const initialCache = {
-        id: student.id,
-        name: student.name,
-        email: student.email,
-        avatar: student.avatar || '',
-        role: 'Student',
-        program: 'Engineering Degree',
-        college: '',
-        joinedDate: student.joined_date || 'Jan 2026',
-        xp: student.xp || 0,
-        level: Math.floor((student.xp || 0) / 500) + 1,
-        streak: student.streak || 1,
-        rank: 0,
-        bio: '',
-        skills: [],
-        socials: [
-          { label: 'GitHub', value: 'Not connected' },
-          { label: 'LinkedIn', value: 'Not connected' },
-          { label: 'Portfolio', value: 'Not connected' },
-        ],
-        batchCode: student.batch,
-        batchCategory: student.batch?.toLowerCase().includes('w') ? 'Weekday' : 'Weekend',
-        mobile: mobile,
-        gpa: 0,
-        attendance: student.streak || 1,
-        progress: 0,
-        status: student.status,
-        registrationId: student.registration_id,
-        enrolledCourses: [],
-        courseProgress: {},
-        unlockedLessonIds: [],
-        notifPrefs: {
-          assignments: true,
-          live: true,
-          placement: true,
-          weekly: true,
-        },
-      };
-      localStorage.setItem('aspire_cached_user', JSON.stringify(initialCache));
-      setUser(initialCache as any);
+    try {
+      if (studentRecordRef.current) {
+        const student = studentRecordRef.current;
+        const initialCache = {
+          id: student.id,
+          name: student.name,
+          email: student.email,
+          avatar: student.avatar || '',
+          role: 'Student',
+          program: 'Engineering Degree',
+          college: '',
+          joinedDate: student.joined_date || 'Jan 2026',
+          xp: student.xp || 0,
+          level: Math.floor((student.xp || 0) / 500) + 1,
+          streak: student.streak || 1,
+          rank: 0,
+          bio: '',
+          skills: [],
+          socials: [
+            { label: 'GitHub', value: 'Not connected' },
+            { label: 'LinkedIn', value: 'Not connected' },
+            { label: 'Portfolio', value: 'Not connected' },
+          ],
+          batchCode: student.batch,
+          batchCategory: student.batch?.toLowerCase().includes('w') ? 'Weekday' : 'Weekend',
+          mobile: mobile,
+          gpa: 0,
+          attendance: student.streak || 1,
+          progress: 0,
+          status: student.status,
+          registrationId: student.registration_id,
+          enrolledCourses: [],
+          courseProgress: {},
+          unlockedLessonIds: [],
+          notifPrefs: {
+            assignments: true,
+            live: true,
+            placement: true,
+            weekly: true,
+          },
+        };
+        localStorage.setItem('aspire_cached_user', JSON.stringify(initialCache));
+        if (typeof setUser === 'function') {
+          setUser(initialCache as any);
+        } else if (typeof updateUser === 'function') {
+          updateUser(initialCache);
+        }
+      }
+    } catch (cacheErr) {
+      console.warn('Failed to pre-populate user cache:', cacheErr);
     }
 
     // Instant seamless transition to dashboard (keeps loader visible until unmount)
     login();
 
     // Trigger full background sync for enrollments, locks, progress, XP, streak
-    refetchUser().catch((err) => console.warn('Background refetchUser error:', err));
+    try {
+      refetchUser().catch((err) => console.warn('Background refetchUser error:', err));
+    } catch (_) {}
   };
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
