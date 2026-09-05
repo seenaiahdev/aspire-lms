@@ -1384,10 +1384,15 @@ export function LearningScreen() {
                                <div 
                                  key={assessment.id} 
                                  onClick={() => {
+                                   if (assessment.failed) return;
                                    setSelectedTopicDrawer(null);
                                    navigate('assignments', assessment.id ? { id: assessment.id } : undefined);
                                  }}
-                                 className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-primary-300 cursor-pointer group/item active:scale-[0.99]"
+                                 className={`p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 ${
+                                   assessment.failed
+                                     ? 'opacity-85 cursor-default'
+                                     : 'hover:shadow-md hover:border-primary-300 cursor-pointer group/item active:scale-[0.99]'
+                                 }`}
                                >
                                  <div className="flex items-start gap-3">
                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-primary-500/20 group-hover/item:scale-105 transition-transform">
@@ -1408,18 +1413,9 @@ export function LearningScreen() {
                                       <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Done
                                     </span>
                                   ) : assessment.failed ? (
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      <span className="px-2.5 py-1 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                                        <XCircle className="w-3.5 h-3.5 text-rose-600" /> Fail
-                                      </span>
-                                      <button
-                                        type="button"
-                                        className="px-2.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-rose-600 hover:bg-rose-700 text-white shadow-sm active:scale-95 pointer-events-none"
-                                      >
-                                        <span>RETAKE</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                      </button>
-                                    </div>
+                                    <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 shrink-0 shadow-2xs">
+                                      <XCircle className="w-4 h-4 text-rose-600" /> Fail
+                                    </span>
                                   ) : (
                                   <button
                                     type="button"
@@ -1437,10 +1433,15 @@ export function LearningScreen() {
                                 <div 
                                   key={quiz.id} 
                                   onClick={() => {
+                                    if (quiz.failed) return;
                                     setSelectedTopicDrawer(null);
                                     navigate('quizzes', quiz.id ? { id: quiz.id } : undefined);
                                   }}
-                                  className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-300 cursor-pointer group/item active:scale-[0.99]"
+                                  className={`p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 ${
+                                    quiz.failed
+                                      ? 'opacity-85 cursor-default'
+                                      : 'hover:shadow-md hover:border-purple-300 cursor-pointer group/item active:scale-[0.99]'
+                                  }`}
                                 >
                                   <div className="flex items-start gap-3">
                                     <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-indigo-500/20 group-hover/item:scale-105 transition-transform">
@@ -1461,18 +1462,9 @@ export function LearningScreen() {
                                       <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Done
                                     </span>
                                   ) : quiz.failed ? (
-                                    <div className="flex items-center gap-1.5 shrink-0">
-                                      <span className="px-2.5 py-1 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
-                                        <XCircle className="w-3.5 h-3.5 text-rose-600" /> Fail
-                                      </span>
-                                      <button
-                                        type="button"
-                                        className="px-2.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-rose-600 hover:bg-rose-700 text-white shadow-sm active:scale-95 pointer-events-none"
-                                      >
-                                        <span>RETAKE</span>
-                                        <ExternalLink className="w-3 h-3" />
-                                      </button>
-                                    </div>
+                                    <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 shrink-0 shadow-2xs">
+                                      <XCircle className="w-4 h-4 text-rose-600" /> Fail
+                                    </span>
                                   ) : (
                                   <button
                                     type="button"
