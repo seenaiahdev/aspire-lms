@@ -1,6 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User } from '@/types';
-import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile, fetchUserSubmissions, fetchAssignmentAttempts, courseTargetsBatch, computeCourseProgress, issueCertificateIfComplete } from '@/lib/api';
+import {
+  fetchStudentByPhone,
+  fetchBatchCategory,
+  fetchStudentProfile,
+  fetchUserSubmissions,
+  fetchAssignmentAttempts,
+  courseTargetsBatch,
+  computeCourseProgress,
+  issueCertificateIfComplete,
+  recalculateUserStreak,
+  isWeekdayBatchUser
+} from '@/lib/api';
 import { supabase } from './supabase';
 
 const initialUser: ExtendedUser = {
@@ -144,7 +155,20 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
 
           const realProgress = primaryPct;
-          const realStreak = Number(profile?.attendance ?? (profile as any)?.streak ?? (student as any)?.streak ?? (student as any)?.attendance ?? 0);
+          const isWeekday = isWeekdayBatchUser({
+            batchCategory,
+            batch: student.batch,
+            registration_id: student.registration_id,
+          });
+
+          let realStreak = Number(profile?.attendance ?? (profile as any)?.streak ?? (student as any)?.streak ?? (student as any)?.attendance ?? 0);
+          if (student.id && student.id !== 'guest') {
+            try {
+              realStreak = await recalculateUserStreak(student.id, realStreak, isWeekday);
+            } catch (streakErr) {
+              console.warn('Streak recalculation on login skipped:', streakErr);
+            }
+          }
           const realGpa = profile?.gpa ?? 0.00;
 
           let unlockedLessonIds: string[] = [];

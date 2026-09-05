@@ -1121,7 +1121,37 @@ export async function incrementUserXP(userId: string, amount: number) {
   }
 }
 
-export async function recalculateUserStreak(userId: string, currentStreak?: number): Promise<number> {
+/**
+ * Detects whether a student belongs to a weekday batch based on their registration ID, batch code, or batch category.
+ * Weekday batches typically feature 'a26w', 'w', or category 'Weekday'.
+ */
+export function isWeekdayBatchUser(user?: {
+  registrationId?: string;
+  batchCode?: string;
+  batchCategory?: string;
+  batch?: string;
+  registration_id?: string;
+  batch_category?: string;
+} | null): boolean {
+  if (!user) return false;
+  const reg = (user.registrationId || user.registration_id || '').toLowerCase();
+  const bCode = (user.batchCode || user.batch || '').toLowerCase();
+  const bCat = (user.batchCategory || user.batch_category || '').toLowerCase();
+  return (
+    bCat === 'weekday' ||
+    reg.includes('a26w') ||
+    reg.includes('w') ||
+    bCode.includes('a26w') ||
+    bCode.startsWith('w') ||
+    bCode.includes('w')
+  );
+}
+
+export async function recalculateUserStreak(
+  userId: string,
+  currentStreak?: number,
+  isWeekdayParam?: boolean
+): Promise<number> {
   try {
     let finalCurrentStreak = currentStreak;
     if (finalCurrentStreak === undefined) {
@@ -1133,24 +1163,70 @@ export async function recalculateUserStreak(userId: string, currentStreak?: numb
       finalCurrentStreak = data?.attendance ?? 0;
     }
 
+    // Determine whether this student is in a weekday batch (e.g. A26W)
+    let isWeekday = isWeekdayParam;
+    if (isWeekday === undefined && typeof window !== 'undefined') {
+      try {
+        const raw = localStorage.getItem('aspire_cached_user');
+        if (raw) {
+          const u = JSON.parse(raw);
+          if (u.id === userId) {
+            isWeekday = isWeekdayBatchUser(u);
+          }
+        }
+      } catch {
+        // ignore localStorage parsing errors
+      }
+    }
+
+    if (isWeekday === undefined) {
+      try {
+        const { data: st } = await supabase
+          .from('students')
+          .select('registration_id, batch')
+          .eq('id', userId)
+          .maybeSingle();
+        if (st) {
+          isWeekday = isWeekdayBatchUser(st);
+          if (!isWeekday && st.batch) {
+            const cat = await fetchBatchCategory(st.batch);
+            isWeekday = cat === 'Weekday';
+          }
+        }
+      } catch {
+        // ignore network/lookup errors
+      }
+    }
+
+    // Default to true for A26W/weekday cohorts if cannot be resolved
+    if (isWeekday === undefined) {
+      isWeekday = true;
+    }
+
     const { data: practiceData, error: practiceError } = await supabase
       .from('practice_submissions')
-      .select('submitted_at')
+      .select('submitted_at, created_at')
       .eq('student_id', userId);
 
     const { data: assessmentData, error: assessmentError } = await supabase
       .from('assessment_attempts')
-      .select('submitted_at')
+      .select('submitted_at, created_at')
       .eq('student_id', userId);
+
+    const { data: quizData, error: quizError } = await supabase
+      .from('quiz_attempts')
+      .select('attempted_at, created_at')
+      .eq('user_id', userId);
 
     if (practiceError) console.error('Error fetching practice submissions for streak:', practiceError);
     if (assessmentError) console.error('Error fetching assessment attempts for streak:', assessmentError);
+    if (quizError) console.error('Error fetching quiz attempts for streak:', quizError);
 
     const allDates = new Set<string>();
 
     const addLocalDates = (items: any[]) => {
       (items || []).forEach(item => {
-        const dateVal = item.submitted_at || item.created_at;
+        const dateVal = item.submitted_at || item.attempted_at || item.completed_at || item.created_at;
         if (dateVal) {
           const d = new Date(dateVal);
           const yyyy = d.getFullYear();
@@ -1163,6 +1239,7 @@ export async function recalculateUserStreak(userId: string, currentStreak?: numb
 
     addLocalDates(practiceData || []);
     addLocalDates(assessmentData || []);
+    addLocalDates(quizData || []);
 
     const getLocalDateString = (d: Date) => {
       const yyyy = d.getFullYear();
@@ -1171,35 +1248,64 @@ export async function recalculateUserStreak(userId: string, currentStreak?: numb
       return `${yyyy}-${mm}-${dd}`;
     };
 
-    const todayStr = getLocalDateString(new Date());
-    const yesterday = new Date();
+    const today = new Date();
+    const todayStr = getLocalDateString(today);
+
+    const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = getLocalDateString(yesterday);
 
-    let streak = 0;
-    if (allDates.has(todayStr) || allDates.has(yesterdayStr)) {
-      let checkDate = new Date();
-      if (allDates.has(todayStr)) {
-        streak = 1;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        streak = 1;
-        checkDate.setDate(checkDate.getDate() - 2);
-      }
+    const twoDaysAgo = new Date(today);
+    twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    const twoDaysAgoStr = getLocalDateString(twoDaysAgo);
 
+    let streak = 0;
+    let checkDate: Date | null = null;
+
+    // Check if the streak is active:
+    // 1. Did work today
+    if (allDates.has(todayStr)) {
+      streak = 1;
+      checkDate = new Date(today);
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+    // 2. Did work yesterday
+    else if (allDates.has(yesterdayStr)) {
+      streak = 1;
+      checkDate = new Date(yesterday);
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+    // 3. For weekday batches, Sunday is an official rest day:
+    //    If today is Monday (day 1), yesterday was Sunday (holiday).
+    //    If the student didn't submit on Sunday, check Saturday (2 days ago).
+    //    If Saturday was submitted, the streak remains active!
+    else if (isWeekday && today.getDay() === 1 && allDates.has(twoDaysAgoStr)) {
+      streak = 1;
+      checkDate = new Date(twoDaysAgo);
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+
+    if (checkDate) {
       while (true) {
         const dateStr = getLocalDateString(checkDate);
+        const dayOfWeek = checkDate.getDay(); // 0 = Sunday
+
         if (allDates.has(dateStr)) {
           streak++;
           checkDate.setDate(checkDate.getDate() - 1);
+        } else if (isWeekday && dayOfWeek === 0) {
+          // Sunday is an official leave/rest day for weekday batches (A26W).
+          // Taking Sunday off does NOT break the streak. Skip Sunday and continue checking previous days.
+          checkDate.setDate(checkDate.getDate() - 1);
         } else {
+          // Unexcused day missed — streak terminates
           break;
         }
       }
     }
 
     if (streak !== finalCurrentStreak) {
-      console.log(`Updating streak from ${finalCurrentStreak} to ${streak} for user ${userId}`);
+      console.log(`Updating streak from ${finalCurrentStreak} to ${streak} for user ${userId} (weekday: ${isWeekday})`);
       await supabase
         .from('student_profiles')
         .update({ attendance: streak })

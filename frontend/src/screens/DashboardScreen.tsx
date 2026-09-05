@@ -7,7 +7,7 @@ import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useUser } from '@/lib/UserContext';
-import { fetchLiveSessions, fetchDailySchedules } from '@/lib/api';
+import { fetchLiveSessions, fetchDailySchedules, isWeekdayBatchUser } from '@/lib/api';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
@@ -29,6 +29,11 @@ interface PythonTopic {
 export function DashboardScreen() {
   const { user: currentUser } = useUser();
   const { navigate } = useNav();
+
+  // Determine whether current user belongs to a weekday batch (e.g. A26W)
+  const isWeekdayBatch = useMemo(() => {
+    return isWeekdayBatchUser(currentUser);
+  }, [currentUser]);
 
   // Real-time System Today Date
   const today = useMemo(() => new Date(), []);
@@ -610,10 +615,14 @@ export function DashboardScreen() {
                         currentMonthIndex === realTodayMonth &&
                         currentYear === realTodayYear;
 
+                      const isSunday = new Date(currentYear, currentMonthIndex, num).getDay() === 0;
+                      const isSundayLeave = isWeekdayBatch && isSunday;
+
                       return (
                         <button
                           key={num}
                           type="button"
+                          title={isSundayLeave ? 'Sunday Holiday / Leave Day (Weekday Batch)' : undefined}
                           onClick={() => {
                             setSelectedDateNum(num);
                             setSelectedMonthIndex(currentMonthIndex);
@@ -625,6 +634,8 @@ export function DashboardScreen() {
                               ? 'bg-[#7c3aed] text-white font-bold shadow-xs scale-105'
                               : isToday
                               ? 'bg-purple-50 text-[#7c3aed] border border-[#7c3aed] font-bold'
+                              : isSundayLeave
+                              ? 'bg-amber-50 text-amber-700 border border-amber-200/80 font-bold hover:bg-amber-100/80'
                               : 'text-slate-700 hover:bg-slate-100'
                           }`}
                         >
@@ -635,7 +646,7 @@ export function DashboardScreen() {
                   </div>
 
                   {/* Date Status Legend */}
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between px-1 text-[10px] text-slate-600 font-semibold">
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between px-1 text-[10px] text-slate-600 font-semibold flex-wrap gap-2">
                     <div className="flex items-center gap-1">
                       <span className="w-2.5 h-2.5 rounded-full bg-[#7c3aed]" />
                       <span>Selected</span>
@@ -644,6 +655,12 @@ export function DashboardScreen() {
                       <span className="w-2.5 h-2.5 rounded-full bg-purple-50 border border-[#7c3aed]" />
                       <span>Today</span>
                     </div>
+                    {isWeekdayBatch && (
+                      <div className="flex items-center gap-1">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-100 border border-amber-300" />
+                        <span className="text-amber-700 font-bold">Leave / Holiday</span>
+                      </div>
+                    )}
                   </div>
 
                 </div>
@@ -704,24 +721,72 @@ export function DashboardScreen() {
                 </h3>
               </div>
 
-              <span className="bg-purple-50 text-[#7c3aed] font-extrabold px-3 py-1 rounded-full text-xs border border-purple-100">
-                {currentLiveClasses.length} {currentLiveClasses.length === 1 ? 'Session' : 'Sessions'}
-              </span>
+              {isWeekdayBatch && selectedDateObject.getDay() === 0 ? (
+                <span className="bg-amber-50 text-amber-700 font-extrabold px-3 py-1 rounded-full text-xs border border-amber-200">
+                  Leave / Holiday
+                </span>
+              ) : (
+                <span className="bg-purple-50 text-[#7c3aed] font-extrabold px-3 py-1 rounded-full text-xs border border-purple-100">
+                  {currentLiveClasses.length} {currentLiveClasses.length === 1 ? 'Session' : 'Sessions'}
+                </span>
+              )}
             </div>
 
             {currentLiveClasses.length === 0 ? (
-              /* CLEAN MODERN EMPTY STATE WHEN NO SESSIONS ARE SCHEDULED FOR THE SELECTED DATE */
-              <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
-                <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
-                  <CalendarX className="w-7 h-7" />
+              isWeekdayBatch && selectedDateObject.getDay() === 0 ? (
+                /* DEDICATED SUNDAY HOLIDAY / LEAVE CARD FOR WEEKDAY BATCHES */
+                <div className="py-10 px-6 bg-gradient-to-br from-amber-50/60 via-white to-purple-50/30 border border-amber-200/80 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-4 shadow-sm relative overflow-hidden">
+                  <div className="flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[11px] font-extrabold px-3 py-1 rounded-full border border-amber-200 shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                    <span>Official Rest Day</span>
+                  </div>
+
+                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shadow-xs">
+                    <CalendarDays className="w-8 h-8" />
+                  </div>
+
+                  <div className="max-w-md">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold mb-2">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                      Streak Protected
+                    </div>
+                    <h4 className="font-extrabold text-slate-900 text-lg sm:text-xl">Sunday Holiday (Weekday Batch)</h4>
+                    <p className="text-slate-600 text-xs sm:text-sm font-medium mt-2 leading-relaxed">
+                      Sundays are designated weekly rest and recharge days for all weekday cohorts (A26W). No mandatory live classes or tasks are scheduled today, and taking this day off <span className="font-bold text-slate-800">will not break your learning streak</span>.
+                    </p>
+                  </div>
+
+                  <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => navigate('practice')}
+                      className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold rounded-xl text-xs shadow-2xs transition-colors"
+                    >
+                      Practice in Lab (Optional)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => navigate('schedule')}
+                      className="px-4 py-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold rounded-xl text-xs shadow-xs transition-colors"
+                    >
+                      View Full Schedule
+                    </button>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">Not Yet Scheduled</h4>
-                  <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1 max-w-sm">
-                    No live sessions or tasks scheduled for {monthNames[currentMonthIndex]} {selectedDateNum}. Switch to Today or view the full schedule.
-                  </p>
+              ) : (
+                /* CLEAN MODERN EMPTY STATE WHEN NO SESSIONS ARE SCHEDULED FOR THE SELECTED DATE */
+                <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
+                    <CalendarX className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">Not Yet Scheduled</h4>
+                    <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1 max-w-sm">
+                      No live sessions or tasks scheduled for {monthNames[currentMonthIndex]} {selectedDateNum}. Switch to Today or view the full schedule.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 {currentLiveClasses.map((cls, idx) => (
