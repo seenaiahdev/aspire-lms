@@ -21,7 +21,7 @@ function maskEmail(email?: string): string {
 
 export function LoginScreen() {
   const { login } = useNav();
-  const { refetchUser } = useUser();
+  const { refetchUser, setUser } = useUser();
   const [mobile, setMobile] = useState('');
   const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
   const [otp, setOtp] = useState<string[]>(() => new Array(OTP_LENGTH).fill(''));
@@ -37,6 +37,8 @@ export function LoginScreen() {
 
   // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp (email channel).
   const otpTokenRef = useRef<string>('');
+  // Cached student record from pre-login lookup to enable instantaneous login navigation
+  const studentRecordRef = useRef<any>(null);
   // Email of the validated student (for the masked hint + resend); never rendered raw.
   const studentEmailRef = useRef<string>('');
   // Resend cooldown in seconds (A2).
@@ -159,6 +161,7 @@ export function LoginScreen() {
         setError('Mobile number not registered. Please try another number.');
         return;
       }
+      studentRecordRef.current = student;
       // Persist the mobile only AFTER OTP is verified (see completeLogin) — A4.
       studentEmailRef.current = student.email || '';
       await requestOtp();
@@ -233,10 +236,60 @@ export function LoginScreen() {
   };
 
   const completeLogin = () => {
-    // Persist identity only now that the OTP is verified (A4).
+    // Persist identity immediately
     localStorage.setItem('aspire_logged_in_mobile', mobile);
     localStorage.setItem('aspire_logged_in', 'true');
-    refetchUser().then(() => login());
+
+    // Pre-populate user cache from the already-fetched student record for instantaneous UI
+    if (studentRecordRef.current) {
+      const student = studentRecordRef.current;
+      const initialCache = {
+        id: student.id,
+        name: student.name,
+        email: student.email,
+        avatar: student.avatar || '',
+        role: 'Student',
+        program: 'Engineering Degree',
+        college: '',
+        joinedDate: student.joined_date || 'Jan 2026',
+        xp: student.xp || 0,
+        level: Math.floor((student.xp || 0) / 500) + 1,
+        streak: student.streak || 1,
+        rank: 0,
+        bio: '',
+        skills: [],
+        socials: [
+          { label: 'GitHub', value: 'Not connected' },
+          { label: 'LinkedIn', value: 'Not connected' },
+          { label: 'Portfolio', value: 'Not connected' },
+        ],
+        batchCode: student.batch,
+        batchCategory: student.batch?.toLowerCase().includes('w') ? 'Weekday' : 'Weekend',
+        mobile: mobile,
+        gpa: 0,
+        attendance: student.streak || 1,
+        progress: 0,
+        status: student.status,
+        registrationId: student.registration_id,
+        enrolledCourses: [],
+        courseProgress: {},
+        unlockedLessonIds: [],
+        notifPrefs: {
+          assignments: true,
+          live: true,
+          placement: true,
+          weekly: true,
+        },
+      };
+      localStorage.setItem('aspire_cached_user', JSON.stringify(initialCache));
+      setUser(initialCache as any);
+    }
+
+    // Instant seamless transition to dashboard (keeps loader visible until unmount)
+    login();
+
+    // Trigger full background sync for enrollments, locks, progress, XP, streak
+    refetchUser().catch((err) => console.warn('Background refetchUser error:', err));
   };
 
   const handleOtpSubmit = async (e: React.FormEvent) => {
@@ -247,54 +300,58 @@ export function LoginScreen() {
       return;
     }
 
-    // Codes are delivered on two independent channels; accept EITHER. Try each channel that was
-    // actually sent, in turn, and log in on the first that validates the entered code.
     setIsSubmitting(true);
     setError('');
 
-    // Channel 1: Firebase SMS code.
-    if (confirmationResultRef.current) {
-      try {
-        await confirmationResultRef.current.confirm(enteredOtp);
-        setIsSubmitting(false);
-        completeLogin();
-        return;
-      } catch (err: any) {
-        // Not the SMS code (or expired) — fall through to try the emailed code before failing.
-        if (err?.code !== 'auth/invalid-verification-code') {
-          console.warn('Firebase SMS verify did not match:', err?.code);
-        }
-      }
-    }
-
-    // Channel 2: emailed code (verified server-side).
-    if (otpTokenRef.current) {
-      try {
-        const resp = await fetch('/api/verify-otp', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ token: otpTokenRef.current, code: enteredOtp }),
-        });
-        const data = await resp.json().catch(() => ({ ok: false }));
-        if (data.ok) {
-          setIsSubmitting(false);
+    try {
+      // 1. Instant check for Demo Mode (0ms delay)
+      if (otpMode === 'demo') {
+        if (generatedOtp && enteredOtp === generatedOtp) {
           completeLogin();
           return;
         }
-      } catch (err) {
-        console.warn('Email OTP verify failed:', err);
+        setIsSubmitting(false);
+        setError('Invalid demo code. Please check the code shown on screen.');
+        return;
       }
-    }
 
-    // Channel 3: local demo code.
-    if (otpMode === 'demo' && generatedOtp && enteredOtp === generatedOtp) {
+      // 2. Email OTP Channel (via serverless verification)
+      if (otpTokenRef.current) {
+        try {
+          const resp = await fetch('/api/verify-otp', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ token: otpTokenRef.current, code: enteredOtp }),
+          });
+          const data = await resp.json().catch(() => ({ ok: false }));
+          if (data.ok) {
+            completeLogin();
+            return;
+          }
+        } catch (err) {
+          console.warn('Email OTP verify failed:', err);
+        }
+      }
+
+      // 3. Firebase SMS Channel (if active)
+      if (confirmationResultRef.current) {
+        try {
+          await confirmationResultRef.current.confirm(enteredOtp);
+          completeLogin();
+          return;
+        } catch (err: any) {
+          if (err?.code !== 'auth/invalid-verification-code') {
+            console.warn('Firebase SMS verify failed:', err?.code);
+          }
+        }
+      }
+
       setIsSubmitting(false);
-      completeLogin();
-      return;
+      setError('Invalid or expired code. Please check the code or tap Resend.');
+    } catch (err) {
+      setIsSubmitting(false);
+      setError('Verification failed. Please try again.');
     }
-
-    setIsSubmitting(false);
-    setError('Invalid or expired code. Check the code sent to your phone or email, or tap Resend.');
   };
 
   return (
@@ -570,23 +627,32 @@ export function LoginScreen() {
                   </p>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="w-full text-white font-bold text-xs sm:text-sm py-3.5 sm:py-4 rounded-xl uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] disabled:opacity-70 transition-all duration-300 shadow-md"
-                  style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center justify-center gap-2.5 animate-fade-in">
-                      <span className="w-4 h-4 rounded-full border-2 border-white/20 border-t-white border-r-primary-300 animate-spin shrink-0 shadow-[0_0_10px_rgba(255,255,255,0.8)]" />
-                      <span className="tracking-widest font-bold text-xs sm:text-xs animate-pulse text-primary-100">
-                        VERIFYING...
+                {/* Submit button / In-place Indicator Loader */}
+                {isSubmitting ? (
+                  <div 
+                    className="w-full h-[52px] sm:h-[56px] rounded-xl flex items-center justify-center gap-3 px-4 shadow-lg animate-fade-in text-white select-none cursor-wait"
+                    style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
+                  >
+                    <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white border-r-white animate-spin shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                    <span className="tracking-widest font-bold text-xs sm:text-sm uppercase text-white drop-shadow-sm flex items-center gap-1.5">
+                      <span>VERIFYING & LOGGING IN</span>
+                      <span className="inline-flex">
+                        <span className="animate-bounce">.</span>
+                        <span className="animate-bounce delay-100">.</span>
+                        <span className="animate-bounce delay-200">.</span>
                       </span>
-                    </div>
-                  ) : (
-                    'VERIFY & CONTINUE'
-                  )}
-                </button>
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    className="w-full text-white font-bold text-xs sm:text-sm py-3.5 sm:py-4 rounded-xl uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-md hover:shadow-lg group"
+                    style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
+                  >
+                    <span>VERIFY & CONTINUE</span>
+                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                  </button>
+                )}
 
                 {/* Resend OTP with cooldown (A2) */}
                 <button
