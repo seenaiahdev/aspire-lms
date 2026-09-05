@@ -1205,17 +1205,17 @@ export async function recalculateUserStreak(
 
     const { data: practiceData, error: practiceError } = await supabase
       .from('practice_submissions')
-      .select('submitted_at, created_at')
+      .select('submitted_at')
       .eq('student_id', userId);
 
     const { data: assessmentData, error: assessmentError } = await supabase
       .from('assessment_attempts')
-      .select('submitted_at, created_at')
+      .select('submitted_at')
       .eq('student_id', userId);
 
     const { data: quizData, error: quizError } = await supabase
       .from('quiz_attempts')
-      .select('attempted_at, created_at')
+      .select('attempted_at')
       .eq('user_id', userId);
 
     if (practiceError) console.error('Error fetching practice submissions for streak:', practiceError);
