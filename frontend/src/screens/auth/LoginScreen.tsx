@@ -119,6 +119,9 @@ export function LoginScreen() {
           // Never fall back to the raw, unmasked address (A3).
           setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
           return true;
+        } else {
+          const errorData = await resp.json().catch(() => ({}));
+          console.warn('[LoginScreen] /api/send-otp failed:', resp.status, errorData);
         }
       } catch (apiErr) {
         console.warn('Email OTP unavailable:', apiErr);
@@ -509,7 +512,7 @@ export function LoginScreen() {
                       ? <>SMS OTP sent to <span className="font-semibold text-slate-700">+91 {mobile}</span></>
                       : otpMode === 'email' && emailHint
                       ? <>Code sent to <span className="font-semibold text-slate-700">{emailHint}</span></>
-                      : <>For <span className="font-semibold text-slate-700">+91 {mobile}</span></>}
+                      : <>For <span className="font-semibold text-slate-700">+91 {mobile}</span>{emailHint ? <> (<span className="font-semibold text-slate-600">{emailHint}</span>)</> : null}</>}
                   </p>
                   {otpMode === 'both' ? (
                     <p className="text-[10px] text-primary-700 font-medium mt-2.5 flex items-center justify-center gap-1">
@@ -526,10 +529,15 @@ export function LoginScreen() {
                       Enter the {OTP_LENGTH}-digit code sent to your email.
                     </p>
                   ) : (
-                    <p className="text-[10px] text-primary-700 font-bold mt-2.5 flex items-center justify-center gap-1.5 bg-primary-50 px-3.5 py-1.5 rounded-xl mx-auto w-fit border border-primary-200/50 shadow-xs animate-pulse">
-                      <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-ping" />
-                      Demo code: {generatedOtp}
-                    </p>
+                    <div className="mt-2.5 flex flex-col items-center gap-1">
+                      <p className="text-[10px] text-primary-700 font-bold flex items-center justify-center gap-1.5 bg-primary-50 px-3.5 py-1.5 rounded-xl mx-auto w-fit border border-primary-200/50 shadow-xs animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-ping" />
+                        Demo code: {generatedOtp}
+                      </p>
+                      <p className="text-[10px] text-amber-600 font-medium">
+                        (Demo mode: SMTP credentials not active or in local dev)
+                      </p>
+                    </div>
                   )}
                 </div>
 
