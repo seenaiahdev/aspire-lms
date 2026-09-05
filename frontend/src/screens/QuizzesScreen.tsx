@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2, LayoutGrid, List } from 'lucide-react';
+import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, XCircle, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2, LayoutGrid, List } from 'lucide-react';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { fetchQuizzes, fetchLeaderboard, fetchQuizAttempts, submitQuizAttempt } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -140,6 +140,12 @@ export function QuizzesScreen() {
     return Math.round((correctCount / mcqs.length) * 100);
   };
 
+  const computeCorrectCount = (): number => {
+    const mcqs = selectedQuiz?.mcqs || [];
+    if (!mcqs.length) return 0;
+    return mcqs.filter((q: any, qIdx: number) => answers[qIdx] === q.correctIndex).length;
+  };
+
   // Convert the in-memory answers map into a positional array (index = question, value = choice).
   const answersToArray = (): number[] =>
     (selectedQuiz?.mcqs || []).map((_: any, i: number) => (answers[i] ?? -1));
@@ -147,10 +153,12 @@ export function QuizzesScreen() {
   const autoSubmitExam = async () => {
     if (selectedQuiz && user?.id) {
       const calculatedScore = computeScore();
+      const totalQuestions = selectedQuiz?.mcqs?.length || selectedQuiz?.total_questions || selectedQuiz?.questions || 0;
+      const correctAnswers = computeCorrectCount();
 
       try {
         isExitingIntentionally.current = true;
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray());
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray(), totalQuestions, correctAnswers);
         await loadData();
         setAutoSubmittedScore(calculatedScore);
       } catch (err) {
@@ -295,9 +303,11 @@ export function QuizzesScreen() {
     isExitingIntentionally.current = true;
     if (confirmExamAction === 'submit' && selectedQuiz && user?.id) {
       const calculatedScore = computeScore();
+      const totalQuestions = selectedQuiz?.mcqs?.length || selectedQuiz?.total_questions || selectedQuiz?.questions || 0;
+      const correctAnswers = computeCorrectCount();
 
       try {
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray());
+        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray(), totalQuestions, correctAnswers);
         await loadData();
       } catch (err) {
         console.error('Failed to submit quiz attempt:', err);
@@ -983,67 +993,116 @@ export function QuizzesScreen() {
 
       {/* 📊 QUIZ ATTEMPT REVIEW MODAL */}
       <Modal open={reviewQuizAttempt !== null} onClose={() => setReviewQuizAttempt(null)} size="md">
-        <div className="p-6 sm:p-8 space-y-5">
-          <div className="text-center space-y-2">
-            <div className="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto border border-emerald-200 shadow-2xs">
-              <Award className="w-7 h-7" />
-            </div>
-            <h3 className="text-xl font-extrabold text-slate-900 leading-tight">
-              {reviewQuizAttempt?.quiz?.title}
-            </h3>
-            <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-              Attempt Summary
-            </p>
-          </div>
+        {(() => {
+          const attempt = reviewQuizAttempt?.attempt;
+          const quiz = reviewQuizAttempt?.quiz;
+          const mcqs = quiz?.mcqs || [];
+          const score = Number(attempt?.score ?? 0);
+          const isPassed = score >= 70;
+          const totalQuestions = attempt?.total_questions ?? (mcqs.length > 0 ? mcqs.length : (quiz?.total_questions || quiz?.questions || 0));
+          
+          let correctCount = attempt?.correct_answers;
+          if (correctCount === null || correctCount === undefined) {
+            if (mcqs.length > 0 && Array.isArray(attempt?.answers)) {
+              correctCount = mcqs.filter((q: any, i: number) => attempt.answers[i] === q.correctIndex).length;
+            } else {
+              correctCount = Math.round((score / 100) * (totalQuestions || 1));
+            }
+          }
+          const incorrectCount = Math.max(0, (totalQuestions || 0) - (correctCount || 0));
 
-          <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between text-sm border-b border-slate-150 pb-3">
-              <span className="font-bold text-slate-500">Status</span>
-              <Badge variant="success">Completed</Badge>
-            </div>
-            
-            <div className="flex items-center justify-between text-sm border-b border-slate-150 pb-3">
-              <span className="font-bold text-slate-500">Attempted Date</span>
-              <span className="font-extrabold text-slate-800">
-                {reviewQuizAttempt?.attempt?.attempted_at 
-                  ? new Date(reviewQuizAttempt.attempt.attempted_at).toLocaleDateString()
-                  : 'N/A'}
-              </span>
-            </div>
+          return (
+            <div className="p-6 sm:p-8 space-y-5">
+              <div className="text-center space-y-2">
+                <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto border shadow-2xs ${
+                  isPassed 
+                    ? 'bg-emerald-100 text-emerald-600 border-emerald-200' 
+                    : 'bg-rose-100 text-rose-600 border-rose-200'
+                }`}>
+                  {isPassed ? <Award className="w-7 h-7" /> : <XCircle className="w-7 h-7" />}
+                </div>
+                <h3 className="text-xl font-extrabold text-slate-900 leading-tight">
+                  {quiz?.title || 'Quiz Attempt'}
+                </h3>
+                <div className="flex items-center justify-center gap-2">
+                  <span className={`px-2.5 py-0.5 rounded-full text-xs font-black uppercase tracking-wider ${
+                    isPassed ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                  }`}>
+                    {isPassed ? 'Passed' : 'Failed'}
+                  </span>
+                  <span className="text-xs font-bold text-slate-400">•</span>
+                  <span className="text-sm font-black text-slate-800">{score}% Score</span>
+                </div>
+              </div>
 
-            <div className="flex items-center justify-between text-sm">
-              <span className="font-bold text-slate-500">Questions Answered</span>
-              <div className="flex items-baseline gap-0.5">
-                <span className="text-2xl font-black text-indigo-600">
-                  {((reviewQuizAttempt?.attempt?.answers as any[]) || []).filter((a) => typeof a === 'number' && a >= 0).length}
-                </span>
-                <span className="text-xs font-bold text-slate-400">/ {reviewQuizAttempt?.quiz?.questions ?? 0}</span>
+              <div className="bg-slate-50 border border-slate-200/60 rounded-2xl p-5 space-y-3.5">
+                <div className="flex items-center justify-between text-sm border-b border-slate-200/60 pb-3">
+                  <span className="font-bold text-slate-500">Evaluation Result</span>
+                  <span className={`font-black text-sm ${isPassed ? 'text-emerald-700' : 'text-rose-700'}`}>
+                    {isPassed ? 'Passed (≥ 70%)' : 'Failed (< 70%)'}
+                  </span>
+                </div>
+                
+                <div className="flex items-center justify-between text-sm border-b border-slate-200/60 pb-3">
+                  <span className="font-bold text-slate-500">Attempted Date</span>
+                  <span className="font-extrabold text-slate-800">
+                    {attempt?.attempted_at 
+                      ? new Date(attempt.attempted_at).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
+                      : 'N/A'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm border-b border-slate-200/60 pb-3">
+                  <span className="font-bold text-slate-500">Total Questions</span>
+                  <span className="font-black text-slate-800">{totalQuestions}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm border-b border-slate-200/60 pb-3">
+                  <span className="font-bold text-emerald-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4" /> Correct Answers
+                  </span>
+                  <span className="font-black text-emerald-700 text-base">{correctCount}</span>
+                </div>
+
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-bold text-rose-700 flex items-center gap-1.5">
+                    <XCircle className="w-4 h-4" /> Incorrect / Skipped
+                  </span>
+                  <span className="font-black text-rose-700 text-base">{incorrectCount}</span>
+                </div>
+              </div>
+
+              {/* Academic passing criteria notice */}
+              <div className={`flex items-start gap-3 p-4 rounded-2xl border ${
+                isPassed 
+                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' 
+                  : 'bg-rose-50/80 border-rose-200 text-rose-900'
+              }`}>
+                <Info className={`w-5 h-5 shrink-0 mt-0.5 ${isPassed ? 'text-emerald-600' : 'text-rose-600'}`} />
+                <div className="text-xs leading-relaxed">
+                  <p className="font-black text-sm mb-0.5">
+                    {isPassed ? 'Module Credit Earned' : 'Passing Threshold Not Met'}
+                  </p>
+                  <p className={isPassed ? 'text-emerald-800/90' : 'text-rose-800/90'}>
+                    {isPassed 
+                      ? 'Congratulations! You achieved the required passing benchmark (≥ 70%). This quiz is marked as completed in your course progress.' 
+                      : 'A minimum score of 70% is required for this quiz to count toward course completion and certificate issuance. Please review the course materials and attempt again when ready.'}
+                  </p>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setReviewQuizAttempt(null)}
+                  className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
+                >
+                  Close
+                </button>
               </div>
             </div>
-          </div>
-
-          {/* Detailed answer review stays hidden until the weekly results are officially published. */}
-          <div className="flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-100">
-            <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-extrabold text-amber-800">Results not published yet</p>
-              <p className="text-xs text-amber-700/80 mt-0.5 leading-relaxed">
-                Your answers are recorded. The detailed question-by-question review will unlock once the
-                official weekly results are published.
-              </p>
-            </div>
-          </div>
-
-          <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => setReviewQuizAttempt(null)}
-              className="w-full py-3 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs transition-colors cursor-pointer"
-            >
-              Close
-            </button>
-          </div>
-        </div>
+          );
+        })()}
       </Modal>
 
     </div>

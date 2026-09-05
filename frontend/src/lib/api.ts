@@ -555,39 +555,56 @@ export async function submitQuizAttempt(
   userId: string,
   quizId: string,
   score: number,
-  answers?: number[]
+  answers?: number[],
+  totalQuestions?: number,
+  correctAnswers?: number
 ) {
   try {
+    const isPassed = score >= 70;
     const baseRow = {
       user_id: userId,
       quiz_id: quizId,
       score,
-      status: 'attempted',
+      total_questions: totalQuestions ?? null,
+      correct_answers: correctAnswers ?? null,
+      status: isPassed ? 'passed' : 'failed',
       attempted_at: new Date().toISOString(),
     };
 
-    // Quizzes ONLY record the attempt — they do NOT award XP and do NOT affect the streak.
-    // (Only assessments and practice submissions count toward XP/streak.)
-    // Persist the chosen answers when the column exists; fall back gracefully if the
-    // `answers` migration has not been applied yet (unknown-column error).
+    // Quizzes record the attempt with questions & answers breakdown
+    let savedRow: any = null;
     const { data: withAns, error } = await supabase
       .from('quiz_attempts')
       .insert({ ...baseRow, answers: answers ?? [] })
       .select()
       .single();
-    if (!error) return withAns;
-
-    console.warn('Quiz attempt insert with answers failed, retrying without:', error.message);
-    const { data: noAns, error: err2 } = await supabase
-      .from('quiz_attempts')
-      .insert(baseRow)
-      .select()
-      .single();
-    if (err2) {
-      console.error('Error inserting quiz attempt:', err2.message);
-      throw err2;
+    if (!error) {
+      savedRow = withAns;
+    } else {
+      console.warn('Quiz attempt insert with answers failed, retrying without:', error.message);
+      const { data: noAns, error: err2 } = await supabase
+        .from('quiz_attempts')
+        .insert(baseRow)
+        .select()
+        .single();
+      if (err2) {
+        console.error('Error inserting quiz attempt:', err2.message);
+        throw err2;
+      }
+      savedRow = noAns;
     }
-    return noAns;
+
+    // Award 10 XP only if passed (score >= 70%) to maintain sustainable reward gamification
+    if (isPassed) {
+      try {
+        await incrementUserXP(userId, 10);
+        await recalculateUserStreak(userId);
+      } catch (xpErr) {
+        console.warn('Failed to increment XP for passed quiz:', xpErr);
+      }
+    }
+
+    return savedRow;
   } catch (err) {
     console.error('submitQuizAttempt failed:', err);
     throw err;
@@ -1254,14 +1271,22 @@ export async function computeCourseProgress(userId: string, courseId: string): P
 
     const [lp, aa, qa, ps] = await Promise.all([
       supabase.from('lesson_progress').select('lesson_id, completed').eq('student_id', userId),
-      supabase.from('assessment_attempts').select('assignment_id').eq('student_id', userId),
-      supabase.from('quiz_attempts').select('quiz_id').eq('user_id', userId),
+      supabase.from('assessment_attempts').select('assignment_id, score, status').eq('student_id', userId),
+      supabase.from('quiz_attempts').select('quiz_id, score, status').eq('user_id', userId),
       supabase.from('practice_submissions').select('problem_id').eq('student_id', userId),
     ]);
+
+    // Academic integrity: only coursework PASSED (score >= 70% or status 'passed' / 'Passed') counts towards course progress.
+    const isAttemptPassed = (r: any) => {
+      const score = Number(r.score ?? 0);
+      const status = String(r.status ?? '').toLowerCase();
+      return score >= 70 || status === 'passed';
+    };
+
     const done =
       new Set((lp.data || []).filter((r: any) => r.completed).map((r: any) => String(r.lesson_id || '').trim()).filter((id: any) => lessonIds.has(id))).size +
-      new Set((aa.data || []).map((r: any) => String(r.assignment_id || '').trim()).filter((id: any) => assessIds.has(id))).size +
-      new Set((qa.data || []).map((r: any) => String(r.quiz_id || '').trim()).filter((id: any) => quizIds.has(id))).size +
+      new Set((aa.data || []).filter(isAttemptPassed).map((r: any) => String(r.assignment_id || '').trim()).filter((id: any) => assessIds.has(id))).size +
+      new Set((qa.data || []).filter(isAttemptPassed).map((r: any) => String(r.quiz_id || '').trim()).filter((id: any) => quizIds.has(id))).size +
       new Set((ps.data || []).map((r: any) => String(r.problem_id || '').trim()).filter((id: any) => practiceIds.has(id))).size;
 
     return Math.min(100, Math.round((done / total) * 100));
@@ -1312,7 +1337,8 @@ export async function submitPracticeProblem(
   storageUrl?: string,
   projectName?: string,
   fileCount: number = 1,
-  totalSize: number = 0
+  totalSize: number = 0,
+  rewardXp?: number
 ) {
   // Find an existing submission for this student + problem.
   let priorRow: { id: string; attempt_count?: number } | null = null;
@@ -1351,7 +1377,7 @@ export async function submitPracticeProblem(
     return priorRow;
   }
 
-  // First solve: store one row + award XP.
+  // First solve: store one row + award calibrated XP.
   const row = { id: `psub-${Date.now()}`, student_id: userId, problem_id: problemId, attempt_count: 1, ...meta };
   const { data, error } = await supabase.from('practice_submissions').insert(row).select().single();
 
@@ -1361,7 +1387,8 @@ export async function submitPracticeProblem(
   }
 
   try {
-    await incrementUserXP(userId, 100);
+    const xpToAward = rewardXp ?? 25;
+    await incrementUserXP(userId, xpToAward);
     await recalculateUserStreak(userId);
   } catch (xpErr) {
     console.warn('Failed to increment XP / recalculate streak after solving problem:', xpErr);
@@ -1470,12 +1497,15 @@ export async function submitAssignmentAttempt(
     }
   }
 
-  // XP earned = score% × reward (assessment total_marks), first attempt only.
+  // XP earned = only if PASSED (score >= 70%), first attempt only.
+  // Failed attempts (score < 70) earn 0 XP. Base reward calibrated to 25 XP to protect rewards liability.
   try {
-    const reward = rewardXp ?? 100;
-    const pointsAwarded = Math.max(0, Math.round((score / 100) * reward));
-    await incrementUserXP(userId, pointsAwarded);
-    await recalculateUserStreak(userId);
+    if (score >= 70) {
+      const reward = rewardXp ?? 25;
+      const pointsAwarded = Math.max(0, Math.round((score / 100) * reward));
+      await incrementUserXP(userId, pointsAwarded);
+      await recalculateUserStreak(userId);
+    }
   } catch (xpErr) {
     console.warn('Failed to increment XP / recalculate streak after assessment attempt:', xpErr);
   }

@@ -2,15 +2,18 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import {
   ArrowLeft, CheckCircle2, Upload, FolderOpen,
   ExternalLink, AlertCircle, BookOpen, ChevronLeft, ChevronRight,
-  MonitorSmartphone, Eye, Lock, FileText, Loader2
+  MonitorSmartphone, Eye, Lock, FileText, Loader2,
+  Play, Terminal, RotateCcw, Clock, FileCode, Check, XCircle
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
+import { Modal } from '@/components/ui/Modal';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
 import { submitPracticeProblem } from '@/lib/api';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
+import { executeCodeFile, type ExecutionResult } from '@/lib/codeRunner';
 
 
 // ── Problem config ────────────────────────────────────────────────────────────
@@ -116,6 +119,21 @@ export function WorkspaceScreen() {
   const [uploadedFileCount, setUploadedFileCount] = useState(0);
   const [uploadedTotalSize, setUploadedTotalSize] = useState(0);
   const [uploadedProjectName, setUploadedProjectName] = useState('');
+
+  // Staged solution for custom input testing before final submission
+  interface StagedSubmission {
+    bundle: any;
+    files: ProjectFile[];
+    primaryFile: ProjectFile;
+    projectName: string;
+    totalSize: number;
+  }
+  const [stagedSubmission, setStagedSubmission] = useState<StagedSubmission | null>(null);
+  const [customInput, setCustomInput] = useState<string>('');
+  const [isRunningTest, setIsRunningTest] = useState(false);
+  const [testResult, setTestResult] = useState<ExecutionResult | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showCodePreview, setShowCodePreview] = useState(false);
 
   // Review mode: inline file viewer
   const [reviewBundle, setReviewBundle] = useState<ReturnType<typeof loadBundleFromStorage> | null>(null);
@@ -352,32 +370,82 @@ export function WorkspaceScreen() {
       files: projectFiles,
     };
 
-    // Keep a local copy for the student's instant review.
-    const localUrl = saveBundleToStorage(bundle);
+    setUploadProgress(100);
+    setUploadStatusText('Solution ready for custom input testing & submission');
+    setIsProcessing(false);
 
-    // Upload the files to Supabase Storage (cheap object storage) so mentors/admins can
-    // review them; the DB only stores the returned URL + metadata (low DB consumption).
-    let remoteUrl: string | null = null;
-    if (user && user.id) {
-      setUploadStatusText('Uploading to review storage...');
-      remoteUrl = await uploadSubmissionBundle(bundle, user.id, problemId, 'practice');
-    }
-    const submissionUrl = remoteUrl || localUrl;
+    // Identify primary code file for testing
+    const primaryFile = projectFiles.find((f) => {
+      const ext = f.name.split('.').pop()?.toLowerCase();
+      return ['py', 'js', 'ts', 'jsx', 'tsx'].includes(ext || '');
+    }) || projectFiles[0];
 
-    const detectedLang = projectFiles.find((f) => f.language && f.language !== 'text')?.language || 'practice';
-
-    localStorage.setItem(`submission_${problemId}`, JSON.stringify({
-      storageUrl: localUrl,
-      remoteUrl,
-      language: detectedLang,
-      timestamp: new Date().toISOString(),
-      solved: true,
+    setStagedSubmission({
+      bundle,
+      files: projectFiles,
+      primaryFile,
       projectName,
-      fileCount: projectFiles.length,
-    }));
+      totalSize,
+    });
+    setCustomInput(problemConfig.examples?.[0]?.input || '');
+    setTestResult(null);
+  }, [problemConfig.examples]);
 
-    if (user && user.id) {
-      try {
+  // Execute custom input test against the uploaded file
+  const handleRunCustomTest = async () => {
+    if (!stagedSubmission?.primaryFile) return;
+    setIsRunningTest(true);
+    try {
+      const res = await executeCodeFile(
+        stagedSubmission.primaryFile.content,
+        stagedSubmission.primaryFile.language || 'python',
+        customInput
+      );
+      setTestResult(res);
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        status: 'error',
+        output: '',
+        stdout: [],
+        error: err?.message || String(err),
+        executionTimeMs: 0,
+      });
+    } finally {
+      setIsRunningTest(false);
+    }
+  };
+
+  // Submit solution after testing
+  const handleFinalizeSubmit = async () => {
+    if (!stagedSubmission) return;
+    setIsSubmitting(true);
+    setErrorMessage(null);
+    try {
+      const { bundle, files, primaryFile, projectName, totalSize } = stagedSubmission;
+      const localUrl = saveBundleToStorage(bundle);
+
+      let remoteUrl: string | null = null;
+      if (user && user.id) {
+        setUploadStatusText('Uploading to review storage...');
+        remoteUrl = await uploadSubmissionBundle(bundle, user.id, problemId, 'practice');
+      }
+      const submissionUrl = remoteUrl || localUrl;
+      const detectedLang = primaryFile?.language || 'practice';
+
+      localStorage.setItem(`submission_${problemId}`, JSON.stringify({
+        storageUrl: localUrl,
+        remoteUrl,
+        language: detectedLang,
+        timestamp: new Date().toISOString(),
+        solved: true,
+        projectName,
+        fileCount: files.length,
+      }));
+
+      if (user && user.id) {
+        const difficultyXpMap: Record<string, number> = { Easy: 15, Medium: 30, Hard: 50 };
+        const rewardXp = difficultyXpMap[problemConfig.difficulty] || 25;
         await submitPracticeProblem(
           user.id,
           problemId,
@@ -386,23 +454,47 @@ export function WorkspaceScreen() {
           undefined,
           submissionUrl,
           projectName,
-          projectFiles.length,
-          totalSize
+          files.length,
+          totalSize,
+          rewardXp
         );
-        console.log('Successfully saved submission to Supabase.');
-      } catch (dbErr) {
-        console.warn('Failed to save submission to Supabase:', dbErr);
+      }
+
+      setUploadedStorageUrl(localUrl);
+      setUploadedFileCount(files.length);
+      setUploadedTotalSize(totalSize);
+      setUploadedProjectName(projectName);
+      setStagedSubmission(null);
+    } catch (err: any) {
+      console.error('Submission failed:', err);
+      setErrorMessage('Failed to submit solution: ' + (err?.message || 'Unknown error'));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Re-test an already submitted solution with custom inputs
+  const handleTestSubmittedFile = () => {
+    if (uploadedStorageUrl) {
+      const bundle = loadBundleFromStorage(uploadedStorageUrl);
+      if (bundle && bundle.files && bundle.files.length > 0) {
+        const primaryFile = bundle.files.find((f: any) => {
+          const ext = f.name.split('.').pop()?.toLowerCase();
+          return ['py', 'js', 'ts', 'jsx', 'tsx'].includes(ext || '');
+        }) || bundle.files[0];
+
+        setStagedSubmission({
+          bundle,
+          files: bundle.files,
+          primaryFile,
+          projectName: bundle.projectName || 'Submitted Solution',
+          totalSize: bundle.totalSize || 0,
+        });
+        setCustomInput(problemConfig.examples?.[0]?.input || '');
+        setTestResult(null);
       }
     }
-
-
-    setUploadProgress(100);
-    setUploadedStorageUrl(localUrl);
-    setUploadedFileCount(projectFiles.length);
-    setUploadedTotalSize(totalSize);
-    setUploadedProjectName(projectName);
-    setIsProcessing(false);
-  }, [problemId, user]);
+  };
 
   // Folder upload
   const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -534,10 +626,16 @@ export function WorkspaceScreen() {
           </div>
           <div className="flex items-center gap-3">
             {uploadedStorageUrl && (
-              <Button size="sm" onClick={() => setShowFullExplorer(true)} leftIcon={<Eye className="w-4 h-4" />}
-                className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs px-3 shadow-xs">
-                Expand View
-              </Button>
+              <>
+                <Button size="sm" onClick={handleTestSubmittedFile} leftIcon={<Terminal className="w-4 h-4" />}
+                  className="bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs px-3 shadow-xs">
+                  Test Custom Input
+                </Button>
+                <Button size="sm" onClick={() => setShowFullExplorer(true)} leftIcon={<Eye className="w-4 h-4" />}
+                  className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs px-3 shadow-xs">
+                  Expand View
+                </Button>
+              </>
             )}
             <Button size="sm" variant="secondary" onClick={() => navigate('practice', { tab: 'history' })}
               className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs">
@@ -545,6 +643,141 @@ export function WorkspaceScreen() {
             </Button>
           </div>
         </div>
+
+        {/* Modal for Testing in Review Mode */}
+        {isReviewMode && stagedSubmission && (
+          <Modal open={stagedSubmission !== null} onClose={() => { setStagedSubmission(null); setTestResult(null); }} size="lg">
+            <div className="p-6 sm:p-8 space-y-5 max-h-[85vh] overflow-y-auto">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-lg bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed]">
+                    <Terminal className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="font-extrabold text-slate-900 text-base">Test Submitted Solution</h3>
+                    <p className="text-xs text-slate-500">Run custom inputs against {stagedSubmission.primaryFile.name}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => { setStagedSubmission(null); setTestResult(null); }}
+                  className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Code Preview Toggle */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 flex items-center justify-between">
+                <span className="text-xs font-bold text-slate-700 font-mono">
+                  {stagedSubmission.primaryFile.name} ({formatBytes(stagedSubmission.primaryFile.size)})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowCodePreview(!showCodePreview)}
+                  className="text-xs font-bold text-[#7c3aed] hover:underline cursor-pointer"
+                >
+                  {showCodePreview ? 'Hide File Content' : 'View File Content'}
+                </button>
+              </div>
+              {showCodePreview && (
+                <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs max-h-56 overflow-y-auto whitespace-pre-wrap">
+                  {stagedSubmission.primaryFile.content}
+                </pre>
+              )}
+
+              {/* Custom Input Field */}
+              <div className="space-y-2">
+                <label className="block text-xs font-bold text-slate-700">
+                  Custom Input Parameters
+                </label>
+                {problemConfig.examples && problemConfig.examples.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap text-xs mb-2">
+                    <span className="font-bold text-slate-400 text-[11px]">Load:</span>
+                    {problemConfig.examples.map((ex, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setCustomInput(ex.input)}
+                        className="px-2 py-0.5 rounded-md bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-[11px] font-bold transition cursor-pointer"
+                      >
+                        Ex {idx + 1}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                <textarea
+                  rows={3}
+                  value={customInput}
+                  onChange={(e) => setCustomInput(e.target.value)}
+                  placeholder="e.g. nums = [2, 7, 11, 15], target = 9"
+                  className="w-full p-3 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono text-xs focus:bg-white focus:outline-none focus:border-[#7c3aed]"
+                />
+              </div>
+
+              {/* Run button */}
+              <button
+                type="button"
+                disabled={isRunningTest}
+                onClick={handleRunCustomTest}
+                className="w-full py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] disabled:opacity-50 text-white font-extrabold text-xs transition shadow-sm flex items-center justify-center gap-2 cursor-pointer"
+              >
+                {isRunningTest ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Executing Code on File...
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 fill-white" />
+                    Run Test Against Submitted File
+                  </>
+                )}
+              </button>
+
+              {/* Execution Results */}
+              {testResult && (
+                <div className="rounded-xl border border-slate-200 bg-slate-900 text-slate-100 p-4 font-mono text-xs space-y-3">
+                  <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                    <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                      testResult.success ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                    }`}>
+                      {testResult.success ? 'Execution Successful' : 'Execution Error'}
+                    </span>
+                    <span className="text-[11px] text-slate-400">{testResult.executionTimeMs} ms</span>
+                  </div>
+
+                  {testResult.stdout.length > 0 && (
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Standard Output (stdout):</p>
+                      <pre className="text-slate-300 bg-slate-950 p-2.5 rounded-lg whitespace-pre-wrap">
+                        {testResult.stdout.join('\n')}
+                      </pre>
+                    </div>
+                  )}
+
+                  {testResult.output && (
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-slate-400 mb-1">Output:</p>
+                      <pre className="text-emerald-400 bg-slate-950 p-2.5 rounded-lg whitespace-pre-wrap font-bold">
+                        {testResult.output}
+                      </pre>
+                    </div>
+                  )}
+
+                  {testResult.error && (
+                    <div>
+                      <p className="text-[10px] uppercase font-bold text-rose-400 mb-1">Error:</p>
+                      <pre className="text-rose-300 bg-rose-950/40 p-2.5 rounded-lg whitespace-pre-wrap">
+                        {testResult.error}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </Modal>
+        )}
 
         {/* Layout: Left = Question | Right = File Structure */}
         <div className="flex-1 flex overflow-hidden">
@@ -644,8 +877,203 @@ export function WorkspaceScreen() {
         <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 p-6 sm:p-10">
           <div className="max-w-2xl mx-auto space-y-6">
 
-            {/* ── SUBMITTED STATE: hide upload, show submission card ── */}
-            {uploadedStorageUrl ? (
+            {/* ── STAGED STATE: Test Against Uploaded File Before Submitting ── */}
+            {stagedSubmission ? (
+              <div className="space-y-6">
+                <div>
+                  <div className="flex items-center gap-2 text-[#7c3aed] text-xs font-black uppercase tracking-wider mb-1">
+                    <Terminal className="w-3.5 h-3.5" />
+                    Step 3: Test Solution with Custom Input
+                  </div>
+                  <h2 className="text-xl font-black text-slate-900">Verify Your Uploaded Solution</h2>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Your code was loaded directly from <strong className="text-slate-800 font-mono">{stagedSubmission.primaryFile.name}</strong>. Run custom inputs to test its output before submitting.
+                  </p>
+                </div>
+
+                {/* File summary card */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed]">
+                        <FileCode className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-sm font-extrabold text-slate-900 font-mono">{stagedSubmission.primaryFile.name}</h3>
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200 uppercase">
+                            {stagedSubmission.primaryFile.language || 'code'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 mt-0.5">
+                          {formatBytes(stagedSubmission.primaryFile.size)} • {stagedSubmission.files.length} file{stagedSubmission.files.length !== 1 ? 's' : ''} in bundle
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowCodePreview(!showCodePreview)}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        {showCodePreview ? 'Hide File Code' : 'View File Code'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setStagedSubmission(null); setTestResult(null); }}
+                        className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        Re-upload
+                      </button>
+                    </div>
+                  </div>
+
+                  {showCodePreview && (
+                    <div className="mt-4 pt-4 border-t border-slate-150">
+                      <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs max-h-60 overflow-y-auto whitespace-pre-wrap">
+                        {stagedSubmission.primaryFile.content}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom Input Testing Console */}
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-150">
+                    <div className="flex items-center gap-2">
+                      <Terminal className="w-4 h-4 text-[#7c3aed]" />
+                      <h3 className="text-sm font-extrabold text-slate-900">Custom Input Runner</h3>
+                    </div>
+                    <span className="text-[11px] font-bold text-slate-400">Tests code from uploaded file</span>
+                  </div>
+
+                  {/* Example Loaders */}
+                  {problemConfig.examples && problemConfig.examples.length > 0 && (
+                    <div className="flex items-center gap-2 flex-wrap text-xs">
+                      <span className="font-bold text-slate-500 text-[11px]">Load Sample Input:</span>
+                      {problemConfig.examples.map((ex, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setCustomInput(ex.input)}
+                          className="px-2.5 py-1 rounded-lg bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-bold transition cursor-pointer"
+                        >
+                          Example {idx + 1}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Input field */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      Custom Input Parameters (arguments or variable assignments)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={customInput}
+                      onChange={(e) => setCustomInput(e.target.value)}
+                      placeholder="e.g. nums = [2, 7, 11, 15], target = 9"
+                      className="w-full p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 font-mono text-xs focus:bg-white focus:outline-none focus:border-[#7c3aed] transition"
+                    />
+                  </div>
+
+                  {/* Run Button */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      disabled={isRunningTest}
+                      onClick={handleRunCustomTest}
+                      className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] disabled:opacity-50 text-white text-xs font-extrabold transition shadow-sm inline-flex items-center gap-2 cursor-pointer"
+                    >
+                      {isRunningTest ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Executing Code on Uploaded File...
+                        </>
+                      ) : (
+                        <>
+                          <Play className="w-3.5 h-3.5 fill-white" />
+                          Run Test on Uploaded File
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Execution Results Console */}
+                  {testResult && (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-slate-900 text-slate-100 p-4 font-mono text-xs space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                          testResult.success ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                        }`}>
+                          {testResult.success ? 'Execution Successful' : 'Execution Error'}
+                        </span>
+                        <span className="text-[11px] text-slate-400">{testResult.executionTimeMs} ms</span>
+                      </div>
+
+                      {testResult.stdout.length > 0 && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] uppercase font-bold text-slate-400">Standard Output (stdout):</p>
+                          <pre className="text-slate-300 bg-slate-950 p-2.5 rounded-lg whitespace-pre-wrap">
+                            {testResult.stdout.join('\n')}
+                          </pre>
+                        </div>
+                      )}
+
+                      {testResult.output && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] uppercase font-bold text-slate-400">Output Result:</p>
+                          <pre className="text-emerald-400 bg-slate-950 p-2.5 rounded-lg whitespace-pre-wrap font-bold">
+                            {testResult.output}
+                          </pre>
+                        </div>
+                      )}
+
+                      {testResult.error && (
+                        <div className="space-y-1">
+                          <p className="text-[10px] uppercase font-bold text-rose-400">Error Details:</p>
+                          <pre className="text-rose-300 bg-rose-950/40 p-2.5 rounded-lg whitespace-pre-wrap">
+                            {testResult.error}
+                          </pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Finalize Submission Card */}
+                <div className="flex items-center justify-between p-5 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 flex-wrap gap-4">
+                  <div>
+                    <h4 className="text-sm font-extrabold text-slate-900">Ready to Submit?</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Submit your solution file to record your practice attempt and earn XP.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={handleFinalizeSubmit}
+                    className="px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] disabled:opacity-50 text-white font-extrabold text-xs shadow-md transition-all active:scale-98 cursor-pointer flex items-center gap-2"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4" />
+                        Submit Solution Now
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            ) : uploadedStorageUrl ? (
               <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6">
 
                 {/* Big success icon */}
@@ -684,15 +1112,22 @@ export function WorkspaceScreen() {
                 {/* Action buttons */}
                 <div className="flex gap-3 flex-wrap justify-center">
                   <button
+                    onClick={handleTestSubmittedFile}
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 font-bold transition-all shadow-3xs cursor-pointer"
+                  >
+                    <Terminal className="w-5 h-5" />
+                    Test with Custom Input
+                  </button>
+                  <button
                     onClick={() => setShowFullExplorer(true)}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold transition-all shadow-sm"
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold transition-all shadow-sm cursor-pointer"
                   >
                     <Eye className="w-5 h-5" />
                     View Submitted Files
                   </button>
                   <button
                     onClick={() => navigate('practice', { tab: 'history' })}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all border border-slate-200 shadow-3xs"
+                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 font-bold transition-all border border-slate-200 shadow-3xs cursor-pointer"
                   >
                     <ArrowLeft className="w-5 h-5" />
                     Back to Practice

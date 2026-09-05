@@ -181,14 +181,19 @@ export function LearningScreen() {
         ].filter(Boolean) as string[]));
 
         const [aaRes, qaRes, psRes, recRes, doneLessons] = await Promise.all([
-          supabase.from('assessment_attempts').select('assignment_id').in('student_id', userLookupIds),
-          supabase.from('quiz_attempts').select('quiz_id').in('user_id', userLookupIds),
+          supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds),
+          supabase.from('quiz_attempts').select('quiz_id, score, status').in('user_id', userLookupIds),
           supabase.from('practice_submissions').select('problem_id').in('student_id', userLookupIds),
           supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status'),
           fetchCompletedLessons(user.id),
         ]);
-        const doneAssess = new Set((aaRes.data || []).flatMap((r: any) => [String(r.assignment_id || '').trim(), r.assignment_id]));
-        const doneQuiz = new Set((qaRes.data || []).flatMap((r: any) => [String(r.quiz_id || '').trim(), r.quiz_id]));
+        const isPassedRow = (r: any) => {
+          const score = Number(r.score ?? 0);
+          const status = String(r.status ?? '').toLowerCase();
+          return score >= 70 || status === 'passed';
+        };
+        const doneAssess = new Set((aaRes.data || []).filter(isPassedRow).flatMap((r: any) => [String(r.assignment_id || '').trim(), r.assignment_id]));
+        const doneQuiz = new Set((qaRes.data || []).filter(isPassedRow).flatMap((r: any) => [String(r.quiz_id || '').trim(), r.quiz_id]));
         const donePractice = new Set((psRes.data || []).flatMap((r: any) => [String(r.problem_id || '').trim(), r.problem_id]));
 
         // Real class recordings → keyed by normalized lesson TITLE. Recordings have no reliable id
