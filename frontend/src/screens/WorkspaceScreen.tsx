@@ -364,10 +364,12 @@ export function WorkspaceScreen() {
     }
     const submissionUrl = remoteUrl || localUrl;
 
+    const detectedLang = projectFiles.find((f) => f.language && f.language !== 'text')?.language || 'practice';
+
     localStorage.setItem(`submission_${problemId}`, JSON.stringify({
       storageUrl: localUrl,
       remoteUrl,
-      language: 'project',
+      language: detectedLang,
       timestamp: new Date().toISOString(),
       solved: true,
       projectName,
@@ -379,7 +381,7 @@ export function WorkspaceScreen() {
         await submitPracticeProblem(
           user.id,
           problemId,
-          'project',
+          detectedLang,
           undefined,
           undefined,
           submissionUrl,

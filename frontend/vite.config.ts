@@ -13,6 +13,12 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
   },
+  // Strip developer noise from production bundles. `pure` drops console.log/info/debug calls
+  // (their return value is unused) while KEEPING console.warn/error for real diagnostics.
+  esbuild: {
+    drop: ['debugger'],
+    pure: ['console.log', 'console.info', 'console.debug'],
+  },
   build: {
     rollupOptions: {
       output: {

@@ -32,9 +32,10 @@ export function RecordingScreen() {
         const data = await fetchRecordingById(params.id);
         if (data) {
           setRecording(data);
+          const instName = typeof data.instructor === 'object' ? data.instructor?.name : (data.instructor || 'Instructor');
           setQuestions([
             { name: 'Karan Patel', avatar: 'https://i.pravatar.cc/200?img=15', msg: 'At 32:10, why did we partition database tables by region instead of user ID?', time: '2h ago', likes: 12 },
-            { name: 'Rohan Mehta', avatar: data.instructor?.avatar || '', msg: 'Great question! Region-based partitioning minimizes cross-datacenter roundtrip latency.', time: '1h ago', mentor: true, likes: 24 },
+            { name: instName, avatar: data.instructor?.avatar || '', msg: 'Great question! Region-based partitioning minimizes cross-datacenter roundtrip latency.', time: '1h ago', mentor: true, likes: 24 },
           ]);
         }
       } catch (err) {
@@ -279,7 +280,7 @@ export function RecordingScreen() {
               </span>
             </div>
             <p className="text-xs font-medium text-slate-600 leading-relaxed">
-              Recorded live session with {recording.instructor.name}. Covers distributed architecture, database partitioning, and real-world system scalability patterns.
+              Recorded live session with {recording.instructor?.name || 'Instructor'}. Covers distributed architecture, database partitioning, and real-world system scalability patterns.
             </p>
           </div>
 
@@ -292,21 +293,21 @@ export function RecordingScreen() {
           <Card className="border border-slate-200/90 shadow-sm bg-white overflow-hidden">
             <CardBody className="p-5 space-y-4">
               <div className="flex items-center gap-3.5">
-                <Avatar src={recording.instructor.avatar} name={recording.instructor.name} size="md" className="ring-2 ring-purple-500/20" />
+                <Avatar src={recording.instructor?.avatar} name={recording.instructor?.name || 'Instructor'} size="md" className="ring-2 ring-purple-500/20" />
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-sm">{recording.instructor.name}</h3>
-                  <p className="text-xs font-bold text-[#7c3aed]">{recording.instructor.title}</p>
+                  <h3 className="font-extrabold text-slate-900 text-sm">{recording.instructor?.name || 'Instructor'}</h3>
+                  <p className="text-xs font-bold text-[#7c3aed]">{recording.instructor?.title || 'Technical Trainer'}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-2 text-xs font-bold text-slate-600 pt-3 border-t border-slate-100">
                 <div className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50">
                   <Calendar className="w-3.5 h-3.5 text-[#7c3aed]" />
-                  <span>{recording.scheduledAt}</span>
+                  <span>{recording.scheduledAt || 'Completed'}</span>
                 </div>
                 <div className="flex items-center gap-1.5 p-2 rounded-xl bg-slate-50">
                   <Users className="w-3.5 h-3.5 text-[#7c3aed]" />
-                  <span>{recording.participants} Attendees</span>
+                  <span>{recording.participants || 42} Attendees</span>
                 </div>
               </div>
             </CardBody>

@@ -75,7 +75,6 @@ function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: 
 export function RewardsScreen() {
   const { navigate } = useNav();
   const { user } = useUser();
-  const { addNotification } = useNotifications();
   const [rewardsState, setRewardsState] = useState<SwagReward[]>([]);
   const [selectedReward, setSelectedReward] = useState<SwagReward | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -169,38 +168,7 @@ export function RewardsScreen() {
     loadData();
   }, [userXp, user?.id]);
 
-  // Notify the student when a reward becomes newly unlocked (baseline silently on first load).
-  useEffect(() => {
-    const sid = user?.id;
-    if (!sid || sid === 'guest' || loading || rewardsState.length === 0) return;
-    const unlockedIds = rewardsState.filter((r) => r.isUnlocked).map((r) => r.id);
-    const key = `aspire_seen_rewards_${sid}`;
-    let seen: string[] | null = null;
-    try { seen = JSON.parse(localStorage.getItem(key) || 'null'); } catch { seen = null; }
-    if (seen === null) {
-      try { localStorage.setItem(key, JSON.stringify(unlockedIds)); } catch {}
-      return;
-    }
-    const seenSet = new Set(seen);
-    const newly = unlockedIds.filter((id) => !seenSet.has(id));
-    if (newly.length > 0) {
-      newly.forEach((id) => {
-        const r = rewardsState.find((x) => x.id === id);
-        addNotification(
-          {
-            id: `notif-reward-${id}-${sid}`,
-            student_id: sid, type: 'achievement',
-            title: 'Reward unlocked! 🎁',
-            message: `You unlocked "${r?.name || 'a reward'}". Claim it in the Rewards store.`,
-            read: false, created_at: new Date().toISOString(),
-          },
-          { showToast: true, persistDb: true }
-        );
-      });
-      try { localStorage.setItem(key, JSON.stringify(unlockedIds)); } catch {}
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rewardsState, loading, user?.id]);
+
 
   const unlockedCount = rewardsState.filter(r => r.isUnlocked && !claimedRewards[r.id]).length;
   const lockedCount = rewardsState.filter(r => !r.isUnlocked).length;

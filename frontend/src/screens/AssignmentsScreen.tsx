@@ -1,8 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   FileText, Clock, Upload, CheckCircle2, AlertCircle, Star, Paperclip, ArrowRight, X,
-  HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Compass, RotateCcw, Eye, Lock
+  HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Compass, RotateCcw, Eye, Lock, LayoutGrid, List, ChevronRight
 } from 'lucide-react';
+import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -122,7 +123,7 @@ import { Loader2 } from 'lucide-react';
 export function AssignmentsScreen() {
   const { user } = useUser();
   const { isUnlocked } = useUnlockResolver();
-  const { navigate } = useNav();
+  const { navigate, params, route } = useNav();
   const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -216,7 +217,19 @@ export function AssignmentsScreen() {
     };
   }, [user?.id, loadData]);
 
-  const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>('assessments');
+  const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>(() => {
+    if (route === 'quizzes' || params?.tab === 'quizzes') return 'quizzes';
+    return 'assessments';
+  });
+
+  useEffect(() => {
+    if (route === 'quizzes' || params?.tab === 'quizzes') {
+      setMainPracticeTab('quizzes');
+    } else if (route === 'assignments' && (!params?.tab || params?.tab === 'assessments')) {
+      setMainPracticeTab('assessments');
+    }
+  }, [route, params?.tab]);
+
   const [lockedToast, setLockedToast] = useState(false);
   const [filterTab, setFilterTab] = useState<'pending' | 'completed' | 'all'>('pending');
 
@@ -237,6 +250,15 @@ export function AssignmentsScreen() {
   const [userCode, setUserCode] = useState('');
   const [codeTested, setCodeTested] = useState(false);
 
+  useEffect(() => {
+    if (params?.id && courseAssignments.length > 0 && !activeTask) {
+      const match = courseAssignments.find((t: any) => String(t.id) === String(params.id) || t.slug === params.id);
+      if (match) {
+        setSelectedDetailTask(match);
+      }
+    }
+  }, [params?.id, courseAssignments, activeTask]);
+
   // Filter Tasks
   const filteredTasks = courseAssignments.filter((t: any) => {
     const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
@@ -247,6 +269,20 @@ export function AssignmentsScreen() {
     if (filterTab === 'completed') return t.status === 'completed';
     return true;
   });
+
+  // Card vs. list ("rectangle") view + render windowing (10, +10 on scroll; reset on tab change).
+  const [assessView, setAssessView] = useState<'card' | 'list'>(() =>
+    (localStorage.getItem('aspire_assess_view') as 'card' | 'list') || 'card');
+  const [assessVisible, setAssessVisible] = useState(PAGE_SIZE);
+  useEffect(() => { setAssessVisible(PAGE_SIZE); }, [filterTab]);
+  const shownTasks = filteredTasks.slice(0, assessVisible);
+  const assessHasMore = assessVisible < filteredTasks.length;
+  const assessSentinelRef = useInfiniteScroll<HTMLDivElement>({
+    hasMore: assessHasMore,
+    loading: false,
+    onLoadMore: () => setAssessVisible((v) => v + PAGE_SIZE),
+  });
+  const setAssessViewMode = (m: 'card' | 'list') => { setAssessView(m); localStorage.setItem('aspire_assess_view', m); };
 
   // Open Task Overview with Dynamic URL Routing (e.g. /assignments/variables-in-python-quiz)
   const openDetailTaskWithRoute = (task: PythonTask) => {
@@ -1103,7 +1139,12 @@ export function AssignmentsScreen() {
         <div id="tour-assignments-tabs" className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 w-fit">
           <button
             type="button"
-            onClick={() => setMainPracticeTab('assessments')}
+            onClick={() => {
+              setMainPracticeTab('assessments');
+              if (route !== 'assignments') {
+                navigate('assignments');
+              }
+            }}
             className={`py-2 px-5 rounded-xl text-xs font-black transition-all cursor-pointer ${
               mainPracticeTab === 'assessments'
                 ? 'bg-[#7c3aed] text-white shadow-md'
@@ -1114,7 +1155,12 @@ export function AssignmentsScreen() {
           </button>
           <button
             type="button"
-            onClick={() => setMainPracticeTab('quizzes')}
+            onClick={() => {
+              setMainPracticeTab('quizzes');
+              if (route !== 'quizzes') {
+                navigate('quizzes');
+              }
+            }}
             className={`py-2 px-5 rounded-xl text-xs font-black transition-all cursor-pointer ${
               mainPracticeTab === 'quizzes'
                 ? 'bg-[#7c3aed] text-white shadow-md'
@@ -1131,26 +1177,40 @@ export function AssignmentsScreen() {
         <QuizzesScreen />
       ) : (
         <>
-          {/* Sub-Filter Tabs for Assessments */}
-          <div id="tour-assignments-filters" className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 max-w-md">
-            {[
-              { id: 'pending', label: 'Pending' },
-              { id: 'completed', label: 'Completed' },
-              { id: 'all', label: 'All Assessments' },
-            ].map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => setFilterTab(t.id as any)}
-                className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
-                  filterTab === t.id
-                    ? 'bg-white text-primary-900 shadow-xs border border-slate-200/60 font-bold'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {t.label}
+          {/* Sub-Filter Tabs for Assessments & View Toggle */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div id="tour-assignments-filters" className="flex items-center gap-2 bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/80 w-full sm:max-w-md">
+              {[
+                { id: 'pending', label: 'Pending' },
+                { id: 'completed', label: 'Completed' },
+                { id: 'all', label: 'All Assessments' },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setFilterTab(t.id as any)}
+                  className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
+                    filterTab === t.id
+                      ? 'bg-white text-primary-900 shadow-xs border border-slate-200/60 font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
+            </div>
+
+            {/* View toggle: card vs. list ("rectangle") */}
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 self-end sm:self-auto shrink-0">
+              <button type="button" onClick={() => setAssessViewMode('card')} title="Card view"
+                className={cn("w-8 h-8 rounded-lg flex items-center justify-center transition-all", assessView === 'card' ? "bg-white text-[#7c3aed] shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+                <LayoutGrid className="w-4 h-4" />
               </button>
-            ))}
+              <button type="button" onClick={() => setAssessViewMode('list')} title="List view"
+                className={cn("w-8 h-8 rounded-lg flex items-center justify-center transition-all", assessView === 'list' ? "bg-white text-[#7c3aed] shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
 
           {/* Tasks List Cards */}
@@ -1167,9 +1227,37 @@ export function AssignmentsScreen() {
               <h3 className="font-extrabold text-slate-900 text-lg mb-1">No assignments available yet</h3>
               <p className="text-sm font-medium text-slate-500">You don't have any {filterTab} assessments at the moment.</p>
             </div>
+          ) : assessView === 'list' ? (
+            /* ── COMPACT LIST ("RECTANGLE") VIEW ── */
+            <div className="space-y-3">
+              {shownTasks.map((task) => (
+                <div
+                  key={task.id}
+                  onClick={() => openDetailTaskWithRoute(task)}
+                  className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 hover:border-primary-400 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group"
+                >
+                  <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                    <div className="w-11 h-11 rounded-xl bg-primary-50 border border-primary-100 flex items-center justify-center text-primary-700 shrink-0">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-[#3b52a4] transition-colors line-clamp-1">{task.title}</h3>
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">{task.category}</span>
+                      </div>
+                      <p className="text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">{task.description}</p>
+                    </div>
+                  </div>
+                  <div className="shrink-0 flex items-center gap-3">
+                    <span className="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">+{task.xp} XP</span>
+                    <span className="flex items-center gap-1 text-slate-400 group-hover:text-[#3b52a4] text-xs font-extrabold">View <ChevronRight className="w-4 h-4" /></span>
+                  </div>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {filteredTasks.map((task, index) => {
+              {shownTasks.map((task, index) => {
               const isLocked = false;
               return (
                 <Card
@@ -1248,6 +1336,11 @@ export function AssignmentsScreen() {
                 </Card>
               );
             })}
+            </div>
+          )}
+          {assessHasMore && (
+            <div ref={assessSentinelRef} className="flex justify-center py-4">
+              <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
             </div>
           )}
         </>

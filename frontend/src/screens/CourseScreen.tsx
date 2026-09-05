@@ -103,7 +103,8 @@ export function CourseScreen() {
   const { navigate, params } = useNav();
   const { user } = useUser();
   const [tab, setTab] = useState('modules');
-  const [openStageIndex, setOpenStageIndex] = useState<number | null>(0);
+  // Stages and modules both start CLOSED — the student expands what they want to see.
+  const [openStageIndex, setOpenStageIndex] = useState<number | null>(null);
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
 
   const [dbCourse, setDbCourse] = useState<any>(null);
@@ -197,7 +198,11 @@ export function CourseScreen() {
           { data: instructorCoursesData }
         ] = await Promise.all([
           supabase.from('course_topics').select('*').eq('course_id', courseData.id).order('id', { ascending: true }),
-          supabase.from('course_lessons').select('*').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
+          // Syllabus list only needs light columns (id/module_id/title/description/sort_order). Heavy
+          // per-lesson content (video_url, body, etc.) is loaded by LessonScreen when a lesson is opened,
+          // so pulling `*` here just bloats the course page. The full lesson list is kept (progress math
+          // needs the count), but each row is now tiny.
+          supabase.from('course_lessons').select('id, module_id, title, description, sort_order').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
           supabase.from('courses').select('id, instructor, enrolled_count, rating').eq('instructor', courseData.instructor)
         ]);
 

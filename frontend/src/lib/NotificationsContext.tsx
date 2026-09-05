@@ -8,7 +8,8 @@ import { supabase } from './supabase';
 import {
   fetchNotifications, persistNotification,
   updateNotificationReadStatus, markAllNotificationsAsRead, deleteNotificationRow,
-  courseTargetsBatch,
+  courseTargetsBatch, fetchRewards, fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts,
+  evaluateBadgeCriteria,
 } from './api';
 
 export interface AppNotification {
@@ -30,6 +31,7 @@ interface NotificationsContextType {
   markRead: (id: string) => void;
   markAllRead: () => void;
   deleteNotification: (id: string) => void;
+  addNotification: (n: AppNotification, opts?: { showToast?: boolean; persistDb?: boolean }) => void;
 }
 
 const NotificationsContext = createContext<NotificationsContextType | undefined>(undefined);
@@ -51,17 +53,47 @@ function targetsBatch(target: any, batchCode: string, targetBatches?: any[]): bo
   return t.split(',').map((s) => s.trim()).includes(want);
 }
 
+function sanitizeNotification(n: AppNotification): AppNotification {
+  if (!n) return n;
+  let title = (n.title || '').trim();
+  let message = (n.message || n.content || '').trim();
+
+  // Strip all emojis and graphical symbols
+  const emojiRegex = /[\u{1F300}-\u{1FAD6}\u{1F900}-\u{1F9FF}\u{2600}-\u{27BF}\u{FE00}-\u{FE0F}]/gu;
+  title = title.replace(emojiRegex, '').replace(/[!]+$/, '').trim();
+  message = message.replace(emojiRegex, '').trim();
+
+  // Professional copy normalization
+  if (title.toLowerCase().includes('reward unlocked')) {
+    title = 'Reward Unlocked';
+    message = message.replace(/You unlocked ("[^"]+"). Claim it in the Rewards store\./i, '$1 is now available to claim in Rewards.');
+  } else if (title.toLowerCase().includes('badge unlocked') || title.toLowerCase().includes('badge earned')) {
+    title = 'Badge Earned';
+    message = message.replace(/You earned the ("[^"]+") badge\./i, 'You have earned the $1 badge.');
+  } else if (title.toLowerCase().includes('certificate issued')) {
+    title = 'Certificate Issued';
+  }
+
+  return {
+    ...n,
+    title,
+    message,
+    content: n.content ? n.content.replace(emojiRegex, '').trim() : message,
+  };
+}
+
 function loadStored(sid: string): AppNotification[] {
   try {
     const raw = localStorage.getItem(listKey(sid));
-    return raw ? JSON.parse(raw) : [];
+    const parsed: AppNotification[] = raw ? JSON.parse(raw) : [];
+    return parsed.map(sanitizeNotification);
   } catch {
     return [];
   }
 }
 
 export function NotificationsProvider({ children }: { children: ReactNode }) {
-  const { user } = useUser();
+  const { user, refetchUser } = useUser();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [toast, setToast] = useState<AppNotification | null>(null);
 
@@ -80,9 +112,11 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
   /** Add a notification: de-dupe by id, prepend, persist locally, optionally toast + persist to DB. */
   const addNotification = useCallback(
-    (n: AppNotification, opts: { showToast?: boolean; persistDb?: boolean } = {}) => {
+    (rawN: AppNotification, opts: { showToast?: boolean; persistDb?: boolean } = {}) => {
       const sid = userRef.current?.id;
       if (!sid || sid === 'guest') return;
+
+      const n = sanitizeNotification(rawN);
 
       // Respect the student's Settings toggles (student_profiles.notif_*). 'system'/admin-pushed and
       // any unknown type are always allowed.
@@ -123,11 +157,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const stored = loadStored(sid);
       let dbRows: AppNotification[] = [];
       try {
-        dbRows = (await fetchNotifications(sid)) as AppNotification[];
+        const fetched = (await fetchNotifications(sid)) as AppNotification[];
+        dbRows = (fetched || []).map(sanitizeNotification);
       } catch { /* table may be unavailable */ }
       if (!alive) return;
       const byId = new Map<string, AppNotification>();
-      [...dbRows, ...stored].forEach((n) => { if (n && n.id && !byId.has(n.id)) byId.set(n.id, n); });
+      [...dbRows, ...stored].forEach((n) => {
+        if (n && n.id && !byId.has(n.id)) {
+          byId.set(n.id, sanitizeNotification(n));
+        }
+      });
       const merged = Array.from(byId.values()).sort(
         (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
       );
@@ -264,8 +303,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (payload.eventType === 'UPDATE' && row.is_locked !== false) return;
       addNotification(
         { id: `notif-reward-${row.id}-${row.is_locked === false ? 'unlocked' : 'new'}`, student_id: sid, type: 'system',
-          title: row.is_locked === false ? 'Reward unlocked' : 'New reward available',
-          message: row.reward_title || 'Check the rewards store.',
+          title: row.is_locked === false ? 'Reward Unlocked' : 'New Reward Available',
+          message: row.reward_title ? `"${row.reward_title}" is now available in Rewards.` : 'A new reward is available in Rewards.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
       );
@@ -333,7 +372,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (row.student_id !== sid) return;
       addNotification(
         { id: `notif-cert-${row.id}`, student_id: sid, type: 'system',
-          title: 'Certificate issued 🎉', message: row.title || 'Your certificate is ready.',
+          title: 'Certificate Issued', message: row.title ? `Your certificate for "${row.title}" is ready.` : 'Your certificate is ready to view.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
       );
@@ -352,9 +391,133 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       );
     }, `student_id=eq.${sid}`);
 
+    // Students table realtime: catches XP, streak, and profile updates directly
+    sub('notif_students_xp', 'students', (payload) => {
+      const row = payload.new || {};
+      const cleanRowPhone = row.mobile_number ? row.mobile_number.replace(/\D/g, '').slice(-10) : '';
+      const cleanUserPhone = userRef.current?.mobile ? userRef.current.mobile.replace(/\D/g, '').slice(-10) : '';
+      if (row.id === sid || (cleanUserPhone && cleanRowPhone && cleanUserPhone === cleanRowPhone)) {
+        refetchUser?.();
+      }
+    });
+
+    // Student profiles table realtime: catches direct XP, streak, and attendance updates
+    sub('notif_student_profiles_xp', 'student_profiles', (payload) => {
+      const row = payload.new || {};
+      if (row.student_id === sid || row.id === sid) {
+        refetchUser?.();
+      }
+    });
+
     return () => { channels.forEach((c) => supabase.removeChannel(c)); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(',')]);
+
+  // ── 3. Centralized Real-time Unlocks for Rewards & Badges ──
+  useEffect(() => {
+    const sid = user?.id;
+    if (!sid || sid === 'guest') return;
+
+    const userXp = Number(user.xp || 0);
+    const rewardsKey = `aspire_unlocked_rewards_${sid}`;
+    const badgesKey = `aspire_earned_badges_${sid}`;
+
+    let isCancelled = false;
+
+    (async () => {
+      try {
+        const [rewardsData, badgesData, submissionsData, attemptsData] = await Promise.all([
+          fetchRewards(),
+          fetchBadges(),
+          fetchUserSubmissions(sid),
+          fetchAssignmentAttempts(sid),
+        ]);
+
+        if (isCancelled) return;
+
+        // 1. REWARDS UNLOCK CHECK
+        const unlockedRewards = (rewardsData || []).filter((r: any) => {
+          if (r.is_locked) return false;
+          const reqXp = r.reward_required_xp_points ?? r.requiredXp ?? 0;
+          return userXp >= reqXp;
+        });
+        const currentUnlockedRewardIds = unlockedRewards.map((r: any) => r.id);
+
+        const prevUnlockedRaw = localStorage.getItem(rewardsKey);
+        if (prevUnlockedRaw === null) {
+          // Initialize baseline for already-unlocked rewards on very first visit
+          try { localStorage.setItem(rewardsKey, JSON.stringify(currentUnlockedRewardIds)); } catch {}
+        } else {
+          let prevUnlockedIds: string[] = [];
+          try { prevUnlockedIds = JSON.parse(prevUnlockedRaw) || []; } catch {}
+          const prevSet = new Set(prevUnlockedIds);
+          const newlyUnlockedRewards = unlockedRewards.filter((r: any) => !prevSet.has(r.id));
+
+          if (newlyUnlockedRewards.length > 0) {
+            newlyUnlockedRewards.forEach((r: any) => {
+              addNotification(
+                {
+                  id: `notif-reward-${r.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  student_id: sid,
+                  type: 'achievement',
+                  title: 'Reward Unlocked',
+                  message: `"${r.reward_title || r.name || 'A reward'}" is now available to claim in Rewards.`,
+                  read: false,
+                  created_at: new Date().toISOString(),
+                },
+                { showToast: true, persistDb: true }
+              );
+            });
+          }
+
+          // Always synchronize stored baseline with the current unlocked set.
+          // When XP is reduced, stored baseline shrinks; when XP is increased again, it correctly fires!
+          try { localStorage.setItem(rewardsKey, JSON.stringify(currentUnlockedRewardIds)); } catch {}
+        }
+
+        // 2. BADGES EARNED CHECK
+        const earnedBadges = (badgesData || []).filter((b: any) =>
+          evaluateBadgeCriteria(b, user, submissionsData || [], attemptsData || [])
+        );
+        const currentEarnedBadgeIds = earnedBadges.map((b: any) => b.id);
+
+        const prevBadgesRaw = localStorage.getItem(badgesKey);
+        if (prevBadgesRaw === null) {
+          // Initialize baseline for already-earned badges on very first visit
+          try { localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds)); } catch {}
+        } else {
+          let prevEarnedIds: string[] = [];
+          try { prevEarnedIds = JSON.parse(prevBadgesRaw) || []; } catch {}
+          const prevBadgeSet = new Set(prevEarnedIds);
+          const newlyEarnedBadges = earnedBadges.filter((b: any) => !prevBadgeSet.has(b.id));
+
+          if (newlyEarnedBadges.length > 0) {
+            newlyEarnedBadges.forEach((b: any) => {
+              addNotification(
+                {
+                  id: `notif-badge-${b.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  student_id: sid,
+                  type: 'achievement',
+                  title: 'Badge Earned',
+                  message: `You have earned the "${b.name || 'new'}" badge.`,
+                  read: false,
+                  created_at: new Date().toISOString(),
+                },
+                { showToast: true, persistDb: true }
+              );
+            });
+          }
+
+          // Always synchronize stored baseline with current earned set
+          try { localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds)); } catch {}
+        }
+      } catch (err) {
+        console.error('Error evaluating rewards/badges unlock notifications:', err);
+      }
+    })();
+
+    return () => { isCancelled = true; };
+  }, [user?.id, user?.xp, user?.streak, user?.progress, user?.attendance, addNotification]);
 
   // ── Actions ──
   const markRead = useCallback((id: string) => {
@@ -389,7 +552,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, deleteNotification }}>
+    <NotificationsContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, deleteNotification, addNotification }}>
       {children}
       {toast && createPortal(<NotificationToast n={toast} onClose={() => setToast(null)} />, document.body)}
     </NotificationsContext.Provider>

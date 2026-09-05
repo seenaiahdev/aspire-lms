@@ -190,6 +190,7 @@ export function DashboardScreen() {
         title: cls.session_title,
         course: cls.technology || 'Core Programming',
         instructor: { name: cls.instructor || 'Lead Instructor' },
+        time: cls.time,
         scheduledAt: `${cls.date}T${cls.time || '10:00:00'}`,
         duration: cls.duration || '1h 30m',
         status: resolvedStatus,
@@ -473,15 +474,19 @@ export function DashboardScreen() {
 
   // ════════════════ DASHBOARD (2-COLUMN GRID: SCHEDULE ON LEFT, STATS ON RIGHT) ════════════════
   
-  const formatTime = (isoString: string) => {
+  const formatTime = (isoString: string, rawTime?: string) => {
+    if (rawTime) return rawTime;
     try {
       const d = new Date(isoString);
-      if (isNaN(d.getTime())) return isoString;
+      if (isNaN(d.getTime())) {
+        if (isoString.includes('T')) {
+          return isoString.split('T')[1];
+        }
+        return isoString;
+      }
       
       const timeStr = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
-      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-      
-      return `${dateStr}, ${timeStr}`;
+      return timeStr;
     } catch {
       return isoString;
     }
@@ -725,7 +730,7 @@ export function DashboardScreen() {
                     id={`tour-class-card-${idx}`}
                     onClick={() => {
                       if (cls.status === 'completed') {
-                        navigate('recording', { id: cls.id });
+                        navigate('recordings', { id: cls.id });
                       } else if (cls.status === 'ongoing') {
                         if (cls.link) {
                           window.open(cls.link, '_blank');
@@ -767,7 +772,7 @@ export function DashboardScreen() {
 
                         <span className="text-xs font-semibold text-slate-500 flex items-center gap-1">
                           <Clock className="w-3.5 h-3.5 text-slate-400" />
-                          {formatTime(cls.scheduledAt)}{cls.status === 'ongoing' ? ` · ${cls.duration}` : ''}
+                          {formatTime(cls.scheduledAt, cls.time)}{cls.status === 'ongoing' ? ` · ${cls.duration}` : ''}
                         </span>
                       </div>
 

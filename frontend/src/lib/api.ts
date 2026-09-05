@@ -13,22 +13,38 @@ export async function fetchStudentByPhone(phone: string) {
   const searchSuffix = cleanPhoneSuffix(phone);
   if (!searchSuffix) return null;
 
-  // Server-side suffix match returns ~1 row instead of the whole students table — scales past 1000 students
-  // and keeps login O(1) on bandwidth. (A trigram index on mobile_number makes the ilike index-assisted.)
-  const { data, error } = await supabase
+  const pickExact = (rows: any[]) =>
+    rows.find((s: any) => s?.mobile_number && cleanPhoneSuffix(s.mobile_number) === searchSuffix) || rows[0] || null;
+
+  // SECURITY (preferred): the get_student_by_phone SECURITY DEFINER RPC returns ONLY the single matching
+  // row, so once the 20260905000000_lock_students_pii migration is applied (which also revokes anon SELECT
+  // on `students`), the PII table can't be dumped with the public anon key.
+  const { data, error } = await supabase.rpc('get_student_by_phone', { suffix: searchSuffix });
+
+  if (!error) {
+    return pickExact(Array.isArray(data) ? data : data ? [data] : []);
+  }
+
+  // Migration not applied yet (RPC missing → PGRST202) — fall back to the direct suffix lookup so LOGIN
+  // KEEPS WORKING. This path stops working (by design) only after the migration revokes anon SELECT, at
+  // which point the RPC above succeeds instead. Any error other than "function not found" is re-thrown.
+  const fnMissing = error.code === 'PGRST202' || /Could not find the function|schema cache/i.test(error.message || '');
+  if (!fnMissing) {
+    console.error('Error fetching student by phone (RPC):', error);
+    throw error;
+  }
+  console.warn('get_student_by_phone RPC not found — using direct lookup (apply 20260905000000_lock_students_pii to enable the secure path).');
+
+  const { data: rows, error: err2 } = await supabase
     .from('students')
     .select('*')
     .ilike('mobile_number', `%${searchSuffix}`)
     .limit(5);
-
-  if (error) {
-    console.error('Error fetching student by phone:', error);
-    throw error;
+  if (err2) {
+    console.error('Error fetching student by phone (fallback):', err2);
+    throw err2;
   }
-
-  // Confirm the exact last-10-digit match (guards against partial/substring collisions).
-  const student = (data || []).find((s: any) => s.mobile_number && cleanPhoneSuffix(s.mobile_number) === searchSuffix);
-  return student || null;
+  return pickExact(rows || []);
 }
 
 /**
@@ -305,11 +321,6 @@ export async function fetchStudentProfile(studentId: string): Promise<StudentPro
   if (error) {
     console.error('Error fetching student profile:', error);
     return null;
-  }
-
-  if (data) {
-    // Recalculate streak asynchronously to ensure correctness (e.g. if a day was missed)
-    recalculateUserStreak(studentId, (data as any).attendance ?? 0);
   }
 
   return data as StudentProfileRow | null;
@@ -725,6 +736,56 @@ export async function fetchBadges() {
   });
 }
 
+/** Decide whether a student has earned a badge from its criteria + their activity. */
+export function evaluateBadgeCriteria(
+  badge: any,
+  user: any,
+  submissions: any[] = [],
+  assignmentSubmissions: any[] = []
+): boolean {
+  if (!badge?.criteria) return false;
+  const criteria = badge.criteria.toLowerCase();
+
+  if (criteria.includes('streak')) {
+    const match = criteria.match(/\d+/);
+    const requiredStreak = match ? parseInt(match[0], 10) : 10;
+    return (user?.streak || 0) >= requiredStreak;
+  }
+
+  if (criteria.includes('score') || criteria.includes('assessment') || criteria.includes('quiz') || criteria.includes('test')) {
+    const scoreMatch = criteria.match(/(\d+)%/);
+    const requiredScore = scoreMatch ? parseInt(scoreMatch[1], 10) : 70;
+    return (assignmentSubmissions || []).some((a: any) => (a.grade || 0) >= requiredScore);
+  }
+
+  if (criteria.includes('problem') || criteria.includes('coding') || criteria.includes('solve') || criteria.includes('project')) {
+    const match = criteria.match(/\d+/);
+    const requiredCount = match ? parseInt(match[0], 10) : 5;
+    const uniqueSolved = new Set((submissions || []).filter((s: any) => s.status === 'solved' || s.language === 'project').map((s: any) => s.problem_id)).size;
+    return uniqueSolved >= requiredCount;
+  }
+
+  if (criteria.includes('completion') || criteria.includes('progress') || criteria.includes('complete')) {
+    const match = criteria.match(/\d+/);
+    const requiredProgress = match ? parseInt(match[0], 10) : 100;
+    return (user?.progress || 0) >= requiredProgress;
+  }
+
+  if (criteria.includes('attendance') || criteria.includes('attend')) {
+    const match = criteria.match(/\d+/);
+    const requiredAttendance = match ? parseInt(match[0], 10) : 75;
+    return (user?.attendance || 0) >= requiredAttendance;
+  }
+
+  if (criteria.includes('xp') || criteria.includes('points')) {
+    const match = criteria.match(/\d+/);
+    const requiredXP = match ? parseInt(match[0], 10) : 100;
+    return (user?.xp || 0) >= requiredXP;
+  }
+
+  return false;
+}
+
 // ════════════════════════════════════════════════════════════════
 // CERTIFICATES
 // ════════════════════════════════════════════════════════════════
@@ -906,17 +967,22 @@ export async function fetchRewards() {
 
 export async function fetchLeaderboard() {
   try {
-    const { data, error } = await supabase
-      .from('students')
-      .select('id, name, avatar, email, batch')
-      .order('name', { ascending: true })
-      .limit(20);
+    // SECURITY (preferred): the get_leaderboard RPC returns a non-PII projection (no email). Once the
+    // 20260905000000_lock_students_pii migration is applied it is the only path (anon SELECT revoked).
+    const { data, error } = await supabase.rpc('get_leaderboard', { row_limit: 20 });
+    if (!error) return data || [];
 
-    if (error) {
+    // Migration not applied yet → fall back to a direct read (still without email).
+    const fnMissing = error.code === 'PGRST202' || /Could not find the function|schema cache/i.test(error.message || '');
+    if (!fnMissing) {
       console.warn('Error fetching leaderboard:', error.message);
       return [];
     }
-    return data || [];
+    const { data: rows } = await supabase
+      .from('students')
+      .select('id, name, avatar, batch')
+      .limit(20);
+    return rows || [];
   } catch {
     return [];
   }
@@ -928,17 +994,51 @@ export async function fetchLeaderboard() {
 
 export async function fetchRecordingById(sessionId: string) {
   try {
-    const { data, error } = await supabase
-      .from('live_sessions')
+    let row: any = null;
+    const { data: recData } = await supabase
+      .from('recordings')
       .select('*')
       .eq('id', sessionId)
       .maybeSingle();
 
-    if (error) {
-      console.warn('Error fetching recording:', error.message);
+    if (recData) {
+      row = recData;
+    } else {
+      const { data: liveData, error: liveError } = await supabase
+        .from('live_sessions')
+        .select('*')
+        .eq('id', sessionId)
+        .maybeSingle();
+
+      if (liveError) {
+        console.warn('Error fetching live session recording:', liveError.message);
+      }
+      row = liveData;
+    }
+
+    if (!row) {
       return null;
     }
-    return data;
+
+    const instructorName = typeof row.instructor === 'object' && row.instructor
+      ? (row.instructor.name || 'Lead Instructor')
+      : (row.instructor || 'Lead Instructor');
+
+    return {
+      ...row,
+      title: row.session_title || row.title || row.concept_name || 'Live Masterclass Recording',
+      course: row.technology || row.course || 'Masterclass',
+      instructor: {
+        name: instructorName,
+        title: 'Senior Technical Trainer',
+        avatar: row.instructor_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructorName)}&background=7c3aed&color=fff`
+      },
+      thumbnail: row.thumbnail_url || row.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=60',
+      duration: row.duration || '1h 30m',
+      scheduledAt: row.date ? `${row.date}${row.time ? ` · ${row.time}` : ''}` : (row.time || 'Completed'),
+      participants: row.participants || 42,
+      video_url: row.video_url || row.meeting_link || null
+    };
   } catch {
     return null;
   }

@@ -4,7 +4,7 @@ import { bottomNavItems, type Route } from '@/lib/routes';
 import { useNav } from '@/lib/nav';
 import { useNotifications } from '@/lib/NotificationsContext';
 import { cn } from '@/lib/utils';
-import * as Icons from 'lucide-react';
+import { getIcon } from '@/lib/icons';
 
 export function BottomNav() {
   const { route, navigate } = useNav();
@@ -14,7 +14,7 @@ export function BottomNav() {
     <nav className="lg:hidden fixed bottom-0 left-0 right-0 z-30 bg-white/90 backdrop-blur-xl border-t border-ink-100 px-2 py-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))]">
       <div className="flex items-center justify-around">
         {bottomNavItems.map((item) => {
-          const Icon = (Icons as any)[item.icon] as Icons.LucideIcon;
+          const Icon = getIcon(item.icon);
           const active = route === item.id || (item.id === 'learning' && (route === 'course' || route === 'lesson'));
           return (
             <button

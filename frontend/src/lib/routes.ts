@@ -1,6 +1,6 @@
 export type Route =
   | 'splash' | 'welcome' | 'login'
-  | 'dashboard' | 'learning' | 'milestones' | 'course' | 'lesson' | 'live' | 'classroom' | 'recording'
+  | 'dashboard' | 'learning' | 'milestones' | 'course' | 'lesson' | 'live' | 'classroom' | 'recording' | 'recordings'
   | 'assignments' | 'practice' | 'quizzes' | 'projects' | 'resources'
   | 'community' | 'schedule' | 'progress' | 'achievements' | 'certificates'
   | 'placement' | 'notifications' | 'profile' | 'settings' | 'workspace'

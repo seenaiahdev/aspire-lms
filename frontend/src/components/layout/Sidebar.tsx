@@ -4,7 +4,7 @@ import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
-import * as Icons from 'lucide-react';
+import { getIcon } from '@/lib/icons';
 
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 
@@ -78,8 +78,12 @@ export function Sidebar() {
           </div>
 
           {navItems.map((item) => {
-            const Icon = (Icons as any)[item.icon] as Icons.LucideIcon;
-            const active = route === item.id || (item.id === 'learning' && (route === 'course' || route === 'lesson'));
+            const Icon = getIcon(item.icon);
+            const active = route === item.id 
+              || (item.id === 'learning' && (route === 'course' || route === 'lesson'))
+              || (item.id === 'live' && (route === 'recordings' || route === 'recording' || route === 'classroom'))
+              || (item.id === 'assignments' && route === 'quizzes')
+              || (item.id === 'practice' && route === 'workspace');
             return (
               <button
                 key={item.id}

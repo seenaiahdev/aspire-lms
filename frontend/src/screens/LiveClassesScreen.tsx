@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { liveClassesSteps } from '@/lib/tourSteps';
 import { 
@@ -19,13 +19,23 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { fetchAllLiveSessions, fetchCoursesByIds } from '@/lib/api';
+import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { supabase } from '@/lib/supabase';
 
 export function LiveClassesScreen() {
-  const { navigate, params } = useNav();
+  const { navigate, params, route } = useNav();
   const [tab, setTab] = useState(() => {
+    if (route === 'recordings' || params.tab === 'completed' || params.tab === 'recordings') return 'completed';
     return params.tab || localStorage.getItem('aspire_live_tab') || 'upcoming';
   });
+
+  useEffect(() => {
+    if (route === 'recordings' || params.tab === 'completed' || params.tab === 'recordings') {
+      setTab('completed');
+    } else if (route === 'live' && (!params.tab || params.tab === 'upcoming')) {
+      setTab('upcoming');
+    }
+  }, [route, params.tab]);
   const [reminders, setReminders] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string } | null>(null);
   const [dbSessions, setDbSessions] = useState<any[]>([]);
@@ -54,6 +64,32 @@ export function LiveClassesScreen() {
   }, [user.enrolledCourses]);
 
   const primaryCourseTitle = userCourses[0]?.title || 'Python Full Stack + DSA with AI';
+
+  // Shared per-row mapper (used by both the full upcoming/live list and the paginated completed list).
+  const mapSession = useCallback((cls: any, now: Date) => {
+    const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
+      cls.date, cls.time, cls.duration, cls.status, 10, now
+    );
+    let courseName = (cls.technology || '').trim();
+    if (!courseName || courseName.toLowerCase() === 'general' || courseName.toLowerCase() === 'core programming') {
+      courseName = primaryCourseTitle;
+    }
+    return {
+      id: cls.id,
+      title: cls.session_title,
+      course: courseName,
+      date: cls.date || '',
+      time: cls.time || '',
+      instructor: { name: cls.instructor || 'Lead Instructor', avatar: '', title: 'LMS Instructor' },
+      scheduledAt: cls.date && cls.time ? `${cls.date} at ${cls.time.slice(0, 5)}` : (cls.date || 'TBD'),
+      duration: cls.duration || '1h 30m',
+      participants: 120,
+      status: resolvedStatus,
+      joinable,
+      thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
+      link: cls.meeting_link || ''
+    };
+  }, [primaryCourseTitle]);
 
   useEffect(() => {
     async function loadSessions() {
@@ -110,38 +146,9 @@ export function LiveClassesScreen() {
     const dd = String(now.getDate()).padStart(2, '0');
     const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    return sorted.map(cls => {
-      // A class becomes joinable ("ongoing") 10 minutes before its DB start time, until it ends.
-      const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
-        cls.date, cls.time, cls.duration, cls.status, 10, now
-      );
-
-      let courseName = (cls.technology || '').trim();
-      if (!courseName || courseName.toLowerCase() === 'general' || courseName.toLowerCase() === 'core programming') {
-        courseName = primaryCourseTitle;
-      }
-
-      return {
-        id: cls.id,
-        title: cls.session_title,
-        course: courseName,
-        date: cls.date || '',
-        time: cls.time || '',
-        instructor: {
-          name: cls.instructor || 'Lead Instructor',
-          avatar: '',
-          title: 'LMS Instructor'
-        },
-        scheduledAt: cls.date && cls.time ? `${cls.date} at ${cls.time.slice(0, 5)}` : (cls.date || 'TBD'),
-        duration: cls.duration || '1h 30m',
-        participants: 120,
-        status: resolvedStatus,
-        joinable,
-        thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
-        link: cls.meeting_link || ''
-      };
-    });
-  }, [dbSessions, primaryCourseTitle]);
+    // A class becomes joinable ("ongoing") 10 minutes before its DB start time, until it ends.
+    return sorted.map(cls => mapSession(cls, now));
+  }, [dbSessions, mapSession]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTech, setSelectedTech] = useState('all');
@@ -155,6 +162,15 @@ export function LiveClassesScreen() {
     setViewMode(mode);
     localStorage.setItem('aspire_live_view_mode', mode);
   };
+
+  // ── Recordings (completed tab): render windowing ──
+  // Show 10 recordings, reveal 10 more on scroll. Deliberately windows the SAME `mappedSessions`
+  // the screen already fetches for the upcoming/live tabs, rather than issuing a second paginated
+  // query: `live_sessions` rows match the batch by batch_code OR target_batch, and "completed" is
+  // resolved from the session's END TIME (resolveLiveClassStatus), not the raw DB status — so a
+  // server-side `status = 'completed'` filter silently dropped past recordings.
+  const [completedVisible, setCompletedVisible] = useState(PAGE_SIZE);
+  useEffect(() => { setCompletedVisible(PAGE_SIZE); }, [tab, searchQuery, selectedTech, dateFilter, customDate]);
 
   const hasActiveFilters = searchQuery.trim() !== '' || selectedTech !== 'all' || dateFilter !== 'all' || customDate !== '';
 
@@ -186,7 +202,13 @@ export function LiveClassesScreen() {
   const handleTabChange = (newTab: string) => {
     setTab(newTab);
     localStorage.setItem('aspire_live_tab', newTab);
+    if (newTab === 'completed') {
+      if (route !== 'recordings') navigate('recordings');
+    } else {
+      if (route !== 'live') navigate('live');
+    }
   };
+
   const [activeRecording, setActiveRecording] = useState<any | null>(null);
   const [isPlayingRecording, setIsPlayingRecording] = useState(true);
 
@@ -285,8 +307,30 @@ export function LiveClassesScreen() {
   }, [mappedSessions, tab, searchQuery, selectedTech, dateFilter, customDate]);
 
   const displayList = useMemo(() => {
+    if (tab === 'completed') return filtered.slice(0, completedVisible);   // windowed, 10 at a time
     return tab === 'upcoming' ? filtered.slice(0, 2) : filtered;
-  }, [filtered, tab]);
+  }, [filtered, tab, completedVisible]);
+
+  const completedHasMore = tab === 'completed' && completedVisible < filtered.length;
+  const completedSentinelRef = useInfiniteScroll<HTMLDivElement>({
+    hasMore: completedHasMore,
+    loading: false,
+    onLoadMore: () => setCompletedVisible((v) => v + PAGE_SIZE),
+  });
+
+  useEffect(() => {
+    if (params?.id && tab === 'completed') {
+      const el = document.getElementById(`recording-card-${params.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        el.classList.add('ring-2', 'ring-purple-500', 'shadow-lg');
+        const timer = setTimeout(() => {
+          el.classList.remove('ring-2', 'ring-purple-500', 'shadow-lg');
+        }, 3000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [params?.id, tab, displayList]);
 
   return (
     <div className="space-y-6 font-sans animate-fade-in pb-12 relative">
@@ -311,34 +355,29 @@ export function LiveClassesScreen() {
           onChange={handleTabChange}
         />
 
-        {/* View Mode & Quick Count on Recordings tab */}
+        {/* View Mode on Recordings tab */}
         {tab === 'completed' && (
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            <span className="text-xs font-bold text-slate-400">
-              {filtered.length} {filtered.length === 1 ? 'recording' : 'recordings'}
-            </span>
-            <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
-              <button
-                onClick={() => handleViewModeChange('grid')}
-                className={cn(
-                  "p-1.5 rounded-lg transition-all",
-                  viewMode === 'grid' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
-                )}
-                title="Grid View"
-              >
-                <LayoutGrid className="w-4 h-4" />
-              </button>
-              <button
-                onClick={() => handleViewModeChange('list')}
-                className={cn(
-                  "p-1.5 rounded-lg transition-all",
-                  viewMode === 'list' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
-                )}
-                title="Compact List View"
-              >
-                <List className="w-4 h-4" />
-              </button>
-            </div>
+          <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs self-end sm:self-auto shrink-0">
+            <button
+              onClick={() => handleViewModeChange('grid')}
+              className={cn(
+                "p-1.5 rounded-lg transition-all",
+                viewMode === 'grid' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
+              )}
+              title="Grid View"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => handleViewModeChange('list')}
+              className={cn(
+                "p-1.5 rounded-lg transition-all",
+                viewMode === 'list' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
+              )}
+              title="Compact List View"
+            >
+              <List className="w-4 h-4" />
+            </button>
           </div>
         )}
       </div>
@@ -435,7 +474,11 @@ export function LiveClassesScreen() {
       )}
 
       {/* ── RECORDINGS & SESSIONS LIST/GRID VIEW ── */}
-      {displayList.length === 0 ? (
+      {sessionsLoading ? (
+        <div className="flex justify-center py-16">
+          <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+        </div>
+      ) : displayList.length === 0 ? (
         <div className="col-span-full py-16 px-6 bg-white border border-slate-200/90 rounded-[2rem] text-center flex flex-col items-center justify-center space-y-4 shadow-2xs">
           <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
             {hasActiveFilters ? <Search className="w-8 h-8" /> : <CalendarX className="w-8 h-8" />}
@@ -465,6 +508,7 @@ export function LiveClassesScreen() {
           {displayList.map((cls) => (
             <div 
               key={cls.id} 
+              id={`recording-card-${cls.id}`}
               onClick={() => handleWatchRecording(cls)}
               className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 hover:border-purple-300 hover:shadow-md transition-all duration-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group"
             >
@@ -507,14 +551,20 @@ export function LiveClassesScreen() {
               </div>
             </div>
           ))}
+          {completedHasMore && (
+            <div ref={completedSentinelRef} className="flex justify-center py-4">
+              <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+            </div>
+          )}
         </div>
       ) : (
         /* ── GRID CARD VIEW ── */
+        <div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {displayList.map((cls, index) => {
             const isReminderSet = reminders[cls.id];
             return (
-              <Card key={cls.id} id={index === 0 ? 'tour-live-card-0' : undefined} className="relative overflow-hidden group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white">
+              <Card key={cls.id} id={`recording-card-${cls.id}`} className="relative overflow-hidden group border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 bg-white">
                 <div 
                   className="relative h-44 overflow-hidden cursor-pointer"
                   onClick={() => {
@@ -628,6 +678,12 @@ export function LiveClassesScreen() {
           );
         })}
       </div>
+        {completedHasMore && (
+          <div ref={completedSentinelRef} className="flex justify-center py-4">
+            <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
+        </div>
       )}
 
       {/* Toast Notification Banner */}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2 } from 'lucide-react';
+import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2, LayoutGrid, List } from 'lucide-react';
+import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { fetchQuizzes, fetchLeaderboard, fetchQuizAttempts, submitQuizAttempt } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
@@ -18,7 +19,7 @@ import { LockedOverlay } from '@/components/ui/LockedOverlay';
 
 export function QuizzesScreen() {
   const { user } = useUser();
-  const { navigate } = useNav();
+  const { navigate, params } = useNav();
   const { isUnlocked } = useUnlockResolver();
   const [tab, setTab] = useState('upcoming');
   const [quizzes, setQuizzes] = useState<any[]>([]);
@@ -65,7 +66,7 @@ export function QuizzesScreen() {
 
   useEffect(() => {
     loadData(true);
-  }, [user?.enrolledCourses, user?.id]);
+  }, [(user?.enrolledCourses || []).join(','), user?.id]);
 
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedQuiz, setSelectedQuiz] = useState<any>(() => {
@@ -81,6 +82,15 @@ export function QuizzesScreen() {
   const [isExamStarted, setIsExamStarted] = useState(() => {
     return localStorage.getItem('isExamStarted') === 'true';
   });
+
+  useEffect(() => {
+    if (params?.id && quizzes.length > 0 && !isExamStarted) {
+      const match = quizzes.find((q: any) => String(q.id) === String(params.id));
+      if (match) {
+        setSelectedQuiz(match);
+      }
+    }
+  }, [params?.id, quizzes, isExamStarted]);
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState(0);
   const [answers, setAnswers] = useState<Record<number, number>>({});
   const [reviewMarked, setReviewMarked] = useState<Record<number, boolean>>({});
@@ -303,18 +313,51 @@ export function QuizzesScreen() {
   const pendingQuizzes = quizzes.filter((q) => isUnlocked(q.inner_topic_id) && !attemptFor(q.id));
   const completedQuizzes = quizzes.filter((q) => !!attemptFor(q.id));
 
+  // Card vs. list ("rectangle") view + render windowing (10, +10 on scroll; reset on tab change).
+  const [quizView, setQuizView] = useState<'card' | 'list'>(() =>
+    (localStorage.getItem('aspire_quiz_view') as 'card' | 'list') || 'card');
+  const [quizVisible, setQuizVisible] = useState(PAGE_SIZE);
+  useEffect(() => { setQuizVisible(PAGE_SIZE); }, [tab]);
+  const activeList = tab === 'completed' ? completedQuizzes : pendingQuizzes;
+  const quizHasMore = quizVisible < activeList.length;
+  const quizSentinelRef = useInfiniteScroll<HTMLDivElement>({
+    hasMore: quizHasMore,
+    loading: false,
+    onLoadMore: () => setQuizVisible((v) => v + PAGE_SIZE),
+  });
+  const shownPending = pendingQuizzes.slice(0, quizVisible);
+  const shownCompleted = completedQuizzes.slice(0, quizVisible);
+  const setQuizViewMode = (m: 'card' | 'list') => { setQuizView(m); localStorage.setItem('aspire_quiz_view', m); };
+  const QuizViewToggle = () => (
+    <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 w-fit">
+      <button type="button" onClick={() => setQuizViewMode('card')} title="Card view"
+        className={cn("w-8 h-8 rounded-lg flex items-center justify-center transition-all", quizView === 'card' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+        <LayoutGrid className="w-4 h-4" />
+      </button>
+      <button type="button" onClick={() => setQuizViewMode('list')} title="List view"
+        className={cn("w-8 h-8 rounded-lg flex items-center justify-center transition-all", quizView === 'list' ? "bg-white text-indigo-600 shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+        <List className="w-4 h-4" />
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
-      <Tabs
-        variant="pills"
-        tabs={[
-          { id: 'upcoming', label: 'Upcoming' },
-          { id: 'completed', label: 'Completed' },
-          { id: 'analytics', label: 'Analytics' },
-        ]}
-        active={tab}
-        onChange={setTab}
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <Tabs
+          variant="pills"
+          tabs={[
+            { id: 'upcoming', label: 'Upcoming' },
+            { id: 'completed', label: 'Completed' },
+            { id: 'analytics', label: 'Analytics' },
+          ]}
+          active={tab}
+          onChange={setTab}
+        />
+        {(tab === 'upcoming' || tab === 'completed') && (
+          <div className="self-end sm:self-auto shrink-0"><QuizViewToggle /></div>
+        )}
+      </div>
 
       {tab === 'upcoming' && (
         <>
@@ -331,9 +374,42 @@ export function QuizzesScreen() {
               <h3 className="font-extrabold text-slate-900 text-lg mb-1">No quizzes available yet</h3>
               <p className="text-sm font-medium text-slate-500">Check back later for new quizzes.</p>
             </div>
+          ) : quizView === 'list' ? (
+            /* ── COMPACT LIST ("RECTANGLE") VIEW ── */
+            <div className="space-y-3">
+              {shownPending.map((q) => (
+                <div
+                  key={q.id}
+                  onClick={() => setSelectedQuiz(q)}
+                  className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 hover:border-indigo-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group"
+                >
+                  <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                    <div className="w-11 h-11 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                      <ClipboardCheck className="w-5 h-5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-indigo-700 transition-colors line-clamp-1">{q.title}</h3>
+                      <div className="flex items-center gap-3 mt-0.5 text-[11px] font-semibold text-slate-500 flex-wrap">
+                        <span>{q.course || 'Weekly Quiz'}</span>
+                        <span className="flex items-center gap-1"><Compass className="w-3 h-3" />{q.questions} Qs</span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{q.duration}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <span className="shrink-0 flex items-center gap-1.5 text-indigo-600 text-xs font-black bg-indigo-50 border border-indigo-100 px-3 py-1.5 rounded-xl group-hover:bg-indigo-600 group-hover:text-white transition-all">
+                    <Play className="w-3.5 h-3.5 fill-current" /> Start
+                  </span>
+                </div>
+              ))}
+              {quizHasMore && (
+                <div ref={quizSentinelRef} className="flex justify-center py-4">
+                  <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-              {pendingQuizzes.map((q) => (
+              {shownPending.map((q) => (
                 <Card
                   key={q.id}
                   onClick={() => setSelectedQuiz(q)}
@@ -373,6 +449,11 @@ export function QuizzesScreen() {
                   </button>
                 </Card>
               ))}
+              {quizHasMore && (
+                <div ref={quizSentinelRef} className="col-span-full flex justify-center py-4">
+                  <div className="w-6 h-6 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
           )}
         </>
@@ -386,9 +467,41 @@ export function QuizzesScreen() {
               <h3 className="font-extrabold text-slate-800 text-base">No Completed Quizzes</h3>
               <p className="text-xs text-slate-500 mt-1">You haven't completed any quizzes yet.</p>
             </Card>
+          ) : quizView === 'list' ? (
+            /* ── COMPACT LIST ("RECTANGLE") VIEW ── */
+            <div className="space-y-3">
+              {shownCompleted.map((quiz) => {
+                const attempt = attemptFor(quiz.id);
+                return (
+                  <div
+                    key={quiz.id}
+                    onClick={() => setReviewQuizAttempt({ quiz, attempt })}
+                    className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 hover:border-emerald-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group"
+                  >
+                    <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                      <div className="w-11 h-11 rounded-xl bg-emerald-50 border border-emerald-100 flex items-center justify-center text-emerald-600 shrink-0">
+                        <ClipboardCheck className="w-5 h-5" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="font-extrabold text-slate-900 text-sm sm:text-base line-clamp-1">{quiz.title}</h3>
+                        <p className="text-[11px] font-semibold text-slate-500 mt-0.5">{quiz.questions} questions · Completed {attempt?.attempted_at ? new Date(attempt.attempted_at).toLocaleDateString() : 'Recent'}</p>
+                      </div>
+                    </div>
+                    <span className="shrink-0 flex items-center gap-1.5 text-slate-600 text-xs font-black bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl">
+                      <Award className="w-3.5 h-3.5 text-emerald-500" /> View Score
+                    </span>
+                  </div>
+                );
+              })}
+              {quizHasMore && (
+                <div ref={quizSentinelRef} className="flex justify-center py-4">
+                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {completedQuizzes.map((quiz) => {
+              {shownCompleted.map((quiz) => {
                 const attempt = attemptFor(quiz.id);
                 const percent = attempt?.score ?? 0;
                 return (
@@ -431,6 +544,11 @@ export function QuizzesScreen() {
                   </Card>
                 );
               })}
+              {quizHasMore && (
+                <div ref={quizSentinelRef} className="col-span-full flex justify-center py-4">
+                  <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </div>
           )}
         </div>

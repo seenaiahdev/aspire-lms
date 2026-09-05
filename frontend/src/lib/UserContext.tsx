@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { User } from '@/types';
 import { fetchStudentByPhone, fetchBatchCategory, fetchStudentProfile, fetchUserSubmissions, fetchAssignmentAttempts, courseTargetsBatch, computeCourseProgress, issueCertificateIfComplete } from '@/lib/api';
 import { supabase } from './supabase';
@@ -107,17 +107,29 @@ export function UserProvider({ children }: { children: ReactNode }) {
             console.warn('Failed to load batch-released courses:', e);
           }
 
+          // Keep enrolledCourses array reference stable if IDs didn't change
+          const prevEnrolled = userRef.current?.enrolledCourses || [];
+          const coursesUnchanged = prevEnrolled.length === effectiveCourses.length &&
+            effectiveCourses.every((c, i) => c === prevEnrolled[i]);
+          const stableEnrolledCourses = coursesUnchanged ? prevEnrolled : effectiveCourses;
+
           // Compute REAL course progress from coursework completions (there is no other progress source).
+          // Run all courses CONCURRENTLY (was a serial await-in-loop → ~9×K queries in series on every
+          // login and every realtime tick). Promise.all overlaps the round-trips; a per-course failure
+          // keeps the previously known value instead of aborting the batch.
           const newCourseProgress: Record<string, number> = { ...(profile?.course_progress || {}) };
-          for (const cid of effectiveCourses) {
-            try { newCourseProgress[cid] = await computeCourseProgress(student.id, cid); } catch {}
-          }
+          const progressPairs = await Promise.all(
+            effectiveCourses.map(async (cid): Promise<[string, number]> => {
+              try { return [cid, await computeCourseProgress(student.id, cid)]; }
+              catch { return [cid, newCourseProgress[cid] ?? 0]; }
+            })
+          );
+          for (const [cid, pct] of progressPairs) newCourseProgress[cid] = pct;
           const primaryPct = effectiveCourses.length ? (newCourseProgress[effectiveCourses[0]] ?? 0) : (profile?.progress ?? 0);
 
-          // Persist only when it changed (avoids a student_profiles realtime → refetch loop).
-          const prevCP = profile?.course_progress || {};
-          const cpChanged = JSON.stringify(prevCP) !== JSON.stringify(newCourseProgress) || (profile?.progress ?? 0) !== primaryPct;
-          if (cpChanged) {
+          // Persist only when progress actually changed (avoids an infinite student_profiles realtime loop).
+          const prevProgress = Number(profile?.progress ?? 0);
+          if (prevProgress !== primaryPct && student.id && student.id !== 'guest') {
             try {
               await supabase.from('student_profiles')
                 .update({ progress: primaryPct })
@@ -132,7 +144,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
 
           const realProgress = primaryPct;
-          const realStreak = profile?.attendance ?? 0;
+          const realStreak = Number(profile?.attendance ?? (profile as any)?.streak ?? (student as any)?.streak ?? (student as any)?.attendance ?? 0);
           const realGpa = profile?.gpa ?? 0.00;
 
           let unlockedLessonIds: string[] = [];
@@ -153,7 +165,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           // Newly-unlocked lessons are detected in NotificationsContext (which watches
           // user.unlockedLessonIds) so notifications are generated in one place.
 
-          const realXp = profile?.xp ?? 0;
+          const realXp = Number(profile?.xp ?? (student as any)?.xp ?? 0);
 
           const updatedUser = {
             id: student.id,
@@ -185,7 +197,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             progress: realProgress,
             status: student.status,
             registrationId: student.registration_id,
-            enrolledCourses: effectiveCourses,
+            enrolledCourses: stableEnrolledCourses,
             courseProgress: newCourseProgress,
             unlockedLessonIds: unlockedLessonIds,
             notifPrefs: {
@@ -211,6 +223,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const userRef = useRef(user);
+  userRef.current = user;
+
   useEffect(() => {
     refetchUser();
 
@@ -218,35 +233,123 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const isLoggedIn = localStorage.getItem('aspire_logged_in') === 'true';
 
     if (isLoggedIn && loggedInMobile) {
-      // Clean phone number suffix to compare with payload
       const cleanPhone = loggedInMobile.replace(/\D/g, '').slice(-10);
-      
-      const channel = supabase
-        .channel('students_realtime')
+
+      // Shared debounced full refetch for cascading progress calculations
+      let progressTimer: any = null;
+      const bumpProgress = () => {
+        if (progressTimer) clearTimeout(progressTimer);
+        progressTimer = setTimeout(() => refetchUser(), 600);
+      };
+
+      const ts = Date.now();
+
+      // 1. students table: Realtime changes (catches enrollment, direct XP/streak on students row)
+      const studentsChannel = supabase
+        .channel(`students_rt_${ts}`)
         .on(
           'postgres_changes',
           {
-            event: 'UPDATE',
+            event: '*',
             schema: 'public',
             table: 'students'
           },
           (payload) => {
-            if (payload.new && payload.new.mobile_number) {
-              const cleanPayloadPhone = payload.new.mobile_number.replace(/\D/g, '').slice(-10);
-              if (cleanPhone === cleanPayloadPhone) {
-                console.log("Seenu's enrollment or batch updated in database. Reloading context...", payload.new);
-                refetchUser();
+            const newRow = payload.new || {};
+            const sid = userRef.current?.id;
+            const regId = userRef.current?.registrationId;
+            const cleanPayloadPhone = newRow.mobile_number ? newRow.mobile_number.replace(/\D/g, '').slice(-10) : '';
+            const cleanUserPhone = userRef.current?.mobile ? userRef.current.mobile.replace(/\D/g, '').slice(-10) : cleanPhone;
+
+            const matchesId = sid && (newRow.id === sid || newRow.registration_id === sid);
+            const matchesReg = regId && (newRow.id === regId || newRow.registration_id === regId);
+            const matchesPhone = cleanUserPhone && cleanPayloadPhone && cleanUserPhone === cleanPayloadPhone;
+
+            if (matchesId || matchesReg || matchesPhone) {
+              console.log('Real-time students table updated:', newRow);
+              if (newRow.xp !== undefined || newRow.streak !== undefined || newRow.attendance !== undefined) {
+                setUser((prev) => {
+                  const nextXp = newRow.xp !== undefined ? Number(newRow.xp) : prev.xp;
+                  const nextStreak = newRow.attendance !== undefined 
+                    ? Number(newRow.attendance) 
+                    : (newRow.streak !== undefined ? Number(newRow.streak) : prev.streak);
+                  const updated = {
+                    ...prev,
+                    xp: nextXp,
+                    level: Math.floor(nextXp / 500) + 1,
+                    streak: nextStreak,
+                    attendance: nextStreak,
+                  };
+                  try { localStorage.setItem('aspire_cached_user', JSON.stringify(updated)); } catch {}
+                  return updated;
+                });
+              }
+              bumpProgress();
+            }
+          }
+        )
+        .subscribe();
+
+      // 2. student_profiles table: Realtime changes (catches XP, streak/attendance, bio, etc.)
+      const profileChannel = supabase
+        .channel(`student_profiles_rt_${ts}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'student_profiles'
+          },
+          (payload) => {
+            const newRow = payload.new || {};
+            const sid = userRef.current?.id;
+            const regId = userRef.current?.registrationId;
+            const targetId = newRow.student_id || newRow.id;
+
+            if (sid && (targetId === sid || targetId === regId)) {
+              const curr = userRef.current;
+              const nextXp = newRow.xp !== undefined ? Number(newRow.xp) : curr?.xp;
+              const nextStreak = newRow.attendance !== undefined 
+                ? Number(newRow.attendance) 
+                : (newRow.streak !== undefined ? Number(newRow.streak) : curr?.streak);
+              const nextProgress = newRow.progress !== undefined ? Number(newRow.progress) : curr?.progress;
+              const nextGpa = newRow.gpa !== undefined ? Number(newRow.gpa) : curr?.gpa;
+
+              const hasChanged = curr && (
+                (newRow.xp !== undefined && nextXp !== curr.xp) ||
+                (newRow.attendance !== undefined && nextStreak !== curr.streak) ||
+                (newRow.streak !== undefined && nextStreak !== curr.streak) ||
+                (newRow.progress !== undefined && nextProgress !== curr.progress) ||
+                (newRow.gpa !== undefined && nextGpa !== curr.gpa)
+              );
+
+              if (hasChanged) {
+                console.log('Real-time student_profiles updated:', newRow);
+                setUser((prev) => {
+                  const updated = {
+                    ...prev,
+                    xp: nextXp,
+                    level: Math.floor(nextXp / 500) + 1,
+                    streak: nextStreak,
+                    attendance: nextStreak,
+                    progress: nextProgress,
+                    gpa: nextGpa,
+                    rank: nextGpa,
+                  };
+                  try { localStorage.setItem('aspire_cached_user', JSON.stringify(updated)); } catch {}
+                  return updated;
+                });
+                bumpProgress();
               }
             }
           }
         )
         .subscribe();
 
-      // Include global ("ALL") locks alongside the student's own batch.
-      const locksFilter = user.batchCode ? `batch_code=in.(${user.batchCode},ALL)` : undefined;
-
+      // 3. Milestone locks
+      const locksFilter = userRef.current?.batchCode ? `batch_code=in.(${userRef.current.batchCode},ALL)` : undefined;
       const locksChannel = supabase
-        .channel('milestone_locks_realtime')
+        .channel(`milestone_locks_rt_${ts}`)
         .on(
           'postgres_changes',
           {
@@ -256,81 +359,64 @@ export function UserProvider({ children }: { children: ReactNode }) {
             ...(locksFilter ? { filter: locksFilter } : {})
           },
           () => {
-            console.log("Real-time milestone locks updated inside Context, reloading...");
-            refetchUser();
+            bumpProgress();
           }
         )
         .subscribe();
 
-      // A course released/updated for this batch should appear in MyLearning live.
+      // 4. Courses
       const coursesChannel = supabase
-        .channel('courses_realtime')
+        .channel(`courses_rt_${ts}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'courses' },
           () => {
-            console.log('Real-time courses changed, reloading context...');
-            refetchUser();
+            bumpProgress();
           }
         )
         .subscribe();
 
-      const profileChannel = supabase
-        .channel('student_profiles_realtime')
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'student_profiles',
-            filter: `student_id=eq.${user.id}`
-          },
-          (payload) => {
-            const cached = localStorage.getItem('aspire_cached_user');
-            if (cached) {
-              try {
-                const currentUser = JSON.parse(cached);
-                if (payload.new && payload.new.student_id === currentUser.id) {
-                  console.log("Current student profile updated in database, reloading context...", payload.new);
-                  refetchUser();
-                }
-              } catch {}
-            }
-          }
-        )
-        .subscribe();
-
-      // Recompute course progress + XP + auto-issue certificate whenever the numbers change: the student's
-      // OWN completions (attempt tables) OR the coursework TOTALS (admin adds/removes an item). Debounced so
-      // a burst of changes triggers a single refetch. Replaces the old legacy submissions channels (empty).
-      let progressTimer: any = null;
-      const bumpProgress = () => {
-        if (progressTimer) clearTimeout(progressTimer);
-        progressTimer = setTimeout(() => refetchUser(), 700);
-      };
-      const progressChannel = supabase.channel('progress_realtime');
-      // Student completions (student-filtered).
+      // 5. Coursework completions
+      const progressChannel = supabase.channel(`progress_rt_${ts}`);
       progressChannel
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, bumpProgress)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` }, bumpProgress)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, bumpProgress)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress', filter: `student_id=eq.${user.id}` }, bumpProgress);
-      // Coursework totals (any change re-derives the denominator).
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts' }, (payload) => {
+          if (!payload.new || (payload.new as any).student_id === userRef.current?.id) bumpProgress();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, (payload) => {
+          if (!payload.new || (payload.new as any).user_id === userRef.current?.id) bumpProgress();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions' }, (payload) => {
+          if (!payload.new || (payload.new as any).student_id === userRef.current?.id) bumpProgress();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress' }, (payload) => {
+          if (!payload.new || (payload.new as any).student_id === userRef.current?.id) bumpProgress();
+        });
       ['assessments', 'quizzes', 'coding_questions', 'projects'].forEach((table) => {
         progressChannel.on('postgres_changes', { event: '*', schema: 'public', table }, bumpProgress);
       });
       progressChannel.subscribe();
 
+      // 6. Window focus & visibility change: instant resync when user returns from DB editor / another tab
+      const onSyncCheck = () => {
+        if (document.visibilityState === 'visible') {
+          refetchUser();
+        }
+      };
+      window.addEventListener('focus', onSyncCheck);
+      document.addEventListener('visibilitychange', onSyncCheck);
+
       return () => {
-        supabase.removeChannel(channel);
+        supabase.removeChannel(studentsChannel);
         supabase.removeChannel(locksChannel);
         supabase.removeChannel(coursesChannel);
         supabase.removeChannel(profileChannel);
-        if (progressTimer) clearTimeout(progressTimer);
         supabase.removeChannel(progressChannel);
+        if (progressTimer) clearTimeout(progressTimer);
+        window.removeEventListener('focus', onSyncCheck);
+        document.removeEventListener('visibilitychange', onSyncCheck);
       };
     }
-  }, [refetchUser, user?.id, user?.batchCode]);
+  }, [refetchUser]);
 
   const updateUser = (updates: Partial<ExtendedUser>) => {
     setUser((prevUser) => {

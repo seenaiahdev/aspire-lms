@@ -8,22 +8,70 @@ const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 const GMAIL_USER = process.env.GMAIL_USER;
 const GMAIL_APP_PASSWORD = process.env.GMAIL_APP_PASSWORD;
-const OTP_SECRET = process.env.OTP_SECRET || 'change-me';
+// Fail closed: no insecure default. If OTP_SECRET is unset the endpoint refuses to issue
+// tokens (a known default like 'change-me' would let anyone forge a valid OTP token).
+const OTP_SECRET = process.env.OTP_SECRET;
 const TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
 
+// ── Best-effort rate limiting ────────────────────────────────────────────────
+// In-memory, per warm serverless instance. This meaningfully slows OTP spam /
+// enumeration but is NOT a hard guarantee across many concurrent instances —
+// for that, back it with a shared store (e.g. Upstash Redis / Vercel KV).
+const COOLDOWN_MS = 30 * 1000;      // min gap between sends to the same phone
+const HOURLY_CAP = 5;               // max sends per phone per rolling hour
+const IP_HOURLY_CAP = 20;           // max sends per IP per rolling hour
+const rlByPhone = new Map();        // suffix -> number[] (timestamps)
+const rlByIp = new Map();           // ip -> number[] (timestamps)
+
+function prune(list, windowMs, now) {
+  return (list || []).filter((t) => now - t < windowMs);
+}
+// Returns { ok } or { ok:false, retryAfter } (seconds). Records the hit when allowed.
+function checkRate(suffix, ip) {
+  const now = Date.now();
+  const phoneHits = prune(rlByPhone.get(suffix), 60 * 60 * 1000, now);
+  const ipHits = prune(rlByIp.get(ip), 60 * 60 * 1000, now);
+  const lastPhone = phoneHits[phoneHits.length - 1];
+  if (lastPhone && now - lastPhone < COOLDOWN_MS) {
+    return { ok: false, retryAfter: Math.ceil((COOLDOWN_MS - (now - lastPhone)) / 1000) };
+  }
+  if (phoneHits.length >= HOURLY_CAP || ipHits.length >= IP_HOURLY_CAP) {
+    return { ok: false, retryAfter: 3600 };
+  }
+  phoneHits.push(now); ipHits.push(now);
+  rlByPhone.set(suffix, phoneHits); rlByIp.set(ip, ipHits);
+  return { ok: true };
+}
+
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
   try {
+    if (!OTP_SECRET) {
+      console.error('send-otp: OTP_SECRET is not configured — refusing to issue tokens.');
+      return res.status(500).json({ error: 'server_misconfigured' });
+    }
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const suffix = cleanSuffix(body.phone);
     if (suffix.length < 10) return res.status(400).json({ error: 'invalid_phone' });
 
-    // Only registered students get an OTP — look up their email in Supabase (server-side).
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/students?select=name,email,mobile_number`, {
-      headers: { apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` },
-    });
+    const ip = String(
+      (req.headers['x-forwarded-for'] || '').split(',')[0].trim() ||
+      req.socket?.remoteAddress || 'unknown'
+    );
+    const rate = checkRate(suffix, ip);
+    if (!rate.ok) {
+      res.setHeader('Retry-After', String(rate.retryAfter));
+      return res.status(429).json({ error: 'too_many_requests', retryAfter: rate.retryAfter });
+    }
+
+    // Only registered students get an OTP — look up their email in Supabase (server-side),
+    // filtered by phone suffix so we never pull the whole students table into the function.
+    const r = await fetch(
+      `${SUPABASE_URL}/rest/v1/students?select=name,email,mobile_number&mobile_number=ilike.*${suffix}&limit=5`,
+      { headers: { apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` } }
+    );
     const rows = await r.json();
     const student = Array.isArray(rows) ? rows.find((s) => cleanSuffix(s.mobile_number) === suffix) : null;
     if (!student || !student.email) return res.status(404).json({ error: 'not_registered' });

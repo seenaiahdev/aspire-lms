@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2 } from 'lucide-react';
+import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
+import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
 import { fetchPracticeProblems, fetchUserSubmissions } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
@@ -45,6 +46,20 @@ export function PracticeScreen() {
   const [problems, setProblems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lockedToast, setLockedToast] = useState(false);
+  const [viewMode, setViewMode] = useState<'card' | 'list'>(() => {
+    try {
+      return (localStorage.getItem('aspire_practice_view') as 'card' | 'list') || 'card';
+    } catch {
+      return 'card';
+    }
+  });
+
+  const handleViewModeChange = (mode: 'card' | 'list') => {
+    setViewMode(mode);
+    try {
+      localStorage.setItem('aspire_practice_view', mode);
+    } catch {}
+  };
 
   const loadData = useCallback(async (showSpinner = true) => {
     if (showSpinner) setLoading(true);
@@ -69,7 +84,18 @@ export function PracticeScreen() {
         if (submissionsError) {
           console.warn('Failed to fetch submissions from Supabase, relying on localStorage:', submissionsError);
         } else {
-          dbSubmissions = (submissionsResult || []).map((s: any) => ({
+          // `practice_submissions` is shared with ProjectsScreen.
+          // Keep if it matches a known practice problem in dbProblems, or if problem_id starts with 'cq-' or 'pp'.
+          // Only drop if it explicitly belongs to a project (e.g. starts with 'proj-').
+          const codingOnly = (submissionsResult || []).filter((s: any) => {
+            const isKnownProblem = (dbProblems || []).some((p: any) => p.id === s.problem_id);
+            if (isKnownProblem) return true;
+            if (String(s.problem_id || '').startsWith('proj-')) return false;
+            if (String(s.problem_id || '').startsWith('cq-') || String(s.problem_id || '').startsWith('pp')) return true;
+            if (String(s.language || '').toLowerCase() === 'project') return false;
+            return true;
+          });
+          dbSubmissions = codingOnly.map((s: any) => ({
             problemId: s.problem_id,
             problemTitle: (dbProblems || []).find((p: any) => p.id === s.problem_id)?.title || s.project_name || 'Practice Solution',
             language: s.language,
@@ -84,9 +110,17 @@ export function PracticeScreen() {
         }
       }
 
-      // Merge with local storage fallback only if database fetch failed
       const mergedSubmissions = [...dbSubmissions];
-      if (!fetchedFromDb) {
+      if (fetchedFromDb) {
+        // Database is the single source of truth: clean up any deleted submissions from localStorage
+        (dbProblems || []).forEach((problem: any) => {
+          const inDb = dbSubmissions.some(s => s.problemId === problem.id);
+          if (!inDb) {
+            localStorage.removeItem(`submission_${problem.id}`);
+          }
+        });
+      } else {
+        // Fallback to localStorage only if database fetch completely failed
         (dbProblems || []).forEach((problem: any) => {
           const savedSubmission = localStorage.getItem(`submission_${problem.id}`);
           if (savedSubmission) {
@@ -140,12 +174,14 @@ export function PracticeScreen() {
         {
           event: '*',
           schema: 'public',
-          table: 'practice_submissions',
-          filter: `student_id=eq.${user.id}`
+          table: 'practice_submissions'
         },
         (payload) => {
-          console.log('Real-time database submission update received:', payload);
-          loadData(false);
+          const studentId = (payload.new as any)?.student_id || (payload.old as any)?.student_id;
+          if (!studentId || studentId === user.id || studentId === user.mobile) {
+            console.log('Real-time database submission update received:', payload);
+            loadData(false);
+          }
         }
       )
       .subscribe();
@@ -153,13 +189,24 @@ export function PracticeScreen() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id, loadData]);
+  }, [user?.id, user?.mobile, loadData]);
 
   const filtered = problems.filter(p => {
     const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
     return matchesDifficulty && isUnlocked(p.inner_topic_id) && !p.solved;
   });
   const solved = problems.filter(p => p.solved).length;
+
+  // Render windowing: show 10 problems, reveal 10 more on scroll (reset when the difficulty changes).
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [difficulty, tab]);
+  const shownProblems = filtered.slice(0, visibleCount);
+  const problemsHasMore = visibleCount < filtered.length;
+  const problemsSentinelRef = useInfiniteScroll<HTMLDivElement>({
+    hasMore: problemsHasMore,
+    loading: false,
+    onLoadMore: () => setVisibleCount((v) => v + PAGE_SIZE),
+  });
 
   return (
     <div className="space-y-6">
@@ -188,7 +235,7 @@ export function PracticeScreen() {
         ))}
       </div>
 
-      <div id="tour-practice-tabs">
+      <div id="tour-practice-tabs" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Tabs
           variant="pills"
           tabs={[
@@ -198,6 +245,30 @@ export function PracticeScreen() {
           active={tab}
           onChange={setTab}
         />
+        <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 self-end sm:self-auto shrink-0">
+          <button
+            type="button"
+            onClick={() => handleViewModeChange('card')}
+            title="Card View"
+            className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer",
+              viewMode === 'card' ? "bg-white text-[#7c3aed] shadow-xs font-bold" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <LayoutGrid className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => handleViewModeChange('list')}
+            title="List View"
+            className={cn(
+              "w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer",
+              viewMode === 'list' ? "bg-white text-[#7c3aed] shadow-xs font-bold" : "text-slate-400 hover:text-slate-600"
+            )}
+          >
+            <List className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       {/* ── Problems Tab ── */}
@@ -237,10 +308,80 @@ export function PracticeScreen() {
                 <p className="text-xs font-medium text-slate-500 mb-2">Try changing your difficulty filter or check back later.</p>
               </CardBody>
             </Card>
+          ) : viewMode === 'card' ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {shownProblems.map((p, index) => {
+                  const isLocked = false;
+                  return (
+                    <Card
+                      key={p.id}
+                      id={index === 0 ? 'tour-practice-card-0' : undefined}
+                      onClick={() => {
+                        if (isLocked) {
+                          setLockedToast(true);
+                          setTimeout(() => setLockedToast(false), 3000);
+                          return;
+                        }
+                        navigate('workspace', { id: p.id });
+                      }}
+                      className={cn(
+                        "p-5 border border-slate-200/90 bg-white transition-all rounded-2xl group shadow-2xs flex flex-col justify-between hover:border-purple-300 hover:shadow-md",
+                        isLocked ? "cursor-not-allowed opacity-90 grayscale-[15%] bg-slate-50" : "cursor-pointer"
+                      )}
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-3 mb-3">
+                          <div className={cn("w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border", isLocked ? "bg-slate-200 text-slate-400 border-slate-300" : "bg-purple-50 text-[#7c3aed] border-purple-100 group-hover:scale-105 transition-transform")}>
+                            <Code2 className="w-5.5 h-5.5" />
+                          </div>
+                          <DifficultyBadge difficulty={p.difficulty} />
+                        </div>
+                        <h3 className={cn("font-bold text-base mb-1.5 line-clamp-1", isLocked ? "text-slate-500" : "text-slate-900 group-hover:text-[#7c3aed] transition-colors")}>
+                          {p.title}
+                        </h3>
+                        <p className="text-xs font-semibold text-slate-400 mb-4">{p.category}</p>
+                      </div>
+
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                        <div className="flex items-center gap-3 text-xs font-semibold text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
+                            {p.successRate}%
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Zap className="w-3.5 h-3.5 text-amber-500" />
+                            {p.points} XP
+                          </span>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={(e) => {
+                            if (isLocked) {
+                              e.stopPropagation();
+                              setLockedToast(true);
+                              setTimeout(() => setLockedToast(false), 3000);
+                            }
+                          }}
+                          className={cn("font-extrabold transition-all shadow-xs", isLocked ? "bg-slate-200 text-slate-500 hover:bg-slate-200 cursor-not-allowed" : "")}
+                        >
+                          {isLocked ? <><Lock className="w-3.5 h-3.5 mr-1 mb-0.5" /> Coming Soon</> : "Solve"}
+                        </Button>
+                      </div>
+                    </Card>
+                  );
+                })}
+              </div>
+              {problemsHasMore && (
+                <div ref={problemsSentinelRef} className="flex justify-center py-4">
+                  <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
+            </div>
           ) : (
-            <Card className="border border-slate-200/90 shadow-sm overflow-hidden bg-white rounded-2xl">
+            <Card className="border border-slate-200/90 shadow-2xs overflow-hidden bg-white rounded-2xl">
               <div className="divide-y divide-slate-100">
-                {filtered.map((p, index) => {
+                {shownProblems.map((p, index) => {
                   const isLocked = false; // All unlocked
                   return (
                   <div 
@@ -285,6 +426,11 @@ export function PracticeScreen() {
                   </div>
                 )})}
               </div>
+              {problemsHasMore && (
+                <div ref={problemsSentinelRef} className="flex justify-center py-4 border-t border-slate-100">
+                  <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+                </div>
+              )}
             </Card>
           )}
         </div>
@@ -303,13 +449,13 @@ export function PracticeScreen() {
                 <p className="text-xs font-medium text-slate-500 mb-2">Start solving coding problems to see your submitted solutions here.</p>
               </CardBody>
             </Card>
-          ) : (
+          ) : viewMode === 'card' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {submissions.map((sub) => (
                 <Card
                   key={sub.problemId}
                   onClick={() => navigate('workspace', { id: sub.problemId, mode: 'review' })}
-                  className="p-5 border border-slate-200/90 bg-white hover:border-slate-300 transition-all rounded-[2rem] cursor-pointer group shadow-sm flex flex-col justify-between"
+                  className="p-5 border border-slate-200/90 bg-white hover:border-slate-300 transition-all rounded-2xl cursor-pointer group shadow-2xs flex flex-col justify-between"
                 >
                   <div className="flex items-start gap-4">
                     <div className="w-12 h-12 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
@@ -363,6 +509,66 @@ export function PracticeScreen() {
                 </Card>
               ))}
             </div>
+          ) : (
+            <Card className="border border-slate-200/90 shadow-2xs overflow-hidden bg-white rounded-2xl">
+              <div className="divide-y divide-slate-100">
+                {submissions.map((sub) => (
+                  <div
+                    key={sub.problemId}
+                    onClick={() => navigate('workspace', { id: sub.problemId, mode: 'review' })}
+                    className="flex items-center justify-between gap-4 p-4 hover:bg-slate-50 transition-colors cursor-pointer group"
+                  >
+                    <div className="flex items-center gap-3.5 min-w-0 flex-1">
+                      <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                        <Code2 className="w-5 h-5 text-[#7c3aed]" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h4 className="font-bold text-sm text-slate-900 truncate group-hover:text-[#7c3aed] transition-colors">
+                            {sub.problemTitle}
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100 text-[10px] font-extrabold shrink-0">
+                            Solved
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-3 mt-1 text-xs text-slate-400 font-medium">
+                          <span className="truncate max-w-[140px] sm:max-w-xs text-slate-500 font-semibold">
+                            {sub.projectName || 'Practice Solution'}
+                          </span>
+                          <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0" />
+                          <span className="flex items-center gap-1 shrink-0">
+                            <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
+                            {sub.fileCount ?? 1} file{sub.fileCount !== 1 ? 's' : ''}
+                          </span>
+                          <span className="w-1 h-1 rounded-full bg-slate-300 shrink-0 hidden sm:inline" />
+                          <span className="hidden sm:flex items-center gap-1 shrink-0">
+                            <Clock className="w-3.5 h-3.5 text-slate-400" />
+                            {new Date(sub.timestamp).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button
+                        size="xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('workspace', { id: sub.problemId, mode: 'review' });
+                        }}
+                        className="bg-purple-50 text-[#7c3aed] hover:bg-purple-100 border border-purple-100 text-xs font-bold px-3 py-1.5"
+                      >
+                        <Eye className="w-3.5 h-3.5 mr-1" /> View Solution
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Card>
           )}
         </div>
       )}

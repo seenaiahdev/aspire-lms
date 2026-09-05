@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu
+  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, HelpCircle, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -11,6 +11,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchCoursesByIds } from '@/lib/api';
+import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 import { fetchCompletedLessons } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -121,6 +122,12 @@ export function LearningScreen() {
   const [localUnlockedLessonIds, setLocalUnlockedLessonIds] = useState<string[]>(user?.unlockedLessonIds || []);
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
 
+  // Render-windowing: show the first 4 stages, reveal 4 more each time the sentinel scrolls into
+  // view. The syllabus is one in-memory tree, so this reduces DOM work (not network) — keeps the
+  // roadmap snappy on large programs. Modules/lessons still render only on expand.
+  const STAGES_PAGE = 4;
+  const [visibleStages, setVisibleStages] = useState(STAGES_PAGE);
+
   useEffect(() => {
     if (user?.unlockedLessonIds) {
       setLocalUnlockedLessonIds(user.unlockedLessonIds);
@@ -164,7 +171,15 @@ export function LearningScreen() {
         const resolver = await getLessonResolver(user.enrolledCourses, user.batchCode || '');
 
         // The student's completed videos + coursework → drives the milestone completion ticks & progress.
-        const userLookupIds = [user.id, user.mobile].filter(Boolean) as string[];
+        const rawPhone = (user.mobile || '').replace(/\D/g, '').slice(-10);
+        const userLookupIds = Array.from(new Set([
+          user.id,
+          String(user.id || '').trim(),
+          user.mobile,
+          rawPhone,
+          user.registrationId
+        ].filter(Boolean) as string[]));
+
         const [aaRes, qaRes, psRes, recRes, doneLessons] = await Promise.all([
           supabase.from('assessment_attempts').select('assignment_id').in('student_id', userLookupIds),
           supabase.from('quiz_attempts').select('quiz_id').in('user_id', userLookupIds),
@@ -232,6 +247,7 @@ export function LearningScreen() {
                   return {
                     id: sub.id,
                     title: sub.title,
+                    description: sub.description || '',
                     duration: sub.durationHours || sub.duration || '5h',
                     lessons: moduleLessons.map((l: any, idx: number) => {
                       const dbPractices = codingQuestions
@@ -380,6 +396,26 @@ export function LearningScreen() {
       overallPct
     };
   }, [dbCourses, dbSyllabus, user.courseProgress]);
+
+  // Stage windowing: reset to the first page when the roadmap (course) changes; reveal more on scroll.
+  const totalStages = curriculumRoadmap?.stages?.length || 0;
+  const stagesHasMore = visibleStages < totalStages;
+  useEffect(() => { setVisibleStages(STAGES_PAGE); }, [curriculumRoadmap?.title]);
+  const stagesSentinelRef = useInfiniteScroll<HTMLDivElement>({
+    hasMore: stagesHasMore,
+    loading: false,
+    onLoadMore: () => setVisibleStages((v) => v + STAGES_PAGE),
+  });
+
+  // Keep the open module drawer synchronized with fresh syllabus updates in real-time
+  useEffect(() => {
+    if (!selectedTopicDrawer || !curriculumRoadmap) return;
+    const allModules = (curriculumRoadmap.stages || []).flatMap((s: any) => s.modules || []);
+    const freshMod = allModules.find((m: any) => m.id === selectedTopicDrawer.id);
+    if (freshMod) {
+      setSelectedTopicDrawer(freshMod);
+    }
+  }, [curriculumRoadmap]);
 
   useEffect(() => {
     async function loadEnrolledCourses() {
@@ -601,7 +637,7 @@ export function LearningScreen() {
               {/* 2. Vertical Stage Timeline Roadmap */}
               <div className="relative pl-12 space-y-8">
                 
-                {curriculumRoadmap.stages?.map((stage: any, stageIdx: number) => {
+                {curriculumRoadmap.stages?.slice(0, visibleStages).map((stage: any, stageIdx: number) => {
                   const isLocked = false;
                   const firstUnlockedStageIdx = curriculumRoadmap.stages?.findIndex((s: any) => 
                     s.modules?.some((m: any) => m.lessons?.some((l: any) => localUnlockedLessonIds.includes(l.id)))
@@ -628,9 +664,9 @@ export function LearningScreen() {
 
                       {/* Stage Card */}
                       {(() => {
-                        const isStageExpanded = expandedStages[stage.id] !== undefined 
-                          ? expandedStages[stage.id] 
-                          : isCurrent;
+                        // Stages start CLOSED — the student opens the one they want (no stage is
+                        // auto-expanded, so the roadmap opens as a compact list of stages).
+                        const isStageExpanded = expandedStages[stage.id] === true;
 
                         return (
                           <div className="p-6 rounded-[2rem] border transition-all space-y-4 bg-white border-slate-200/90 shadow-md hover:shadow-lg">
@@ -672,63 +708,188 @@ export function LearningScreen() {
                             {isStageExpanded && stage.modules && (
                               <div className="pt-2 space-y-3">
                             {stage.modules.map((mod: any, modIdx: number) => {
-                              // Count the actual coursework arrays on each lesson (fields are
-                              // `practices`/`assessments`/`quizzes` — the old singular `l.practice`/
-                              // `l.assessment` never existed, so these chips always read 0 — see L1).
+                              // Count the actual coursework arrays on each lesson
                               const videos = mod.lessons?.filter((l: any) => !!l.video).length || 0;
                               const practices = mod.lessons?.reduce((n: number, l: any) => n + (l.practices?.length || 0), 0) || 0;
-                              const assessments = mod.lessons?.reduce((n: number, l: any) => n + (l.assessments?.length || 0) + (l.quizzes?.length || 0), 0) || 0;
+                              const quizzes = mod.lessons?.reduce((n: number, l: any) => n + (l.quizzes?.length || 0), 0) || 0;
+                              const assessments = mod.lessons?.reduce((n: number, l: any) => n + (l.assessments?.length || 0), 0) || 0;
+                              const projects = mod.lessons?.reduce((n: number, l: any) => n + (l.projects?.length || 0), 0) || 0;
                               const coding = 0; // Coding labs are merged into `practices`.
 
                               const isModLocked = !mod.lessons?.some((l: any) => localUnlockedLessonIds.includes(l.id));
+                              const isModDone = (mod.lessons?.length || 0) > 0 && mod.lessons.every((l: any) => l.completed);
 
                               return (
-                                <button
+                                <div
                                   key={mod.id}
-                                  disabled={isModLocked}
+                                  role="button"
+                                  tabIndex={isModLocked ? -1 : 0}
                                   onClick={() => { 
                                     if(!isModLocked) {
-                                      setSelectedTopicDrawer(mod); 
-                                      if (mod.lessons?.[0]) setActiveAccordion(mod.lessons[0].id);
+                                      setSelectedTopicDrawer(mod);
+                                      // Lessons start CLOSED in the drawer — the student picks one.
+                                      setActiveAccordion(null);
+                                    }
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (!isModLocked && (e.key === 'Enter' || e.key === ' ')) {
+                                      e.preventDefault();
+                                      setSelectedTopicDrawer(mod);
+                                      setActiveAccordion(null);
                                     }
                                   }}
                                   className={cn(
-                                    "w-full sm:w-[500px] p-4 rounded-2xl border shadow-sm flex items-center justify-between transition-all group/btn",
+                                    "w-full max-w-[620px] px-4 sm:px-5 py-3.5 rounded-2xl border flex items-center justify-between gap-3 text-left transition-all group/btn",
                                     isModLocked 
-                                      ? "bg-slate-50 border-slate-100 opacity-60 cursor-not-allowed" 
-                                      : "bg-white hover:bg-slate-50 text-slate-900 hover:shadow-md active:scale-95 border-slate-200"
+                                      ? "bg-white/60 border-slate-100 opacity-60 cursor-not-allowed" 
+                                      : isModDone
+                                        ? "bg-white hover:bg-emerald-50/20 text-slate-900 border-emerald-200/80 shadow-xs hover:shadow-sm cursor-pointer"
+                                        : "bg-white hover:bg-slate-50 text-slate-900 hover:shadow-sm hover:border-purple-200 border-slate-100 shadow-xs cursor-pointer"
                                   )}
                                 >
-                                  <div className="flex items-center gap-4">
+                                  <div className="flex items-center gap-3.5 min-w-0 flex-1">
                                     <div className={cn(
-                                      "w-10 h-10 rounded-full flex items-center justify-center shrink-0 border",
-                                      isModLocked ? "bg-slate-200 border-slate-300" : "bg-purple-50 border-purple-100"
+                                      "w-11 h-11 rounded-2xl flex items-center justify-center shrink-0 border transition-colors",
+                                      isModLocked 
+                                        ? "bg-slate-100/70 border-slate-200/60 text-slate-400" 
+                                        : isModDone 
+                                          ? "bg-emerald-50 border-emerald-200 text-emerald-600" 
+                                          : "bg-purple-50/80 border-purple-100/80 text-[#7c3aed]"
                                     )}>
-                                      <Layers className={cn("w-5 h-5", isModLocked ? "text-slate-400" : "text-[#7c3aed]")} />
+                                      {isModDone ? (
+                                        <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                                      ) : (
+                                        <Layers className={cn("w-5 h-5", isModLocked ? "text-slate-400" : "text-[#7c3aed]")} />
+                                      )}
                                     </div>
-                                    <div className="text-left">
-                                      <h4 className={cn("font-extrabold text-sm leading-tight transition-colors", isModLocked ? "text-slate-500" : "text-slate-900 group-hover/btn:text-[#7c3aed]")}>
+                                    <div className="min-w-0 flex-1">
+                                      <h4 className={cn(
+                                        "font-bold text-[15px] leading-tight transition-colors truncate",
+                                        isModLocked ? "text-slate-400" : isModDone ? "text-emerald-950" : "text-slate-900 group-hover/btn:text-[#7c3aed]"
+                                      )} title={mod.title}>
                                         {mod.title}
                                       </h4>
-                                      <div className={cn("flex items-center gap-2 mt-1 flex-wrap", isModLocked && "opacity-60")}>
-                                        {videos > 0 && <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded flex items-center gap-1"><Video className="w-3 h-3"/> {videos} Video{videos > 1 ? 's' : ''}</span>}
-                                        {coding > 0 && <span className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100/50 flex items-center gap-1"><Code2 className="w-3 h-3"/> {coding} Coding</span>}
-                                        {practices > 0 && <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-100/50 flex items-center gap-1"><Terminal className="w-3 h-3"/> {practices} Practice{practices > 1 ? 's' : ''}</span>}
-                                        {assessments > 0 && <span className="text-[10px] font-bold text-primary-600 bg-primary-50 px-1.5 py-0.5 rounded border border-primary-100/50 flex items-center gap-1"><ClipboardCheck className="w-3 h-3"/> {assessments} Quiz</span>}
+                                      <div className={cn("flex items-center gap-1.5 mt-1.5 flex-nowrap overflow-x-auto no-scrollbar", isModLocked && "opacity-60")}>
+                                        {videos > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (isModLocked) return;
+                                              navigate('recordings');
+                                            }}
+                                            title="Go to Recordings tab"
+                                            className={cn(
+                                              "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
+                                              isModLocked 
+                                                ? "text-slate-400 bg-slate-50/50 border-slate-200/50 cursor-not-allowed" 
+                                                : "text-slate-600 bg-slate-50/80 hover:bg-purple-50 hover:text-[#7c3aed] hover:border-purple-200 border-slate-200/70 cursor-pointer shadow-2xs"
+                                            )}
+                                          >
+                                            <Video className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{videos} Video{videos > 1 ? 's' : ''}</span>
+                                          </button>
+                                        )}
+                                        {practices > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (isModLocked) return;
+                                              navigate('practice');
+                                            }}
+                                            title="Go to Practice Lab tab"
+                                            className={cn(
+                                              "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
+                                              isModLocked 
+                                                ? "text-slate-400 bg-slate-50/50 border-slate-200/50 cursor-not-allowed" 
+                                                : "text-amber-700 bg-amber-50/90 hover:bg-amber-100 hover:border-amber-300 border-amber-200/80 cursor-pointer shadow-2xs"
+                                            )}
+                                          >
+                                            <Terminal className="w-3.5 h-3.5 shrink-0" />
+                                            <span>{practices} Practice{practices > 1 ? 's' : ''}</span>
+                                          </button>
+                                        )}
+                                        {quizzes > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (isModLocked) return;
+                                              navigate('quizzes');
+                                            }}
+                                            title="Go to Quizzes tab"
+                                            className={cn(
+                                              "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
+                                              isModLocked 
+                                                ? "text-slate-400 bg-slate-50/50 border-slate-200/50 cursor-not-allowed" 
+                                                : "text-[#7c3aed] bg-purple-50/90 hover:bg-purple-100 hover:border-purple-300 border-purple-200/80 cursor-pointer shadow-2xs"
+                                            )}
+                                          >
+                                            <HelpCircle className="w-3.5 h-3.5 shrink-0 text-[#7c3aed]" />
+                                            <span>{quizzes} Quiz</span>
+                                          </button>
+                                        )}
+                                        {assessments > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (isModLocked) return;
+                                              navigate('assignments');
+                                            }}
+                                            title="Go to Assessments tab"
+                                            className={cn(
+                                              "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
+                                              isModLocked 
+                                                ? "text-slate-400 bg-slate-50/50 border-slate-200/50 cursor-not-allowed" 
+                                                : "text-indigo-700 bg-indigo-50/90 hover:bg-indigo-100 hover:border-indigo-300 border-indigo-200/80 cursor-pointer shadow-2xs"
+                                            )}
+                                          >
+                                            <ClipboardCheck className="w-3.5 h-3.5 shrink-0 text-indigo-600" />
+                                            <span>{assessments} Assessment{assessments > 1 ? 's' : ''}</span>
+                                          </button>
+                                        )}
+                                        {projects > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (isModLocked) return;
+                                              navigate('projects');
+                                            }}
+                                            title="Go to Projects tab"
+                                            className={cn(
+                                              "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
+                                              isModLocked 
+                                                ? "text-slate-400 bg-slate-50/50 border-slate-200/50 cursor-not-allowed" 
+                                                : "text-emerald-700 bg-emerald-50/90 hover:bg-emerald-100 hover:border-emerald-300 border-emerald-200/80 cursor-pointer shadow-2xs"
+                                            )}
+                                          >
+                                            <FolderOpen className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
+                                            <span>{projects} Project{projects > 1 ? 's' : ''}</span>
+                                          </button>
+                                        )}
                                       </div>
                                     </div>
                                   </div>
                                   <div className={cn(
-                                    "w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-colors",
-                                    isModLocked ? "bg-slate-200" : "bg-slate-100 group-hover/btn:bg-purple-100"
+                                    "w-9 h-9 rounded-full flex items-center justify-center shrink-0 border transition-all",
+                                    isModLocked 
+                                      ? "bg-slate-50/80 border-slate-100 text-slate-300" 
+                                      : isModDone 
+                                        ? "bg-emerald-50 text-emerald-600 border-emerald-200" 
+                                        : "bg-slate-50/80 border-slate-100 text-slate-400 group-hover/btn:bg-purple-50 group-hover/btn:text-[#7c3aed] group-hover/btn:border-purple-200"
                                   )}>
                                     {isModLocked ? (
-                                      <Lock className="w-4 h-4 text-slate-400" />
+                                      <Lock className="w-4 h-4 text-slate-300" />
+                                    ) : isModDone ? (
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                                     ) : (
-                                      <ChevronRight className="w-4 h-4 text-slate-400 group-hover/btn:text-[#7c3aed]" />
+                                      <ChevronRight className="w-4 h-4" />
                                     )}
                                   </div>
-                                </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -739,6 +900,12 @@ export function LearningScreen() {
                     </div>
                   );
                 })}
+
+                {stagesHasMore && (
+                  <div ref={stagesSentinelRef} className="flex justify-center py-4">
+                    <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
 
                 {/* Final Celebration Node */}
                 <div className="relative group">
@@ -1099,9 +1266,15 @@ export function LearningScreen() {
 
                             {/* VIDEO ITEM */}
                             {lesson.video && (
-                              <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-200 transition-all flex items-center justify-between gap-3">
+                              <div 
+                                onClick={() => {
+                                  setSelectedTopicDrawer(null);
+                                  navigate('lesson', { id: user.enrolledCourses?.[0] || '', lesson: lesson.id });
+                                }}
+                                className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition-all flex items-center justify-between gap-3 cursor-pointer group/item active:scale-[0.99]"
+                              >
                                 <div className="flex items-start gap-3">
-                                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white flex items-center justify-center shrink-0 shadow-sm shadow-purple-500/20">
+                                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white flex items-center justify-center shrink-0 shadow-sm shadow-purple-500/20 group-hover/item:scale-105 transition-transform">
                                     <Video className="w-4 h-4" />
                                   </div>
                                   <div>
@@ -1115,7 +1288,7 @@ export function LearningScreen() {
                                         </span>
                                       )}
                                     </div>
-                                    <h4 className="font-bold text-slate-900 text-sm mt-1 leading-tight">{lesson.title}</h4>
+                                    <h4 className="font-bold text-slate-900 text-sm mt-1 leading-tight group-hover/item:text-[#7c3aed] transition-colors">{lesson.title}</h4>
                                     <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
                                       <Clock className="w-3 h-3" /> {lesson.video.duration}
                                     </span>
@@ -1128,13 +1301,8 @@ export function LearningScreen() {
                                     </span>
                                   )}
                                   <button
-                                    onClick={() => {
-                                      // Open the in-app Lesson Player (My Learning course), which plays the
-                                      // linked recording — never the raw Drive tab.
-                                      setSelectedTopicDrawer(null);
-                                      navigate('lesson', { id: user.enrolledCourses?.[0] || '', lesson: lesson.id });
-                                    }}
-                                    className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all"
+                                    type="button"
+                                    className="px-3.5 py-1.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md shadow-purple-500/20 flex items-center gap-1 active:scale-95 transition-all pointer-events-none"
                                   >
                                     <span>WATCH</span><ExternalLink className="w-3 h-3" />
                                   </button>
@@ -1144,16 +1312,27 @@ export function LearningScreen() {
 
                              {/* PRACTICE ITEMS */}
                              {lesson.practices && lesson.practices.map((practice: any) => (
-                               <div key={practice.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                               <div 
+                                 key={practice.id} 
+                                 onClick={() => {
+                                   setSelectedTopicDrawer(null);
+                                   if (practice.id) {
+                                     navigate('workspace', { id: practice.id });
+                                   } else {
+                                     navigate('practice');
+                                   }
+                                 }}
+                                 className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-amber-300 cursor-pointer group/item active:scale-[0.99]"
+                               >
                                  <div className="flex items-start gap-3">
-                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-amber-500/20">
+                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-amber-500 to-amber-600 text-white shadow-amber-500/20 group-hover/item:scale-105 transition-transform">
                                      <Code2 className="w-4 h-4" />
                                    </div>
                                    <div>
                                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-amber-600 bg-amber-50 border-amber-100">
                                        PRACTICAL LAB
                                      </span>
-                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{practice.title}</h4>
+                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900 group-hover/item:text-amber-700 transition-colors">{practice.title}</h4>
                                      <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
                                        <Clock className="w-3 h-3" /> {practice.duration}
                                      </span>
@@ -1165,8 +1344,8 @@ export function LearningScreen() {
                                    </span>
                                  ) : (
                                  <button
-                                   onClick={() => { setSelectedTopicDrawer(null); navigate('practice'); }}
-                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95"
+                                   type="button"
+                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-amber-500 hover:bg-amber-600 text-white shadow-md shadow-amber-500/20 active:scale-95 pointer-events-none"
                                  >
                                    <span>SOLVE</span>
                                    <ExternalLink className="w-3 h-3" />
@@ -1177,16 +1356,23 @@ export function LearningScreen() {
 
                              {/* ASSESSMENT ITEMS */}
                              {lesson.assessments && lesson.assessments.map((assessment: any) => (
-                               <div key={assessment.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                               <div 
+                                 key={assessment.id} 
+                                 onClick={() => {
+                                   setSelectedTopicDrawer(null);
+                                   navigate('assignments', assessment.id ? { id: assessment.id } : undefined);
+                                 }}
+                                 className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-primary-300 cursor-pointer group/item active:scale-[0.99]"
+                               >
                                  <div className="flex items-start gap-3">
-                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-primary-500/20">
+                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-primary-500/20 group-hover/item:scale-105 transition-transform">
                                      <ClipboardCheck className="w-4 h-4" />
                                    </div>
                                    <div>
                                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-primary-600 bg-primary-50 border-primary-100">
                                        ASSESSMENT
                                      </span>
-                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{assessment.title}</h4>
+                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900 group-hover/item:text-primary-700 transition-colors">{assessment.title}</h4>
                                      <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
                                        <Clock className="w-3 h-3" /> {assessment.duration}
                                      </span>
@@ -1198,8 +1384,8 @@ export function LearningScreen() {
                                    </span>
                                  ) : (
                                  <button
-                                   onClick={() => { setSelectedTopicDrawer(null); navigate('assignments'); }}
-                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95"
+                                   type="button"
+                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95 pointer-events-none"
                                  >
                                    <span>TAKE</span>
                                    <ExternalLink className="w-3 h-3" />
@@ -1210,16 +1396,23 @@ export function LearningScreen() {
 
                               {/* QUIZ ITEMS */}
                               {lesson.quizzes && lesson.quizzes.map((quiz: any) => (
-                                <div key={quiz.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                                <div 
+                                  key={quiz.id} 
+                                  onClick={() => {
+                                    setSelectedTopicDrawer(null);
+                                    navigate('quizzes', quiz.id ? { id: quiz.id } : undefined);
+                                  }}
+                                  className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-300 cursor-pointer group/item active:scale-[0.99]"
+                                >
                                   <div className="flex items-start gap-3">
-                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-indigo-500/20">
+                                    <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-indigo-500/20 group-hover/item:scale-105 transition-transform">
                                       <ClipboardCheck className="w-4 h-4" />
                                     </div>
                                     <div>
                                       <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-indigo-600 bg-indigo-50 border-indigo-100">
                                         QUIZ
                                       </span>
-                                      <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{quiz.title}</h4>
+                                      <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900 group-hover/item:text-indigo-700 transition-colors">{quiz.title}</h4>
                                       <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
                                         <Clock className="w-3 h-3" /> {quiz.duration}
                                       </span>
@@ -1231,8 +1424,8 @@ export function LearningScreen() {
                                     </span>
                                   ) : (
                                   <button
-                                    onClick={() => { setSelectedTopicDrawer(null); navigate('quizzes'); }}
-                                    className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20 active:scale-95 cursor-pointer"
+                                    type="button"
+                                    className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-indigo-500 hover:bg-indigo-600 text-white shadow-md shadow-indigo-500/20 active:scale-95 pointer-events-none"
                                   >
                                     <span>TAKE</span>
                                     <ExternalLink className="w-3 h-3" />
@@ -1243,33 +1436,52 @@ export function LearningScreen() {
 
                              {/* PROJECT ITEMS */}
                              {lesson.projects && lesson.projects.map((proj: any) => (
-                               <div key={proj.id} className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-purple-200">
+                               <div 
+                                 key={proj.id} 
+                                 onClick={() => {
+                                   setSelectedTopicDrawer(null);
+                                   const pType = (proj.type || 'mini').toLowerCase();
+                                   navigate('projects', { tab: pType, id: proj.id });
+                                 }}
+                                 className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 hover:shadow-md hover:border-emerald-300 cursor-pointer group/item active:scale-[0.99]"
+                               >
                                  <div className="flex items-start gap-3">
-                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-emerald-500/20">
+                                   <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 shadow-sm bg-gradient-to-br from-emerald-500 to-emerald-600 text-white shadow-emerald-500/20 group-hover/item:scale-105 transition-transform">
                                      <FolderOpen className="w-4 h-4" />
                                    </div>
                                    <div>
                                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-emerald-600 bg-emerald-50 border-emerald-100">
                                        PROJECT
                                      </span>
-                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900">{proj.title}</h4>
+                                     <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900 group-hover/item:text-emerald-700 transition-colors">{proj.title}</h4>
                                      <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
-                                       <Clock className="w-3 h-3" /> Submission Required
+                                       <Clock className="w-3 h-3" /> {proj.completed ? 'Submitted & Saved' : 'Submission Required'}
                                      </span>
                                    </div>
                                  </div>
-                                 <button 
-                                   onClick={() => {
-                                     setSelectedTopicDrawer(null);
-                                     const pType = (proj.type || 'mini').toLowerCase();
-                                     navigate('projects', { tab: pType, id: proj.id });
-                                   }} 
-                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20 active:scale-95"
-                                 >
-                                   <span>VIEW</span>
-                                   <ExternalLink className="w-3 h-3" />
-                                 </button>
-                                </div>
+                                 {proj.completed ? (
+                                   <div className="flex items-center gap-2 shrink-0">
+                                     <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
+                                       <CheckCircle2 className="w-4 h-4" /> Done
+                                     </span>
+                                     <button 
+                                       type="button"
+                                       className="px-2.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 text-slate-600 hover:text-slate-900 bg-slate-100 hover:bg-slate-200 transition-all pointer-events-none"
+                                     >
+                                       <span>VIEW</span>
+                                       <ExternalLink className="w-3 h-3" />
+                                     </button>
+                                   </div>
+                                 ) : (
+                                   <button 
+                                     type="button"
+                                     className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-emerald-500 hover:bg-emerald-600 text-white shadow-md shadow-emerald-500/20 active:scale-95 pointer-events-none"
+                                   >
+                                     <span>SUBMIT</span>
+                                     <ExternalLink className="w-3 h-3" />
+                                   </button>
+                                 )}
+                               </div>
                              ))}
                           </div>
                         )}

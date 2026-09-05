@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Award, ShieldCheck, Lock, Loader2, Linkedin } from 'lucide-react';
-import * as Icons from 'lucide-react';
+import { getIcon } from '@/lib/icons';
 import { useUser } from '@/lib/UserContext';
-import { useNotifications } from '@/lib/NotificationsContext';
-import { fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts } from '@/lib/api';
+import { fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts, evaluateBadgeCriteria } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 /** Opens a LinkedIn share composer pre-filled with the earned badge. */
@@ -64,64 +63,12 @@ const badgeMedalStyles: Record<string, { bg: string; border: string; glow: strin
   }
 };
 
-/** Decide whether a student has earned a badge from its free-text criteria + their activity. */
-function evaluateBadgeCriteria(
-  badge: any,
-  user: any,
-  submissions: any[],
-  assignmentSubmissions: any[]
-): boolean {
-  if (!badge.criteria) return false;
-  const criteria = badge.criteria.toLowerCase();
-
-  if (criteria.includes('streak')) {
-    const match = criteria.match(/\d+/);
-    const requiredStreak = match ? parseInt(match[0], 10) : 10;
-    return (user.streak || 0) >= requiredStreak;
-  }
-
-  if (criteria.includes('score') || criteria.includes('assessment') || criteria.includes('quiz') || criteria.includes('test')) {
-    const scoreMatch = criteria.match(/(\d+)%/);
-    const requiredScore = scoreMatch ? parseInt(scoreMatch[1], 10) : 70;
-    return (assignmentSubmissions || []).some((a) => (a.grade || 0) >= requiredScore);
-  }
-
-  if (criteria.includes('problem') || criteria.includes('coding') || criteria.includes('solve') || criteria.includes('project')) {
-    const match = criteria.match(/\d+/);
-    const requiredCount = match ? parseInt(match[0], 10) : 5;
-    const uniqueSolved = new Set((submissions || []).filter(s => s.status === 'solved' || s.language === 'project').map(s => s.problem_id)).size;
-    return uniqueSolved >= requiredCount;
-  }
-
-  if (criteria.includes('completion') || criteria.includes('progress') || criteria.includes('complete')) {
-    const match = criteria.match(/\d+/);
-    const requiredProgress = match ? parseInt(match[0], 10) : 100;
-    return (user.progress || 0) >= requiredProgress;
-  }
-
-  if (criteria.includes('attendance') || criteria.includes('attend')) {
-    const match = criteria.match(/\d+/);
-    const requiredAttendance = match ? parseInt(match[0], 10) : 75;
-    return (user.attendance || 0) >= requiredAttendance;
-  }
-
-  if (criteria.includes('xp') || criteria.includes('points')) {
-    const match = criteria.match(/\d+/);
-    const requiredXP = match ? parseInt(match[0], 10) : 100;
-    return (user.xp || 0) >= requiredXP;
-  }
-
-  // Unrecognized criteria are NOT auto-earned.
-  return false;
-}
-
 /**
  * The Badges tab content (moved out of the Profile screen). Shows every badge with an
  * earned/locked state and an "N of M unlocked" summary. Self-contained: fetches its own data.
  */
 export function BadgesPanel() {
   const { user } = useUser();
-  const { addNotification } = useNotifications();
   const [badges, setBadges] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
@@ -155,41 +102,6 @@ export function BadgesPanel() {
     .sort((a, b) => Number(b.earned) - Number(a.earned));
   const earnedCount = evaluated.filter((b) => b.earned).length;
 
-  // Notify the student when a badge becomes newly unlocked (baseline silently on first load so we
-  // don't back-fill notifications for badges earned before this ran).
-  useEffect(() => {
-    const sid = user?.id;
-    if (!sid || sid === 'guest' || loading || badges.length === 0) return;
-    const earnedIds = badges
-      .filter((b) => evaluateBadgeCriteria(b, user, submissions, attempts))
-      .map((b) => b.id);
-    const key = `aspire_seen_badges_${sid}`;
-    let seen: string[] | null = null;
-    try { seen = JSON.parse(localStorage.getItem(key) || 'null'); } catch { seen = null; }
-    if (seen === null) {
-      try { localStorage.setItem(key, JSON.stringify(earnedIds)); } catch {}
-      return;
-    }
-    const seenSet = new Set(seen);
-    const newly = earnedIds.filter((id) => !seenSet.has(id));
-    if (newly.length > 0) {
-      newly.forEach((id) => {
-        const b = badges.find((x) => x.id === id);
-        addNotification(
-          {
-            id: `notif-badge-${id}-${sid}`,
-            student_id: sid, type: 'achievement',
-            title: 'Badge unlocked! 🏅',
-            message: `You earned the "${b?.name || 'new'}" badge.`,
-            read: false, created_at: new Date().toISOString(),
-          },
-          { showToast: true, persistDb: true }
-        );
-      });
-      try { localStorage.setItem(key, JSON.stringify(earnedIds)); } catch {}
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [badges, submissions, attempts, loading, user?.id]);
 
   if (loading) {
     return (
@@ -225,7 +137,7 @@ export function BadgesPanel() {
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {evaluated.map((badge) => {
-            const Icon = ((Icons as any)[badge.icon] || (Icons as any)[badge.icon?.charAt(0).toUpperCase() + badge.icon?.slice(1)] || Icons.Award) as Icons.LucideIcon;
+            const Icon = getIcon(badge.icon);
             const medalStyle = badgeMedalStyles[badge.color || 'blue'] || badgeMedalStyles.blue;
             const earned = badge.earned;
 

@@ -7,7 +7,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { cn } from '@/lib/utils';
-import * as Icons from 'lucide-react';
+import { getIcon } from '@/lib/icons';
 
 const rarityConfig: Record<string, { ring: string; bg: string; text: string; label: string }> = {
   common: { ring: 'ring-slate-200', bg: 'bg-slate-100', text: 'text-slate-600', label: 'Common' },
@@ -229,7 +229,7 @@ export function AchievementsScreen() {
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
             {dynamicBadges.map((badge, idx) => {
-              const Icon = ((Icons as any)[badge.icon] || (Icons as any)[badge.icon?.charAt(0).toUpperCase() + badge.icon?.slice(1)] || Icons.Award) as Icons.LucideIcon;
+              const Icon = getIcon(badge.icon);
               const styleKey = badge.color || 'blue';
               const medalStyle = badgeMedalStyles[styleKey] || badgeMedalStyles.blue;
               const rarity = rarityConfig[badge.rarity || 'common'] || rarityConfig.common;

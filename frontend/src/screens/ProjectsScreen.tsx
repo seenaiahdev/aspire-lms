@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
 import {
   FolderGit2, Star, Clock, CheckCircle2, MessageCircle, Download,
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
-  Upload, FolderOpen, Eye, Lock,
+  Upload, FolderOpen, Eye, Lock, LayoutGrid, List, ChevronRight,
 } from 'lucide-react';
-import { fetchProjects, submitPracticeProblem } from '@/lib/api';
+import { fetchProjects, submitPracticeProblem, fetchUserSubmissions } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
+import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
@@ -130,7 +132,7 @@ function formatProjectDescription(description: string): string {
 export function ProjectsScreen() {
   const { user } = useUser();
   const { isUnlocked, isEntityUnlocked } = useUnlockResolver();
-  const { params } = useNav();
+  const { params, navigate } = useNav();
   const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone'>('mini');
   const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
   const [lockedToast, setLockedToast] = useState(false);
@@ -156,40 +158,74 @@ export function ProjectsScreen() {
 
   const [toastVisible, setToastVisible] = useState(false);
 
-  // Fetch from Supabase
-  useEffect(() => {
-    const loadProjects = async () => {
-      setIsLoading(true);
+  // Fetch projects and submissions from Supabase
+  const loadProjectsAndSubmissions = useCallback(async (showLoading: boolean = true) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const courseId = user?.enrolledCourses?.[0];
+      const [projectsData, submissionsData] = await Promise.all([
+        user?.batchCode
+          ? fetchProjects(user.batchCode, user.batchCategory, courseId)
+          : Promise.resolve([]),
+        user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([]),
+      ]);
+
+      setProjectsState(projectsData || []);
+
+      // Database is the single source of truth: construct links strictly from fresh submissions
+      const freshLinks: Record<string, string> = {};
+      (submissionsData || []).forEach((s: any) => {
+        if (s.problem_id) {
+          freshLinks[s.problem_id] = s.storage_url || 'submitted';
+        }
+      });
+
+      setDriveLinks(freshLinks);
       try {
-        const courseId = user?.enrolledCourses?.[0];
-        const data = await fetchProjects(user?.batchCode || '', user?.batchCategory || '', courseId);
-        setProjectsState(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    if (user?.batchCode) {
-      loadProjects();
+        localStorage.setItem('projectDriveLinks', JSON.stringify(freshLinks));
+      } catch {}
+    } catch (err) {
+      console.error('Error loading projects/submissions:', err);
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.[0]]);
+
+  useEffect(() => {
+    if (user?.batchCode || user?.id) {
+      loadProjectsAndSubmissions(true);
     } else {
       setIsLoading(false);
     }
-  }, [user?.batchCode, user?.batchCategory, user?.enrolledCourses]);
+  }, [loadProjectsAndSubmissions, user?.batchCode, user?.id, user?.enrolledCourses?.[0]]);
 
-  // Automatically scroll to and highlight project card if matching params.id is found
+  // Real-time Supabase subscription for project submissions (catches INSERT, UPDATE, and DELETE)
   useEffect(() => {
-    if (params.id && !isLoading) {
-      setTimeout(() => {
-        const el = document.getElementById(`project-card-${params.id}`);
-        if (el) {
-          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-          el.classList.add('ring-4', 'ring-purple-400', 'ring-offset-2');
-          setTimeout(() => el.classList.remove('ring-4', 'ring-purple-400', 'ring-offset-2'), 2500);
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`projects_screen_rt_${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'practice_submissions',
+          filter: `student_id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('Real-time project submission update received:', payload);
+          loadProjectsAndSubmissions(false);
         }
-      }, 500);
-    }
-  }, [params.id, isLoading]);
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadProjectsAndSubmissions]);
+
+
 
   // Interactive File Explorer Modal state
   const [showExplorer, setShowExplorer] = useState(false);
@@ -378,14 +414,14 @@ export function ProjectsScreen() {
       .filter((p: any) => isEntityUnlocked(p))
       .map((p: any) => {
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
-        let status = (p.status || 'assigned').toLowerCase();
-        if (status === 'published' || status === 'assigned') {
-          status = 'assigned';
-        }
-
         const hasLink = Boolean(driveLinks[p.id]);
-        if (hasLink && status === 'assigned') {
+
+        let status = 'assigned';
+        if (hasLink) {
           status = 'submitted';
+        }
+        if (String(p.status || '').toLowerCase() === 'feedback') {
+          status = 'feedback';
         }
         const rawSkills = p.tech_stack || p.skills;
         const skillsArray = Array.isArray(rawSkills) 
@@ -427,9 +463,59 @@ export function ProjectsScreen() {
   const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted').length;
   const feedbackCount = categoryProjects.filter((p: any) => p.status === 'feedback').length;
 
+  // If the active tab was 'submitted' but the project submission was deleted, switch back to 'assigned'
+  useEffect(() => {
+    if (subTab === 'submitted' && submittedCount === 0 && assignedCount > 0) {
+      setSubTab('assigned');
+    }
+  }, [subTab, submittedCount, assignedCount]);
+
+  // Card vs. list ("rectangle") view + render windowing (show 10, +10 on scroll).
+  const [viewMode, setViewMode] = useState<'card' | 'list'>(() =>
+    (localStorage.getItem('aspire_projects_view') as 'card' | 'list') || 'card');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  useEffect(() => { setVisibleCount(PAGE_SIZE); }, [mainCategory, subTab]);
+  const shown = filtered.slice(0, visibleCount);
+  const projectsHasMore = visibleCount < filtered.length;
+  const projectsSentinelRef = useInfiniteScroll<HTMLDivElement>({
+    hasMore: projectsHasMore,
+    loading: false,
+    onLoadMore: () => setVisibleCount((v) => v + PAGE_SIZE),
+  });
+  const setView = (m: 'card' | 'list') => { setViewMode(m); localStorage.setItem('aspire_projects_view', m); };
+
   const selectedProject = useMemo(
-    () => effectiveProjects.find((p: any) => p.id === selectedProjectId) || null,
-    [selectedProjectId, effectiveProjects]
+    () => {
+      if (!selectedProjectId) return null;
+      const p = effectiveProjects.find((p: any) => p.id === selectedProjectId) ||
+                projectsState.find((p: any) => p.id === selectedProjectId);
+      if (!p) return null;
+      const projectType = (p.project_type || p.type || 'mini').toLowerCase();
+      const hasLink = Boolean(driveLinks[p.id]);
+
+      let status = 'assigned';
+      if (hasLink) {
+        status = 'submitted';
+      }
+      if (String(p.status || '').toLowerCase() === 'feedback') {
+        status = 'feedback';
+      }
+      const rawSkills = p.tech_stack || p.skills;
+      const skillsArray = Array.isArray(rawSkills) 
+        ? rawSkills 
+        : typeof rawSkills === 'string' 
+          ? rawSkills.split(',').map((s: string) => s.trim()).filter(Boolean)
+          : [];
+
+      return {
+        ...p,
+        projectType,
+        status,
+        course: p.course || p.category || 'General Curriculum',
+        skills: skillsArray
+      };
+    },
+    [selectedProjectId, effectiveProjects, projectsState, driveLinks]
   );
   const selectedGuide = selectedProject ? (projectGuides[selectedProject.id] || {
     brief: formatProjectDescription(selectedProject.description),
@@ -444,32 +530,40 @@ export function ProjectsScreen() {
   useEffect(() => {
     const syncProjectRoute = () => {
       const [baseRoute, projectId] = window.location.pathname.replace(/^\//, '').split('/');
-      if (baseRoute !== 'projects' || !projectId) {
+      if (baseRoute !== 'projects') return;
+      const targetId = params.id || projectId;
+      if (!targetId) {
         setSelectedProjectId(null);
         return;
       }
-      const matched = effectiveProjects.find((p: any) => p.id === projectId);
+      const matched = effectiveProjects.find((p: any) => p.id === targetId) ||
+                      projectsState.find((p: any) => p.id === targetId);
       if (matched) {
         setSelectedProjectId(matched.id);
+        const pType = (matched.project_type || matched.type || matched.projectType || 'mini').toLowerCase();
+        if (pType === 'mini' || pType === 'major' || pType === 'capstone') {
+          setMainCategory(pType as any);
+        }
+        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     };
 
     syncProjectRoute();
     window.addEventListener('popstate', syncProjectRoute);
     return () => window.removeEventListener('popstate', syncProjectRoute);
-  }, [effectiveProjects]);
+  }, [effectiveProjects, projectsState, params.id]);
 
   const isSaved = selectedProject ? Boolean(driveLinks[selectedProject.id]) : false;
 
   const openProjectDetail = (projectId: string) => {
     setSelectedProjectId(projectId);
-    window.history.pushState({}, '', `/projects/${projectId}`);
+    navigate('projects', { tab: mainCategory, id: projectId });
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const closeProjectDetail = () => {
     setSelectedProjectId(null);
-    window.history.pushState({}, '', '/projects');
+    navigate('projects', { tab: mainCategory });
   };
 
   if (selectedProject && selectedGuide) {
@@ -875,33 +969,74 @@ export function ProjectsScreen() {
 
       {/* ════════ 2. SUB-TABS (ASSIGNED / SUBMITTED / MENTOR FEEDBACK) ════════ */}
       <div className="space-y-6">
-        <Tabs
-          variant="pills"
-          tabs={[
-            { id: 'assigned', label: `Assigned (${assignedCount})` },
-            { id: 'submitted', label: `Submitted (${submittedCount})` },
-            { id: 'feedback', label: `Mentor Feedback (${feedbackCount})` },
-          ]}
-          active={subTab}
-          onChange={(val) => setSubTab(val as any)}
-        />
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <Tabs
+            variant="pills"
+            tabs={[
+              { id: 'assigned', label: `Assigned (${assignedCount})` },
+              { id: 'submitted', label: `Submitted (${submittedCount})` },
+              { id: 'feedback', label: `Mentor Feedback (${feedbackCount})` },
+            ]}
+            active={subTab}
+            onChange={(val) => setSubTab(val as any)}
+          />
+          <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 shrink-0">
+            <button onClick={() => setView('card')} title="Card view"
+              className={cn("w-8 h-8 rounded-lg flex items-center justify-center transition-all", viewMode === 'card' ? "bg-white text-[#7c3aed] shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+            <button onClick={() => setView('list')} title="List view"
+              className={cn("w-8 h-8 rounded-lg flex items-center justify-center transition-all", viewMode === 'list' ? "bg-white text-[#7c3aed] shadow-sm" : "text-slate-400 hover:text-slate-600")}>
+              <List className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
 
-        {/* PROJECTS GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          {isLoading ? (
-            <div className="col-span-full flex justify-center py-12">
-              <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
-            </div>
-          ) : filtered.length === 0 ? (
-            <div className="col-span-full">
-              <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
-                <FolderGit2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-                <h3 className="font-extrabold text-slate-800 text-base">No Projects Found</h3>
-                <p className="text-xs text-slate-500 mt-1">There are no {subTab} projects in this category currently.</p>
-              </Card>
-            </div>
-          ) : (
-            filtered.map((p, index) => {
+        {/* PROJECTS LIST / GRID */}
+        {isLoading ? (
+          <div className="flex justify-center py-12">
+            <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div>
+            <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
+              <FolderGit2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <h3 className="font-extrabold text-slate-800 text-base">No Projects Found</h3>
+              <p className="text-xs text-slate-500 mt-1">There are no {subTab} projects in this category currently.</p>
+            </Card>
+          </div>
+        ) : viewMode === 'list' ? (
+          /* ── COMPACT LIST ("RECTANGLE") VIEW ── */
+          <div className="space-y-3">
+            {shown.map((p) => (
+              <div
+                key={p.id}
+                id={`project-card-${p.id}`}
+                onClick={() => { setSelectedProjectId(p.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 hover:border-purple-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group"
+              >
+                <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                  <div className="w-11 h-11 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shrink-0">
+                    <FolderGit2 className="w-5 h-5" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-[#7c3aed] transition-colors line-clamp-1">{p.title}</h3>
+                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">{p.status}</span>
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">{p.course}</p>
+                  </div>
+                </div>
+                <div className="shrink-0 flex items-center gap-2 text-slate-400 group-hover:text-[#7c3aed]">
+                  <span className="text-xs font-extrabold">View</span>
+                  <ChevronRight className="w-4 h-4" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {shown.map((p, index) => {
               const isLocked = false; // All unlocked
               return (
                 <Card 
@@ -985,9 +1120,14 @@ export function ProjectsScreen() {
                 </div>
               </Card>
             )
-          })
-          )}
-        </div>
+          })}
+          </div>
+        )}
+        {projectsHasMore && (
+          <div ref={projectsSentinelRef} className="flex justify-center py-4">
+            <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+          </div>
+        )}
       </div>
 
       {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
