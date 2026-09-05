@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, HelpCircle, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu
+  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, HelpCircle, Zap, Trophy, TrendingUp, Search, Users, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu, XCircle
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -193,7 +193,17 @@ export function LearningScreen() {
           return score >= 70 || status === 'passed';
         };
         const doneAssess = new Set((aaRes.data || []).filter(isPassedRow).flatMap((r: any) => [String(r.assignment_id || '').trim(), r.assignment_id]));
+        const failedAssess = new Set((aaRes.data || []).filter((r: any) => !isPassedRow(r)).flatMap((r: any) => [String(r.assignment_id || '').trim(), r.assignment_id]));
+        // If an assessment has both a passed attempt and a failed attempt, passed takes precedence
+        for (const id of Array.from(doneAssess)) {
+          failedAssess.delete(id);
+        }
+
         const doneQuiz = new Set((qaRes.data || []).filter(isPassedRow).flatMap((r: any) => [String(r.quiz_id || '').trim(), r.quiz_id]));
+        const failedQuiz = new Set((qaRes.data || []).filter((r: any) => !isPassedRow(r)).flatMap((r: any) => [String(r.quiz_id || '').trim(), r.quiz_id]));
+        for (const id of Array.from(doneQuiz)) {
+          failedQuiz.delete(id);
+        }
         const donePractice = new Set((psRes.data || []).flatMap((r: any) => [String(r.problem_id || '').trim(), r.problem_id]));
 
         // Real class recordings → keyed by normalized lesson TITLE. Recordings have no reliable id
@@ -287,24 +297,34 @@ export function LearningScreen() {
                         duration: '20m',
                         completed: donePractice.has(cq.id) || donePractice.has(String(cq.id || '').trim())
                       }));
-                      const lessonAssessments = dbAssessments.map((asmnt: any) => ({
-                        id: asmnt.id,
-                        title: asmnt.title,
-                        duration: `${asmnt.duration_minutes || 15}m`,
-                        completed: doneAssess.has(asmnt.id) || doneAssess.has(String(asmnt.id || '').trim())
-                      }));
+                      const lessonAssessments = dbAssessments.map((asmnt: any) => {
+                        const isDone = doneAssess.has(asmnt.id) || doneAssess.has(String(asmnt.id || '').trim());
+                        const isFailed = !isDone && (failedAssess.has(asmnt.id) || failedAssess.has(String(asmnt.id || '').trim()));
+                        return {
+                          id: asmnt.id,
+                          title: asmnt.title,
+                          duration: `${asmnt.duration_minutes || 15}m`,
+                          completed: isDone,
+                          failed: isFailed
+                        };
+                      });
                       const lessonProjects = dbProjects.map((p: any) => ({
                         id: p.id,
                         title: p.title,
                         type: p.type || 'mini',
                         completed: donePractice.has(p.id) || donePractice.has(String(p.id || '').trim())
                       }));
-                      const lessonQuizzes = dbQuizzes.map((q: any) => ({
-                        id: q.id,
-                        title: q.title,
-                        duration: `${q.duration_minutes || 30}m`,
-                        completed: doneQuiz.has(q.id) || doneQuiz.has(String(q.id || '').trim())
-                      }));
+                      const lessonQuizzes = dbQuizzes.map((q: any) => {
+                        const isDone = doneQuiz.has(q.id) || doneQuiz.has(String(q.id || '').trim());
+                        const isFailed = !isDone && (failedQuiz.has(q.id) || failedQuiz.has(String(q.id || '').trim()));
+                        return {
+                          id: q.id,
+                          title: q.title,
+                          duration: `${q.duration_minutes || 30}m`,
+                          completed: isDone,
+                          failed: isFailed
+                        };
+                      });
                       // A lesson is complete when its video is marked done AND all its coursework is done.
                       const videoCompleted = doneLessons.has(l.id) || doneLessons.has(String(l.id || '').trim());
                       const items = [...practices, ...lessonAssessments, ...lessonProjects, ...lessonQuizzes];
@@ -1384,18 +1404,31 @@ export function LearningScreen() {
                                    </div>
                                  </div>
                                  {assessment.completed ? (
-                                   <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                                     <CheckCircle2 className="w-4 h-4" /> Done
-                                   </span>
-                                 ) : (
-                                 <button
-                                   type="button"
-                                   className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95 pointer-events-none"
-                                 >
-                                   <span>TAKE</span>
-                                   <ExternalLink className="w-3 h-3" />
-                                 </button>
-                                 )}
+                                    <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 shadow-2xs">
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Done
+                                    </span>
+                                  ) : assessment.failed ? (
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="px-2.5 py-1 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                                        <XCircle className="w-3.5 h-3.5 text-rose-600" /> Fail
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="px-2.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-rose-600 hover:bg-rose-700 text-white shadow-sm active:scale-95 pointer-events-none"
+                                      >
+                                        <span>RETAKE</span>
+                                        <ExternalLink className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  ) : (
+                                  <button
+                                    type="button"
+                                    className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-primary-500 hover:bg-primary-600 text-white shadow-md shadow-primary-500/20 active:scale-95 pointer-events-none"
+                                  >
+                                    <span>TAKE</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </button>
+                                  )}
                                </div>
                              ))}
 
@@ -1424,9 +1457,22 @@ export function LearningScreen() {
                                     </div>
                                   </div>
                                   {quiz.completed ? (
-                                    <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
-                                      <CheckCircle2 className="w-4 h-4" /> Done
+                                    <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0 shadow-2xs">
+                                      <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Done
                                     </span>
+                                  ) : quiz.failed ? (
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                      <span className="px-2.5 py-1 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-200 shadow-2xs">
+                                        <XCircle className="w-3.5 h-3.5 text-rose-600" /> Fail
+                                      </span>
+                                      <button
+                                        type="button"
+                                        className="px-2.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 transition-all bg-rose-600 hover:bg-rose-700 text-white shadow-sm active:scale-95 pointer-events-none"
+                                      >
+                                        <span>RETAKE</span>
+                                        <ExternalLink className="w-3 h-3" />
+                                      </button>
+                                    </div>
                                   ) : (
                                   <button
                                     type="button"

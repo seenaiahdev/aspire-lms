@@ -627,10 +627,6 @@ export function WorkspaceScreen() {
           <div className="flex items-center gap-3">
             {uploadedStorageUrl && (
               <>
-                <Button size="sm" onClick={handleTestSubmittedFile} leftIcon={<Terminal className="w-4 h-4" />}
-                  className="bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs px-3 shadow-xs">
-                  Test Custom Input
-                </Button>
                 <Button size="sm" onClick={() => setShowFullExplorer(true)} leftIcon={<Eye className="w-4 h-4" />}
                   className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs px-3 shadow-xs">
                   Expand View
@@ -882,12 +878,12 @@ export function WorkspaceScreen() {
               <div className="space-y-6">
                 <div>
                   <div className="flex items-center gap-2 text-[#7c3aed] text-xs font-black uppercase tracking-wider mb-1">
-                    <Terminal className="w-3.5 h-3.5" />
-                    Step 3: Test Solution with Custom Input
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#7c3aed]" />
+                    Step 3: Confirm & Submit Solution
                   </div>
                   <h2 className="text-xl font-black text-slate-900">Verify Your Uploaded Solution</h2>
                   <p className="text-xs text-slate-500 mt-1">
-                    Your code was loaded directly from <strong className="text-slate-800 font-mono">{stagedSubmission.primaryFile.name}</strong>. Run custom inputs to test its output before submitting.
+                    Your solution from <strong className="text-slate-800 font-mono">{stagedSubmission.primaryFile.name}</strong> is verified and ready for submission.
                   </p>
                 </div>
 
@@ -940,7 +936,8 @@ export function WorkspaceScreen() {
                   )}
                 </div>
 
-                {/* Custom Input Testing Console */}
+                {/* Custom Input Testing Console - Hidden from frontend for future use */}
+                {false && (
                 <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs space-y-4">
                   <div className="flex items-center justify-between pb-3 border-b border-slate-150">
                     <div className="flex items-center gap-2">
@@ -1044,6 +1041,7 @@ export function WorkspaceScreen() {
                     </div>
                   )}
                 </div>
+                )}
 
                 {/* Finalize Submission Card */}
                 <div className="flex items-center justify-between p-5 rounded-2xl bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-100 flex-wrap gap-4">
@@ -1111,13 +1109,6 @@ export function WorkspaceScreen() {
 
                 {/* Action buttons */}
                 <div className="flex gap-3 flex-wrap justify-center">
-                  <button
-                    onClick={handleTestSubmittedFile}
-                    className="flex items-center gap-2 px-6 py-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 font-bold transition-all shadow-3xs cursor-pointer"
-                  >
-                    <Terminal className="w-5 h-5" />
-                    Test with Custom Input
-                  </button>
                   <button
                     onClick={() => setShowFullExplorer(true)}
                     className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold transition-all shadow-sm cursor-pointer"
