@@ -107,6 +107,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
               .from('courses')
               .select('id, title, target_batch, publish_status');
             (allCourses || []).forEach((c: any) => { courseTitleById[c.id] = c.title; });
+            const validCourseIds = new Set((allCourses || []).map((c: any) => c.id));
             const released = (allCourses || [])
               .filter((c: any) => {
                 const pub = String(c.publish_status || '').toLowerCase();
@@ -115,6 +116,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
               })
               .map((c: any) => c.id);
             effectiveCourses = Array.from(new Set([...effectiveCourses, ...released]));
+            if (validCourseIds.size > 0) {
+              effectiveCourses = effectiveCourses.filter((cid) => validCourseIds.has(cid));
+            }
           } catch (e) {
             console.warn('Failed to load batch-released courses:', e);
           }

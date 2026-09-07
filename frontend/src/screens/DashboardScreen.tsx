@@ -7,7 +7,7 @@ import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useUser } from '@/lib/UserContext';
-import { fetchLiveSessions, fetchDailySchedules, isWeekdayBatchUser } from '@/lib/api';
+import { fetchLiveSessions, fetchDailySchedules, fetchCoursesByIds, isWeekdayBatchUser } from '@/lib/api';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
@@ -35,16 +35,42 @@ export function DashboardScreen() {
     return isWeekdayBatchUser(currentUser);
   }, [currentUser]);
 
-  // Track enrolled courses and completed courses from My Learning
+  // Fetch actual enrolled course objects from DB (identical query to My Learning)
+  const [dbEnrolledCourses, setDbEnrolledCourses] = useState<any[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function loadEnrolled() {
+      if (!currentUser.enrolledCourses || currentUser.enrolledCourses.length === 0) {
+        setDbEnrolledCourses([]);
+        return;
+      }
+      try {
+        const courses = await fetchCoursesByIds(currentUser.enrolledCourses);
+        if (isMounted && courses) {
+          setDbEnrolledCourses(courses);
+        }
+      } catch (err) {
+        console.warn('Failed to load enrolled courses for dashboard:', err);
+      }
+    }
+    loadEnrolled();
+    return () => { isMounted = false; };
+  }, [currentUser.enrolledCourses]);
+
+  // Track enrolled courses and completed courses strictly matching My Learning
   const { completedCoursesCount, totalCoursesCount } = useMemo(() => {
-    const enrolled = currentUser.enrolledCourses || [];
-    if (enrolled.length === 0) {
+    const validCourseIds = dbEnrolledCourses.length > 0
+      ? dbEnrolledCourses.map((c: any) => c.id)
+      : (currentUser.enrolledCourses || []);
+
+    if (validCourseIds.length === 0) {
       const isDone = (currentUser.progress || 0) >= 100;
       return { completedCoursesCount: isDone ? 1 : 0, totalCoursesCount: 1 };
     }
-    const completed = enrolled.filter((cid: string) => (currentUser.courseProgress?.[cid] ?? 0) >= 100).length;
-    return { completedCoursesCount: completed, totalCoursesCount: enrolled.length };
-  }, [currentUser.enrolledCourses, currentUser.courseProgress, currentUser.progress]);
+    const completed = validCourseIds.filter((cid: string) => (currentUser.courseProgress?.[cid] ?? 0) >= 100).length;
+    return { completedCoursesCount: completed, totalCoursesCount: validCourseIds.length };
+  }, [dbEnrolledCourses, currentUser.enrolledCourses, currentUser.courseProgress, currentUser.progress]);
 
   // Real-time System Today Date
   const today = useMemo(() => new Date(), []);
