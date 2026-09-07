@@ -1033,10 +1033,6 @@ export function LearningScreen() {
                 </div>
                 
                 <div className="flex items-center gap-3">
-                  <span className="text-xs font-bold text-slate-500">
-                    Showing {filteredItems.length} {filteredItems.length === 1 ? 'module' : 'modules'}
-                  </span>
-
                   <div className="flex gap-1 p-1 bg-slate-100 rounded-xl border border-slate-200 shrink-0">
                     <button onClick={() => setView('grid')} className={cn('w-8 h-8 rounded-lg flex items-center justify-center transition-colors', view === 'grid' ? 'bg-white shadow-xs text-[#7c3aed]' : 'text-slate-400 hover:text-slate-600')}>
                       <Grid3x3 className="w-4 h-4" />
