@@ -658,7 +658,7 @@ export function DashboardScreen() {
                     {isWeekdayBatch && (
                       <div className="flex items-center gap-1">
                         <span className="w-2.5 h-2.5 rounded-full bg-amber-100 border border-amber-300" />
-                        <span className="text-amber-700 font-bold">Leave / Holiday</span>
+                        <span className="text-amber-700 font-bold">Holiday</span>
                       </div>
                     )}
                   </div>
@@ -723,7 +723,7 @@ export function DashboardScreen() {
 
               {isWeekdayBatch && selectedDateObject.getDay() === 0 ? (
                 <span className="bg-amber-50 text-amber-700 font-extrabold px-3 py-1 rounded-full text-xs border border-amber-200">
-                  Leave / Holiday
+                  Holiday
                 </span>
               ) : (
                 <span className="bg-purple-50 text-[#7c3aed] font-extrabold px-3 py-1 rounded-full text-xs border border-purple-100">
@@ -734,43 +734,16 @@ export function DashboardScreen() {
 
             {currentLiveClasses.length === 0 ? (
               isWeekdayBatch && selectedDateObject.getDay() === 0 ? (
-                /* DEDICATED SUNDAY HOLIDAY / LEAVE CARD FOR WEEKDAY BATCHES */
-                <div className="py-10 px-6 bg-gradient-to-br from-amber-50/60 via-white to-purple-50/30 border border-amber-200/80 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-4 shadow-sm relative overflow-hidden">
-                  <div className="flex items-center gap-1.5 bg-amber-100 text-amber-800 text-[11px] font-extrabold px-3 py-1 rounded-full border border-amber-200 shadow-2xs">
-                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
-                    <span>Official Rest Day</span>
+                /* CLEAN SUNDAY HOLIDAY CARD FOR WEEKDAY BATCHES */
+                <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
+                  <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200/60 flex items-center justify-center text-amber-600 shadow-xs">
+                    <CalendarDays className="w-7 h-7" />
                   </div>
-
-                  <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-amber-100 to-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shadow-xs">
-                    <CalendarDays className="w-8 h-8" />
-                  </div>
-
-                  <div className="max-w-md">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold mb-2">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                      Streak Protected
-                    </div>
-                    <h4 className="font-extrabold text-slate-900 text-lg sm:text-xl">Sunday Holiday (Weekday Batch)</h4>
-                    <p className="text-slate-600 text-xs sm:text-sm font-medium mt-2 leading-relaxed">
-                      Sundays are designated weekly rest and recharge days for all weekday cohorts (A26W). No mandatory live classes or tasks are scheduled today, and taking this day off <span className="font-bold text-slate-800">will not break your learning streak</span>.
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">Holiday</h4>
+                    <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1 max-w-sm">
+                      No classes or tasks scheduled today.
                     </p>
-                  </div>
-
-                  <div className="pt-1 flex flex-wrap items-center justify-center gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => navigate('practice')}
-                      className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 font-bold rounded-xl text-xs shadow-2xs transition-colors"
-                    >
-                      Practice in Lab (Optional)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate('schedule')}
-                      className="px-4 py-2 bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-bold rounded-xl text-xs shadow-xs transition-colors"
-                    >
-                      View Full Schedule
-                    </button>
                   </div>
                 </div>
               ) : (
