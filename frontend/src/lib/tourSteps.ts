@@ -62,8 +62,8 @@ export const dashboardSteps: Step[] = [
   },
   {
     target: '#tour-stat-card-2',
-    title: 'Modules Finished',
-    content: 'See exactly how many specific modules you have completed so far.',
+    title: 'Courses Completed',
+    content: 'See how many courses from My Learning you have completed so far.',
     placement: 'left',
     skipBeacon: true,
   },

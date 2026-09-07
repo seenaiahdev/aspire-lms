@@ -35,6 +35,17 @@ export function DashboardScreen() {
     return isWeekdayBatchUser(currentUser);
   }, [currentUser]);
 
+  // Track enrolled courses and completed courses from My Learning
+  const { completedCoursesCount, totalCoursesCount } = useMemo(() => {
+    const enrolled = currentUser.enrolledCourses || [];
+    if (enrolled.length === 0) {
+      const isDone = (currentUser.progress || 0) >= 100;
+      return { completedCoursesCount: isDone ? 1 : 0, totalCoursesCount: 1 };
+    }
+    const completed = enrolled.filter((cid: string) => (currentUser.courseProgress?.[cid] ?? 0) >= 100).length;
+    return { completedCoursesCount: completed, totalCoursesCount: enrolled.length };
+  }, [currentUser.enrolledCourses, currentUser.courseProgress, currentUser.progress]);
+
   // Real-time System Today Date
   const today = useMemo(() => new Date(), []);
   const realTodayYear = today.getFullYear();
@@ -891,16 +902,26 @@ export function DashboardScreen() {
             </div>
           </div>
 
-          {/* Card 2: Modules Finished */}
-          <div id="tour-stat-card-2" className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:shadow-xs transition-all flex items-center gap-4">
-            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
-              <CheckCircle2 className="w-5 h-5" />
+          {/* Card 2: Courses Finished (Quick Access to My Learning) */}
+          <div 
+            id="tour-stat-card-2" 
+            onClick={() => navigate('learning')}
+            className="p-5 rounded-3xl bg-white border border-slate-200/80 shadow-2xs hover:border-purple-200 hover:shadow-md transition-all flex items-center justify-between cursor-pointer group relative overflow-hidden"
+          >
+            <div className="flex items-center gap-4 relative z-10">
+              <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
+                <BookOpenText className="w-5 h-5" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-500 font-semibold">Courses Completed</p>
+                <p className="text-base font-extrabold text-slate-900 group-hover:text-[#7c3aed] transition-colors mt-0.5">
+                  {completedCoursesCount} of {totalCoursesCount} Finished
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="text-xs text-slate-500 font-semibold">Modules Completed</p>
-              <p className="text-base font-extrabold text-slate-900 mt-0.5">
-                {currentUser.progress && currentUser.progress >= 100 ? '1 of 1' : '0 of 1'} Finished
-              </p>
+
+            <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center group-hover:bg-purple-50 border border-transparent group-hover:border-purple-100 transition-colors relative z-10">
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-[#7c3aed] group-hover:translate-x-0.5 transition-all" />
             </div>
           </div>
 
