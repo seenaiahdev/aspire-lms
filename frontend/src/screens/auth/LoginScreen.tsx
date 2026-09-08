@@ -574,28 +574,14 @@ export function LoginScreen() {
                   </div>
                   <p className="text-xs text-slate-500 font-normal">
                     {otpMode === 'both'
-                      ? <>Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span>{emailHint ? <> and <span className="font-semibold text-slate-700">{emailHint}</span></> : null}</>
+                      ? <>Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span>{emailHint ? <> & <span className="font-semibold text-slate-700">{emailHint}</span></> : null}</>
                       : otpMode === 'firebase'
-                      ? <>SMS OTP sent to <span className="font-semibold text-slate-700">+91 {mobile}</span></>
+                      ? <>Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span></>
                       : otpMode === 'email' && emailHint
                       ? <>Code sent to <span className="font-semibold text-slate-700">{emailHint}</span></>
-                      : <>For <span className="font-semibold text-slate-700">+91 {mobile}</span>{emailHint ? <> (<span className="font-semibold text-slate-600">{emailHint}</span>)</> : null}</>}
+                      : <>Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span></>}
                   </p>
-                  {otpMode === 'both' ? (
-                    <p className="text-[10px] text-primary-700 font-medium mt-2.5 flex items-center justify-center gap-1">
-                      <MessageSquare className="w-3 h-3 text-[#7c3aed]" />
-                      Enter the {OTP_LENGTH}-digit code from your SMS or email — either works.
-                    </p>
-                  ) : otpMode === 'firebase' ? (
-                    <p className="text-[10px] text-primary-700 font-medium mt-2.5 flex items-center justify-center gap-1">
-                      <MessageSquare className="w-3 h-3 text-[#7c3aed]" />
-                      Enter the {OTP_LENGTH}-digit SMS code sent to your phone.
-                    </p>
-                  ) : otpMode === 'email' ? (
-                    <p className="text-[10px] text-slate-500 font-medium mt-2.5">
-                      Enter the {OTP_LENGTH}-digit code sent to your email.
-                    </p>
-                  ) : (
+                  {otpMode === 'demo' && (
                     <div className="mt-2.5 flex flex-col items-center gap-1">
                       <p className="text-[10px] text-primary-700 font-bold flex items-center justify-center gap-1.5 bg-primary-50 px-3.5 py-1.5 rounded-xl mx-auto w-fit border border-primary-200/50 shadow-xs animate-pulse">
                         <span className="w-1.5 h-1.5 rounded-full bg-primary-600 animate-ping" />
