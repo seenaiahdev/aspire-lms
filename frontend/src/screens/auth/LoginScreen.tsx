@@ -80,14 +80,56 @@ export function LoginScreen() {
     }
   };
 
-  // OTP delivery: fires SMS OTP via Firebase Auth Phone Auth AND email OTP via serverless in parallel.
-  const requestOtp = async () => {
+  // ── 1. First Login (Initial OTP) ──────────────────────────────────────────
+  // 100% reCAPTCHA-FREE: Dispatches OTP via backend serverless function directly
+  // to student's registered email (and SMS gateway). No reCAPTCHA puzzles, no extra work!
+  const requestInitialOtp = async () => {
+    setOtp(new Array(OTP_LENGTH).fill(''));
+    otpTokenRef.current = '';
+    setGeneratedOtp('');
+    confirmationResultRef.current = null;
+
+    try {
+      const resp = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: mobile }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        otpTokenRef.current = data.token || '';
+        setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
+        setOtpMode('both');
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        console.warn('[LoginScreen] /api/send-otp returned error:', resp.status, errData);
+        const fallbackOtp = String(Math.floor(100000 + Math.random() * 900000));
+        setGeneratedOtp(fallbackOtp);
+        setEmailHint(maskEmail(studentEmailRef.current));
+        setOtpMode('demo');
+      }
+    } catch (apiErr) {
+      console.warn('[LoginScreen] /api/send-otp failed (local dev or network):', apiErr);
+      const fallbackOtp = String(Math.floor(100000 + Math.random() * 900000));
+      setGeneratedOtp(fallbackOtp);
+      setEmailHint(maskEmail(studentEmailRef.current));
+      setOtpMode('demo');
+    }
+
+    setStep('otp');
+    setResendIn(30);
+  };
+
+  // ── 2. Resend OTP ──────────────────────────────────────────────────────────
+  // Uses Firebase Phone Auth with reCAPTCHA verifier to prevent spam, verify
+  // human interaction, and deliver directly to mobile SMS + email refresh.
+  const requestResendOtp = async () => {
     setOtp(new Array(OTP_LENGTH).fill(''));
     otpTokenRef.current = '';
     setGeneratedOtp('');
     clearRecaptcha();
 
-    // Channel 1: Firebase SMS OTP
+    // Channel 1: Firebase Phone Auth SMS (with reCAPTCHA verification)
     const smsPromise = (async (): Promise<boolean> => {
       if (!isFirebaseConfigured) return false;
       try {
@@ -114,13 +156,13 @@ export function LoginScreen() {
         confirmationResultRef.current = await signInWithPhoneNumber(auth, formattedPhone, verifier);
         return true;
       } catch (firebaseErr: any) {
-        console.warn('Firebase SMS OTP failed:', firebaseErr?.code || firebaseErr);
+        console.warn('Firebase SMS OTP failed on resend:', firebaseErr?.code || firebaseErr);
         clearRecaptcha();
         return false;
       }
     })();
 
-    // Channel 2: Email OTP via serverless function
+    // Channel 2: Email OTP refresh
     const emailPromise = (async (): Promise<boolean> => {
       try {
         const resp = await fetch('/api/send-otp', {
@@ -133,12 +175,9 @@ export function LoginScreen() {
           otpTokenRef.current = data.token || '';
           setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
           return true;
-        } else {
-          const errData = await resp.json().catch(() => ({}));
-          console.warn('[LoginScreen] /api/send-otp returned error:', resp.status, errData);
         }
       } catch (apiErr) {
-        console.warn('[LoginScreen] /api/send-otp failed (local dev or network):', apiErr);
+        console.warn('[LoginScreen] /api/send-otp failed on resend:', apiErr);
       }
       return false;
     })();
@@ -158,7 +197,6 @@ export function LoginScreen() {
       setOtpMode('demo');
     }
 
-    setStep('otp');
     setResendIn(30);
   };
 
@@ -178,9 +216,9 @@ export function LoginScreen() {
         return;
       }
       studentRecordRef.current = student;
-      // Persist the mobile only AFTER OTP is verified (see completeLogin) — A4.
       studentEmailRef.current = student.email || '';
-      await requestOtp();
+      // Initial login: ZERO reCAPTCHA!
+      await requestInitialOtp();
     } catch (err) {
       console.error(err);
       setError('An error occurred. Please try again.');
@@ -189,14 +227,14 @@ export function LoginScreen() {
     }
   };
 
-  // Resend the code, only once the cooldown has elapsed (A2).
+  // Resend the code: activates reCAPTCHA + Firebase SMS
   const handleResend = async () => {
     if (resendIn > 0 || isSubmitting) return;
     setError('');
     setResendSuccess(false);
     setIsSubmitting(true);
     try {
-      await requestOtp();
+      await requestResendOtp();
       setResendSuccess(true);
       setTimeout(() => setResendSuccess(false), 5000);
     } catch (err) {
