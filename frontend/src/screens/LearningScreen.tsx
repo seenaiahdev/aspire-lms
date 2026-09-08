@@ -118,7 +118,7 @@ export interface LearningItem {
   targetRoute?: string;
 }
 export function LearningScreen() {
-  const { navigate, route } = useNav();
+  const { navigate, route, params } = useNav();
   const { user } = useUser();
   // ── Background prefetch: if the preload is ready, skip cold DB fetches entirely ──
   const preload = usePreload();
@@ -169,10 +169,34 @@ export function LearningScreen() {
     setDbSyllabi(preload.syllabi);
   }, [preload.reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const [selectedCourseId, setSelectedCourseId] = useState<string>(() => {
+    return params?.id || params?.courseId || '';
+  });
+
+  useEffect(() => {
+    if (params?.id || params?.courseId) {
+      setSelectedCourseId(params.id || params.courseId);
+    }
+  }, [params?.id, params?.courseId]);
+
+  const activeCourse = useMemo(() => {
+    if (!dbCourses || dbCourses.length === 0) return null;
+    if (selectedCourseId) {
+      const found = dbCourses.find(c => c.id === selectedCourseId);
+      if (found) return found;
+    }
+    const firstEnrolled = user.enrolledCourses?.[0];
+    if (firstEnrolled) {
+      const found = dbCourses.find(c => c.id === firstEnrolled);
+      if (found) return found;
+    }
+    return dbCourses[0];
+  }, [dbCourses, selectedCourseId, user.enrolledCourses]);
+
   const dbSyllabus = useMemo(() => {
-    const firstCourseId = user.enrolledCourses?.[0];
-    return firstCourseId ? (dbSyllabi[firstCourseId] || null) : null;
-  }, [dbSyllabi, user.enrolledCourses]);
+    if (!activeCourse) return null;
+    return dbSyllabi[activeCourse.id] || null;
+  }, [dbSyllabi, activeCourse]);
 
 
   useEffect(() => {
@@ -400,7 +424,6 @@ export function LearningScreen() {
   }, [user.enrolledCourses, reloadKey]);
 
   const curriculumRoadmap = useMemo(() => {
-    const activeCourse = dbCourses[0];
     if (!activeCourse || !dbSyllabus) {
       return null;
     }
@@ -442,7 +465,7 @@ export function LearningScreen() {
       completedModules,
       overallPct
     };
-  }, [dbCourses, dbSyllabus, user.courseProgress]);
+  }, [activeCourse, dbSyllabus, user.courseProgress]);
 
   // Stage windowing: reset to the first page when the roadmap (course) changes; reveal more on scroll.
   const totalStages = curriculumRoadmap?.stages?.length || 0;
@@ -642,6 +665,26 @@ export function LearningScreen() {
             </div>
           ) : (
             <>
+              {/* Course Switcher Pills if enrolled in multiple courses */}
+              {dbCourses.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+                  {dbCourses.map((c) => (
+                    <button
+                      key={c.id}
+                      onClick={() => setSelectedCourseId(c.id)}
+                      className={cn(
+                        "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0",
+                        activeCourse?.id === c.id
+                          ? "bg-[#7c3aed] text-white shadow-md shadow-purple-500/20"
+                          : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                      )}
+                    >
+                      {c.title}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {/* 1. Top Banner */}
               <div className="p-6 sm:p-8 rounded-[2rem] bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xl relative overflow-hidden">
                 {/* Background Decorations */}
