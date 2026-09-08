@@ -73,11 +73,8 @@ export function TourProvider({ children }: { children: ReactNode }) {
   }, [user?.mobile]);
 
   const shouldRunTour = useCallback(
-    (tourId: string) => {
-      const isAllowed = localStorage.getItem('aspire_tour_allowed') === 'true';
-      return isAllowed && !completedTours.includes(tourId);
-    },
-    [completedTours]
+    (_tourId: string) => false,
+    []
   );
 
   const resetTours = useCallback(() => {

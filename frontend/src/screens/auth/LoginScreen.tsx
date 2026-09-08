@@ -51,6 +51,8 @@ export function LoginScreen() {
       recaptchaVerifierRef.current = null;
     }
     confirmationResultRef.current = null;
+    const el = document.getElementById('recaptcha-container');
+    if (el) el.innerHTML = '';
   };
 
   // Cleanup recaptcha on unmount
@@ -558,9 +560,6 @@ export function LoginScreen() {
                   )}
                 </button>
 
-                {/* Invisible reCAPTCHA container for Firebase Phone Auth */}
-                <div id="recaptcha-container"></div>
-
                 <p className="text-[11px] text-slate-400 text-center mt-5 font-medium">
                   An OTP will be sent to your mobile number and registered email.
                 </p>
@@ -671,6 +670,8 @@ export function LoginScreen() {
               </form>
             )}
 
+            {/* Invisible reCAPTCHA container for Firebase Phone Auth (persists across both mobile and OTP steps for resend) */}
+            <div id="recaptcha-container"></div>
           </div>
         </div>
 
