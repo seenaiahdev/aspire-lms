@@ -2,8 +2,9 @@ import { useState, useRef, useEffect } from 'react';
 import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
-import { supabase } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
+import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
 
@@ -30,6 +31,10 @@ export function LoginScreen() {
   const [emailHint, setEmailHint] = useState('');                  // masked email we sent to
   const [otpMode, setOtpMode] = useState<'both' | 'sms' | 'email' | 'demo'>('both');
 
+  // Firebase ConfirmationResult for SMS OTP verification
+  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
+  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
+
   // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp.
   const otpTokenRef = useRef<string>('');
   // Cached student record from pre-login lookup to enable instantaneous login navigation
@@ -39,6 +44,26 @@ export function LoginScreen() {
   // Resend cooldown in seconds (A2).
   const [resendIn, setResendIn] = useState(0);
   const [resendSuccess, setResendSuccess] = useState(false);
+
+  // Cleans up any prior reCAPTCHA widget safely so fresh renders never conflict
+  const clearRecaptcha = () => {
+    if (recaptchaVerifierRef.current) {
+      try {
+        recaptchaVerifierRef.current.clear();
+      } catch (_) {}
+      recaptchaVerifierRef.current = null;
+    }
+    const mount = document.getElementById('recaptcha-mount');
+    if (mount) {
+      mount.innerHTML = '';
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      clearRecaptcha();
+    };
+  }, []);
 
   // Resend cooldown ticker (A2).
   useEffect(() => {
@@ -55,26 +80,42 @@ export function LoginScreen() {
     }
   };
 
-  // OTP delivery: fires SMS OTP directly via Supabase Auth (zero client reCAPTCHA!)
-  // and email OTP via serverless function in parallel.
+  // OTP delivery: fires SMS OTP via Firebase Auth Phone Auth AND email OTP via serverless in parallel.
   const requestOtp = async () => {
     setOtp(new Array(OTP_LENGTH).fill(''));
     otpTokenRef.current = '';
     setGeneratedOtp('');
+    clearRecaptcha();
 
-    // Channel 1: Supabase SMS OTP
+    // Channel 1: Firebase SMS OTP
     const smsPromise = (async (): Promise<boolean> => {
+      if (!isFirebaseConfigured) return false;
       try {
-        const { error: sbError } = await supabase.auth.signInWithOtp({
-          phone: `+91${mobile}`,
-        });
-        if (sbError) {
-          console.warn('[LoginScreen] Supabase SMS OTP warning:', sbError.message);
-          return false;
+        const auth = getFirebaseAuth();
+
+        let mount = document.getElementById('recaptcha-mount');
+        if (!mount) {
+          mount = document.createElement('div');
+          mount.id = 'recaptcha-mount';
+          document.body.appendChild(mount);
         }
+        mount.innerHTML = '';
+
+        const verifier = new RecaptchaVerifier(auth, mount, {
+          size: 'invisible',
+          callback: () => {},
+          'expired-callback': () => {
+            clearRecaptcha();
+          }
+        });
+        recaptchaVerifierRef.current = verifier;
+
+        const formattedPhone = `+91${mobile}`;
+        confirmationResultRef.current = await signInWithPhoneNumber(auth, formattedPhone, verifier);
         return true;
-      } catch (err) {
-        console.warn('[LoginScreen] Supabase SMS OTP exception:', err);
+      } catch (firebaseErr: any) {
+        console.warn('Firebase SMS OTP failed:', firebaseErr?.code || firebaseErr);
+        clearRecaptcha();
         return false;
       }
     })();
@@ -111,8 +152,6 @@ export function LoginScreen() {
     } else if (emailOk) {
       setOtpMode('email');
     } else {
-      // If neither channel delivered (e.g. Supabase Phone provider pending config & SMTP offline),
-      // provide built-in demo fallback code so student is never locked out.
       const fallbackOtp = String(Math.floor(100000 + Math.random() * 900000));
       setGeneratedOtp(fallbackOtp);
       setEmailHint(maskEmail(studentEmailRef.current));
@@ -305,19 +344,17 @@ export function LoginScreen() {
         return;
       }
 
-      // 2. Supabase SMS OTP Verification (zero client reCAPTCHA!)
-      try {
-        const { data: sbData, error: sbError } = await supabase.auth.verifyOtp({
-          phone: `+91${mobile}`,
-          token: enteredOtp,
-          type: 'sms',
-        });
-        if (!sbError && (sbData?.session || sbData?.user)) {
+      // 2. Firebase SMS OTP Verification
+      if (confirmationResultRef.current) {
+        try {
+          await confirmationResultRef.current.confirm(enteredOtp);
           completeLogin();
           return;
+        } catch (err: any) {
+          if (err?.code !== 'auth/invalid-verification-code') {
+            console.warn('Firebase SMS OTP verify failed:', err?.code || err);
+          }
         }
-      } catch (sbErr) {
-        console.warn('[LoginScreen] Supabase SMS OTP verify attempt:', sbErr);
       }
 
       // 3. Serverless HMAC verification (for email OTP)
@@ -649,13 +686,16 @@ export function LoginScreen() {
 
                 <button
                   type="button"
-                  onClick={() => { setStep('mobile'); setError(''); setResendIn(0); }}
+                  onClick={() => { setStep('mobile'); setError(''); setResendIn(0); clearRecaptcha(); }}
                   className="text-xs font-normal text-primary-700 hover:underline mt-2"
                 >
                   Change Mobile Number
                 </button>
               </form>
             )}
+
+            {/* Invisible reCAPTCHA mount point for Firebase Phone Auth */}
+            <div id="recaptcha-mount"></div>
           </div>
         </div>
 
