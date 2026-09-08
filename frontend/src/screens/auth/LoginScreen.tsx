@@ -51,8 +51,8 @@ export function LoginScreen() {
       recaptchaVerifierRef.current = null;
     }
     confirmationResultRef.current = null;
-    const el = document.getElementById('recaptcha-container');
-    if (el) el.innerHTML = '';
+    const mount = document.getElementById('recaptcha-mount');
+    if (mount) mount.innerHTML = '';
   };
 
   // Cleanup recaptcha on unmount
@@ -93,17 +93,33 @@ export function LoginScreen() {
     const smsSend = (async (): Promise<boolean> => {
       if (!isFirebaseConfigured) return false;
       try {
+        clearRecaptcha();
         const auth = getFirebaseAuth();
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', {
+
+        let mount = document.getElementById('recaptcha-mount');
+        if (!mount) {
+          mount = document.createElement('div');
+          mount.id = 'recaptcha-mount';
+          document.body.appendChild(mount);
+        }
+        mount.innerHTML = '';
+
+        const freshId = `recaptcha-${Date.now()}`;
+        const recaptchaDiv = document.createElement('div');
+        recaptchaDiv.id = freshId;
+        mount.appendChild(recaptchaDiv);
+
+        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, freshId, {
           size: 'invisible',
           callback: () => {},
           'expired-callback': () => { clearRecaptcha(); }
         });
+
         const formattedPhone = `+91${mobile}`;
         confirmationResultRef.current = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifierRef.current);
         return true;
       } catch (firebaseErr: any) {
-        console.warn('Firebase SMS OTP failed:', firebaseErr);
+        console.warn('Firebase SMS OTP failed:', firebaseErr?.code || firebaseErr);
         clearRecaptcha();
         return false;
       }
@@ -670,8 +686,8 @@ export function LoginScreen() {
               </form>
             )}
 
-            {/* Invisible reCAPTCHA container for Firebase Phone Auth (persists across both mobile and OTP steps for resend) */}
-            <div id="recaptcha-container"></div>
+            {/* Invisible reCAPTCHA mount point for Firebase Phone Auth (persists across both mobile and OTP steps for resend) */}
+            <div id="recaptcha-mount"></div>
           </div>
         </div>
 
