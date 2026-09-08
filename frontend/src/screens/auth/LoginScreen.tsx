@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
@@ -27,7 +28,7 @@ export function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');            // demo fallback code only
   const [emailHint, setEmailHint] = useState('');                  // masked email we sent to
-  const [otpMode, setOtpMode] = useState<'both' | 'email' | 'demo'>('both');
+  const [otpMode, setOtpMode] = useState<'both' | 'sms' | 'email' | 'demo'>('both');
 
   // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp.
   const otpTokenRef = useRef<string>('');
@@ -54,36 +55,64 @@ export function LoginScreen() {
     }
   };
 
-  // OTP delivery: calls our serverless /api/send-otp endpoint to generate and dispatch
-  // a secure 6-digit OTP to the registered student's email and SMS.
-  // 100% reCAPTCHA-free with zero client-side scripts, iframe popups, or rate lockouts.
+  // OTP delivery: fires SMS OTP directly via Supabase Auth (zero client reCAPTCHA!)
+  // and email OTP via serverless function in parallel.
   const requestOtp = async () => {
     setOtp(new Array(OTP_LENGTH).fill(''));
     otpTokenRef.current = '';
     setGeneratedOtp('');
 
-    try {
-      const resp = await fetch('/api/send-otp', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ phone: mobile }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        otpTokenRef.current = data.token || '';
-        setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
-        setOtpMode('both');
-      } else {
-        const errData = await resp.json().catch(() => ({}));
-        console.warn('[LoginScreen] /api/send-otp returned error:', resp.status, errData);
-        // Fall back to demo mode if backend email/SMS is not available
-        const fallbackOtp = String(Math.floor(100000 + Math.random() * 900000));
-        setGeneratedOtp(fallbackOtp);
-        setEmailHint(maskEmail(studentEmailRef.current));
-        setOtpMode('demo');
+    // Channel 1: Supabase SMS OTP
+    const smsPromise = (async (): Promise<boolean> => {
+      try {
+        const { error: sbError } = await supabase.auth.signInWithOtp({
+          phone: `+91${mobile}`,
+        });
+        if (sbError) {
+          console.warn('[LoginScreen] Supabase SMS OTP warning:', sbError.message);
+          return false;
+        }
+        return true;
+      } catch (err) {
+        console.warn('[LoginScreen] Supabase SMS OTP exception:', err);
+        return false;
       }
-    } catch (apiErr) {
-      console.warn('[LoginScreen] /api/send-otp failed (local dev or network):', apiErr);
+    })();
+
+    // Channel 2: Email OTP via serverless function
+    const emailPromise = (async (): Promise<boolean> => {
+      try {
+        const resp = await fetch('/api/send-otp', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ phone: mobile }),
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          otpTokenRef.current = data.token || '';
+          setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
+          return true;
+        } else {
+          const errData = await resp.json().catch(() => ({}));
+          console.warn('[LoginScreen] /api/send-otp returned error:', resp.status, errData);
+        }
+      } catch (apiErr) {
+        console.warn('[LoginScreen] /api/send-otp failed (local dev or network):', apiErr);
+      }
+      return false;
+    })();
+
+    const [smsOk, emailOk] = await Promise.all([smsPromise, emailPromise]);
+
+    if (smsOk && emailOk) {
+      setOtpMode('both');
+    } else if (smsOk) {
+      setOtpMode('sms');
+    } else if (emailOk) {
+      setOtpMode('email');
+    } else {
+      // If neither channel delivered (e.g. Supabase Phone provider pending config & SMTP offline),
+      // provide built-in demo fallback code so student is never locked out.
       const fallbackOtp = String(Math.floor(100000 + Math.random() * 900000));
       setGeneratedOtp(fallbackOtp);
       setEmailHint(maskEmail(studentEmailRef.current));
@@ -276,7 +305,22 @@ export function LoginScreen() {
         return;
       }
 
-      // 2. Serverless HMAC verification (recomputes HMAC of code+email+expiry with zero recaptcha)
+      // 2. Supabase SMS OTP Verification (zero client reCAPTCHA!)
+      try {
+        const { data: sbData, error: sbError } = await supabase.auth.verifyOtp({
+          phone: `+91${mobile}`,
+          token: enteredOtp,
+          type: 'sms',
+        });
+        if (!sbError && (sbData?.session || sbData?.user)) {
+          completeLogin();
+          return;
+        }
+      } catch (sbErr) {
+        console.warn('[LoginScreen] Supabase SMS OTP verify attempt:', sbErr);
+      }
+
+      // 3. Serverless HMAC verification (for email OTP)
       if (otpTokenRef.current) {
         try {
           const resp = await fetch('/api/verify-otp', {
@@ -510,7 +554,7 @@ export function LoginScreen() {
                   <p className="text-xs text-slate-500 font-normal">
                     {otpMode === 'both'
                       ? <>Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span>{emailHint ? <> & <span className="font-semibold text-slate-700">{emailHint}</span></> : null}</>
-                      : otpMode === 'firebase'
+                      : otpMode === 'sms'
                       ? <>Code sent to <span className="font-semibold text-slate-700">+91 {mobile}</span></>
                       : otpMode === 'email' && emailHint
                       ? <>Code sent to <span className="font-semibold text-slate-700">{emailHint}</span></>
