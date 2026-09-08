@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Bell, FileText, Radio, BookOpen, GraduationCap, Gift, Award, Briefcase, HelpCircle, Code2, X
+  Bell, FileText, Radio, BookOpen, GraduationCap, Gift, Award, Briefcase, HelpCircle, Code2, X,
+  MapPin, FolderGit2, Library
 } from 'lucide-react';
 import { useUser } from './UserContext';
 import { supabase } from './supabase';
