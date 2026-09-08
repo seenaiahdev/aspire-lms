@@ -48,14 +48,13 @@ export function LiveClassesScreen() {
   useEffect(() => {
     async function loadUserCourses() {
       try {
-        const enrolled = user.enrolledCourses || ['crs-1786624019154-w'];
-        const data = await fetchCoursesByIds(enrolled);
-        if (data && data.length > 0) {
-          setUserCourses(data);
-        } else {
-          const { data: allCourses } = await supabase.from('courses').select('*').limit(5);
-          if (allCourses && allCourses.length > 0) setUserCourses(allCourses);
+        const enrolled = user.enrolledCourses || [];
+        if (enrolled.length === 0) {
+          setUserCourses([]);
+          return;
         }
+        const data = await fetchCoursesByIds(enrolled);
+        setUserCourses(data || []);
       } catch (err) {
         console.error("Failed to load user courses:", err);
       }
@@ -63,16 +62,70 @@ export function LiveClassesScreen() {
     loadUserCourses();
   }, [user.enrolledCourses]);
 
-  const primaryCourseTitle = userCourses[0]?.title || 'Python Full Stack + DSA with AI';
+  const primaryCourseTitle = userCourses[0]?.title || '';
+
+  // Check if session belongs to one of the student's enrolled courses
+  const sessionMatchesEnrolled = useCallback((cls: any) => {
+    if (!user.enrolledCourses || user.enrolledCourses.length === 0) return false;
+
+    const enrolledIds = new Set(user.enrolledCourses.map(String));
+    const enrolledTitles = userCourses
+      .map(c => String(c.title || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim())
+      .filter(Boolean);
+
+    let meta: any = null;
+    try {
+      meta = typeof cls.description === 'string' ? JSON.parse(cls.description) : cls.description;
+    } catch {}
+
+    let instrMeta: any = null;
+    try {
+      instrMeta = typeof cls.instructions === 'string' ? JSON.parse(cls.instructions) : cls.instructions;
+    } catch {}
+
+    const cId = cls.course_id || meta?.courseId || instrMeta?.courseId;
+    const cName = cls.course_name || meta?.courseName || instrMeta?.courseName;
+
+    // If session specifies a course ID
+    if (cId) {
+      if (enrolledIds.has(String(cId))) return true;
+      if (cName) {
+        const normC = String(cName).toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+        return enrolledTitles.some(t => t.includes(normC) || normC.includes(t));
+      }
+      return false;
+    }
+
+    // If session specifies a course name
+    if (cName) {
+      const normC = String(cName).toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+      return enrolledTitles.some(t => t.includes(normC) || normC.includes(t));
+    }
+
+    // If session has technology that is not 'General'
+    const tech = String(cls.technology || '').trim().toLowerCase();
+    if (tech && tech !== 'general' && tech !== 'core programming') {
+      return enrolledTitles.some(t => t.includes(tech) || tech.includes(t));
+    }
+
+    // Truly general class with no course metadata
+    return !meta?.courseId && !meta?.courseName;
+  }, [user.enrolledCourses, userCourses]);
 
   // Shared per-row mapper (used by both the full upcoming/live list and the paginated completed list).
   const mapSession = useCallback((cls: any, now: Date) => {
     const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
       cls.date, cls.time, cls.duration, cls.status, 10, now
     );
-    let courseName = (cls.technology || '').trim();
+    let descCourse = '';
+    try {
+      const meta = typeof cls.description === 'string' ? JSON.parse(cls.description) : cls.description;
+      if (meta?.courseName) descCourse = meta.courseName;
+    } catch {}
+
+    let courseName = descCourse || (cls.technology || '').trim();
     if (!courseName || courseName.toLowerCase() === 'general' || courseName.toLowerCase() === 'core programming') {
-      courseName = primaryCourseTitle;
+      courseName = primaryCourseTitle || 'Live Session';
     }
     return {
       id: cls.id,
@@ -140,15 +193,13 @@ export function LiveClassesScreen() {
       return timeA - timeB;
     });
 
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${yyyy}-${mm}-${dd}`;
+    // Filter sessions to strictly those that belong to the student's enrolled courses
+    const forStudent = sorted.filter(sessionMatchesEnrolled);
 
+    const now = new Date();
     // A class becomes joinable ("ongoing") 10 minutes before its DB start time, until it ends.
-    return sorted.map(cls => mapSession(cls, now));
-  }, [dbSessions, mapSession]);
+    return forStudent.map(cls => mapSession(cls, now));
+  }, [dbSessions, mapSession, sessionMatchesEnrolled]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTech, setSelectedTech] = useState('all');
@@ -485,12 +536,18 @@ export function LiveClassesScreen() {
           </div>
           <div>
             <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
-              {hasActiveFilters ? "No Recordings Found" : "Not Yet Scheduled"}
+              {hasActiveFilters 
+                ? "No Recordings Found" 
+                : tab === 'completed'
+                  ? "No Recordings Available"
+                  : "Not Yet Scheduled"}
             </h3>
             <p className="text-slate-500 text-xs sm:text-sm max-w-md font-medium mt-1">
               {hasActiveFilters 
                 ? "No recordings match your current search, technology, or date filters. Try changing your filters." 
-                : "There are currently no live or upcoming sessions scheduled for this section. Check back soon for new masterclasses!"}
+                : tab === 'completed'
+                  ? "There are currently no recorded lectures available for your enrolled course."
+                  : "There are currently no live sessions scheduled for your enrolled course. Check back soon!"}
             </p>
           </div>
           {hasActiveFilters && (

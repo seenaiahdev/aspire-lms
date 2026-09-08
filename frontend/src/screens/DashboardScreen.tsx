@@ -177,8 +177,24 @@ export function DashboardScreen() {
           fetchLiveSessions(batchCode),
           fetchDailySchedules(selectedDateStr, batchCode)
         ]);
-        setDbLiveSessions(sessions);
-        setDbDailySchedules(schedules);
+
+        // Filter sessions and schedules so they strictly belong to the student's enrolled course(s)
+        const enrolledIds = new Set((currentUser.enrolledCourses || []).map(String));
+        const filterByCourse = (item: any) => {
+          if (enrolledIds.size === 0) return false;
+          let meta: any = null;
+          try {
+            meta = typeof item.description === 'string' ? JSON.parse(item.description) : item.description;
+          } catch {}
+          const cId = item.course_id || meta?.courseId;
+          if (cId) {
+            return enrolledIds.has(String(cId));
+          }
+          return !meta?.courseId && !meta?.courseName;
+        };
+
+        setDbLiveSessions(sessions.filter(filterByCourse));
+        setDbDailySchedules(schedules.filter(filterByCourse));
       } catch (err) {
         console.error('Failed to load dashboard data:', err);
       } finally {
@@ -186,7 +202,7 @@ export function DashboardScreen() {
       }
     }
     loadDashboardData();
-  }, [selectedDateStr, currentUser.batchCode]);
+  }, [selectedDateStr, currentUser.batchCode, currentUser.enrolledCourses]);
 
   // Dynamic Topics mapped from database (no mock fallback)
   const currentTopics = useMemo(() => {
