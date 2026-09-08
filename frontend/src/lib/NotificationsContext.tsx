@@ -39,6 +39,8 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 const MAX_STORED = 100;
 const listKey = (sid: string) => `aspire_notifications_${sid}`;
 const unlockSeenKey = (sid: string) => `aspire_seen_unlocks_${sid}`;
+// IDs of notifications explicitly dismissed by the user — never restore these from DB on re-login.
+const dismissedKey = (sid: string) => `aspire_dismissed_notifs_${sid}`;
 
 const norm = (s: any) => String(s ?? '').trim().toLowerCase();
 
@@ -161,9 +163,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         dbRows = (fetched || []).map(sanitizeNotification);
       } catch { /* table may be unavailable */ }
       if (!alive) return;
+
+      // Load the set of IDs the user has explicitly dismissed — never restore these.
+      let dismissedIds = new Set<string>();
+      try {
+        const raw = localStorage.getItem(dismissedKey(sid));
+        if (raw) dismissedIds = new Set(JSON.parse(raw));
+      } catch {}
+
       const byId = new Map<string, AppNotification>();
       [...dbRows, ...stored].forEach((n) => {
-        if (n && n.id && !byId.has(n.id)) {
+        if (n && n.id && !byId.has(n.id) && !dismissedIds.has(n.id)) {
           byId.set(n.id, sanitizeNotification(n));
         }
       });
@@ -177,6 +187,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [user?.id, persistLocal]);
 
   // ── 1. Lesson unlocks: react to unlockedLessonIds growing (covers realtime + time-based) ──
+
   useEffect(() => {
     const sid = user?.id;
     if (!sid || sid === 'guest') return;
@@ -455,9 +466,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
           if (newlyUnlockedRewards.length > 0) {
             newlyUnlockedRewards.forEach((r: any) => {
+              // Use a STABLE, deterministic ID (no Date.now() / random) so that once
+              // this notification is read & deleted, addNotification's dedup check prevents
+              // it from ever reappearing on the next effect run.
               addNotification(
                 {
-                  id: `notif-reward-${r.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  id: `notif-reward-unlock-${sid}-${r.id}`,
                   student_id: sid,
                   type: 'achievement',
                   title: 'Reward Unlocked',
@@ -493,9 +507,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
           if (newlyEarnedBadges.length > 0) {
             newlyEarnedBadges.forEach((b: any) => {
+              // Stable deterministic ID — same badge can only generate one notification ever.
               addNotification(
                 {
-                  id: `notif-badge-${b.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  id: `notif-badge-earned-${sid}-${b.id}`,
                   student_id: sid,
                   type: 'achievement',
                   title: 'Badge Earned',
@@ -520,6 +535,21 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [user?.id, user?.xp, user?.streak, user?.progress, user?.attendance, addNotification]);
 
   // ── Actions ──
+
+  /** Record an ID as dismissed so it is never restored from DB on next login. */
+  const recordDismissed = useCallback((ids: string[]) => {
+    const sid = userRef.current?.id;
+    if (!sid || ids.length === 0) return;
+    try {
+      const key = dismissedKey(sid);
+      const raw = localStorage.getItem(key);
+      let existing: string[] = [];
+      try { existing = raw ? JSON.parse(raw) : []; } catch {}
+      const updated = Array.from(new Set([...existing, ...ids]));
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
+  }, []);
+
   const markRead = useCallback((id: string) => {
     const sid = userRef.current?.id;
     setNotifications((prev) => {
@@ -527,17 +557,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (sid) persistLocal(sid, next);
       return next;
     });
+    recordDismissed([id]);
     deleteNotificationRow(id).catch(() => {});
-  }, [persistLocal]);
+  }, [persistLocal, recordDismissed]);
 
   const markAllRead = useCallback(() => {
     const sid = userRef.current?.id;
+    const allIds = listRef.current.map((n) => n.id);
     setNotifications([]);
     if (sid) {
       persistLocal(sid, []);
       markAllNotificationsAsRead(sid).catch(() => {});
     }
-  }, [persistLocal]);
+    recordDismissed(allIds);
+  }, [persistLocal, recordDismissed]);
 
   const deleteNotification = useCallback((id: string) => {
     const sid = userRef.current?.id;
@@ -546,8 +579,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (sid) persistLocal(sid, next);
       return next;
     });
+    recordDismissed([id]);
     deleteNotificationRow(id).catch(() => {});
-  }, [persistLocal]);
+  }, [persistLocal, recordDismissed]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
