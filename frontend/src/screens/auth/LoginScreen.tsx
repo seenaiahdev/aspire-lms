@@ -43,6 +43,7 @@ export function LoginScreen() {
   const studentEmailRef = useRef<string>('');
   // Resend cooldown in seconds (A2).
   const [resendIn, setResendIn] = useState(0);
+  const [resendSuccess, setResendSuccess] = useState(false);
 
   // Clears any existing invisible reCAPTCHA + confirmation so the next send starts fresh (A1).
   const clearRecaptcha = () => {
@@ -195,9 +196,12 @@ export function LoginScreen() {
   const handleResend = async () => {
     if (resendIn > 0 || isSubmitting) return;
     setError('');
+    setResendSuccess(false);
     setIsSubmitting(true);
     try {
       await requestOtp();
+      setResendSuccess(true);
+      setTimeout(() => setResendSuccess(false), 5000);
     } catch (err) {
       console.error('Resend OTP failed:', err);
       setError('Could not resend the code. Please try again.');
@@ -675,6 +679,13 @@ export function LoginScreen() {
                   <RefreshCw className={`w-3.5 h-3.5 ${isSubmitting ? 'animate-spin' : ''}`} />
                   {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend OTP'}
                 </button>
+
+                {resendSuccess && (
+                  <p className="text-xs font-bold text-emerald-600 mt-2 flex items-center gap-1.5 animate-fade-in">
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                    New code sent to your phone & email!
+                  </p>
+                )}
 
                 <button
                   type="button"
