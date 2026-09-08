@@ -137,6 +137,47 @@ Team AspireNext`;
       html,
     });
 
+    // Optional: backend SMS dispatch (zero client recaptcha)
+    // If FAST2SMS_API_KEY is configured in Vercel environment variables, dispatch identical OTP code
+    if (process.env.FAST2SMS_API_KEY) {
+      try {
+        await fetch('https://www.fast2sms.com/dev/bulkV2', {
+          method: 'POST',
+          headers: {
+            'authorization': process.env.FAST2SMS_API_KEY.trim(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            route: 'otp',
+            variables_values: code,
+            numbers: suffix
+          })
+        });
+      } catch (smsErr) {
+        console.warn('send-otp: Fast2SMS dispatch failed:', smsErr);
+      }
+    } else if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+      try {
+        const twilioSid = process.env.TWILIO_ACCOUNT_SID.trim();
+        const twilioAuth = process.env.TWILIO_AUTH_TOKEN.trim();
+        const authHeader = Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64');
+        const form = new URLSearchParams();
+        form.append('To', `+91${suffix}`);
+        form.append('From', process.env.TWILIO_PHONE_NUMBER.trim());
+        form.append('Body', `Hi, ${code} is your AspireNext verification OTP. Please do not share it with anyone.`);
+        await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${authHeader}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: form.toString()
+        });
+      } catch (twilioErr) {
+        console.warn('send-otp: Twilio dispatch failed:', twilioErr);
+      }
+    }
+
     const emailHint = email.replace(/^(.).*(@.*)$/, (_, a, b) => `${a}****${b}`);
     return res.status(200).json({ token, emailHint });
   } catch (e) {

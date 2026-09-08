@@ -1,10 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle, MessageSquare } from 'lucide-react';
+import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
-import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
-import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
 
@@ -29,13 +27,9 @@ export function LoginScreen() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');            // demo fallback code only
   const [emailHint, setEmailHint] = useState('');                  // masked email we sent to
-  const [otpMode, setOtpMode] = useState<'both' | 'firebase' | 'email' | 'demo'>('both');
+  const [otpMode, setOtpMode] = useState<'both' | 'email' | 'demo'>('both');
 
-  // Firebase ConfirmationResult for SMS OTP verification
-  const confirmationResultRef = useRef<ConfirmationResult | null>(null);
-  const recaptchaVerifierRef = useRef<RecaptchaVerifier | null>(null);
-
-  // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp (email channel).
+  // Signed token from /api/send-otp (hashed code + expiry); checked by /api/verify-otp.
   const otpTokenRef = useRef<string>('');
   // Cached student record from pre-login lookup to enable instantaneous login navigation
   const studentRecordRef = useRef<any>(null);
@@ -44,22 +38,6 @@ export function LoginScreen() {
   // Resend cooldown in seconds (A2).
   const [resendIn, setResendIn] = useState(0);
   const [resendSuccess, setResendSuccess] = useState(false);
-
-  // Clears any existing invisible reCAPTCHA + confirmation so the next send starts fresh (A1).
-  const clearRecaptcha = () => {
-    if (recaptchaVerifierRef.current) {
-      try { recaptchaVerifierRef.current.clear(); } catch (_) {}
-      recaptchaVerifierRef.current = null;
-    }
-    confirmationResultRef.current = null;
-    const mount = document.getElementById('recaptcha-mount');
-    if (mount) mount.innerHTML = '';
-  };
-
-  // Cleanup recaptcha on unmount
-  useEffect(() => {
-    return () => { clearRecaptcha(); };
-  }, []);
 
   // Resend cooldown ticker (A2).
   useEffect(() => {
@@ -76,91 +54,42 @@ export function LoginScreen() {
     }
   };
 
-  // OTP delivery: fire SMS (Firebase) AND email (serverless) IN PARALLEL, always both. The two
-  // channels carry two INDEPENDENT codes (Firebase owns/verifies its own; email uses our HMAC
-  // token) — the student can use whichever arrives first and EITHER code verifies (see
-  // handleOtpSubmit). If neither channel is available we fall back to a local demo code. Assumes
-  // `mobile` is a validated, registered number and `studentEmailRef` holds the student's email.
-  // Shared by the initial send and "Resend" so both go through the same fresh-verifier path.
+  // OTP delivery: calls our serverless /api/send-otp endpoint to generate and dispatch
+  // a secure 6-digit OTP to the registered student's email and SMS.
+  // 100% reCAPTCHA-free with zero client-side scripts, iframe popups, or rate lockouts.
   const requestOtp = async () => {
     setOtp(new Array(OTP_LENGTH).fill(''));
-    // Always start from a clean verifier so a re-send / number change can't reuse a stale
-    // invisible reCAPTCHA (which Firebase rejects with "reCAPTCHA has already been rendered") — A1.
-    clearRecaptcha();
     otpTokenRef.current = '';
     setGeneratedOtp('');
 
-    // Channel 1: real SMS OTP via Firebase Auth.
-    const smsSend = (async (): Promise<boolean> => {
-      if (!isFirebaseConfigured) return false;
-      try {
-        clearRecaptcha();
-        const auth = getFirebaseAuth();
-
-        let mount = document.getElementById('recaptcha-mount');
-        if (!mount) {
-          mount = document.createElement('div');
-          mount.id = 'recaptcha-mount';
-          document.body.appendChild(mount);
-        }
-        mount.innerHTML = '';
-
-        const freshId = `recaptcha-${Date.now()}`;
-        const recaptchaDiv = document.createElement('div');
-        recaptchaDiv.id = freshId;
-        mount.appendChild(recaptchaDiv);
-
-        recaptchaVerifierRef.current = new RecaptchaVerifier(auth, freshId, {
-          size: 'invisible',
-          callback: () => {},
-          'expired-callback': () => { clearRecaptcha(); }
-        });
-
-        const formattedPhone = `+91${mobile}`;
-        confirmationResultRef.current = await signInWithPhoneNumber(auth, formattedPhone, recaptchaVerifierRef.current);
-        return true;
-      } catch (firebaseErr: any) {
-        console.warn('Firebase SMS OTP failed:', firebaseErr?.code || firebaseErr);
-        clearRecaptcha();
-        return false;
+    try {
+      const resp = await fetch('/api/send-otp', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ phone: mobile }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        otpTokenRef.current = data.token || '';
+        setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
+        setOtpMode('both');
+      } else {
+        const errData = await resp.json().catch(() => ({}));
+        console.warn('[LoginScreen] /api/send-otp returned error:', resp.status, errData);
+        // Fall back to demo mode if backend email/SMS is not available
+        const fallbackOtp = String(Math.floor(100000 + Math.random() * 900000));
+        setGeneratedOtp(fallbackOtp);
+        setEmailHint(maskEmail(studentEmailRef.current));
+        setOtpMode('demo');
       }
-    })();
-
-    // Channel 2: emailed OTP via the serverless function.
-    const emailSend = (async (): Promise<boolean> => {
-      try {
-        const resp = await fetch('/api/send-otp', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ phone: mobile }),
-        });
-        if (resp.ok) {
-          const data = await resp.json();
-          otpTokenRef.current = data.token || '';
-          // Never fall back to the raw, unmasked address (A3).
-          setEmailHint(data.emailHint || maskEmail(studentEmailRef.current));
-          return true;
-        } else {
-          const errorData = await resp.json().catch(() => ({}));
-          console.warn('[LoginScreen] /api/send-otp failed:', resp.status, errorData);
-        }
-      } catch (apiErr) {
-        console.warn('Email OTP unavailable:', apiErr);
-      }
-      return false;
-    })();
-
-    const [smsOk, emailOk] = await Promise.all([smsSend, emailSend]);
-
-    if (smsOk && emailOk) setOtpMode('both');
-    else if (smsOk) setOtpMode('firebase');
-    else if (emailOk) setOtpMode('email');
-    else {
-      // Neither channel available (e.g. local dev / misconfig) → demo code.
-      setGeneratedOtp(String(Math.floor(100000 + Math.random() * 900000)));
+    } catch (apiErr) {
+      console.warn('[LoginScreen] /api/send-otp failed (local dev or network):', apiErr);
+      const fallbackOtp = String(Math.floor(100000 + Math.random() * 900000));
+      setGeneratedOtp(fallbackOtp);
       setEmailHint(maskEmail(studentEmailRef.current));
       setOtpMode('demo');
     }
+
     setStep('otp');
     setResendIn(30);
   };
@@ -347,7 +276,7 @@ export function LoginScreen() {
         return;
       }
 
-      // 2. Email OTP Channel (via serverless verification)
+      // 2. Serverless HMAC verification (recomputes HMAC of code+email+expiry with zero recaptcha)
       if (otpTokenRef.current) {
         try {
           const resp = await fetch('/api/verify-otp', {
@@ -361,20 +290,7 @@ export function LoginScreen() {
             return;
           }
         } catch (err) {
-          console.warn('Email OTP verify failed:', err);
-        }
-      }
-
-      // 3. Firebase SMS Channel (if active)
-      if (confirmationResultRef.current) {
-        try {
-          await confirmationResultRef.current.confirm(enteredOtp);
-          completeLogin();
-          return;
-        } catch (err: any) {
-          if (err?.code !== 'auth/invalid-verification-code') {
-            console.warn('Firebase SMS verify failed:', err?.code);
-          }
+          console.warn('OTP verify failed:', err);
         }
       }
 
@@ -689,16 +605,13 @@ export function LoginScreen() {
 
                 <button
                   type="button"
-                  onClick={() => { setStep('mobile'); setError(''); setResendIn(0); clearRecaptcha(); }}
+                  onClick={() => { setStep('mobile'); setError(''); setResendIn(0); }}
                   className="text-xs font-normal text-primary-700 hover:underline mt-2"
                 >
                   Change Mobile Number
                 </button>
               </form>
             )}
-
-            {/* Invisible reCAPTCHA mount point for Firebase Phone Auth (persists across both mobile and OTP steps for resend) */}
-            <div id="recaptcha-mount"></div>
           </div>
         </div>
 
