@@ -133,7 +133,7 @@ export function LearningScreen() {
   const [visibleStages, setVisibleStages] = useState(STAGES_PAGE);
 
   useEffect(() => {
-    if (user?.unlockedLessonIds) {
+    if (Array.isArray(user?.unlockedLessonIds)) {
       setLocalUnlockedLessonIds(user.unlockedLessonIds);
     }
   }, [user?.unlockedLessonIds]);

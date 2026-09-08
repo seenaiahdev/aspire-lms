@@ -177,18 +177,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const realGpa = profile?.gpa ?? 0.00;
 
           let unlockedLessonIds: string[] = [];
-          if (student.batch) {
-            const { data: locks } = await supabase
-              .from('milestone_locks')
-              .select('lesson_id, is_locked, unlock_datetime')
-              .in('batch_code', [student.batch, 'ALL']);
-            
-            if (locks) {
-              const now = new Date();
-              unlockedLessonIds = locks
-                .filter((l: any) => !l.is_locked || (l.unlock_datetime && new Date(l.unlock_datetime) <= now))
-                .map((l: any) => l.lesson_id);
-            }
+          const batchList = student.batch ? [student.batch, 'ALL'] : ['ALL'];
+          const { data: locks } = await supabase
+            .from('milestone_locks')
+            .select('lesson_id, is_locked, unlock_datetime')
+            .in('batch_code', batchList);
+          
+          if (locks) {
+            const now = new Date();
+            unlockedLessonIds = locks
+              .filter((l: any) => !l.is_locked || (l.unlock_datetime && new Date(l.unlock_datetime) <= now))
+              .map((l: any) => l.lesson_id);
           }
 
           // Newly-unlocked lessons are detected in NotificationsContext (which watches
@@ -375,8 +374,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
         )
         .subscribe();
 
-      // 3. Milestone locks
-      const locksFilter = userRef.current?.batchCode ? `batch_code=in.(${userRef.current.batchCode},ALL)` : undefined;
+      // 3. Milestone locks (listen to all changes so admin lock/unlock triggers immediate refetch)
       const locksChannel = supabase
         .channel(`milestone_locks_rt_${ts}`)
         .on(
@@ -384,8 +382,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           {
             event: '*',
             schema: 'public',
-            table: 'milestone_locks',
-            ...(locksFilter ? { filter: locksFilter } : {})
+            table: 'milestone_locks'
           },
           () => {
             bumpProgress();

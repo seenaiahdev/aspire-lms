@@ -348,6 +348,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       'course_lessons', 'course_topics', 'assessments', 'quizzes',
       'projects', 'coding_questions', 'milestones_data', 'recordings',
       'assessment_attempts', 'quiz_attempts', 'practice_submissions', 'lesson_progress',
+      'milestone_locks',
     ].forEach(table =>
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump)
     );
