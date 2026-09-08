@@ -57,7 +57,7 @@ export function ProgressScreen() {
               </div>
             </div>
           </div>
-          <ProgressRing value={68} size={120} strokeWidth={10} color="stroke-white" trackColor="stroke-white/20" />
+          <ProgressRing value={currentUser.progress ?? 0} size={120} strokeWidth={10} color="stroke-white" trackColor="stroke-white/20" />
         </div>
       </div>
 

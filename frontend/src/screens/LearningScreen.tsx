@@ -15,6 +15,7 @@ import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 import { fetchCompletedLessons } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
+import { usePreload } from '@/lib/PreloadContext';
 
 import { learningSteps } from '@/lib/tourSteps';
 
@@ -119,6 +120,9 @@ export interface LearningItem {
 export function LearningScreen() {
   const { navigate, route } = useNav();
   const { user } = useUser();
+  // ── Background prefetch: if the preload is ready, skip cold DB fetches entirely ──
+  const preload = usePreload();
+
   const [localUnlockedLessonIds, setLocalUnlockedLessonIds] = useState<string[]>(user?.unlockedLessonIds || []);
   const [expandedStages, setExpandedStages] = useState<Record<string, boolean>>({});
 
@@ -141,13 +145,29 @@ export function LearningScreen() {
   const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<any | null>(null);
   const [expandedModule, setExpandedModule] = useState<number | null>(0);
   const [lockedToast, setLockedToast] = useState(false);
-  const [dbCourses, setDbCourses] = useState<any[]>([]);
-  const [coursesLoading, setCoursesLoading] = useState(true);
+  const [dbCourses, setDbCourses] = useState<any[]>(() => (preload.ready ? preload.courses : []));
+  const [coursesLoading, setCoursesLoading] = useState(() => !preload.ready);
 
-  const [dbSyllabi, setDbSyllabi] = useState<Record<string, any>>({});
-  const [syllabusLoading, setSyllabusLoading] = useState(true);
+  const [dbSyllabi, setDbSyllabi] = useState<Record<string, any>>(() => (preload.ready ? preload.syllabi : {}));
+  const [syllabusLoading, setSyllabusLoading] = useState(() => !preload.ready);
   // Bumped by the realtime channel to force a syllabus re-fetch when admin edits content.
   const [reloadKey, setReloadKey] = useState(0);
+
+  // ── Fast path: use preloaded data if ready (skips all Supabase fetches) ──────
+  useEffect(() => {
+    if (!preload.ready) return;
+    setDbCourses(preload.courses);
+    setDbSyllabi(preload.syllabi);
+    setCoursesLoading(false);
+    setSyllabusLoading(false);
+  }, [preload.ready, preload.courses, preload.syllabi]);
+
+  // When preload bumps reloadKey (realtime content change), sync it here too
+  useEffect(() => {
+    if (!preload.ready) return;
+    setDbCourses(preload.courses);
+    setDbSyllabi(preload.syllabi);
+  }, [preload.reloadKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const dbSyllabus = useMemo(() => {
     const firstCourseId = user.enrolledCourses?.[0];
@@ -155,9 +175,11 @@ export function LearningScreen() {
   }, [dbSyllabi, user.enrolledCourses]);
 
 
-
   useEffect(() => {
     async function loadSyllabi() {
+      // Fast path: preload already built the syllabus — no need to fetch again.
+      if (preload.ready) return;
+
       if (!user.enrolledCourses || user.enrolledCourses.length === 0) {
         setDbSyllabi({});
         setSyllabusLoading(false);
@@ -444,6 +466,9 @@ export function LearningScreen() {
 
   useEffect(() => {
     async function loadEnrolledCourses() {
+      // Fast path: preload already fetched courses — no need to fetch again.
+      if (preload.ready) return;
+
       if (!user.enrolledCourses || user.enrolledCourses.length === 0) {
         setDbCourses([]);
         setCoursesLoading(false);

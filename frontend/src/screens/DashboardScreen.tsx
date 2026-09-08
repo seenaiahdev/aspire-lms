@@ -11,6 +11,7 @@ import { fetchLiveSessions, fetchDailySchedules, fetchCoursesByIds, isWeekdayBat
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
+import { usePreload } from '@/lib/PreloadContext';
 
 // Struct for Daily 2-3 Python Topics
 interface PythonTopic {
@@ -29,6 +30,7 @@ interface PythonTopic {
 export function DashboardScreen() {
   const { user: currentUser } = useUser();
   const { navigate } = useNav();
+  const preload = usePreload();
 
   // Determine whether current user belongs to a weekday batch (e.g. A26W)
   const isWeekdayBatch = useMemo(() => {
@@ -36,9 +38,15 @@ export function DashboardScreen() {
   }, [currentUser]);
 
   // Fetch actual enrolled course objects from DB (identical query to My Learning)
+  // Fast path: use preloaded courses if available to avoid a redundant DB call.
   const [dbEnrolledCourses, setDbEnrolledCourses] = useState<any[]>([]);
 
   useEffect(() => {
+    // If the global prefetch already has courses, use them immediately.
+    if (preload.ready && preload.courses.length > 0) {
+      setDbEnrolledCourses(preload.courses);
+      return;
+    }
     let isMounted = true;
     async function loadEnrolled() {
       if (!currentUser.enrolledCourses || currentUser.enrolledCourses.length === 0) {
@@ -56,7 +64,7 @@ export function DashboardScreen() {
     }
     loadEnrolled();
     return () => { isMounted = false; };
-  }, [currentUser.enrolledCourses]);
+  }, [currentUser.enrolledCourses, preload.ready, preload.courses]);
 
   // Track enrolled courses and completed courses strictly matching My Learning
   const { completedCoursesCount, totalCoursesCount } = useMemo(() => {

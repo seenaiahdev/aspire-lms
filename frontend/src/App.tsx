@@ -3,6 +3,7 @@ import { NavProvider, useNav } from '@/lib/nav';
 import { TourProvider } from '@/lib/TourContext';
 import { UserProvider } from '@/lib/UserContext';
 import { NotificationsProvider } from '@/lib/NotificationsContext';
+import { PreloadProvider } from '@/lib/PreloadContext';
 import { AppShell } from '@/components/layout/AppShell';
 
 // Auth screens stay eager — they are the entry point and must render instantly.
@@ -159,11 +160,13 @@ function App() {
   return (
     <NavProvider>
       <UserProvider>
-        <NotificationsProvider>
-          <TourProvider>
-            <Router />
-          </TourProvider>
-        </NotificationsProvider>
+        <PreloadProvider>
+          <NotificationsProvider>
+            <TourProvider>
+              <Router />
+            </TourProvider>
+          </NotificationsProvider>
+        </PreloadProvider>
       </UserProvider>
     </NavProvider>
   );
