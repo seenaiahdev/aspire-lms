@@ -5,7 +5,7 @@ import {
   Download, Share2, Heart, Award, ChevronUp, ChevronDown, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { fetchResources, fetchCourseReviews } from '@/lib/api';
+import { fetchResources } from '@/lib/api';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -118,7 +118,6 @@ export function CourseScreen() {
   const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
 
   const [courseResources, setCourseResources] = useState<any[]>([]);
-  const [courseReviewsList, setCourseReviewsList] = useState<any[]>([]);
   const [allCourses, setAllCourses] = useState<any[]>([]);
 
   useEffect(() => {
@@ -128,16 +127,6 @@ export function CourseScreen() {
     }
     if (courseIdToFetch) {
       loadResources();
-    }
-  }, [courseIdToFetch]);
-
-  useEffect(() => {
-    async function loadReviews() {
-      const dbReviews = await fetchCourseReviews(courseIdToFetch);
-      setCourseReviewsList(dbReviews && dbReviews.length > 0 ? dbReviews : []);
-    }
-    if (courseIdToFetch) {
-      loadReviews();
     }
   }, [courseIdToFetch]);
 
@@ -329,7 +318,7 @@ export function CourseScreen() {
         bio: bio
       },
       rating: dbCourse.id === 'crs-1786624019154-w' ? (dbCourse.rating || 5.0) : (dbCourse.rating || 0),
-      reviews: dbCourse.id === 'crs-1786624019154-w' ? (courseReviewsList.length || 60) : courseReviewsList.length,
+      reviews: dbCourse.reviews_count || 0,
       students: dbCourse.enrolled_count !== undefined && dbCourse.enrolled_count !== null ? dbCourse.enrolled_count : 0,
       duration: durationStr,
       lessons: lessonsCount,
@@ -343,7 +332,7 @@ export function CourseScreen() {
       subtitle: dbCourse.description || '',
       tags: dbCourse.tags || ['Python Programming', 'Advanced OOP', 'Flask/Django', 'DSA & Algorithms', 'AI Integration']
     };
-  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, courseReviewsList, allCourses, params.id]);
+  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, allCourses, params.id]);
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
@@ -369,14 +358,6 @@ export function CourseScreen() {
     localStorage.setItem(`aspire_comments_${course.id}`, JSON.stringify(updated));
     setCommentText('');
   };
-
-  const ratingPercentages = useMemo(() => {
-    const r = course.rating || 5.0;
-    if (r >= 4.8) return { 5: '85%', 4: '10%', 3: '5%', 2: '0%', 1: '0%' };
-    if (r >= 4.5) return { 5: '70%', 4: '20%', 3: '8%', 2: '2%', 1: '0%' };
-    if (r >= 4.0) return { 5: '50%', 4: '35%', 3: '10%', 2: '4%', 1: '1%' };
-    return { 5: '30%', 4: '30%', 3: '20%', 2: '10%', 1: '10%' };
-  }, [course.rating]);
 
   if (loading && !dbCourse) {
     return (
@@ -421,12 +402,6 @@ export function CourseScreen() {
           </p>
 
           <div className="flex flex-wrap items-center gap-6 text-xs sm:text-sm font-semibold text-purple-100 pt-2 border-t border-white/20">
-            {/* Hiding reviews rating temporarily
-            <span className="flex items-center gap-1.5 font-bold">
-              <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
-              <span>{course.rating} ({course.reviews} reviews)</span>
-            </span>
-            */}
             <span className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />
               <span>{course.students >= 1000 ? `${(course.students / 1000).toFixed(1)}k` : course.students} students</span>
@@ -449,7 +424,6 @@ export function CourseScreen() {
           { id: 'modules', label: 'Modules' },
           { id: 'overview', label: 'Overview' },
           { id: 'resources', label: 'Resources' },
-          // { id: 'reviews', label: 'Reviews' },
         ].map((t) => (
           <button
             key={t.id}
@@ -557,54 +531,6 @@ export function CourseScreen() {
                       </div>
                     ))
                   )}
-                </div>
-              </CardBody>
-            </Card>
-          )}
-
-          {tab === 'reviews' && (
-            <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden">
-              <CardBody className="p-6 sm:p-8">
-                <div className="flex items-center gap-8 mb-6 pb-6 border-b border-slate-100">
-                  <div className="text-center">
-                    <p className="text-5xl font-black text-slate-900">{(course.rating || 5.0).toFixed(1)}</p>
-                    <div className="flex gap-1 justify-center my-2">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <Star key={i} className={cn("w-4 h-4", i < Math.floor(course.rating || 5.0) ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
-                      ))}
-                    </div>
-                    <p className="text-xs font-bold text-slate-400">{course.reviews} reviews</p>
-                  </div>
-                  <div className="flex-1 space-y-1.5">
-                    {[5,4,3,2,1].map((star) => {
-                      const widthVal = ratingPercentages[star as keyof typeof ratingPercentages] || '0%';
-                      return (
-                        <div key={star} className="flex items-center gap-3">
-                          <span className="text-xs font-bold text-slate-500 w-3">{star}</span>
-                          <div className="flex-1 h-2 rounded-full bg-slate-100 overflow-hidden">
-                            <div className="h-full rounded-full bg-gradient-to-r from-purple-400 to-[#7c3aed]" style={{ width: widthVal }} />
-                          </div>
-                          <span className="text-xs font-bold text-slate-400 w-8 text-right">{widthVal}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div className="space-y-4">
-                  {courseReviewsList.map((rev) => (
-                    <div key={rev.id} className="p-4 rounded-2xl bg-slate-50 border border-slate-100 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <p className="text-sm font-bold text-slate-800">{rev.author}</p>
-                        <span className="text-xs text-slate-400 font-semibold">{rev.date}</span>
-                      </div>
-                      <div className="flex gap-0.5 items-center">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star key={i} className={cn("w-3.5 h-3.5", i < Math.floor(rev.rating) ? "text-amber-400 fill-amber-400" : "text-slate-200")} />
-                        ))}
-                      </div>
-                      <p className="text-xs text-slate-600 font-medium leading-relaxed">{rev.comment}</p>
-                    </div>
-                  ))}
                 </div>
               </CardBody>
             </Card>
