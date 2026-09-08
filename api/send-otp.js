@@ -116,68 +116,120 @@ module.exports = async (req, res) => {
       auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
     });
 
-    const displayName = (student.name || 'there').toString();
+    const displayName = (student.name && student.name.trim()) ? student.name.trim() : 'Student';
     const year = new Date().getFullYear();
 
     const html = `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f5fb;margin:0;padding:32px 12px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
-  <tr>
-    <td align="center">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #ececf3;">
-        <tr>
-          <td style="background:#5b21b6;background:linear-gradient(135deg,#6d28d9 0%,#4c1d95 100%);padding:26px 32px;">
-            <span style="color:#ffffff;font-size:22px;font-weight:800;letter-spacing:-0.3px;">Aspire<span style="color:#c4b5fd;">Next</span></span>
-          </td>
-        </tr>
-        <tr>
-          <td style="padding:36px 32px 4px;">
-            <p style="margin:0 0 6px;font-size:15px;color:#111827;font-weight:600;">Hi ${displayName},</p>
-            <p style="margin:0 0 24px;font-size:14px;line-height:22px;color:#4b5563;">Use the verification code below to sign in to your AspireNext account. This code is valid for <strong>5 minutes</strong>.</p>
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
-              <tr>
-                <td align="center" style="padding:4px 0 24px;">
-                  <div style="display:inline-block;background:#f5f3ff;border:1px solid #ddd6fe;border-radius:12px;padding:18px 34px;">
-                    <span style="font-size:34px;font-weight:800;letter-spacing:10px;color:#5b21b6;">${code}</span>
-                  </div>
-                </td>
-              </tr>
-            </table>
-            <p style="margin:0 0 26px;font-size:13px;line-height:20px;color:#6b7280;">If you didn't request this code, you can safely ignore this email — no changes will be made to your account.</p>
-          </td>
-        </tr>
-        <tr><td style="padding:0 32px;"><div style="border-top:1px solid #eef0f5;"></div></td></tr>
-        <tr>
-          <td style="padding:18px 32px 30px;">
-            <p style="margin:0;font-size:12px;line-height:18px;color:#9ca3af;">For your security, never share this code with anyone. AspireNext staff will never ask you for it.</p>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#fafafe;padding:18px 32px;border-top:1px solid #eef0f5;">
-            <p style="margin:0;font-size:12px;color:#9ca3af;">© ${year} AspireNext · Learn. Practice. Achieve.</p>
-            <p style="margin:6px 0 0;font-size:11px;color:#b6bcc9;">This is an automated message — please do not reply.</p>
-          </td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>`;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AspireNext Authentication Code</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f1f5f9;margin:0;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background-color:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #cbd5e1;box-shadow:0 1px 3px rgba(0,0,0,0.06);">
+          
+          <!-- Corporate Header -->
+          <tr>
+            <td style="background-color:#0f172a;padding:24px 36px;border-bottom:3px solid #2563eb;">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <span style="color:#ffffff;font-size:20px;font-weight:700;letter-spacing:-0.4px;">Aspire<span style="color:#60a5fa;">Next</span></span>
+                  </td>
+                  <td align="right">
+                    <span style="color:#94a3b8;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:1px;">Identity Services</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-    const text = `AspireNext — Sign in
+          <!-- Main Content -->
+          <tr>
+            <td style="padding:36px 36px 20px;">
+              <p style="margin:0 0 16px;font-size:15px;font-weight:600;color:#0f172a;">Dear ${displayName},</p>
+              
+              <p style="margin:0 0 20px;font-size:14px;line-height:22px;color:#334155;">
+                We received a request to authenticate your session for the AspireNext Student Portal. Please use the One-Time Passcode (OTP) below to complete your sign-in:
+              </p>
 
-Hi ${displayName},
+              <!-- OTP Code Box -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:28px 0;">
+                <tr>
+                  <td align="center">
+                    <div style="background-color:#f8fafc;border:1px solid #cbd5e1;border-radius:6px;padding:22px 32px;display:inline-block;min-width:240px;text-align:center;">
+                      <div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;">Verification Passcode</div>
+                      <div style="font-family:Consolas,'SF Mono',Menlo,Monaco,'Courier New',monospace;font-size:34px;font-weight:700;letter-spacing:10px;color:#0f172a;padding-left:10px;">${code}</div>
+                      <div style="font-size:12px;color:#64748b;margin-top:8px;">Valid for 5 minutes</div>
+                    </div>
+                  </td>
+                </tr>
+              </table>
 
-Your verification code is: ${code}
-This code is valid for 5 minutes.
+              <!-- Formal Security Notice -->
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f8fafc;border-left:3px solid #64748b;border-radius:0 4px 4px 0;margin:24px 0;">
+                <tr>
+                  <td style="padding:14px 18px;">
+                    <p style="margin:0;font-size:12.5px;line-height:19px;color:#475569;">
+                      <strong>Security Advisory:</strong> Do not disclose this code to anyone. AspireNext administrative and technical personnel will never request your passcode. If you did not initiate this authentication request, please disregard this communication or contact your platform administrator immediately.
+                    </p>
+                  </td>
+                </tr>
+              </table>
 
-If you didn't request this, you can ignore this email.
-For your security, never share this code with anyone.
+              <p style="margin:24px 0 4px;font-size:14px;color:#334155;">Sincerely,</p>
+              <p style="margin:0;font-size:14px;font-weight:600;color:#0f172a;">AspireNext Security & Identity Services</p>
+            </td>
+          </tr>
 
-© ${year} AspireNext`;
+          <!-- Corporate Footer -->
+          <tr>
+            <td style="background-color:#f8fafc;padding:22px 36px;border-top:1px solid #e2e8f0;">
+              <p style="margin:0 0 4px;font-size:11.5px;line-height:17px;color:#94a3b8;">
+                This is an automated system notification from AspireNext Learning Systems. Please do not reply directly to this transmission.
+              </p>
+              <p style="margin:0;font-size:11.5px;line-height:17px;color:#94a3b8;">
+                &copy; ${year} AspireNext Technologies. All rights reserved.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+    const text = `AspireNext Authentication Notification
+
+Dear ${displayName},
+
+We received a request to authenticate your session for the AspireNext Student Portal. Please use the following One-Time Passcode (OTP) to complete your sign-in:
+
+VERIFICATION PASSCODE: ${code}
+(This code is valid for 5 minutes)
+
+Security Advisory:
+- Do not disclose this code to anyone. AspireNext personnel will never request your passcode.
+- If you did not initiate this request, someone may be attempting to access your account. Please disregard this email or notify your platform administrator immediately.
+
+Sincerely,
+AspireNext Security & Identity Services
+
+---
+This is an automated system notification. Please do not reply directly to this email.
+© ${year} AspireNext Technologies. All rights reserved.`;
 
     await transporter.sendMail({
-      from: `AspireNext <${GMAIL_USER}>`,
+      from: `AspireNext Security <${GMAIL_USER}>`,
       to: email,
-      subject: `${code} is your AspireNext verification code`,
+      subject: `AspireNext Authentication Code: ${code}`,
       text,
       html,
     });
