@@ -241,17 +241,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const category = user?.batchCategory || '';
     const courses = user?.enrolledCourses || [];
 
-    const channels: any[] = [];
-    const sub = (name: string, table: string, handler: (payload: any) => void, filter?: string) => {
-      const ch = supabase
-        .channel(name)
-        .on('postgres_changes', { event: '*', schema: 'public', table, ...(filter ? { filter } : {}) }, handler)
-        .subscribe();
-      channels.push(ch);
-    };
+    const channel = supabase.channel(`notifs_multiplexed_${Date.now()}`);
 
     // Live sessions (client-filtered by batch + published)
-    sub('notif_live_sessions', 'live_sessions', (payload) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, (payload) => {
       const row = payload.new || {};
       if (payload.eventType === 'DELETE') return;
       const pub = norm(row.publish_status);
@@ -270,8 +263,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New assessments (INSERT) for the student's batch or course
-    sub('notif_assessments', 'assessments', (payload) => {
-      if (payload.eventType !== 'INSERT') return;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessments' }, (payload) => {
       const row = payload.new || {};
       if (!(targetsBatch(row.target_batch, batch) || courses.includes(row.course_id))) return;
       addNotification(
@@ -283,8 +275,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New projects (INSERT)
-    sub('notif_projects', 'projects', (payload) => {
-      if (payload.eventType !== 'INSERT') return;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' }, (payload) => {
       const row = payload.new || {};
       if (!(targetsBatch(row.target_batch, batch) || courses.includes(row.course_id))) return;
       addNotification(
@@ -296,8 +287,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // Badges (INSERT) targeted to batch / all
-    sub('notif_badges', 'badges', (payload) => {
-      if (payload.eventType !== 'INSERT') return;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'badges' }, (payload) => {
       const row = payload.new || {};
       if (!targetsBatch(row.target_batch, batch)) return;
       addNotification(
@@ -309,7 +299,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // Rewards: new reward, or a reward becoming unlocked
-    sub('notif_rewards', 'rewards', (payload) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, (payload) => {
       const row = payload.new || {};
       if (payload.eventType === 'DELETE') return;
       if (payload.eventType === 'UPDATE' && row.is_locked !== false) return;
@@ -323,7 +313,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New course released to this student's batch (INSERT, or UPDATE that publishes it)
-    sub('notif_courses', 'courses', (payload) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
       if (payload.eventType === 'DELETE') return;
       const row = payload.new || {};
       const pub = norm(row.publish_status);
@@ -338,8 +328,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New quizzes (INSERT) for the student's batch or course
-    sub('notif_quizzes', 'quizzes', (payload) => {
-      if (payload.eventType !== 'INSERT') return;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quizzes' }, (payload) => {
       const row = payload.new || {};
       if (!(targetsBatch(row.target_batch, batch) || courses.includes(row.course_id))) return;
       addNotification(
@@ -351,8 +340,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New placement resources (INSERT, published)
-    sub('notif_placement_resources', 'placement_resources', (payload) => {
-      if (payload.eventType !== 'INSERT') return;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'placement_resources' }, (payload) => {
       const row = payload.new || {};
       const pub = norm(row.publish_status);
       if (pub && !pub.includes('publish')) return;
@@ -365,8 +353,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New jobs (INSERT) targeted to the student's batch
-    sub('notif_jobs', 'jobs', (payload) => {
-      if (payload.eventType !== 'INSERT') return;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, (payload) => {
       const row = payload.new || {};
       if (!targetsBatch(row.target_batch, batch)) return;
       addNotification(
@@ -378,8 +365,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // Certificate issued for this student (INSERT)
-    sub('notif_certificates', 'certificates', (payload) => {
-      if (payload.eventType !== 'INSERT') return;
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'certificates', filter: `student_id=eq.${sid}` }, (payload) => {
       const row = payload.new || {};
       if (row.student_id !== sid) return;
       addNotification(
@@ -388,10 +374,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
       );
-    }, `student_id=eq.${sid}`);
+    });
 
     // Admin notifications inserted directly into the notifications table for this student
-    sub('notif_admin', 'notifications', (payload) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `student_id=eq.${sid}` }, (payload) => {
       if (payload.eventType === 'DELETE') return;
       const row = payload.new || {};
       if (row.student_id !== sid) return;
@@ -401,10 +387,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           read: !!row.read, created_at: row.created_at || new Date().toISOString() },
         { showToast: true, persistDb: false }
       );
-    }, `student_id=eq.${sid}`);
+    });
 
     // Students table realtime: catches XP, streak, and profile updates directly
-    sub('notif_students_xp', 'students', (payload) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
       const row = payload.new || {};
       const cleanRowPhone = row.mobile_number ? row.mobile_number.replace(/\D/g, '').slice(-10) : '';
       const cleanUserPhone = userRef.current?.mobile ? userRef.current.mobile.replace(/\D/g, '').slice(-10) : '';
@@ -414,14 +400,16 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // Student profiles table realtime: catches direct XP, streak, and attendance updates
-    sub('notif_student_profiles_xp', 'student_profiles', (payload) => {
+    channel.on('postgres_changes', { event: '*', schema: 'public', table: 'student_profiles' }, (payload) => {
       const row = payload.new || {};
       if (row.student_id === sid || row.id === sid) {
         refetchUser?.();
       }
     });
 
-    return () => { channels.forEach((c) => supabase.removeChannel(c)); };
+    channel.subscribe();
+
+    return () => { supabase.removeChannel(channel); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(',')]);
 

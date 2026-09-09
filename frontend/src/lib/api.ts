@@ -583,6 +583,9 @@ export async function submitQuizAttempt(
       }
     }
 
+    invalidateCache(`student_qa:${userId}`);
+    invalidateCache(`student_profile:${userId}`);
+
     return savedRow;
   } catch (err) {
     console.error('submitQuizAttempt failed:', err);
@@ -1040,29 +1043,37 @@ export async function fetchRecordingById(sessionId: string) {
   }
 }
 
-export async function fetchRecordings(batchCode: string) {
+export async function fetchRecordings(batchCode?: string, batchCategory?: string) {
   try {
-    // Try recordings table first
-    const { data: recData, error: recError } = await supabase
-      .from('recordings')
-      .select('*')
-      .eq('batch_code', batchCode)
-      .order('created_at', { ascending: false });
+    const isWeekend = batchCategory === 'Weekend' || (batchCode && (batchCode.toLowerCase().includes('s') || batchCode.toLowerCase().includes('weekend')));
+    const targetBatchStr = isWeekend ? 'Weekend Batch' : 'Weekday Batch';
+    const b = batchCode || '';
+
+    // 1. Try recordings table using target_batch (the real column in DB)
+    let recQuery = supabase.from('recordings').select('*');
+    if (b) {
+      recQuery = recQuery.or(`target_batch.ilike.%${b}%,target_batch.ilike.%all batches%,target_batch.ilike.%${targetBatchStr}%`);
+    }
+    const { data: recData, error: recError } = await recQuery.order('created_at', { ascending: false });
 
     if (!recError && recData && recData.length > 0) {
       return recData;
     }
 
-    // Fallback: completed live_sessions
-    const { data, error } = await supabase
+    // 2. Fallback: completed live_sessions
+    let liveQuery = supabase
       .from('live_sessions')
       .select('*')
-      .eq('batch_code', batchCode)
-      .eq('status', 'completed')
-      .order('date', { ascending: false });
+      .eq('status', 'completed');
+
+    if (b) {
+      liveQuery = liveQuery.or(liveSessionBatchFilter(b));
+    }
+
+    const { data, error } = await liveQuery.order('date', { ascending: false });
 
     if (error) {
-      console.warn('Error fetching recordings:', error.message);
+      console.warn('Error fetching recordings from live_sessions:', error.message);
       return [];
     }
     return data || [];
@@ -1076,6 +1087,24 @@ export async function fetchRecordings(batchCode: string) {
 // ════════════════════════════════════════════════════════════════
 
 export async function incrementUserXP(userId: string, amount: number) {
+  if (!userId || userId === 'guest' || !amount || amount <= 0) return;
+
+  // 1. Preferred: Atomic database increment via SECURITY DEFINER RPC
+  // Prevents concurrency race conditions / lost updates
+  try {
+    const { data: newXp, error: rpcError } = await supabase.rpc('increment_student_xp', {
+      p_student_id: userId,
+      p_amount: amount,
+    });
+    if (!rpcError) {
+      invalidateCache(`student_profile:${userId}`);
+      return;
+    }
+  } catch {
+    // Fall back to read-modify-write if migration has not been applied yet
+  }
+
+  // 2. Fallback: Read-modify-write
   const { data: profile, error: fetchError } = await supabase
     .from('student_profiles')
     .select('xp')
@@ -1098,6 +1127,7 @@ export async function incrementUserXP(userId: string, amount: number) {
   if (updateError) {
     console.error('Error updating student profile XP:', updateError);
   }
+  invalidateCache(`student_profile:${userId}`);
 }
 
 /**
@@ -1182,20 +1212,32 @@ export async function recalculateUserStreak(
       isWeekday = true;
     }
 
+    // Bound historical data query to 90 days to prevent unbounded egress and memory bloat
+    const cutoffDate = new Date(Date.now() - 90 * 86400000).toISOString();
+
     const { data: practiceData, error: practiceError } = await supabase
       .from('practice_submissions')
       .select('submitted_at')
-      .eq('student_id', userId);
+      .eq('student_id', userId)
+      .gte('submitted_at', cutoffDate)
+      .order('submitted_at', { ascending: false })
+      .limit(100);
 
     const { data: assessmentData, error: assessmentError } = await supabase
       .from('assessment_attempts')
       .select('submitted_at')
-      .eq('student_id', userId);
+      .eq('student_id', userId)
+      .gte('submitted_at', cutoffDate)
+      .order('submitted_at', { ascending: false })
+      .limit(100);
 
     const { data: quizData, error: quizError } = await supabase
       .from('quiz_attempts')
       .select('attempted_at')
-      .eq('user_id', userId);
+      .eq('user_id', userId)
+      .gte('attempted_at', cutoffDate)
+      .order('attempted_at', { ascending: false })
+      .limit(100);
 
     if (practiceError) console.error('Error fetching practice submissions for streak:', practiceError);
     if (assessmentError) console.error('Error fetching assessment attempts for streak:', assessmentError);
@@ -1312,6 +1354,7 @@ export async function markLessonComplete(userId: string, lessonId: string, cours
       },
       { onConflict: 'id' }
     );
+    invalidateCache(`student_lp:${userId}`);
   } catch (e) {
     console.warn('markLessonComplete skipped:', e);
   }
@@ -1338,11 +1381,11 @@ export async function fetchCompletedLessons(userId: string): Promise<Set<string>
 export async function computeCourseProgress(userId: string, courseId: string): Promise<number> {
   try {
     const [lRes, aRes, qRes, cRes, pRes] = await Promise.all([
-      supabase.from('course_lessons').select('id').eq('course_id', courseId),
-      supabase.from('assessments').select('id').eq('course_id', courseId),
-      supabase.from('quizzes').select('id').eq('course_id', courseId),
-      supabase.from('coding_questions').select('id').eq('course_id', courseId),
-      supabase.from('projects').select('id').eq('course_id', courseId),
+      cachedQuery(`course_items_lessons:${courseId}`, () => supabase.from('course_lessons').select('id').eq('course_id', courseId), 60000),
+      cachedQuery(`course_items_assess:${courseId}`, () => supabase.from('assessments').select('id').eq('course_id', courseId), 60000),
+      cachedQuery(`course_items_quizzes:${courseId}`, () => supabase.from('quizzes').select('id').eq('course_id', courseId), 60000),
+      cachedQuery(`course_items_coding:${courseId}`, () => supabase.from('coding_questions').select('id').eq('course_id', courseId), 60000),
+      cachedQuery(`course_items_projects:${courseId}`, () => supabase.from('projects').select('id').eq('course_id', courseId), 60000),
     ]);
     const lessonIds = new Set((lRes.data || []).map((r: any) => String(r.id || '').trim()));
     const assessIds = new Set((aRes.data || []).map((r: any) => String(r.id || '').trim()));
@@ -1354,11 +1397,12 @@ export async function computeCourseProgress(userId: string, courseId: string): P
     const total = lessonIds.size + assessIds.size + quizIds.size + practiceIds.size;
     if (total === 0) return 0;
 
+    // Student coursework attempt caches (15s TTL; shared across all enrolled courses evaluated in parallel)
     const [lp, aa, qa, ps] = await Promise.all([
-      supabase.from('lesson_progress').select('lesson_id, completed').eq('student_id', userId),
-      supabase.from('assessment_attempts').select('assignment_id, score, status').eq('student_id', userId),
-      supabase.from('quiz_attempts').select('quiz_id, score, status').eq('user_id', userId),
-      supabase.from('practice_submissions').select('problem_id').eq('student_id', userId),
+      cachedQuery(`student_lp:${userId}`, () => supabase.from('lesson_progress').select('lesson_id, completed').eq('student_id', userId), 15000),
+      cachedQuery(`student_aa:${userId}`, () => supabase.from('assessment_attempts').select('assignment_id, score, status').eq('student_id', userId), 15000),
+      cachedQuery(`student_qa:${userId}`, () => supabase.from('quiz_attempts').select('quiz_id, score, status').eq('user_id', userId), 15000),
+      cachedQuery(`student_ps:${userId}`, () => supabase.from('practice_submissions').select('problem_id').eq('student_id', userId), 15000),
     ]);
 
     // Academic integrity: only coursework PASSED (score >= 70% or status 'passed' / 'Passed') counts towards course progress.
@@ -1478,6 +1522,9 @@ export async function submitPracticeProblem(
   } catch (xpErr) {
     console.warn('Failed to increment XP / recalculate streak after solving problem:', xpErr);
   }
+
+  invalidateCache(`student_ps:${userId}`);
+  invalidateCache(`student_profile:${userId}`);
 
   return data;
 }

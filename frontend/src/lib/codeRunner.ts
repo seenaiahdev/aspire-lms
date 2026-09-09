@@ -254,29 +254,124 @@ export async function executeCodeFile(
   }
 
   // 2. JAVASCRIPT / TYPESCRIPT EXECUTION
+  // Sandboxed in a Web Worker with strict 5-second execution timeout to prevent UI thread freezes,
+  // infinite loops (TC-106), and isolate DOM/storage credentials from student scripts.
+  if (typeof window !== 'undefined' && typeof Worker !== 'undefined') {
+    return new Promise((resolve) => {
+      const parsedArgs = parseCustomInput(customInput);
+      const fnName = findEntrypointFunctionName(code, 'javascript');
+      const sanitizedCode = code
+        .replace(/export\s+default\s+/g, '')
+        .replace(/export\s+/g, '');
+
+      const workerCode = `
+        self.onmessage = function(e) {
+          const { code, args, fnName } = e.data;
+          const stdout = [];
+          const customConsole = {
+            log: (...a) => stdout.push(a.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(' ')),
+            warn: (...a) => stdout.push('[WARN] ' + a.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(' ')),
+            error: (...a) => stdout.push('[ERROR] ' + a.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(' ')),
+            info: (...a) => stdout.push(a.map(x => typeof x === 'object' ? JSON.stringify(x) : String(x)).join(' ')),
+          };
+          try {
+            let script = code + (fnName ? '\\nif (typeof ' + fnName + ' === "function") { return ' + fnName + '(...__args__); }' : '');
+            const runner = new Function('console', '__args__', script);
+            const result = runner(customConsole, args);
+            self.postMessage({ success: true, result, stdout });
+          } catch(err) {
+            self.postMessage({ success: false, error: err?.message || String(err), stdout });
+          }
+        };
+      `;
+
+      let blobUrl = '';
+      let worker: Worker | null = null;
+      let timer: any = null;
+
+      const cleanup = () => {
+        if (timer) clearTimeout(timer);
+        if (worker) worker.terminate();
+        if (blobUrl) URL.revokeObjectURL(blobUrl);
+      };
+
+      try {
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        blobUrl = URL.createObjectURL(blob);
+        worker = new Worker(blobUrl);
+
+        timer = setTimeout(() => {
+          cleanup();
+          const duration = Math.round(performance.now() - startTime);
+          resolve({
+            success: false,
+            status: 'error',
+            output: '',
+            stdout: ['[TIMEOUT] Execution exceeded maximum 5-second limit.'],
+            error: 'Time Limit Exceeded (5000ms limit reached). Check your code for infinite loops.',
+            executionTimeMs: duration,
+          });
+        }, 5000);
+
+        worker.onmessage = (e) => {
+          cleanup();
+          const duration = Math.round(performance.now() - startTime);
+          const { success, result, error, stdout: workerStdout } = e.data;
+          const outputStr = result !== undefined
+            ? (typeof result === 'object' ? JSON.stringify(result) : String(result))
+            : '(No return value)';
+
+          resolve({
+            success,
+            status: success ? 'passed' : 'error',
+            output: success ? outputStr : '',
+            stdout: workerStdout || [],
+            error,
+            executionTimeMs: duration,
+          });
+        };
+
+        worker.onerror = (err) => {
+          cleanup();
+          const duration = Math.round(performance.now() - startTime);
+          resolve({
+            success: false,
+            status: 'error',
+            output: '',
+            stdout,
+            error: err.message || 'Worker execution error',
+            executionTimeMs: duration,
+          });
+        };
+
+        worker.postMessage({ code: sanitizedCode, args: parsedArgs, fnName });
+      } catch {
+        cleanup();
+        // Fallback to in-thread execution if Web Worker creation is blocked
+        runInThreadFallback(code, customInput, startTime, resolve);
+      }
+    });
+  }
+
+  // Node.js or environment without Worker support
+  return new Promise((resolve) => {
+    runInThreadFallback(code, customInput, startTime, resolve);
+  });
+}
+
+function runInThreadFallback(code: string, customInput: string, startTime: number, resolve: (res: ExecutionResult) => void) {
+  const stdout: string[] = [];
   try {
     const customConsole = {
-      log: (...args: any[]) => {
-        stdout.push(args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
-      },
-      warn: (...args: any[]) => {
-        stdout.push('[WARN] ' + args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
-      },
-      error: (...args: any[]) => {
-        stdout.push('[ERROR] ' + args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
-      },
-      info: (...args: any[]) => {
-        stdout.push(args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' '));
-      },
+      log: (...args: any[]) => { stdout.push(args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
+      warn: (...args: any[]) => { stdout.push('[WARN] ' + args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
+      error: (...args: any[]) => { stdout.push('[ERROR] ' + args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
+      info: (...args: any[]) => { stdout.push(args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
     };
 
     const parsedArgs = parseCustomInput(customInput);
     const fnName = findEntrypointFunctionName(code, 'javascript');
-
-    // Strip export keywords for in-browser evaluation
-    const sanitizedCode = code
-      .replace(/export\s+default\s+/g, '')
-      .replace(/export\s+/g, '');
+    const sanitizedCode = code.replace(/export\s+default\s+/g, '').replace(/export\s+/g, '');
 
     let executionScript = `
       const console = __customConsole__;
@@ -295,27 +390,26 @@ export async function executeCodeFile(
     const runner = new Function('__customConsole__', '__args__', executionScript);
     const result = runner(customConsole, parsedArgs);
     const duration = Math.round(performance.now() - startTime);
-
     const outputStr = result !== undefined
       ? (typeof result === 'object' ? JSON.stringify(result) : String(result))
       : '(No return value)';
 
-    return {
+    resolve({
       success: true,
       status: 'passed',
       output: outputStr,
       stdout,
       executionTimeMs: duration,
-    };
+    });
   } catch (jsErr: any) {
     const duration = Math.round(performance.now() - startTime);
-    return {
+    resolve({
       success: false,
       status: 'error',
       output: '',
       stdout,
       error: jsErr?.message || String(jsErr),
       executionTimeMs: duration,
-    };
+    });
   }
 }

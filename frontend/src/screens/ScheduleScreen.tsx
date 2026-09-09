@@ -175,22 +175,29 @@ export function ScheduleScreen() {
         const lastDay = new Date(year, monthNum + 1, 0).getDate();
         const endOfMonth = `${year}-${String(monthNum + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
+        const b = user?.batchCode || '';
+        const batchFilter = b
+          ? `batch_code.eq.${b},target_batch.ilike.%${b}%,target_batch.ilike.%all batches%`
+          : 'target_batch.ilike.%all batches%';
+
         const { data, error } = await supabase
-          .from('daily_schedules')
+          .from('live_sessions')
           .select('*')
-          .eq('batch_code', user.batchCode)
+          .or(batchFilter)
           .gte('date', startOfMonth)
-          .lte('date', endOfMonth);
+          .lte('date', endOfMonth)
+          .order('date', { ascending: true })
+          .order('time', { ascending: true });
 
         if (data) {
           const formatted = data.map((row: any) => ({
             id: row.id,
-            title: row.title || row.topic,
+            title: row.session_title || row.title || row.program_name || 'Class Session',
             type: 'class',
             date: row.date,
             dateKey: row.date,
             time: row.time,
-            course: row.subtopic,
+            course: row.technology || row.program_name || 'Live Class',
             completed: row.status === 'completed'
           }));
           setApiTasks(formatted);

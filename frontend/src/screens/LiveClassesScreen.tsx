@@ -18,7 +18,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
-import { fetchAllLiveSessions, fetchCoursesByIds } from '@/lib/api';
+import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings } from '@/lib/api';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { supabase } from '@/lib/supabase';
 
@@ -148,8 +148,38 @@ export function LiveClassesScreen() {
     async function loadSessions() {
       setSessionsLoading(true);
       try {
-        const data = await fetchAllLiveSessions(batchCode);
-        setDbSessions(data);
+        const [liveData, recData] = await Promise.all([
+          fetchAllLiveSessions(batchCode),
+          fetchRecordings(batchCode, user.batchCategory)
+        ]);
+
+        const normalizedRecordings = (recData || []).map((r: any) => ({
+          id: r.id,
+          session_title: r.title || r.concept_name,
+          technology: r.technology || '',
+          date: r.posted_date || (r.created_at ? r.created_at.slice(0, 10) : ''),
+          time: '10:00 AM - 11:30 AM',
+          meeting_link: r.video_url,
+          status: 'completed',
+          instructor: r.instructor || 'Lead Instructor',
+          description: r.description || r.instructions,
+          instructions: r.instructions,
+          target_batch: r.target_batch,
+          batch_code: batchCode,
+          duration: r.duration || '1h 30m',
+          video_url: r.video_url,
+          thumbnail_url: r.thumbnail
+        }));
+
+        const existingIds = new Set((liveData || []).map((s: any) => s.id));
+        const combined = [...(liveData || [])];
+        for (const r of normalizedRecordings) {
+          if (!existingIds.has(r.id)) {
+            combined.push(r);
+          }
+        }
+
+        setDbSessions(combined);
       } catch (err) {
         console.error("Failed to load live sessions:", err);
       } finally {
@@ -157,7 +187,7 @@ export function LiveClassesScreen() {
       }
     }
     loadSessions();
-  }, [batchCode]);
+  }, [batchCode, user.batchCategory]);
 
   const mappedSessions = useMemo(() => {
     const parseStartTime = (timeStr: string) => {
@@ -307,7 +337,8 @@ export function LiveClassesScreen() {
       console.error('Error finding matching course lesson for recording:', err);
     }
 
-    navigate('lesson', { id: defaultCourseId });
+    // Fallback: If no direct lesson in curriculum matches, navigate to the dedicated recording player!
+    navigate('recording', { id: cls.id });
   };
 
   const filtered = useMemo(() => {

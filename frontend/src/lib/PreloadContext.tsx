@@ -146,7 +146,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds),
           supabase.from('quiz_attempts').select('quiz_id, score, status').in('user_id', userLookupIds),
           supabase.from('practice_submissions').select('problem_id').in('student_id', userLookupIds),
-          supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status'),
+          supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status').order('created_at', { ascending: false }).limit(60),
           fetchCompletedLessons(sid),
         ]);
 

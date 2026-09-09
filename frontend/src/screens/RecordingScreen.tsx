@@ -11,6 +11,23 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
 
+function toEmbedVideoUrl(raw?: string): string {
+  const u = String(raw || '').trim();
+  if (!u) return '';
+  const gd = u.match(/drive\.google\.com\/file\/d\/([A-Za-z0-9_-]+)/);
+  if (gd) return `https://drive.google.com/file/d/${gd[1]}/preview`;
+  const yt = u.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}`;
+  return u;
+}
+
+function isDirectMediaUrl(raw?: string): boolean {
+  const u = String(raw || '').trim();
+  if (!u) return false;
+  if (/drive\.google\.com|youtube\.com|youtu\.be|vimeo\.com/.test(u)) return false;
+  return /\.(mp4|webm|ogg|ogv|mov|m4v)(\?|#|$)/i.test(u) || /supabase\.co\/storage\//.test(u);
+}
+
 export function RecordingScreen() {
   const { user: currentUser } = useUser();
   const { navigate, params } = useNav();
@@ -170,105 +187,49 @@ export function RecordingScreen() {
               </div>
             )}
             
-            {/* Ambient Background & Image */}
-            <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-[#0e122b] to-[#1c1236]" />
-            <img 
-              src={recording.thumbnail} 
-              alt={recording.title} 
-              loading="lazy"
-              className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity group-hover:scale-105 transition-transform duration-700" 
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-[#090b14] via-[#090b14]/20 to-[#090b14]/70" />
-
-            {/* Top Video Overlay Bar */}
-            <div className="absolute top-0 left-0 right-0 p-5 flex items-start justify-between z-30 bg-gradient-to-b from-[#090b14]/90 via-[#090b14]/40 to-transparent">
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 rounded-lg bg-slate-900/90 text-white text-[10px] font-black tracking-widest border border-slate-700/80 shadow-md uppercase backdrop-blur-md">
-                  4K ULTRA HD · RECORDED
-                </span>
-                <span className="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-200 text-[10px] font-extrabold border border-purple-500/30 backdrop-blur-md">
-                  90 MIN LECTURE
-                </span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button 
-                  onClick={() => setIsBookmarked(!isBookmarked)}
-                  className="w-9 h-9 rounded-xl bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 flex items-center justify-center text-white transition-all shadow-md active:scale-95"
-                >
-                  <Bookmark className={cn("w-4 h-4", isBookmarked ? "fill-purple-400 text-purple-400" : "")} />
-                </button>
-                <button className="w-9 h-9 rounded-xl bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/80 flex items-center justify-center text-white transition-all shadow-md active:scale-95">
-                  <Settings className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            {/* Center Circular Play Button Overlay */}
-            <div className="absolute inset-0 flex items-center justify-center z-20">
-              <button
-                onClick={() => setPlaying(!playing)}
-                className="w-20 h-20 rounded-full bg-white/15 backdrop-blur-md flex items-center justify-center group/play hover:bg-white/25 transition-all shadow-2xl border border-white/20 active:scale-95 cursor-pointer"
-              >
-                <div className="w-14 h-14 rounded-full bg-white text-slate-950 flex items-center justify-center shadow-2xl group-hover/play:scale-110 transition-transform">
-                  {playing ? <Pause className="w-6 h-6 fill-slate-950 text-slate-950" /> : <Play className="w-6 h-6 fill-slate-950 text-slate-950 ml-0.5" />}
+            {/* Real Video Player: Direct Media or Embed Iframe */}
+            {recording.video_url ? (
+              isDirectMediaUrl(recording.video_url) ? (
+                <video
+                  key={recording.video_url}
+                  src={recording.video_url}
+                  poster={recording.thumbnail}
+                  controls
+                  controlsList="nodownload"
+                  className="absolute inset-0 w-full h-full z-10 bg-black object-contain"
+                />
+              ) : (
+                <div className="absolute inset-0 w-full h-full z-10 overflow-hidden bg-black">
+                  <iframe
+                    key={recording.video_url}
+                    src={toEmbedVideoUrl(recording.video_url)}
+                    title={recording.title || 'Recorded Class'}
+                    className="absolute -top-[56px] left-0 w-full h-[calc(100%+56px)] border-0"
+                    allow="autoplay; encrypted-media; fullscreen"
+                    allowFullScreen
+                  />
+                  <div className="absolute top-0 right-0 w-28 h-16 z-20 pointer-events-auto" />
                 </div>
-              </button>
-            </div>
-
-            {/* Bottom Scrubber & Controls Dock Bar */}
-            <div className="absolute bottom-0 left-0 right-0 p-5 z-30 bg-gradient-to-t from-[#090b14] via-[#090b14]/90 to-transparent space-y-3">
-              
-              {/* Timeline Scrubber Bar with Timestamps at Both Ends */}
-              <div className="flex items-center gap-3">
-                <span className="text-xs text-white/90 font-mono font-extrabold shrink-0">24:18</span>
-                
-                {/* White Progress Bar with Seeker Handle Dot */}
-                <div className="flex-1 h-1.5 rounded-full bg-white/20 overflow-hidden cursor-pointer group/bar relative">
-                  <div className="h-full rounded-full bg-gradient-to-r from-purple-400 to-[#7c3aed] relative" style={{ width: '28%' }}>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-lg border-2 border-slate-950 cursor-pointer scale-110" />
+              )
+            ) : (
+              <>
+                {/* Ambient Background & Thumbnail */}
+                <div className="absolute inset-0 bg-gradient-to-br from-slate-950 via-[#0e122b] to-[#1c1236]" />
+                <img 
+                  src={recording.thumbnail} 
+                  alt={recording.title} 
+                  loading="lazy"
+                  className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity" 
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[#090b14] via-[#090b14]/20 to-[#090b14]/70" />
+                <div className="absolute inset-0 flex items-center justify-center z-20">
+                  <div className="px-5 py-2.5 rounded-2xl bg-slate-900/60 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-2.5">
+                    <Clock className="w-4 h-4 text-purple-300" />
+                    <span className="text-white font-extrabold text-sm tracking-wide">Recording Processing</span>
                   </div>
                 </div>
-
-                <span className="text-xs text-white/70 font-mono font-bold shrink-0">{recording.duration}</span>
-              </div>
-
-              {/* Controls Dock Bar */}
-              <div className="flex items-center justify-between pt-1">
-                <div className="flex items-center gap-3.5">
-                  <button className="text-white/80 hover:text-white transition-colors p-1" title="Rewind 10s">
-                    <SkipBack className="w-4 h-4 fill-white/80" />
-                  </button>
-
-                  <button 
-                    onClick={() => setPlaying(!playing)} 
-                    className="w-9 h-9 rounded-full bg-white text-slate-950 flex items-center justify-center shadow-lg hover:scale-105 active:scale-95 transition-all cursor-pointer"
-                  >
-                    {playing ? <Pause className="w-4 h-4 fill-slate-950 text-slate-950" /> : <Play className="w-4 h-4 fill-slate-950 text-slate-950 ml-0.5" />}
-                  </button>
-
-                  <button className="text-white/80 hover:text-white transition-colors p-1" title="Forward 10s">
-                    <SkipForward className="w-4 h-4 fill-white/80" />
-                  </button>
-
-                  <div className="flex items-center gap-2 pl-2 border-l border-white/10">
-                    <button className="text-white/80 hover:text-white transition-colors p-1">
-                      <Volume2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <span className="text-[10px] font-black text-purple-200 bg-purple-500/20 px-2.5 py-0.5 rounded-md border border-purple-500/30">
-                    1.0x
-                  </span>
-                  <button className="text-white/80 hover:text-white transition-colors p-1">
-                    <Maximize2 className="w-4 h-4" />
-                  </button>
-                </div>
-              </div>
-
-            </div>
+              </>
+            )}
           </div>
 
           {/* Masterclass Summary Header Info */}
