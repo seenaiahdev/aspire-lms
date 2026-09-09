@@ -374,15 +374,15 @@ export function QuizzesScreen() {
           {loading ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
               <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto mb-4" />
-              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Quizzes...</h3>
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Weekly Assessments...</h3>
             </div>
           ) : pendingQuizzes.length === 0 ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
                 <CheckCircle2 className="w-8 h-8 text-slate-400" />
               </div>
-              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No quizzes available yet</h3>
-              <p className="text-sm font-medium text-slate-500">Check back later for new quizzes.</p>
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No weekly assessments available yet</h3>
+              <p className="text-sm font-medium text-slate-500">Check back later for new weekly assessments.</p>
             </div>
           ) : quizView === 'list' ? (
             /* ── COMPACT LIST ("RECTANGLE") VIEW ── */
@@ -400,7 +400,7 @@ export function QuizzesScreen() {
                     <div className="min-w-0 flex-1">
                       <h3 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-indigo-700 transition-colors line-clamp-1">{q.title}</h3>
                       <div className="flex items-center gap-3 mt-0.5 text-[11px] font-semibold text-slate-500 flex-wrap">
-                        <span>{q.course || 'Weekly Quiz'}</span>
+                        <span>{q.course || 'Weekly Assessment'}</span>
                         <span className="flex items-center gap-1"><Compass className="w-3 h-3" />{q.questions} Qs</span>
                         <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{q.duration}</span>
                       </div>
@@ -434,9 +434,9 @@ export function QuizzesScreen() {
                         <div>
                           <h3 className="font-extrabold text-slate-900 text-[17px] leading-snug mb-1 transition-colors group-hover:text-indigo-700">{q.title}</h3>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-500">{q.course || 'Weekly Quiz'}</span>
+                            <span className="text-xs font-bold text-slate-500">{q.course || 'Weekly Assessment'}</span>
                             <span className="w-1 h-1 rounded-full bg-slate-300" />
-                            <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Quiz</span>
+                            <span className="text-[10px] uppercase tracking-wider font-black text-indigo-500 bg-indigo-50 px-2 py-0.5 rounded-md">Weekly Assessment</span>
                           </div>
                         </div>
                       </div>
@@ -455,7 +455,7 @@ export function QuizzesScreen() {
                     className="w-full py-3.5 px-4 rounded-2xl font-black text-[13px] flex items-center justify-center gap-2 transition-all border cursor-pointer bg-indigo-50 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 hover:shadow-md hover:shadow-indigo-500/20"
                   >
                     <Play className="w-4 h-4 fill-current" />
-                    <span>Start Quiz</span>
+                    <span>Start Assessment</span>
                   </button>
                 </Card>
               ))}
@@ -474,8 +474,8 @@ export function QuizzesScreen() {
           {completedQuizzes.length === 0 ? (
             <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
               <Award className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="font-extrabold text-slate-800 text-base">No Completed Quizzes</h3>
-              <p className="text-xs text-slate-500 mt-1">You haven't completed any quizzes yet.</p>
+              <h3 className="font-extrabold text-slate-800 text-base">No Completed Assessments</h3>
+              <p className="text-xs text-slate-500 mt-1">You haven't completed any weekly assessments yet.</p>
             </Card>
           ) : quizView === 'list' ? (
             /* ── COMPACT LIST ("RECTANGLE") VIEW ── */
@@ -528,7 +528,7 @@ export function QuizzesScreen() {
                           </div>
                           <div>
                             <h3 className="font-extrabold text-slate-900 text-[15px] leading-tight mb-0.5">{quiz.title}</h3>
-                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completed Quiz</p>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Completed Assessment</p>
                           </div>
                         </div>
                         <span className="px-2.5 py-1 rounded-full text-[10px] font-black tracking-wide border bg-amber-50 text-amber-700 border-amber-100">
@@ -568,7 +568,7 @@ export function QuizzesScreen() {
         <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm p-12 bg-white text-center">
           <TrendingUp className="w-12 h-12 text-slate-300 mx-auto mb-3" />
           <h3 className="font-extrabold text-slate-800 text-base">Analytics Not Available</h3>
-          <p className="text-xs text-slate-500 mt-1">Complete quizzes to unlock performance analytics.</p>
+          <p className="text-xs text-slate-500 mt-1">Complete weekly assessments to unlock performance analytics.</p>
         </Card>
       )}
 

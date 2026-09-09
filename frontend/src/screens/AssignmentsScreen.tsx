@@ -1131,11 +1131,11 @@ export function AssignmentsScreen() {
             Practice Hub
           </h2>
           <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-            Topic-based practice assessments, tests, and module quizzes.
+            Topic-based daily assessments and weekly module assessments.
           </p>
         </div>
 
-        {/* 2 MAIN TABS: ASSESSMENTS | QUIZZES (ALIGNED LEFT AT START) */}
+        {/* 2 MAIN TABS: DAILY ASSESSMENT | WEEKLY ASSESSMENT (ALIGNED LEFT AT START) */}
         <div id="tour-assignments-tabs" className="flex items-center gap-1.5 bg-slate-100/90 p-1.5 rounded-2xl border border-slate-200/80 w-fit">
           <button
             type="button"
@@ -1151,7 +1151,7 @@ export function AssignmentsScreen() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Assessments
+            Daily Assessment
           </button>
           <button
             type="button"
@@ -1167,7 +1167,7 @@ export function AssignmentsScreen() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Quizzes
+            Weekly Assessment
           </button>
         </div>
       </div>
@@ -1183,7 +1183,7 @@ export function AssignmentsScreen() {
               {[
                 { id: 'pending', label: 'Pending' },
                 { id: 'completed', label: 'Completed' },
-                { id: 'all', label: 'All Assessments' },
+                { id: 'all', label: 'All Daily Assessments' },
               ].map((t) => (
                 <button
                   key={t.id}
@@ -1217,15 +1217,15 @@ export function AssignmentsScreen() {
           {loading ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
               <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
-              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Assessments...</h3>
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Daily Assessments...</h3>
             </div>
           ) : filteredTasks.length === 0 ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">
                 <CheckCircle2 className="w-8 h-8 text-slate-400" />
               </div>
-              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No assignments available yet</h3>
-              <p className="text-sm font-medium text-slate-500">You don't have any {filterTab} assessments at the moment.</p>
+              <h3 className="font-extrabold text-slate-900 text-lg mb-1">No daily assessments available yet</h3>
+              <p className="text-sm font-medium text-slate-500">You don't have any {filterTab} daily assessments at the moment.</p>
             </div>
           ) : assessView === 'list' ? (
             /* ── COMPACT LIST ("RECTANGLE") VIEW ── */
@@ -1283,7 +1283,7 @@ export function AssignmentsScreen() {
                         "px-2.5 py-1 rounded-xl text-xs font-black border",
                         isLocked ? "bg-slate-100 text-slate-500 border-slate-200" : "bg-primary-50 text-primary-700 border-primary-100"
                       )}>
-                        MCQ ASSESSMENT
+                        DAILY ASSESSMENT
                       </span>
 
                       <span className="text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">

@@ -911,7 +911,7 @@ export function LearningScreen() {
                                               if (isModLocked) return;
                                               navigate('quizzes');
                                             }}
-                                            title="Go to Quizzes tab"
+                                            title="Go to Weekly Assessments tab"
                                             className={cn(
                                               "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
                                               isModLocked 
@@ -920,7 +920,7 @@ export function LearningScreen() {
                                             )}
                                           >
                                             <HelpCircle className="w-3.5 h-3.5 shrink-0 text-[#7c3aed]" />
-                                            <span>{quizzes} Quiz</span>
+                                            <span>{quizzes} Weekly Assessment{quizzes > 1 ? 's' : ''}</span>
                                           </button>
                                         )}
                                         {assessments > 0 && (
@@ -931,7 +931,7 @@ export function LearningScreen() {
                                               if (isModLocked) return;
                                               navigate('assignments');
                                             }}
-                                            title="Go to Assessments tab"
+                                            title="Go to Daily Assessments tab"
                                             className={cn(
                                               "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
                                               isModLocked 
@@ -940,7 +940,7 @@ export function LearningScreen() {
                                             )}
                                           >
                                             <ClipboardCheck className="w-3.5 h-3.5 shrink-0 text-indigo-600" />
-                                            <span>{assessments} Assessment{assessments > 1 ? 's' : ''}</span>
+                                            <span>{assessments} Daily Assessment{assessments > 1 ? 's' : ''}</span>
                                           </button>
                                         )}
                                         {projects > 0 && (
