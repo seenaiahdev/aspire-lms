@@ -35,15 +35,19 @@ export function NavProvider({ children }: { children: ReactNode }) {
 
   // Navigate function with URL Hash & localStorage route sync
   const navigate = useCallback((r: Route, p: Record<string, string> = {}) => {
-    setRoute(r);
+    let targetRoute = r;
+    if (targetRoute === 'quizzes') targetRoute = 'weekly-assessment';
+    if (targetRoute === 'assignments') targetRoute = 'daily-assessment';
+
+    setRoute(targetRoute);
     setParams(p);
     setSidebarOpen(false);
     setNotificationsOpen(false);
-    if (r !== 'splash') {
-      localStorage.setItem('aspire_active_route', r);
+    if (targetRoute !== 'splash') {
+      localStorage.setItem('aspire_active_route', targetRoute);
       const searchParams = new URLSearchParams(p);
       const query = searchParams.toString();
-      const newPath = `/${r}${query ? `?${query}` : ''}`;
+      const newPath = `/${targetRoute}${query ? `?${query}` : ''}`;
       window.history.pushState({}, '', newPath);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -73,10 +77,20 @@ export function NavProvider({ children }: { children: ReactNode }) {
       // Skip splash for logged-in users — go directly to the page they were on
       const locationPath = window.location.pathname.replace(/^\//, '') || 'dashboard';
       const [baseRoute] = locationPath.split('/');
-      const base = (baseRoute || 'dashboard') as Route;
+      let base = (baseRoute || 'dashboard') as Route;
       const searchParams = new URLSearchParams(window.location.search);
       const newParams: Record<string, string> = {};
       searchParams.forEach((value, key) => { newParams[key] = value; });
+
+      if (base === 'quizzes') {
+        base = 'weekly-assessment';
+        const q = searchParams.toString();
+        window.history.replaceState({}, '', `/weekly-assessment${q ? `?${q}` : ''}`);
+      } else if (base === 'assignments') {
+        base = 'daily-assessment';
+        const q = searchParams.toString();
+        window.history.replaceState({}, '', `/daily-assessment${q ? `?${q}` : ''}`);
+      }
 
       if (AUTH_ROUTES.includes(base)) {
         // Was on a login/auth page while logged in → go to dashboard
@@ -94,7 +108,9 @@ export function NavProvider({ children }: { children: ReactNode }) {
     const handlePopState = () => {
       const locationPath = window.location.pathname.replace(/^\//, '') || 'dashboard';
       const [baseRoute] = locationPath.split('/');
-      const base = (baseRoute || 'dashboard') as Route;
+      let base = (baseRoute || 'dashboard') as Route;
+      if (base === 'quizzes') base = 'weekly-assessment';
+      if (base === 'assignments') base = 'daily-assessment';
       const isLoggedIn = localStorage.getItem('aspire_logged_in') === 'true';
       if (!isLoggedIn && !AUTH_ROUTES.includes(base)) {
         navigate('login');

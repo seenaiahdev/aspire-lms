@@ -909,7 +909,7 @@ export function LearningScreen() {
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               if (isModLocked) return;
-                                              navigate('quizzes');
+                                              navigate('weekly-assessment');
                                             }}
                                             title="Go to Weekly Assessments tab"
                                             className={cn(
@@ -929,7 +929,7 @@ export function LearningScreen() {
                                             onClick={(e) => {
                                               e.stopPropagation();
                                               if (isModLocked) return;
-                                              navigate('assignments');
+                                              navigate('daily-assessment');
                                             }}
                                             title="Go to Daily Assessments tab"
                                             className={cn(
@@ -1450,7 +1450,7 @@ export function LearningScreen() {
                                  onClick={() => {
                                    if (assessment.failed) return;
                                    setSelectedTopicDrawer(null);
-                                   navigate('assignments', assessment.id ? { id: assessment.id } : undefined);
+                                   navigate('daily-assessment', assessment.id ? { id: assessment.id } : undefined);
                                  }}
                                  className={`p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 ${
                                    assessment.failed
@@ -1464,7 +1464,7 @@ export function LearningScreen() {
                                    </div>
                                    <div>
                                      <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-primary-600 bg-primary-50 border-primary-100">
-                                       ASSESSMENT
+                                       DAILY ASSESSMENT
                                      </span>
                                      <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900 group-hover/item:text-primary-700 transition-colors">{assessment.title}</h4>
                                      <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
@@ -1499,7 +1499,7 @@ export function LearningScreen() {
                                   onClick={() => {
                                     if (quiz.failed) return;
                                     setSelectedTopicDrawer(null);
-                                    navigate('quizzes', quiz.id ? { id: quiz.id } : undefined);
+                                    navigate('weekly-assessment', quiz.id ? { id: quiz.id } : undefined);
                                   }}
                                   className={`p-3 rounded-xl bg-white border border-slate-200 shadow-sm transition-all flex items-center justify-between gap-3 ${
                                     quiz.failed
@@ -1513,7 +1513,7 @@ export function LearningScreen() {
                                     </div>
                                     <div>
                                       <span className="text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded border text-indigo-600 bg-indigo-50 border-indigo-100">
-                                        QUIZ
+                                        WEEKLY ASSESSMENT
                                       </span>
                                       <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900 group-hover/item:text-indigo-700 transition-colors">{quiz.title}</h4>
                                       <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">

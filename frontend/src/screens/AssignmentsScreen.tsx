@@ -218,14 +218,14 @@ export function AssignmentsScreen() {
   }, [user?.id, loadData]);
 
   const [mainPracticeTab, setMainPracticeTab] = useState<'assessments' | 'quizzes'>(() => {
-    if (route === 'quizzes' || params?.tab === 'quizzes') return 'quizzes';
+    if (route === 'quizzes' || route === 'weekly-assessment' || params?.tab === 'quizzes' || params?.tab === 'weekly-assessment') return 'quizzes';
     return 'assessments';
   });
 
   useEffect(() => {
-    if (route === 'quizzes' || params?.tab === 'quizzes') {
+    if (route === 'quizzes' || route === 'weekly-assessment' || params?.tab === 'quizzes' || params?.tab === 'weekly-assessment') {
       setMainPracticeTab('quizzes');
-    } else if (route === 'assignments' && (!params?.tab || params?.tab === 'assessments')) {
+    } else if ((route === 'assignments' || route === 'daily-assessment') && (!params?.tab || params?.tab === 'assessments' || params?.tab === 'daily-assessment')) {
       setMainPracticeTab('assessments');
     }
   }, [route, params?.tab]);
@@ -284,13 +284,13 @@ export function AssignmentsScreen() {
   });
   const setAssessViewMode = (m: 'card' | 'list') => { setAssessView(m); localStorage.setItem('aspire_assess_view', m); };
 
-  // Open Task Overview with Dynamic URL Routing (e.g. /assignments/variables-in-python-quiz)
+  // Open Task Overview with Dynamic URL Routing (e.g. /daily-assessment/variables-in-python-quiz)
   const openDetailTaskWithRoute = (task: PythonTask) => {
     setSelectedDetailTask(task);
-    window.history.pushState({}, '', `/assignments/${task.slug}`);
+    window.history.pushState({}, '', `/daily-assessment/${task.slug}`);
   };
 
-  // Open Active Practice Screen (e.g. /assignments/variables-in-python-quiz/practice)
+  // Open Active Practice Screen (e.g. /daily-assessment/variables-in-python-quiz/practice)
   const openTaskWithRoute = (task: PythonTask) => {
     setActiveTask(task);
     setCurrentMCQIndex(0);
@@ -301,7 +301,7 @@ export function AssignmentsScreen() {
       setUserCode(task.codingProblem.starterCode);
     }
     setCodeTested(false);
-    window.history.pushState({}, '', `/assignments/${task.slug}/practice`);
+    window.history.pushState({}, '', `/daily-assessment/${task.slug}/practice`);
   };
 
   const openReviewForAttempt = (task: PythonTask, attempt: PythonTaskAttempt) => {
@@ -332,7 +332,7 @@ export function AssignmentsScreen() {
       setUserCode(task.codingProblem.starterCode);
     }
     setCodeTested(false);
-    window.history.pushState({}, '', `/assignments/${task.slug}/practice/review/${attempt.id}`);
+    window.history.pushState({}, '', `/daily-assessment/${task.slug}/practice/review/${attempt.id}`);
   };
 
   const closeReviewToDetail = () => {
@@ -340,9 +340,9 @@ export function AssignmentsScreen() {
     setQuizStatus('taking');
     setSelectedAttemptReview(null);
     if (selectedDetailTask) {
-      window.history.pushState({}, '', `/assignments/${selectedDetailTask.slug}${showAttemptsOnLeft ? '/attempts' : ''}`);
+      window.history.pushState({}, '', `/daily-assessment/${selectedDetailTask.slug}${showAttemptsOnLeft ? '/attempts' : ''}`);
     } else {
-      window.history.pushState({}, '', '/assignments');
+      window.history.pushState({}, '', '/daily-assessment');
     }
   };
 
@@ -350,7 +350,7 @@ export function AssignmentsScreen() {
     setActiveTask(null);
     setSelectedDetailTask(null);
     setConfirmQuizAction(null);
-    window.history.pushState({}, '', '/assignments');
+    window.history.pushState({}, '', '/daily-assessment');
   };
 
   const openQuizConfirm = (action: 'submit' | 'exit') => {
@@ -372,7 +372,7 @@ export function AssignmentsScreen() {
       const rawPath = window.location.hash.startsWith('#/')
         ? window.location.hash.replace(/^#/, '')
         : window.location.pathname;
-      const path = rawPath.replace('/assignments/', '').replace(/^\//, '');
+      const path = rawPath.replace('/daily-assessment/', '').replace('/assignments/', '').replace(/^\//, '');
       if (!path) return;
 
       const parts = path.split('/');
@@ -1055,7 +1055,7 @@ export function AssignmentsScreen() {
                     const next = !showAttemptsOnLeft;
                     setShowAttemptsOnLeft(next);
                     if (selectedDetailTask) {
-                      window.history.pushState({}, '', `/assignments/${selectedDetailTask.slug}${next ? '/attempts' : ''}`);
+                      window.history.pushState({}, '', `/daily-assessment/${selectedDetailTask.slug}${next ? '/attempts' : ''}`);
                     }
                   }}
                   className={`w-full text-left flex items-center justify-between p-4 rounded-2xl transition-all ${showAttemptsOnLeft ? 'bg-primary-50 border border-primary-200 shadow-sm' : 'bg-slate-50 border border-slate-100 hover:shadow-sm'}`}
@@ -1141,8 +1141,8 @@ export function AssignmentsScreen() {
             type="button"
             onClick={() => {
               setMainPracticeTab('assessments');
-              if (route !== 'assignments') {
-                navigate('assignments');
+              if (route !== 'daily-assessment') {
+                navigate('daily-assessment');
               }
             }}
             className={`py-2 px-5 rounded-xl text-xs font-black transition-all cursor-pointer ${
@@ -1157,8 +1157,8 @@ export function AssignmentsScreen() {
             type="button"
             onClick={() => {
               setMainPracticeTab('quizzes');
-              if (route !== 'quizzes') {
-                navigate('quizzes');
+              if (route !== 'weekly-assessment') {
+                navigate('weekly-assessment');
               }
             }}
             className={`py-2 px-5 rounded-xl text-xs font-black transition-all cursor-pointer ${

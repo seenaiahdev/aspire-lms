@@ -635,7 +635,7 @@ export function QuizzesScreen() {
 
                   <div className="space-y-7 pt-8 border-t border-slate-100">
                     <h3 className="font-extrabold text-slate-900 text-xs uppercase tracking-wider">
-                      Quiz Guidelines
+                      Assessment Guidelines
                     </h3>
                     
                     <div className="flex gap-4 items-start">
@@ -666,7 +666,7 @@ export function QuizzesScreen() {
 
                 {/* RIGHT SIDE - Stats & Action */}
                 <div className="w-full lg:w-[380px] bg-slate-50/50 p-8 sm:p-12 border-t lg:border-t-0 lg:border-l border-slate-100 flex flex-col justify-center shrink-0">
-                  <h3 className="text-lg font-extrabold text-slate-900 mb-8">Quiz Details</h3>
+                  <h3 className="text-lg font-extrabold text-slate-900 mb-8">Weekly Assessment Details</h3>
                   
                   <div className="space-y-6 mb-10">
                     <div className="flex items-center justify-between pb-6 border-b border-slate-100">
@@ -699,7 +699,7 @@ export function QuizzesScreen() {
                       onClick={handleStartExam}
                       className="w-full group py-3.5 rounded-xl bg-[#101537] hover:bg-slate-900 text-white font-bold text-sm shadow-lg shadow-slate-900/10 active:scale-95 transition-all flex items-center justify-center gap-2 border border-slate-800"
                     >
-                      <span>Start Quiz</span>
+                      <span>Start Assessment</span>
                       <ChevronRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </button>
                   ) : (
@@ -708,7 +708,7 @@ export function QuizzesScreen() {
                       className="w-full py-3.5 rounded-xl bg-slate-100 text-slate-400 font-bold text-sm border border-slate-200 cursor-not-allowed flex items-center justify-center gap-2"
                     >
                       <Lock className="w-4 h-4" />
-                      <span>Quiz not available yet</span>
+                      <span>Assessment not available yet</span>
                     </button>
                   )}
                 </div>

@@ -81,8 +81,7 @@ export function Sidebar() {
             const Icon = getIcon(item.icon);
             const active = route === item.id 
               || (item.id === 'learning' && (route === 'course' || route === 'lesson'))
-              || (item.id === 'live' && (route === 'recordings' || route === 'recording' || route === 'classroom'))
-              || (item.id === 'assignments' && route === 'quizzes')
+              || ((item.id === 'assignments' || item.id === 'daily-assessment') && (route === 'assignments' || route === 'quizzes' || route === 'daily-assessment' || route === 'weekly-assessment'))
               || (item.id === 'practice' && route === 'workspace');
             return (
               <button

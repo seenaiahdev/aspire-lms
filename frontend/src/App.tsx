@@ -131,10 +131,12 @@ function Router() {
           case 'recordings': return <LiveClassesScreen />;
           case 'classroom': return <LiveClassroomScreen />;
           case 'recording': return <RecordingScreen />;
-          case 'assignments': return <AssignmentsScreen />;
+          case 'assignments':
+          case 'daily-assessment': return <AssignmentsScreen />;
           case 'practice': return <PracticeScreen />;
           case 'workspace': return <WorkspaceScreen />;
-          case 'quizzes': return <AssignmentsScreen />;
+          case 'quizzes':
+          case 'weekly-assessment': return <AssignmentsScreen />;
           case 'projects': return <ProjectsScreen />;
           case 'resources': return <ResourcesScreen />;
           case 'community': return <CommunityScreen />;

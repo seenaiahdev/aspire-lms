@@ -303,10 +303,10 @@ export function ScheduleScreen() {
         navigate('live');
         break;
       case 'assignment':
-        navigate('assignments');
+        navigate('daily-assessment');
         break;
       case 'exam':
-        navigate('quizzes');
+        navigate('weekly-assessment');
         break;
       case 'project':
         navigate('projects');
