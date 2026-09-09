@@ -821,21 +821,9 @@ export function DashboardScreen() {
                 </h3>
               </div>
 
-              {isWeekdayBatch && selectedDateObject.getDay() === 0 ? (
+              {isWeekdayBatch && selectedDateObject.getDay() === 0 && (
                 <span className="bg-amber-50 text-amber-700 font-extrabold px-3 py-1 rounded-full text-xs border border-amber-200">
                   Holiday
-                </span>
-              ) : currentLiveClasses.length > 0 ? (
-                <span className="bg-rose-50 text-rose-600 font-extrabold px-3 py-1 rounded-full text-xs border border-rose-100 flex items-center gap-1.5 shadow-2xs">
-                  <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
-                  </span>
-                  <span>{currentLiveClasses.length} Live {currentLiveClasses.length === 1 ? 'Session' : 'Sessions'}</span>
-                </span>
-              ) : (
-                <span className="bg-slate-100 text-slate-500 font-extrabold px-3 py-1 rounded-full text-xs">
-                  0 Live Sessions
                 </span>
               )}
             </div>
