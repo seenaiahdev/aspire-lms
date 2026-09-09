@@ -230,80 +230,102 @@ export function DashboardScreen() {
     } as PythonTopic));
   }, [dbDailySchedules, selectedDateNum]);
 
-  // Live classes mapped from database (strictly 10 minutes before start until end, max 2 cards)
+  // Current date string in YYYY-MM-DD
+  const todayStr = useMemo(() => {
+    const now = currentTime;
+    const yyyy = now.getFullYear();
+    const mm = String(now.getMonth() + 1).padStart(2, '0');
+    const dd = String(now.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }, [currentTime]);
+
+  const isPastDate = selectedDateStr < todayStr;
+  const isDateToday = selectedDateStr === todayStr;
+
+  // Live classes mapped from database:
+  // - On past dates: all sessions are completed (Watch Recording)
+  // - On today: live sessions (starting T-10m) & completed sessions from earlier today
+  // - Strictly max 2 cards, and dynamic 1-card layout when only 1 session exists
   const currentLiveClasses = useMemo(() => {
     const filtered = dbLiveSessions.filter(cls => cls.date === selectedDateStr);
     const nowTime = currentTime.getTime();
 
-    const mapped = filtered.map(cls => {
-      const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
-        cls.date, cls.time, cls.duration, cls.status, 10, currentTime
-      );
-
-      const start = parseSessionStart(cls.date, cls.time);
-      const durationMins = durationToMinutes(cls.duration);
-      const end = start ? new Date(start.getTime() + durationMins * 60000) : null;
-      // Cards display strictly starting 10 minutes before scheduled start time
-      const displayOpen = start ? new Date(start.getTime() - 10 * 60000) : null;
-
-      // Workflow: display only starting 10 minutes before start time until the class ends.
-      // Before that (e.g. 5:00 PM for a 6:00 PM class), the card is hidden.
-      const isWithinDisplayWindow = (displayOpen && end)
-        ? (nowTime >= displayOpen.getTime() && nowTime <= end.getTime())
-        : (resolvedStatus === 'ongoing' || joinable);
-
-      return {
-        id: cls.id,
-        title: cls.session_title,
-        course: cls.technology || 'Core Programming',
-        instructor: { name: cls.instructor || 'Lead Instructor' },
-        time: cls.time,
-        scheduledAt: `${cls.date}T${cls.time || '10:00:00'}`,
-        duration: cls.duration || '1h 30m',
-        status: resolvedStatus,
-        joinable,
-        link: cls.meeting_link,
-        startTime: start,
-        endTime: end,
-        displayOpen,
-        isWithinDisplayWindow
-      };
-    });
-
-    // Filter to ONLY cards that are in the 10-minute window or currently ongoing
-    const activeSessions = mapped
-      .filter(cls => cls.isWithinDisplayWindow)
-      .sort((a, b) => {
-        // Prioritize ongoing sessions first
-        if (a.status === 'ongoing' && b.status !== 'ongoing') return -1;
-        if (a.status !== 'ongoing' && b.status === 'ongoing') return 1;
-
-        const timeA = a.startTime ? a.startTime.getTime() : 0;
-        const timeB = b.startTime ? b.startTime.getTime() : 0;
-        return timeA - timeB;
-      });
-
-    // Rule: Exactly max 2 cards, never more than 2
-    return activeSessions.slice(0, 2);
-  }, [dbLiveSessions, selectedDateStr, currentTime]);
-
-  // Find sessions scheduled later today that have not reached their 10-minute window yet
-  const upcomingLaterToday = useMemo(() => {
-    const nowTime = currentTime.getTime();
-    return dbLiveSessions
-      .filter(cls => cls.date === selectedDateStr)
-      .map(cls => {
+    // 1. PAST DATES: All sessions have concluded, display as COMPLETED cards with Watch Recording
+    if (isPastDate) {
+      const pastSessions = filtered.map(cls => {
         const start = parseSessionStart(cls.date, cls.time);
-        const displayOpen = start ? new Date(start.getTime() - 10 * 60000) : null;
+        const durationMins = durationToMinutes(cls.duration);
+        const end = start ? new Date(start.getTime() + durationMins * 60000) : null;
         return {
-          ...cls,
+          id: cls.id,
+          title: cls.session_title,
+          course: cls.technology || 'Core Programming',
+          instructor: { name: cls.instructor || 'Lead Instructor' },
+          time: cls.time,
+          scheduledAt: `${cls.date}T${cls.time || '10:00:00'}`,
+          duration: cls.duration || '1h 30m',
+          status: 'completed' as const,
+          joinable: false,
+          link: cls.meeting_link,
           startTime: start,
-          displayOpen
+          endTime: end
+        };
+      }).sort((a, b) => (a.startTime?.getTime() || 0) - (b.startTime?.getTime() || 0));
+
+      return pastSessions.slice(0, 2);
+    }
+
+    // 2. TODAY: Display ongoing live sessions (T-10m until end) and completed sessions earlier today
+    if (isDateToday) {
+      const todaySessions = filtered.map(cls => {
+        const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
+          cls.date, cls.time, cls.duration, cls.status, 10, currentTime
+        );
+
+        const start = parseSessionStart(cls.date, cls.time);
+        const durationMins = durationToMinutes(cls.duration);
+        const end = start ? new Date(start.getTime() + durationMins * 60000) : null;
+        const displayOpen = start ? new Date(start.getTime() - 10 * 60000) : null;
+
+        // Active/Ongoing rule: within 10 minutes before start time until class ends
+        const isOngoing = (displayOpen && end)
+          ? (nowTime >= displayOpen.getTime() && nowTime <= end.getTime())
+          : (resolvedStatus === 'ongoing' || joinable);
+
+        // Completed rule: session duration has ended
+        const isCompleted = (end && nowTime > end.getTime()) || resolvedStatus === 'completed';
+
+        return {
+          id: cls.id,
+          title: cls.session_title,
+          course: cls.technology || 'Core Programming',
+          instructor: { name: cls.instructor || 'Lead Instructor' },
+          time: cls.time,
+          scheduledAt: `${cls.date}T${cls.time || '10:00:00'}`,
+          duration: cls.duration || '1h 30m',
+          status: isOngoing ? ('ongoing' as const) : ('completed' as const),
+          joinable: isOngoing,
+          link: cls.meeting_link,
+          startTime: start,
+          endTime: end,
+          isDisplayable: isOngoing || isCompleted,
+          isOngoing
         };
       })
-      .filter(cls => cls.displayOpen && cls.displayOpen.getTime() > nowTime)
-      .sort((a, b) => (a.startTime?.getTime() || 0) - (b.startTime?.getTime() || 0));
-  }, [dbLiveSessions, selectedDateStr, currentTime]);
+      .filter(cls => cls.isDisplayable)
+      .sort((a, b) => {
+        // Prioritize ongoing live sessions first, then chronological
+        if (a.isOngoing && !b.isOngoing) return -1;
+        if (!a.isOngoing && b.isOngoing) return 1;
+        return (a.startTime?.getTime() || 0) - (b.startTime?.getTime() || 0);
+      });
+
+      return todaySessions.slice(0, 2);
+    }
+
+    // 3. FUTURE DATES: haven't opened yet, returns empty to show "Not Yet Scheduled"
+    return [];
+  }, [dbLiveSessions, selectedDateStr, currentTime, isPastDate, isDateToday]);
 
   // Track topic completed checkmarks locally
   const [completedTopicIds, setCompletedTopicIds] = useState<number[]>([101, 102, 201, 202, 301, 401, 402, 501, 601, 701]);
@@ -842,41 +864,25 @@ export function DashboardScreen() {
                     </p>
                   </div>
                 </div>
-              ) : upcomingLaterToday.length > 0 ? (
-                /* UPCOMING SESSIONS TODAY - INFORMS USER THAT CARDS APPEAR 10 MINS BEFORE START */
-                <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
-                  <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
-                    <Clock className="w-7 h-7" />
-                  </div>
-                  <div className="max-w-md">
-                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-black uppercase tracking-wider mb-2">
-                      <Clock className="w-3.5 h-3.5" />
-                      <span>Next Class: {upcomingLaterToday[0].time || 'Later Today'}</span>
-                    </div>
-                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">
-                      {upcomingLaterToday[0].session_title}
-                    </h4>
-                    <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1">
-                      Live class cards appear automatically <span className="font-bold text-[#7c3aed]">10 minutes before start time</span> with the direct meeting link.
-                    </p>
-                  </div>
-                </div>
               ) : (
-                /* CLEAN MODERN EMPTY STATE WHEN NO SESSIONS ARE SCHEDULED FOR THE SELECTED DATE */
+                /* CLEAN NOT YET SCHEDULED CARD WHEN NO SESSIONS ARE READY TO DISPLAY */
                 <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
                   <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
                     <CalendarX className="w-7 h-7" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">No Live Classes Right Now</h4>
+                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">Not Yet Scheduled</h4>
                     <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1 max-w-sm">
-                      No live sessions currently in progress for {monthNames[currentMonthIndex]} {selectedDateNum}. Cards appear 10 minutes before each scheduled session.
+                      No live sessions or tasks scheduled for {monthNames[currentMonthIndex]} {selectedDateNum}. Switch to Today or view the full schedule.
                     </p>
                   </div>
                 </div>
               )
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className={cn(
+                "grid gap-5",
+                currentLiveClasses.length === 1 ? "grid-cols-1 max-w-2xl" : "grid-cols-1 md:grid-cols-2"
+              )}>
                 {currentLiveClasses.map((cls, idx) => (
                   <div 
                     key={cls.id}
