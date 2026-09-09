@@ -581,8 +581,8 @@ export function SettingsScreen() {
             <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden">
               <CardBody className="p-6 sm:p-8 space-y-6">
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg">Push & Email Notifications</h3>
-                  <p className="text-xs font-semibold text-slate-500 mt-1">Control exactly what updates you want to receive.</p>
+                  <h3 className="font-extrabold text-slate-900 text-lg">Notification Preferences</h3>
+                  <p className="text-xs font-semibold text-slate-500 mt-1">Control which class, assignment, and placement alerts you receive.</p>
                 </div>
                 
                 <div className="space-y-3 pt-4">
