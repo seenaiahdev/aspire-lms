@@ -8,7 +8,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useUser } from '@/lib/UserContext';
 import { fetchLiveSessions, fetchDailySchedules, fetchCoursesByIds, isWeekdayBatchUser } from '@/lib/api';
-import { cn, resolveLiveClassStatus } from '@/lib/utils';
+import { cn, resolveLiveClassStatus, parseSessionStart, durationToMinutes } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
 import { usePreload } from '@/lib/PreloadContext';
@@ -111,6 +111,14 @@ export function DashboardScreen() {
     selectedDateNum === realTodayDate &&
     selectedMonthIndex === realTodayMonth &&
     selectedYear === realTodayYear;
+
+  // Real-time clock (ticks every 30s so cards appear dynamically at exactly T-10m)
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const goToPreviousDay = () => {
     const prev = new Date(selectedYear, selectedMonthIndex, selectedDateNum - 1);
@@ -222,34 +230,27 @@ export function DashboardScreen() {
     } as PythonTopic));
   }, [dbDailySchedules, selectedDateNum]);
 
-  // Live classes mapped from database (no mock fallback)
+  // Live classes mapped from database (strictly 10 minutes before start until end, max 2 cards)
   const currentLiveClasses = useMemo(() => {
-    // Filter live classes to show only those scheduled on the selected date
     const filtered = dbLiveSessions.filter(cls => cls.date === selectedDateStr);
+    const nowTime = currentTime.getTime();
 
-    const sorted = [...filtered].sort((a, b) => {
-      // Prioritize ongoing sessions first
-      if (a.status === 'ongoing' && b.status !== 'ongoing') return -1;
-      if (a.status !== 'ongoing' && b.status === 'ongoing') return 1;
-
-      // Then sort chronologically by date and time
-      const timeA = new Date(`${a.date}T${a.time || '00:00:00'}`).getTime();
-      const timeB = new Date(`${b.date}T${b.time || '00:00:00'}`).getTime();
-      return timeA - timeB;
-    });
-
-    const now = new Date();
-    const yyyy = now.getFullYear();
-    const mm = String(now.getMonth() + 1).padStart(2, '0');
-    const dd = String(now.getDate()).padStart(2, '0');
-    const todayStr = `${yyyy}-${mm}-${dd}`;
-
-    return sorted.map(cls => {
-      // Status is derived from the DB date/time/duration. A class becomes joinable
-      // ("ongoing") 10 minutes before its start time and stays so until it ends.
+    const mapped = filtered.map(cls => {
       const { status: resolvedStatus, joinable } = resolveLiveClassStatus(
-        cls.date, cls.time, cls.duration, cls.status, 10, now
+        cls.date, cls.time, cls.duration, cls.status, 10, currentTime
       );
+
+      const start = parseSessionStart(cls.date, cls.time);
+      const durationMins = durationToMinutes(cls.duration);
+      const end = start ? new Date(start.getTime() + durationMins * 60000) : null;
+      // Cards display strictly starting 10 minutes before scheduled start time
+      const displayOpen = start ? new Date(start.getTime() - 10 * 60000) : null;
+
+      // Workflow: display only starting 10 minutes before start time until the class ends.
+      // Before that (e.g. 5:00 PM for a 6:00 PM class), the card is hidden.
+      const isWithinDisplayWindow = (displayOpen && end)
+        ? (nowTime >= displayOpen.getTime() && nowTime <= end.getTime())
+        : (resolvedStatus === 'ongoing' || joinable);
 
       return {
         id: cls.id,
@@ -261,10 +262,48 @@ export function DashboardScreen() {
         duration: cls.duration || '1h 30m',
         status: resolvedStatus,
         joinable,
-        link: cls.meeting_link
+        link: cls.meeting_link,
+        startTime: start,
+        endTime: end,
+        displayOpen,
+        isWithinDisplayWindow
       };
     });
-  }, [dbLiveSessions, selectedDateStr]);
+
+    // Filter to ONLY cards that are in the 10-minute window or currently ongoing
+    const activeSessions = mapped
+      .filter(cls => cls.isWithinDisplayWindow)
+      .sort((a, b) => {
+        // Prioritize ongoing sessions first
+        if (a.status === 'ongoing' && b.status !== 'ongoing') return -1;
+        if (a.status !== 'ongoing' && b.status === 'ongoing') return 1;
+
+        const timeA = a.startTime ? a.startTime.getTime() : 0;
+        const timeB = b.startTime ? b.startTime.getTime() : 0;
+        return timeA - timeB;
+      });
+
+    // Rule: Exactly max 2 cards, never more than 2
+    return activeSessions.slice(0, 2);
+  }, [dbLiveSessions, selectedDateStr, currentTime]);
+
+  // Find sessions scheduled later today that have not reached their 10-minute window yet
+  const upcomingLaterToday = useMemo(() => {
+    const nowTime = currentTime.getTime();
+    return dbLiveSessions
+      .filter(cls => cls.date === selectedDateStr)
+      .map(cls => {
+        const start = parseSessionStart(cls.date, cls.time);
+        const displayOpen = start ? new Date(start.getTime() - 10 * 60000) : null;
+        return {
+          ...cls,
+          startTime: start,
+          displayOpen
+        };
+      })
+      .filter(cls => cls.displayOpen && cls.displayOpen.getTime() > nowTime)
+      .sort((a, b) => (a.startTime?.getTime() || 0) - (b.startTime?.getTime() || 0));
+  }, [dbLiveSessions, selectedDateStr, currentTime]);
 
   // Track topic completed checkmarks locally
   const [completedTopicIds, setCompletedTopicIds] = useState<number[]>([101, 102, 201, 202, 301, 401, 402, 501, 601, 701]);
@@ -786,9 +825,17 @@ export function DashboardScreen() {
                 <span className="bg-amber-50 text-amber-700 font-extrabold px-3 py-1 rounded-full text-xs border border-amber-200">
                   Holiday
                 </span>
+              ) : currentLiveClasses.length > 0 ? (
+                <span className="bg-rose-50 text-rose-600 font-extrabold px-3 py-1 rounded-full text-xs border border-rose-100 flex items-center gap-1.5 shadow-2xs">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500" />
+                  </span>
+                  <span>{currentLiveClasses.length} Live {currentLiveClasses.length === 1 ? 'Session' : 'Sessions'}</span>
+                </span>
               ) : (
-                <span className="bg-purple-50 text-[#7c3aed] font-extrabold px-3 py-1 rounded-full text-xs border border-purple-100">
-                  {currentLiveClasses.length} {currentLiveClasses.length === 1 ? 'Session' : 'Sessions'}
+                <span className="bg-slate-100 text-slate-500 font-extrabold px-3 py-1 rounded-full text-xs">
+                  0 Live Sessions
                 </span>
               )}
             </div>
@@ -807,6 +854,25 @@ export function DashboardScreen() {
                     </p>
                   </div>
                 </div>
+              ) : upcomingLaterToday.length > 0 ? (
+                /* UPCOMING SESSIONS TODAY - INFORMS USER THAT CARDS APPEAR 10 MINS BEFORE START */
+                <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
+                    <Clock className="w-7 h-7" />
+                  </div>
+                  <div className="max-w-md">
+                    <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-black uppercase tracking-wider mb-2">
+                      <Clock className="w-3.5 h-3.5" />
+                      <span>Next Class: {upcomingLaterToday[0].time || 'Later Today'}</span>
+                    </div>
+                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">
+                      {upcomingLaterToday[0].session_title}
+                    </h4>
+                    <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1">
+                      Live class cards appear automatically <span className="font-bold text-[#7c3aed]">10 minutes before start time</span> with the direct meeting link.
+                    </p>
+                  </div>
+                </div>
               ) : (
                 /* CLEAN MODERN EMPTY STATE WHEN NO SESSIONS ARE SCHEDULED FOR THE SELECTED DATE */
                 <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
@@ -814,9 +880,9 @@ export function DashboardScreen() {
                     <CalendarX className="w-7 h-7" />
                   </div>
                   <div>
-                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">Not Yet Scheduled</h4>
+                    <h4 className="font-extrabold text-slate-900 text-base sm:text-lg">No Live Classes Right Now</h4>
                     <p className="text-slate-500 text-xs sm:text-sm font-medium mt-1 max-w-sm">
-                      No live sessions or tasks scheduled for {monthNames[currentMonthIndex]} {selectedDateNum}. Switch to Today or view the full schedule.
+                      No live sessions currently in progress for {monthNames[currentMonthIndex]} {selectedDateNum}. Cards appear 10 minutes before each scheduled session.
                     </p>
                   </div>
                 </div>
