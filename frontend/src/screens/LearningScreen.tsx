@@ -13,6 +13,7 @@ import { useUser } from '@/lib/UserContext';
 import { fetchCoursesByIds, fetchCompletedLessons, fetchBatchStudentCount } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { usePreload } from '@/lib/PreloadContext';
+import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 
 import { learningSteps } from '@/lib/tourSteps';
 
