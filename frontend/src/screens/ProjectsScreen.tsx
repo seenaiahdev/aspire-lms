@@ -129,6 +129,107 @@ function formatProjectDescription(description: string): string {
   return description;
 }
 
+export function parseProjectDetails(p: any) {
+  if (!p) return null;
+
+  let descObj: any = {};
+  if (p.description && typeof p.description === 'string') {
+    const trimmed = p.description.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        descObj = JSON.parse(trimmed);
+      } catch {}
+    }
+  }
+
+  const overview =
+    p.overview ||
+    descObj.overview ||
+    descObj.text ||
+    descObj.description ||
+    (typeof p.description === 'string' && !p.description.trim().startsWith('{') ? p.description : '') ||
+    '';
+
+  const dueDate = p.due_date || descObj.due_date || descObj.dueDate || p.dueDate || '';
+
+  let rawReqs = p.requirements || descObj.requirements || [];
+  if (typeof rawReqs === 'string') {
+    try { rawReqs = JSON.parse(rawReqs); } catch { rawReqs = []; }
+  }
+  const requirements = Array.isArray(rawReqs)
+    ? rawReqs.map((r: any) => {
+        if (typeof r === 'string') return { title: r, desc: '' };
+        return {
+          title: r?.title || r?.name || r?.label || '',
+          desc: r?.desc || r?.description || ''
+        };
+      }).filter((r: any) => r.title)
+    : [];
+
+  let rawSteps = p.steps || descObj.steps || [];
+  if (typeof rawSteps === 'string') {
+    try { rawSteps = JSON.parse(rawSteps); } catch { rawSteps = []; }
+  }
+  const steps = Array.isArray(rawSteps)
+    ? rawSteps.map((s: any) => (typeof s === 'string' ? s : (s?.title || s?.text || s?.step || ''))).filter(Boolean)
+    : [];
+
+  let rawRubric = p.rubric || descObj.rubric || [];
+  if (typeof rawRubric === 'string') {
+    try { rawRubric = JSON.parse(rawRubric); } catch { rawRubric = []; }
+  }
+  const rubric = Array.isArray(rawRubric)
+    ? rawRubric.map((item: any) => {
+        if (typeof item === 'string') return { label: item, weight: '25%', percent: 25 };
+        const label = item?.label || item?.title || item?.criterion || 'Criterion';
+        const rawWeight = item?.weight || item?.percentage || '25%';
+        const percent = typeof rawWeight === 'number'
+          ? rawWeight
+          : parseInt(String(rawWeight).replace(/\D/g, ''), 10) || 25;
+        const weight = typeof rawWeight === 'number' ? `${rawWeight}%` : (String(rawWeight).includes('%') ? rawWeight : `${rawWeight}%`);
+        return { label, weight, percent };
+      }).filter((r: any) => r.label)
+    : [];
+
+  let rawTips = p.mentor_tip || descObj.mentorTip || descObj.mentor_tip || descObj.tips || [];
+  let tips: string[] = [];
+  if (typeof rawTips === 'string') {
+    const trimmed = rawTips.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try { tips = JSON.parse(trimmed); } catch { tips = [trimmed]; }
+    } else if (trimmed) {
+      tips = [trimmed];
+    }
+  } else if (Array.isArray(rawTips)) {
+    tips = rawTips.map((t: any) => (typeof t === 'string' ? t : (t?.tip || t?.text || ''))).filter(Boolean);
+  }
+
+  const templateUrl = p.template_url || descObj.templateUrl || descObj.template_url || '';
+  const guidelines = p.guidelines || descObj.guidelines || '';
+
+  const rawSkills = p.tech_stack || descObj.techStack || descObj.tech_stack || p.skills || [];
+  const skills = Array.isArray(rawSkills)
+    ? rawSkills
+    : typeof rawSkills === 'string'
+      ? rawSkills.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : [];
+
+  const courseName = p.course || descObj.courseName || p.course_name || p.category || 'General Curriculum';
+
+  return {
+    overview,
+    dueDate,
+    requirements,
+    steps,
+    rubric,
+    tips,
+    templateUrl,
+    guidelines,
+    skills,
+    courseName
+  };
+}
+
 export function ProjectsScreen() {
   const { user } = useUser();
   const { isUnlocked, isEntityUnlocked } = useUnlockResolver();
@@ -165,7 +266,7 @@ export function ProjectsScreen() {
       const courseId = user?.enrolledCourses?.[0];
       const [projectsData, submissionsData] = await Promise.all([
         user?.batchCode
-          ? fetchProjects(user.batchCode, user.batchCategory, courseId)
+          ? fetchProjects(user.batchCode, user.batchCategory, courseId, user?.enrolledCourses)
           : Promise.resolve([]),
         user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([]),
       ]);
@@ -189,7 +290,7 @@ export function ProjectsScreen() {
     } finally {
       if (showLoading) setIsLoading(false);
     }
-  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.[0]]);
+  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses]);
 
   useEffect(() => {
     if (user?.batchCode || user?.id) {
@@ -197,7 +298,30 @@ export function ProjectsScreen() {
     } else {
       setIsLoading(false);
     }
-  }, [loadProjectsAndSubmissions, user?.batchCode, user?.id, user?.enrolledCourses?.[0]]);
+  }, [loadProjectsAndSubmissions, user?.batchCode, user?.id]);
+
+  // Real-time Supabase subscription for projects table (catches admin creates, edits, and deletes)
+  useEffect(() => {
+    const channel = supabase
+      .channel(`projects_screen_projects_rt_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'projects'
+        },
+        (payload) => {
+          console.log('Real-time projects table update received:', payload);
+          loadProjectsAndSubmissions(false);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadProjectsAndSubmissions]);
 
   // Real-time Supabase subscription for project submissions (catches INSERT, UPDATE, and DELETE)
   useEffect(() => {
@@ -413,6 +537,7 @@ export function ProjectsScreen() {
       // Only surface projects belonging to lessons that are unlocked in Milestones for this student.
       .filter((p: any) => isEntityUnlocked(p))
       .map((p: any) => {
+        const details = parseProjectDetails(p);
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
         const hasLink = Boolean(driveLinks[p.id]);
 
@@ -423,19 +548,15 @@ export function ProjectsScreen() {
         if (String(p.status || '').toLowerCase() === 'feedback') {
           status = 'feedback';
         }
-        const rawSkills = p.tech_stack || p.skills;
-        const skillsArray = Array.isArray(rawSkills) 
-          ? rawSkills 
-          : typeof rawSkills === 'string' 
-            ? rawSkills.split(',').map((s: string) => s.trim()).filter(Boolean)
-            : [];
 
         return {
           ...p,
+          ...details,
           projectType,
           status,
-          course: p.course || p.category || 'General Curriculum',
-          skills: skillsArray
+          course: details?.courseName || p.course || p.category || 'General Curriculum',
+          dueDate: details?.dueDate || '',
+          skills: details?.skills || []
         };
       });
   }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked]);
@@ -487,44 +608,46 @@ export function ProjectsScreen() {
   const selectedProject = useMemo(
     () => {
       if (!selectedProjectId) return null;
-      const p = effectiveProjects.find((p: any) => p.id === selectedProjectId) ||
-                projectsState.find((p: any) => p.id === selectedProjectId);
-      if (!p) return null;
-      const projectType = (p.project_type || p.type || 'mini').toLowerCase();
-      const hasLink = Boolean(driveLinks[p.id]);
+      const rawP = effectiveProjects.find((p: any) => p.id === selectedProjectId) ||
+                   projectsState.find((p: any) => p.id === selectedProjectId);
+      if (!rawP) return null;
+
+      const details = parseProjectDetails(rawP);
+      const projectType = (rawP.project_type || rawP.type || rawP.projectType || 'mini').toLowerCase();
+      const hasLink = Boolean(driveLinks[rawP.id]);
 
       let status = 'assigned';
       if (hasLink) {
         status = 'submitted';
       }
-      if (String(p.status || '').toLowerCase() === 'feedback') {
+      if (String(rawP.status || '').toLowerCase() === 'feedback') {
         status = 'feedback';
       }
-      const rawSkills = p.tech_stack || p.skills;
-      const skillsArray = Array.isArray(rawSkills) 
-        ? rawSkills 
-        : typeof rawSkills === 'string' 
-          ? rawSkills.split(',').map((s: string) => s.trim()).filter(Boolean)
-          : [];
 
       return {
-        ...p,
+        ...rawP,
+        ...details,
         projectType,
         status,
-        course: p.course || p.category || 'General Curriculum',
-        skills: skillsArray
+        course: details?.courseName || rawP.course || rawP.category || 'General Curriculum',
+        dueDate: details?.dueDate || '',
+        skills: details?.skills || []
       };
     },
     [selectedProjectId, effectiveProjects, projectsState, driveLinks]
   );
   const selectedGuide = selectedProject ? (projectGuides[selectedProject.id] || {
-    brief: formatProjectDescription(selectedProject.description),
+    brief: selectedProject.overview || formatProjectDescription(selectedProject.description),
     techStack: selectedProject.skills,
     fileStructure: [{ path: 'src/App.tsx', purpose: 'Main component layout' }],
     functions: ['renderApp', 'handleSubmit'],
     workflow: [{ action: 'User opens app', event: 'onload', calls: ['renderApp()'], result: 'Render page view' }],
-    buildSteps: ['Setup project repository', 'Build core feature logic', 'Submit drive link'],
-    tips: ['Test code thoroughly before submitting drive link.']
+    buildSteps: selectedProject.steps && selectedProject.steps.length > 0
+      ? selectedProject.steps
+      : ['Setup project repository', 'Build core feature logic', 'Submit drive link'],
+    tips: selectedProject.tips && selectedProject.tips.length > 0
+      ? selectedProject.tips
+      : ['Test code thoroughly before submitting drive link.']
   }) : undefined;
 
   useEffect(() => {
@@ -603,15 +726,29 @@ export function ProjectsScreen() {
                 {selectedProject.projectType || 'mini'} project
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">{selectedProject.title}</h2>
-              <p className="text-sm text-slate-500 leading-relaxed">{selectedGuide.brief}</p>
+              <p className="text-sm text-slate-500 leading-relaxed">{selectedProject.overview || selectedGuide.brief}</p>
 
               <div className="flex flex-wrap gap-2 pt-1">
-                {(selectedGuide.techStack || []).map((item) => (
+                {(selectedProject.skills?.length > 0 ? selectedProject.skills : selectedGuide.techStack || []).map((item: string) => (
                   <span key={item} className="rounded-full bg-white border border-slate-200 px-3 py-1 text-xs font-bold text-slate-700 shadow-2xs">
                     {item}
                   </span>
                 ))}
               </div>
+
+              {selectedProject.templateUrl && (
+                <div className="pt-1">
+                  <a
+                    href={selectedProject.templateUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-purple-50 text-[#7c3aed] hover:bg-purple-100 border border-purple-200 text-xs font-bold transition-all shadow-3xs"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    <span>Starter Template Repository</span>
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
@@ -621,7 +758,7 @@ export function ProjectsScreen() {
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Due Date</p>
-                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{selectedProject.dueDate}</p>
+                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{selectedProject.dueDate || 'No deadline'}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
@@ -645,47 +782,57 @@ export function ProjectsScreen() {
                   <span>PROJECT BRIEF & OBJECTIVES</span>
                 </div>
                 <h3 className="text-lg font-extrabold text-slate-900">Project Overview</h3>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed mt-2">
-                  {selectedGuide.brief} Develop a production-ready solution adhering to industry coding standards, modular component organization, and clean user experience.
+                <p className="text-xs text-slate-600 font-medium leading-relaxed mt-2 whitespace-pre-line">
+                  {selectedProject.overview || selectedGuide.brief || 'Develop a production-ready solution adhering to industry coding standards, modular component organization, and clean user experience.'}
                 </p>
               </div>
 
               {/* Requirements Checklist */}
-              <div className="pt-4 border-t border-slate-100 space-y-3">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Key Functional Requirements</h4>
-                <div className="space-y-2.5">
-                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-extrabold text-slate-900">Responsive UI & Modern Layout</p>
-                      <p className="text-[11px] font-medium text-slate-500 mt-0.5">Ensure seamless experience across mobile, tablet, and desktop viewports.</p>
-                    </div>
+              {selectedProject.requirements && selectedProject.requirements.length > 0 ? (
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Key Functional Requirements</h4>
+                  <div className="space-y-2.5">
+                    {selectedProject.requirements.map((req: any, idx: number) => (
+                      <div key={idx} className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-extrabold text-slate-900">{req.title}</p>
+                          {req.desc && (
+                            <p className="text-[11px] font-medium text-slate-500 mt-0.5">{req.desc}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
                   </div>
-
-                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-extrabold text-slate-900">Input Validation & State Handling</p>
-                      <p className="text-[11px] font-medium text-slate-500 mt-0.5">Implement validation rules, error feedback, and loading states for async actions.</p>
+                </div>
+              ) : (
+                <div className="pt-4 border-t border-slate-100 space-y-3">
+                  <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Key Functional Requirements</h4>
+                  <div className="space-y-2.5">
+                    <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-extrabold text-slate-900">Responsive UI & Modern Layout</p>
+                        <p className="text-[11px] font-medium text-slate-500 mt-0.5">Ensure seamless experience across mobile, tablet, and desktop viewports.</p>
+                      </div>
                     </div>
-                  </div>
-
-                  <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-xs font-extrabold text-slate-900">Clean Code & Version Control</p>
-                      <p className="text-[11px] font-medium text-slate-500 mt-0.5">Submit clean code with meaningful commit messages and proper file structuring.</p>
+                    <div className="flex items-start gap-3 p-3 rounded-2xl bg-slate-50 border border-slate-200/70">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-xs font-extrabold text-slate-900">Input Validation & State Handling</p>
+                        <p className="text-[11px] font-medium text-slate-500 mt-0.5">Implement validation rules, error feedback, and loading states for async actions.</p>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Implementation Steps */}
-              {selectedGuide.buildSteps && selectedGuide.buildSteps.length > 0 && (
+              {((selectedProject.steps && selectedProject.steps.length > 0) || (selectedGuide.buildSteps && selectedGuide.buildSteps.length > 0)) && (
                 <div className="pt-4 border-t border-slate-100 space-y-3">
                   <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Recommended Implementation Steps</h4>
                   <div className="space-y-2">
-                    {selectedGuide.buildSteps.map((step, idx) => (
+                    {(selectedProject.steps && selectedProject.steps.length > 0 ? selectedProject.steps : selectedGuide.buildSteps).map((step: string, idx: number) => (
                       <div key={idx} className="flex items-center gap-3 text-xs font-medium text-slate-700">
                         <span className="w-5 h-5 rounded-full bg-purple-100 text-[#7c3aed] font-black text-[10px] flex items-center justify-center shrink-0">
                           {idx + 1}
@@ -711,47 +858,33 @@ export function ProjectsScreen() {
               </div>
               
               <div className="space-y-3">
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-slate-800">UI/UX & Responsiveness</span>
-                    <span className="text-[#7c3aed]">35%</span>
+                {(selectedProject.rubric && selectedProject.rubric.length > 0 ? selectedProject.rubric : [
+                  { label: 'UI/UX & Responsiveness', weight: '35%', percent: 35 },
+                  { label: 'Functionality & Logic', weight: '35%', percent: 35 },
+                  { label: 'Code Quality & Cleanliness', weight: '30%', percent: 30 },
+                ]).map((r: any, idx: number) => (
+                  <div key={idx}>
+                    <div className="flex justify-between text-xs font-bold mb-1">
+                      <span className="text-slate-800">{r.label}</span>
+                      <span className="text-[#7c3aed] font-extrabold">{r.weight}</span>
+                    </div>
+                    <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
+                      <div className="h-full bg-[#7c3aed] rounded-full transition-all duration-300" style={{ width: `${r.percent || 25}%` }} />
+                    </div>
                   </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: '35%' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-slate-800">Functionality & Logic</span>
-                    <span className="text-[#7c3aed]">35%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: '35%' }} />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-bold mb-1">
-                    <span className="text-slate-800">Code Quality & Cleanliness</span>
-                    <span className="text-[#7c3aed]">30%</span>
-                  </div>
-                  <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div className="h-full bg-[#7c3aed] rounded-full" style={{ width: '30%' }} />
-                  </div>
-                </div>
+                ))}
               </div>
             </Card>
 
             {/* Pro Tips */}
-            {selectedGuide.tips && selectedGuide.tips.length > 0 && (
+            {((selectedProject.tips && selectedProject.tips.length > 0) || (selectedGuide.tips && selectedGuide.tips.length > 0)) && (
               <Card className="p-6 border border-amber-200/80 shadow-2xs rounded-[2rem] bg-amber-50/50 space-y-3">
                 <div className="flex items-center gap-2 text-amber-800 text-xs font-black uppercase tracking-wider">
                   <BookOpen className="w-4 h-4 text-amber-600" />
                   <span>MENTOR PRO TIPS</span>
                 </div>
                 <ul className="space-y-2 text-xs font-medium text-amber-900/90 leading-relaxed list-disc list-inside">
-                  {selectedGuide.tips.map((tip, idx) => (
+                  {(selectedProject.tips && selectedProject.tips.length > 0 ? selectedProject.tips : selectedGuide.tips).map((tip: string, idx: number) => (
                     <li key={idx}>{tip}</li>
                   ))}
                 </ul>
@@ -1024,7 +1157,9 @@ export function ProjectsScreen() {
                       <h3 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-[#7c3aed] transition-colors line-clamp-1">{p.title}</h3>
                       <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">{p.status}</span>
                     </div>
-                    <p className="text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">{p.course}</p>
+                    <p className="text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">
+                      {p.course}{p.dueDate ? ` • Due ${p.dueDate}` : ''}
+                    </p>
                   </div>
                 </div>
                 <div className="shrink-0 flex items-center gap-2 text-slate-400 group-hover:text-[#7c3aed]">
@@ -1102,7 +1237,7 @@ export function ProjectsScreen() {
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-auto">
                   <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-slate-400" />
-                    Due {p.dueDate}
+                    {p.dueDate ? `Due ${p.dueDate}` : 'No deadline'}
                   </span>
                   <div className="flex items-center gap-2">
                     {isLocked ? (

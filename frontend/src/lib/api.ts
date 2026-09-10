@@ -656,21 +656,18 @@ export async function submitQuizAttempt(
 // PROJECTS
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchProjects(batchCode: string, batchCategory?: string, courseId?: string) {
+export async function fetchProjects(
+  batchCode: string,
+  batchCategory?: string,
+  courseId?: string,
+  enrolledCourses?: string[]
+) {
   try {
     let query = supabase.from('projects').select('*');
     if (courseId) {
       query = query.eq('course_id', courseId);
-    } else {
-      const conditions = ["target_batch.eq.ALL", "target_batch.eq.All Batches"];
-      if (batchCode) {
-        conditions.push(`target_batch.eq.${batchCode}`);
-      }
-      if (batchCategory) {
-        conditions.push(`target_batch.eq.${batchCategory}`);
-        conditions.push(`target_batch.eq.${batchCategory} Batch`);
-      }
-      query = query.or(conditions.join(','));
+    } else if (enrolledCourses && enrolledCourses.length > 0) {
+      query = query.in('course_id', enrolledCourses);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
@@ -679,7 +676,21 @@ export async function fetchProjects(batchCode: string, batchCategory?: string, c
       console.warn('projects table not available:', error.message);
       return [];
     }
-    return data || [];
+
+    const validCourses = new Set((enrolledCourses || []).filter(Boolean));
+    if (courseId) validCourses.add(courseId);
+
+    return (data || []).filter((item: any) => {
+      // Course isolation
+      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+        return false;
+      }
+      // Target batch check
+      if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
+        return false;
+      }
+      return true;
+    });
   } catch {
     return [];
   }
