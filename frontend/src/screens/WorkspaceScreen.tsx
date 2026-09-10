@@ -3,7 +3,7 @@ import {
   ArrowLeft, CheckCircle2, Upload, FolderOpen,
   ExternalLink, AlertCircle, BookOpen, ChevronLeft, ChevronRight,
   MonitorSmartphone, Eye, Lock, FileText, Loader2,
-  Play, Terminal, RotateCcw, Clock, FileCode, Check, XCircle
+  Play, Terminal, RotateCcw, Clock, FileCode, Check, XCircle, GripVertical
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
@@ -150,6 +150,67 @@ export function WorkspaceScreen() {
 
   const folderInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Split pane state for resizing Left vs Right panels
+  const [leftWidthPercent, setLeftWidthPercent] = useState<number>(50);
+  const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+  const splitContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsDesktop(window.innerWidth >= 1024);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isDraggingSplitter) return;
+
+    const handleMove = (clientX: number) => {
+      if (!splitContainerRef.current) return;
+      const rect = splitContainerRef.current.getBoundingClientRect();
+      if (rect.width <= 0) return;
+      const rawPercent = ((clientX - rect.left) / rect.width) * 100;
+      // Clamp between 20% and 80% to keep both panels readable
+      const clamped = Math.min(Math.max(rawPercent, 20), 80);
+      setLeftWidthPercent(clamped);
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      handleMove(e.clientX);
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length > 0) {
+        handleMove(e.touches[0].clientX);
+      }
+    };
+
+    const onEnd = () => {
+      setIsDraggingSplitter(false);
+    };
+
+    const prevUserSelect = document.body.style.userSelect;
+    const prevCursor = document.body.style.cursor;
+    document.body.style.userSelect = 'none';
+    document.body.style.cursor = 'col-resize';
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onEnd);
+    window.addEventListener('touchmove', onTouchMove);
+    window.addEventListener('touchend', onEnd);
+
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onEnd);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onEnd);
+      document.body.style.userSelect = prevUserSelect;
+      document.body.style.cursor = prevCursor;
+    };
+  }, [isDraggingSplitter]);
 
   // Dynamically load coding question from database if not hardcoded
   useEffect(() => {
@@ -527,7 +588,12 @@ export function WorkspaceScreen() {
   // ── Left Panel ──────────────────────────────────────────────────────────────
 
   const LeftPanel = (
-    <div className="w-full lg:w-1/2 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden">
+    <div
+      style={isDesktop ? { width: `${leftWidthPercent}%` } : undefined}
+      className={`w-full lg:w-auto min-w-0 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden ${
+        isDraggingSplitter ? '' : 'transition-[width] duration-150 ease-out'
+      }`}
+    >
       <div className="flex items-center border-b border-slate-200 bg-slate-50 px-2 justify-between">
         <button className="px-4 py-3.5 text-xs font-black border-b-2 border-[#7c3aed] text-[#7c3aed] bg-white flex items-center gap-2">
           <BookOpen className="w-3.5 h-3.5" /> Description
@@ -597,6 +663,39 @@ export function WorkspaceScreen() {
             </ol>
           </div>
         )}
+      </div>
+    </div>
+  );
+
+  // Draggable Splitter Divider between Left & Right panels
+  const Splitter = (
+    <div
+      onMouseDown={(e) => {
+        e.preventDefault();
+        setIsDraggingSplitter(true);
+      }}
+      onTouchStart={() => setIsDraggingSplitter(true)}
+      onDoubleClick={() => setLeftWidthPercent(50)}
+      title="Drag to resize panels • Double-click to reset (50/50)"
+      className={`hidden lg:flex items-center justify-center w-2 hover:w-2.5 cursor-col-resize relative group shrink-0 select-none z-20 transition-colors ${
+        isDraggingSplitter ? 'bg-[#7c3aed]' : 'bg-slate-200 hover:bg-[#7c3aed]/70'
+      }`}
+    >
+      {/* Expanded invisible hit area */}
+      <div className="absolute inset-y-0 -left-2 -right-2 cursor-col-resize" />
+      {/* Visual grab handle pill */}
+      <div
+        className={`w-4 h-8 rounded-full bg-white border shadow-xs flex items-center justify-center pointer-events-none transition-all ${
+          isDraggingSplitter
+            ? 'border-[#7c3aed] ring-2 ring-purple-200 shadow-md scale-110'
+            : 'border-slate-300 group-hover:border-[#7c3aed] group-hover:scale-105'
+        }`}
+      >
+        <GripVertical
+          className={`w-3 h-3 transition-colors ${
+            isDraggingSplitter ? 'text-[#7c3aed]' : 'text-slate-400 group-hover:text-[#7c3aed]'
+          }`}
+        />
       </div>
     </div>
   );
@@ -796,11 +895,12 @@ export function WorkspaceScreen() {
         )}
 
         {/* Layout: Left = Question | Right = File Structure */}
-        <div className="flex-1 flex overflow-hidden">
+        <div ref={splitContainerRef} className="flex-1 flex overflow-hidden">
           {LeftPanel}
+          {Splitter}
 
           {/* Right: Submitted File Structure */}
-          <div className="flex-1 flex flex-col overflow-hidden bg-white">
+          <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
             {uploadedStorageUrl ? (
               <div className="flex-1 overflow-hidden">
                 <FileExplorerViewer
@@ -866,11 +966,12 @@ export function WorkspaceScreen() {
       )}
 
       {/* Main layout */}
-      <div className="flex-1 flex overflow-hidden">
+      <div ref={splitContainerRef} className="flex-1 flex overflow-hidden">
         {LeftPanel}
+        {Splitter}
 
         {/* Right: Upload area */}
-        <div className="flex-1 overflow-y-auto custom-scrollbar bg-slate-50 p-6 sm:p-10">
+        <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-slate-50 p-6 sm:p-10">
           <div className="max-w-2xl mx-auto space-y-6">
 
             {/* ── STAGED STATE: Test Against Uploaded File Before Submitting ── */}
