@@ -688,12 +688,12 @@ export function WorkspaceScreen() {
         }`}
       />
 
-      {/* Sleek compact grab handle pill in the center */}
+      {/* Sleek compact grab handle pill in the center (appears on hover or during drag for a premium feel) */}
       <div
-        className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-6 rounded-full bg-white border shadow-xs flex items-center justify-center pointer-events-none transition-all ${
+        className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-6 rounded-full bg-white border shadow-xs flex items-center justify-center pointer-events-none transition-all duration-200 ease-out ${
           isDraggingSplitter
-            ? 'border-[#7c3aed] ring-2 ring-purple-100 shadow-sm scale-110'
-            : 'border-slate-300 group-hover:border-[#7c3aed] group-hover:scale-105'
+            ? 'opacity-100 border-[#7c3aed] ring-2 ring-purple-100 shadow-sm scale-110'
+            : 'opacity-0 group-hover:opacity-100 border-slate-300 group-hover:border-[#7c3aed] group-hover:scale-105'
         }`}
       >
         <GripVertical
