@@ -68,7 +68,7 @@ export function PracticeScreen() {
       
       let submissionsError: any = null;
       const [dbProblems, submissionsResult] = await Promise.all([
-        fetchPracticeProblems(courseId),
+        fetchPracticeProblems(courseId, user?.batchCode, user?.batchCategory, user?.enrolledCourses),
         user?.id 
           ? fetchUserSubmissions(user.id).catch(err => {
               submissionsError = err;
@@ -158,7 +158,7 @@ export function PracticeScreen() {
     } finally {
       setLoading(false);
     }
-  }, [user?.id, user?.enrolledCourses?.[0]]);
+  }, [user?.id, user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(',')]);
 
   useEffect(() => {
     loadData(true);
@@ -182,6 +182,17 @@ export function PracticeScreen() {
             console.log('Real-time database submission update received:', payload);
             loadData(false);
           }
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'coding_questions'
+        },
+        () => {
+          loadData(false);
         }
       )
       .subscribe();

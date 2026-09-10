@@ -113,7 +113,7 @@ function sessionTargetsBatch(session: any, desc: any, batchCode: string): boolea
 
 async function buildResolver(courseIds: string[], batchCode: string): Promise<LessonResolver> {
   try {
-    const [topicsRes, lessonsRes, milestonesRes, sessionsRes, assessmentsRes, quizzesRes, projectsRes] = await Promise.all([
+    const [topicsRes, lessonsRes, milestonesRes, sessionsRes, assessmentsRes, quizzesRes, projectsRes, allLessonsRes] = await Promise.all([
       supabase.from('course_topics').select('id, subtopics').in('course_id', courseIds),
       supabase.from('course_lessons').select('id, title, module_id').in('course_id', courseIds),
       supabase.from('milestones_data').select('id, stages, overview'),
@@ -121,6 +121,7 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
       supabase.from('assessments').select('topic_id, topic_name, course_id, target_batch').in('course_id', courseIds),
       supabase.from('quizzes').select('inner_topic_id, topic_name, course_id').in('course_id', courseIds),
       supabase.from('projects').select('inner_topic_id, title, description, course_id').in('course_id', courseIds),
+      supabase.from('course_lessons').select('id, title'),
     ]);
 
     const courseLessons = lessonsRes.data || [];
@@ -206,6 +207,11 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
       let modTitle = '';
       try { modTitle = JSON.parse(p.description || '{}').moduleName || ''; } catch {}
       bridgeByTitle(p.inner_topic_id, modTitle || p.title);
+    }
+    for (const other of allLessonsRes.data || []) {
+      if (!bIds.has(other.id)) {
+        bridgeByTitle(other.id, other.title);
+      }
     }
 
     const resolveLessonId = (rawId: string): string => {

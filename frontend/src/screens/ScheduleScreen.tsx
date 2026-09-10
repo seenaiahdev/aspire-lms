@@ -102,9 +102,9 @@ export function ScheduleScreen() {
         const courseId = user.enrolledCourses?.[0];
         
         const [assessmentsData, projectsData, codingData] = await Promise.all([
-          fetchAssignments(user.batchCode || '', user.batchCategory),
+          fetchAssignments(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
           fetchProjects(user.batchCode || '', user.batchCategory),
-          fetchPracticeProblems(courseId)
+          fetchPracticeProblems(courseId, user.batchCode || '', user.batchCategory, user.enrolledCourses)
         ]);
 
         const unlockedAssessments = assessmentsData.filter((t: any) => {

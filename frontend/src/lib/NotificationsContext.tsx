@@ -182,14 +182,28 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const enrolledSet = new Set(user?.enrolledCourses || []);
       if (enrolledSet.size > 0) {
         try {
-          const { data: assessList } = await supabase.from('assessments').select('id, course_id');
-          if (assessList) {
+          const [assessRes, cqRes] = await Promise.all([
+            supabase.from('assessments').select('id, course_id'),
+            supabase.from('coding_questions').select('id, course_id')
+          ]);
+          if (assessRes.data) {
             const forbiddenAssessIds = new Set(
-              assessList.filter((a: any) => a.course_id && !enrolledSet.has(a.course_id)).map((a: any) => a.id)
+              assessRes.data.filter((a: any) => a.course_id && !enrolledSet.has(a.course_id)).map((a: any) => a.id)
             );
             for (const [id] of byId.entries()) {
               const match = id.match(/^notif-assess-(.+)$/);
               if (match && forbiddenAssessIds.has(match[1])) {
+                byId.delete(id);
+              }
+            }
+          }
+          if (cqRes.data) {
+            const forbiddenCqIds = new Set(
+              cqRes.data.filter((c: any) => c.course_id && !enrolledSet.has(c.course_id)).map((c: any) => c.id)
+            );
+            for (const [id] of byId.entries()) {
+              const match = id.match(/^notif-cq-(.+)$/);
+              if (match && forbiddenCqIds.has(match[1])) {
                 byId.delete(id);
               }
             }
@@ -359,6 +373,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       addNotification(
         { id: `notif-quiz-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New quiz posted', message: row.title || 'A new quiz is available.',
+          read: false, created_at: new Date().toISOString() },
+        { showToast: true, persistDb: true }
+      );
+    });
+
+    // New coding questions (INSERT) for the student's batch and course
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'coding_questions' }, (payload) => {
+      const row = payload.new || {};
+      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      if (!row.course_id && !row.target_batch) return;
+      addNotification(
+        { id: `notif-cq-${row.id}`, student_id: sid, type: 'assignment',
+          title: 'New practice problem available', message: row.title || 'A new coding problem is available in Practice Lab.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
       );

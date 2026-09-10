@@ -981,7 +981,12 @@ export async function createUnlockNotification(studentId: string, lesson: { id: 
 // PRACTICE PROBLEMS
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchPracticeProblems(courseId?: string) {
+export async function fetchPracticeProblems(
+  courseId?: string,
+  batchCode?: string,
+  batchCategory?: string,
+  enrolledCourses?: string[]
+) {
   try {
     let query = supabase.from('coding_questions').select('*').order('created_at', { ascending: true });
     if (courseId) query = query.eq('course_id', courseId);
@@ -992,7 +997,37 @@ export async function fetchPracticeProblems(courseId?: string) {
       console.warn('coding_questions table not available:', error.message);
       return [];
     }
-    return data || [];
+    if (!data) return [];
+
+    const norm = (s: any) => String(s ?? '').trim().toLowerCase();
+    const wantBatch = norm(batchCode);
+    const wantCat = norm(batchCategory);
+    const validCourses = new Set([
+      ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
+      courseId
+    ].filter(Boolean));
+
+    const filtered = data.filter((item: any) => {
+      // 1. Strict Course Check: If question specifies course_id, it MUST belong to the student's enrolled courses
+      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+        return false;
+      }
+
+      // 2. Batch targeting check
+      const tb = norm(item.target_batch);
+      if (tb) {
+        const batchMatches =
+          tb.includes('all batches') ||
+          tb === 'all' ||
+          (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) ||
+          (wantCat && tb.includes(wantCat));
+        if (!batchMatches) return false;
+      }
+
+      return true;
+    });
+
+    return filtered;
   } catch {
     return [];
   }
