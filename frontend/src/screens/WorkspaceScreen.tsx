@@ -590,7 +590,7 @@ export function WorkspaceScreen() {
   const LeftPanel = (
     <div
       style={isDesktop ? { width: `${leftWidthPercent}%` } : undefined}
-      className={`w-full lg:w-auto min-w-0 bg-white border-r border-slate-200 flex flex-col shrink-0 overflow-hidden ${
+      className={`w-full lg:w-auto min-w-0 bg-white border-b lg:border-b-0 border-slate-200 flex flex-col shrink-0 overflow-hidden ${
         isDraggingSplitter ? '' : 'transition-[width] duration-150 ease-out'
       }`}
     >
@@ -667,7 +667,7 @@ export function WorkspaceScreen() {
     </div>
   );
 
-  // Draggable Splitter Divider between Left & Right panels
+  // Draggable Splitter Divider between Left & Right panels (sleek hairline divider)
   const Splitter = (
     <div
       onMouseDown={(e) => {
@@ -677,22 +677,27 @@ export function WorkspaceScreen() {
       onTouchStart={() => setIsDraggingSplitter(true)}
       onDoubleClick={() => setLeftWidthPercent(50)}
       title="Drag to resize panels • Double-click to reset (50/50)"
-      className={`hidden lg:flex items-center justify-center w-2 hover:w-2.5 cursor-col-resize relative group shrink-0 select-none z-20 transition-colors ${
-        isDraggingSplitter ? 'bg-[#7c3aed]' : 'bg-slate-200 hover:bg-[#7c3aed]/70'
-      }`}
+      className="hidden lg:flex items-center justify-center relative group shrink-0 select-none z-20 cursor-col-resize w-3 -mx-1.5"
     >
-      {/* Expanded invisible hit area */}
-      <div className="absolute inset-y-0 -left-2 -right-2 cursor-col-resize" />
-      {/* Visual grab handle pill */}
+      {/* Visual hairline divider (1px slate at rest, 2px purple on hover/drag) */}
       <div
-        className={`w-4 h-8 rounded-full bg-white border shadow-xs flex items-center justify-center pointer-events-none transition-all ${
+        className={`h-full transition-all duration-150 ${
           isDraggingSplitter
-            ? 'border-[#7c3aed] ring-2 ring-purple-200 shadow-md scale-110'
+            ? 'w-[2px] bg-[#7c3aed]'
+            : 'w-[1px] bg-slate-200 group-hover:w-[2px] group-hover:bg-[#7c3aed]'
+        }`}
+      />
+
+      {/* Sleek compact grab handle pill in the center */}
+      <div
+        className={`absolute top-1/2 -translate-y-1/2 w-3.5 h-6 rounded-full bg-white border shadow-xs flex items-center justify-center pointer-events-none transition-all ${
+          isDraggingSplitter
+            ? 'border-[#7c3aed] ring-2 ring-purple-100 shadow-sm scale-110'
             : 'border-slate-300 group-hover:border-[#7c3aed] group-hover:scale-105'
         }`}
       >
         <GripVertical
-          className={`w-3 h-3 transition-colors ${
+          className={`w-2.5 h-2.5 transition-colors ${
             isDraggingSplitter ? 'text-[#7c3aed]' : 'text-slate-400 group-hover:text-[#7c3aed]'
           }`}
         />
