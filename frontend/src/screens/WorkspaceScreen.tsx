@@ -324,6 +324,43 @@ export function WorkspaceScreen() {
     };
 
     checkSubmission();
+
+    // Realtime subscription: If admin deletes or rejects this submission, live-reset the workspace
+    if (user?.id) {
+      const channel = supabase
+        .channel(`ws_submission_${problemId}_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'practice_submissions',
+            filter: `student_id=eq.${user.id}`,
+          },
+          (payload) => {
+            const oldProb = (payload.old as any)?.problem_id;
+            const newProb = (payload.new as any)?.problem_id;
+            if (oldProb === problemId || newProb === problemId) {
+              if (payload.eventType === 'DELETE' || (payload.new as any)?.status === 'rejected') {
+                localStorage.removeItem(`submission_${problemId}`);
+                setUploadedStorageUrl(null);
+                setUploadedFileCount(0);
+                setUploadedTotalSize(0);
+                setUploadedProjectName('');
+                setReviewBundle(null);
+                setStagedSubmission(null);
+              } else {
+                checkSubmission();
+              }
+            }
+          }
+        )
+        .subscribe();
+
+      return () => {
+        supabase.removeChannel(channel);
+      };
+    }
   }, [problemId, isReviewMode, user?.id]);
 
   // ── File Processing ─────────────────────────────────────────────────────────

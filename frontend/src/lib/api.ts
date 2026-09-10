@@ -1235,6 +1235,49 @@ export async function incrementUserXP(userId: string, amount: number) {
   invalidateCache(`student_profile:${userId}`);
 }
 
+export async function decrementUserXP(userId: string, amount: number) {
+  if (!userId || userId === 'guest' || !amount || amount <= 0) return;
+
+  // 1. Preferred: Atomic database decrement via SECURITY DEFINER RPC
+  try {
+    const { error: rpcError } = await supabase.rpc('decrement_student_xp', {
+      p_student_id: userId,
+      p_amount: amount,
+    });
+    if (!rpcError) {
+      invalidateCache(`student_profile:${userId}`);
+      return;
+    }
+  } catch {
+    // Fall back to read-modify-write if migration has not been applied yet
+  }
+
+  // 2. Fallback: Read-modify-write with 0 lower bound
+  const { data: profile, error: fetchError } = await supabase
+    .from('student_profiles')
+    .select('xp')
+    .eq('student_id', userId)
+    .single();
+
+  if (fetchError && fetchError.code !== 'PGRST116') {
+    console.error('Error fetching student profile for XP decrement:', fetchError);
+    return;
+  }
+
+  const currentXp = profile?.xp ?? 0;
+  const newXp = Math.max(0, currentXp - amount);
+
+  const { error: updateError } = await supabase
+    .from('student_profiles')
+    .update({ xp: newXp })
+    .eq('student_id', userId);
+
+  if (updateError) {
+    console.error('Error updating student profile XP on decrement:', updateError);
+  }
+  invalidateCache(`student_profile:${userId}`);
+}
+
 /**
  * Detects whether a student belongs to a weekday batch based on their registration ID, batch code, or batch category.
  * Weekday batches typically feature 'a26w', 'w', or category 'Weekday'.
@@ -1649,6 +1692,49 @@ export async function fetchUserSubmissions(userId: string) {
 }
 
 /**
+ * Deletes a practice/coding-lab or project submission.
+ * Triggers the database trigger to automatically roll back earned XP,
+ * and clears cache so UI updates immediately.
+ */
+export async function deletePracticeSubmission(studentId: string, problemId: string) {
+  try {
+    const { error } = await supabase
+      .from('practice_submissions')
+      .delete()
+      .eq('student_id', studentId)
+      .eq('problem_id', problemId);
+
+    if (error) throw error;
+    invalidateCache(`student_ps:${studentId}`);
+    invalidateCache(`student_profile:${studentId}`);
+  } catch (err) {
+    console.error('Failed to delete practice submission:', err);
+    throw err;
+  }
+}
+
+/**
+ * Marks a practice/project submission as rejected.
+ * Database trigger automatically deducts the earned XP from the student.
+ */
+export async function rejectPracticeSubmission(studentId: string, problemId: string) {
+  try {
+    const { error } = await supabase
+      .from('practice_submissions')
+      .update({ status: 'rejected' })
+      .eq('student_id', studentId)
+      .eq('problem_id', problemId);
+
+    if (error) throw error;
+    invalidateCache(`student_ps:${studentId}`);
+    invalidateCache(`student_profile:${studentId}`);
+  } catch (err) {
+    console.error('Failed to reject practice submission:', err);
+    throw err;
+  }
+}
+
+/**
  * Records an assessment attempt in `assessment_attempts` (a clean student-keyed table,
  * following the working `personal_tasks`/`reward_claims` pattern — no profiles FK / triggers).
  *
@@ -1762,6 +1848,47 @@ export async function fetchAssignmentAttempts(userId: string) {
     return [];
   }
   return data || [];
+}
+
+/**
+ * Deletes an assessment attempt (Daily or Weekly Assessment).
+ * Database trigger automatically deducts the earned XP from the student.
+ */
+export async function deleteAssessmentAttempt(studentId: string, assignmentId: string) {
+  try {
+    const { error } = await supabase
+      .from('assessment_attempts')
+      .delete()
+      .eq('student_id', studentId)
+      .eq('assignment_id', assignmentId);
+
+    if (error) throw error;
+    invalidateCache(`student_profile:${studentId}`);
+  } catch (err) {
+    console.error('Failed to delete assessment attempt:', err);
+    throw err;
+  }
+}
+
+/**
+ * Deletes a quiz attempt.
+ * Database trigger automatically deducts the earned XP from the student.
+ */
+export async function deleteQuizAttempt(userId: string, quizId: string) {
+  try {
+    const { error } = await supabase
+      .from('quiz_attempts')
+      .delete()
+      .eq('user_id', userId)
+      .eq('quiz_id', quizId);
+
+    if (error) throw error;
+    invalidateCache(`student_qa:${userId}`);
+    invalidateCache(`student_profile:${userId}`);
+  } catch (err) {
+    console.error('Failed to delete quiz attempt:', err);
+    throw err;
+  }
 }
 
 export async function submitRewardClaim(claim: {
