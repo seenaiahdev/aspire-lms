@@ -541,7 +541,7 @@ export function WorkspaceScreen() {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Examples</h3>
+          <h3 className="text-xs font-black uppercase tracking-wider text-slate-500">Examples</h3>
           {problemConfig.examples && problemConfig.examples.length > 0 ? (
             problemConfig.examples.map((ex, idx) => (
               <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-1.5 font-mono text-xs">
@@ -552,13 +552,13 @@ export function WorkspaceScreen() {
               </div>
             ))
           ) : (
-            <p className="text-xs text-slate-400 italic">No example cases provided.</p>
+            <p className="text-xs text-slate-500 italic">No example cases provided.</p>
           )}
         </div>
 
         {problemConfig.starterCode && (
           <div className="space-y-2">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-400">Starter Code</h3>
+            <h3 className="text-xs font-black uppercase tracking-wider text-slate-500">Starter Code</h3>
             <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs overflow-x-auto whitespace-pre-wrap select-all cursor-pointer">
               {problemConfig.starterCode}
             </pre>
@@ -566,14 +566,34 @@ export function WorkspaceScreen() {
         )}
 
         {!isReviewMode && (
-          <div className="p-4 rounded-xl bg-primary-500/10 border border-primary-500/30">
-            <h3 className="text-xs font-bold text-primary-300 mb-2">How to Submit</h3>
-            <ol className="space-y-1.5 text-xs text-slate-400">
-              <li><span className="text-primary-400 font-bold">1.</span> Read the problem carefully above.</li>
-              <li><span className="text-primary-400 font-bold">2.</span> Open VS Code or <span className="text-white font-semibold">vscode.dev</span> online.</li>
-              <li><span className="text-primary-400 font-bold">3.</span> Write and save your solution file(s).</li>
-              <li><span className="text-primary-400 font-bold">4.</span> Upload a <strong className="text-white">single file</strong> (e.g. <code className="text-primary-300">solution.py</code>) or a whole <strong className="text-white">project folder</strong>.</li>
-              <li><span className="text-primary-400 font-bold">5.</span> Click <span className="text-primary-400 font-bold">"View Project"</span> to preview your submission.</li>
+          <div className="p-4 sm:p-5 rounded-2xl bg-purple-50/70 border border-purple-200/80 shadow-xs">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg bg-purple-100 border border-purple-200/80 flex items-center justify-center text-[#7c3aed]">
+                <FileText className="w-3.5 h-3.5" />
+              </div>
+              <h3 className="text-xs font-black uppercase tracking-wider text-purple-900">How to Submit</h3>
+            </div>
+            <ol className="space-y-2.5 text-xs text-slate-700 font-medium">
+              <li className="flex items-start gap-2.5">
+                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-purple-200/70 text-[#7c3aed] text-[10px] font-black flex items-center justify-center mt-0.5">1</span>
+                <span className="leading-snug">Read the problem carefully above.</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-purple-200/70 text-[#7c3aed] text-[10px] font-black flex items-center justify-center mt-0.5">2</span>
+                <span className="leading-snug">Open VS Code or <a href="https://vscode.dev" target="_blank" rel="noreferrer" className="text-[#7c3aed] font-bold hover:underline inline-flex items-center gap-0.5">vscode.dev <ExternalLink className="w-2.5 h-2.5 inline" /></a> online.</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-purple-200/70 text-[#7c3aed] text-[10px] font-black flex items-center justify-center mt-0.5">3</span>
+                <span className="leading-snug">Write and save your solution file(s).</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-purple-200/70 text-[#7c3aed] text-[10px] font-black flex items-center justify-center mt-0.5">4</span>
+                <span className="leading-snug">Upload a <strong className="text-slate-900 font-extrabold">single file</strong> (e.g. <code className="font-mono text-[#7c3aed] bg-purple-100/80 px-1.5 py-0.5 rounded border border-purple-200 text-[11px] font-semibold">solution.py</code>) or a whole <strong className="text-slate-900 font-extrabold">project folder</strong>.</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <span className="flex-shrink-0 w-4 h-4 rounded-full bg-purple-200/70 text-[#7c3aed] text-[10px] font-black flex items-center justify-center mt-0.5">5</span>
+                <span className="leading-snug">Review and click <strong className="text-[#7c3aed] font-extrabold">"Submit Solution Now"</strong> to preview and submit.</span>
+              </li>
             </ol>
           </div>
         )}
