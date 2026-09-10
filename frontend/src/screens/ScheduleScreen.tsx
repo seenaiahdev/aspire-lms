@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2 } from 'lucide-react';
-import { fetchDailySchedules, fetchAssignments, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask } from '@/lib/api';
+import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
@@ -13,6 +13,7 @@ import { scheduleSteps } from '@/lib/tourSteps';
 const typeConfig: Record<string, { color: string; icon: any; label: string }> = {
   class: { color: 'teal', icon: Radio, label: 'Live Classes' },
   assignment: { color: 'amber', icon: FileText, label: 'Practice Hub' },
+  exam: { color: 'purple', icon: Award, label: 'Weekly Assessment' },
   practice: { color: 'sky', icon: Code2, label: 'Practice Lab' },
   project: { color: 'indigo', icon: FolderOpen, label: 'Projects' },
   resource: { color: 'purple', icon: BookOpen, label: 'Resources' },
@@ -24,6 +25,7 @@ const typeConfig: Record<string, { color: string; icon: any; label: string }> = 
 const typeOptions = [
   { value: 'class', label: 'Live Classes' },
   { value: 'assignment', label: 'Practice Hub' },
+  { value: 'exam', label: 'Weekly Assessment' },
   { value: 'practice', label: 'Practice Lab' },
   { value: 'project', label: 'Projects' },
   { value: 'resource', label: 'Resources' },
@@ -61,17 +63,20 @@ function formatTaskDateLabel(dateKey: string, today: Date) {
 }
 
 function parseScheduleItemDate(item: { date: string; dateKey?: string }, today: Date) {
-  if (item.dateKey) return item.dateKey;
-  if (item.date === 'Today') return getDateKey(today);
+  if (item.dateKey && /^\d{4}-\d{2}-\d{2}$/.test(item.dateKey)) return item.dateKey;
+  if (!item.date || item.date === 'Today') return getDateKey(today);
   if (item.date === 'Tomorrow') return getDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
-  const parsed = new Date(`${item.date} ${today.getFullYear()} 00:00:00`);
-  if (!Number.isNaN(parsed.getTime())) return getDateKey(parsed);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(item.date)) return item.date;
+  const parsedDirect = new Date(item.date);
+  if (!Number.isNaN(parsedDirect.getTime())) return getDateKey(parsedDirect);
+  const parsedWithYear = new Date(`${item.date} ${today.getFullYear()} 00:00:00`);
+  if (!Number.isNaN(parsedWithYear.getTime())) return getDateKey(parsedWithYear);
   return getDateKey(today);
 }
 
 export function ScheduleScreen() {
   const { user } = useUser();
-  const { isUnlocked } = useUnlockResolver();
+  const { isUnlocked, isEntityUnlocked, ready: unlockReady } = useUnlockResolver();
   const { navigate } = useNav();
   const today = new Date();
   const [calendarDate, setCalendarDate] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -101,57 +106,75 @@ export function ScheduleScreen() {
       try {
         const courseId = user.enrolledCourses?.[0];
         
-        const [assessmentsData, projectsData, codingData] = await Promise.all([
+        const [assessmentsData, quizzesData, projectsData, codingData] = await Promise.all([
           fetchAssignments(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
-          fetchProjects(user.batchCode || '', user.batchCategory),
+          fetchQuizzes(user.enrolledCourses || []),
+          fetchProjects(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
           fetchPracticeProblems(courseId, user.batchCode || '', user.batchCategory, user.enrolledCourses)
         ]);
 
-        const unlockedAssessments = assessmentsData.filter((t: any) => {
-          const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
-          return isUnlocked(lessonId);
-        });
-
-        const unlockedProjects = projectsData.filter((p: any) => isUnlocked(p.inner_topic_id));
-
-        const unlockedCoding = codingData.filter((p: any) => isUnlocked(p.inner_topic_id));
+        const unlockedAssessments = assessmentsData.filter((t: any) => isEntityUnlocked(t));
+        const unlockedQuizzes = quizzesData.filter((q: any) => isEntityUnlocked(q));
+        const unlockedProjects = projectsData.filter((p: any) => isEntityUnlocked(p));
+        const unlockedCoding = codingData.filter((p: any) => isEntityUnlocked(p));
 
         const extra: any[] = [];
         unlockedAssessments.forEach((asmnt: any) => {
+          const rawDate = asmnt.dueDate || asmnt.due_date || 'Today';
+          const dKey = parseScheduleItemDate({ date: rawDate }, today);
           extra.push({
             id: asmnt.id,
             title: asmnt.title,
             type: 'assignment',
-            date: asmnt.dueDate || getDateKey(today),
-            dateKey: asmnt.dueDate || getDateKey(today),
+            date: formatTaskDateLabel(dKey, today),
+            dateKey: dKey,
             time: '11:59 PM',
-            course: asmnt.category || 'Python Programming',
+            course: asmnt.category || asmnt.course || 'Daily Assessment',
             completed: asmnt.status === 'completed'
           });
         });
 
+        unlockedQuizzes.forEach((quiz: any) => {
+          const rawDate = quiz.dueDate || quiz.due_date || 'Today';
+          const dKey = parseScheduleItemDate({ date: rawDate }, today);
+          extra.push({
+            id: quiz.id,
+            title: quiz.title,
+            type: 'exam',
+            date: formatTaskDateLabel(dKey, today),
+            dateKey: dKey,
+            time: '11:59 PM',
+            course: quiz.course || 'Weekly Assessment',
+            completed: quiz.status === 'completed'
+          });
+        });
+
         unlockedProjects.forEach((proj: any) => {
+          const rawDate = proj.due_date || proj.dueDate || 'Today';
+          const dKey = parseScheduleItemDate({ date: rawDate }, today);
           extra.push({
             id: proj.id,
             title: proj.title,
             type: 'project',
-            date: proj.due_date || getDateKey(today),
-            dateKey: proj.due_date || getDateKey(today),
+            date: formatTaskDateLabel(dKey, today),
+            dateKey: dKey,
             time: '11:59 PM',
-            course: proj.course || 'Python Programming',
+            course: proj.course || 'Projects',
             completed: proj.status === 'submitted' || proj.status === 'feedback'
           });
         });
 
         unlockedCoding.forEach((p: any) => {
+          const rawDate = p.created_date || p.dueDate || 'Today';
+          const dKey = parseScheduleItemDate({ date: rawDate }, today);
           extra.push({
             id: p.id,
             title: p.title,
             type: 'practice',
-            date: p.created_date || getDateKey(today),
-            dateKey: p.created_date || getDateKey(today),
+            date: formatTaskDateLabel(dKey, today),
+            dateKey: dKey,
             time: 'Anytime',
-            course: 'Practice Lab',
+            course: p.category || 'Practice Lab',
             completed: p.solved
           });
         });
@@ -162,7 +185,7 @@ export function ScheduleScreen() {
       }
     }
     loadUnlockedExtraEvents();
-  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.join(',')]);
+  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.join(','), user?.unlockedLessonIds?.join(','), unlockReady]);
 
   useEffect(() => {
     const loadTasks = async () => {
