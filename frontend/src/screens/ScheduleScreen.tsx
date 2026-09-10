@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2 } from 'lucide-react';
-import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask } from '@/lib/api';
+import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
@@ -100,92 +100,150 @@ export function ScheduleScreen() {
     loadPersonalTasks();
   }, [user?.id]);
 
-  useEffect(() => {
-    async function loadUnlockedExtraEvents() {
-      if (!user) return;
-      try {
-        const courseId = user.enrolledCourses?.[0];
-        
-        const [assessmentsData, quizzesData, projectsData, codingData] = await Promise.all([
-          fetchAssignments(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
-          fetchQuizzes(user.enrolledCourses || []),
-          fetchProjects(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
-          fetchPracticeProblems(courseId, user.batchCode || '', user.batchCategory, user.enrolledCourses)
-        ]);
+  const loadUnlockedExtraEvents = useCallback(async () => {
+    if (!user) return;
+    try {
+      const courseId = user.enrolledCourses?.[0];
+      
+      const [
+        assessmentsData,
+        quizzesData,
+        projectsData,
+        codingData,
+        assessmentAttempts,
+        quizAttempts,
+        userSubmissions
+      ] = await Promise.all([
+        fetchAssignments(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
+        fetchQuizzes(user.enrolledCourses || []),
+        fetchProjects(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
+        fetchPracticeProblems(courseId, user.batchCode || '', user.batchCategory, user.enrolledCourses),
+        user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([]),
+        user?.id ? fetchQuizAttempts(user.id) : Promise.resolve([]),
+        user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([])
+      ]);
 
-        const unlockedAssessments = assessmentsData.filter((t: any) => isEntityUnlocked(t));
-        const unlockedQuizzes = quizzesData.filter((q: any) => isEntityUnlocked(q));
-        const unlockedProjects = projectsData.filter((p: any) => isEntityUnlocked(p));
-        const unlockedCoding = codingData.filter((p: any) => isEntityUnlocked(p));
+      const completedAssessmentIds = new Set(
+        (assessmentAttempts || []).map((a: any) => a.assignment_id || a.assessment_id).filter(Boolean)
+      );
+      const completedQuizIds = new Set(
+        (quizAttempts || []).map((q: any) => q.quiz_id).filter(Boolean)
+      );
+      const submittedProblemIds = new Set(
+        (userSubmissions || []).map((s: any) => s.problem_id).filter(Boolean)
+      );
 
-        const extra: any[] = [];
-        unlockedAssessments.forEach((asmnt: any) => {
-          const rawDate = asmnt.dueDate || asmnt.due_date || 'Today';
-          const dKey = parseScheduleItemDate({ date: rawDate }, today);
-          extra.push({
-            id: asmnt.id,
-            title: asmnt.title,
-            type: 'assignment',
-            date: formatTaskDateLabel(dKey, today),
-            dateKey: dKey,
-            time: '11:59 PM',
-            course: asmnt.category || asmnt.course || 'Daily Assessment',
-            completed: asmnt.status === 'completed'
-          });
+      const unlockedAssessments = assessmentsData.filter((t: any) => isEntityUnlocked(t));
+      const unlockedQuizzes = quizzesData.filter((q: any) => isEntityUnlocked(q));
+      const unlockedProjects = projectsData.filter((p: any) => isEntityUnlocked(p));
+      const unlockedCoding = codingData.filter((p: any) => isEntityUnlocked(p));
+
+      const extra: any[] = [];
+      unlockedAssessments.forEach((asmnt: any) => {
+        const rawDate = asmnt.dueDate || asmnt.due_date || '';
+        const dKey = parseScheduleItemDate({ date: rawDate }, today);
+        const isCompleted = completedAssessmentIds.has(asmnt.id) || asmnt.status === 'completed';
+        extra.push({
+          id: asmnt.id,
+          title: asmnt.title,
+          type: 'assignment',
+          date: formatTaskDateLabel(dKey, today),
+          dateKey: dKey,
+          time: asmnt.timeEstimate || '45 mins',
+          duration: rawDate ? `Due ${rawDate}` : '',
+          course: asmnt.category || asmnt.course || 'Daily Assessment',
+          completed: isCompleted,
+          isCoursework: true
         });
+      });
 
-        unlockedQuizzes.forEach((quiz: any) => {
-          const rawDate = quiz.dueDate || quiz.due_date || 'Today';
-          const dKey = parseScheduleItemDate({ date: rawDate }, today);
-          extra.push({
-            id: quiz.id,
-            title: quiz.title,
-            type: 'exam',
-            date: formatTaskDateLabel(dKey, today),
-            dateKey: dKey,
-            time: '11:59 PM',
-            course: quiz.course || 'Weekly Assessment',
-            completed: quiz.status === 'completed'
-          });
+      unlockedQuizzes.forEach((quiz: any) => {
+        const rawDate = quiz.dueDate || quiz.due_date || '';
+        const dKey = parseScheduleItemDate({ date: rawDate }, today);
+        const isCompleted = completedQuizIds.has(quiz.id) || quiz.status === 'completed';
+        extra.push({
+          id: quiz.id,
+          title: quiz.title,
+          type: 'exam',
+          date: formatTaskDateLabel(dKey, today),
+          dateKey: dKey,
+          time: quiz.time_limit_mins ? `${quiz.time_limit_mins} mins` : '45 mins',
+          duration: rawDate ? `Due ${rawDate}` : '',
+          course: quiz.course || 'Weekly Assessment',
+          completed: isCompleted,
+          isCoursework: true
         });
+      });
 
-        unlockedProjects.forEach((proj: any) => {
-          const rawDate = proj.due_date || proj.dueDate || 'Today';
-          const dKey = parseScheduleItemDate({ date: rawDate }, today);
-          extra.push({
-            id: proj.id,
-            title: proj.title,
-            type: 'project',
-            date: formatTaskDateLabel(dKey, today),
-            dateKey: dKey,
-            time: '11:59 PM',
-            course: proj.course || 'Projects',
-            completed: proj.status === 'submitted' || proj.status === 'feedback'
-          });
+      unlockedProjects.forEach((proj: any) => {
+        const rawDate = proj.due_date || proj.dueDate || '';
+        const dKey = parseScheduleItemDate({ date: rawDate }, today);
+        const isCompleted = submittedProblemIds.has(proj.id) || proj.status === 'submitted' || proj.status === 'feedback';
+        extra.push({
+          id: proj.id,
+          title: proj.title,
+          type: 'project',
+          date: formatTaskDateLabel(dKey, today),
+          dateKey: dKey,
+          time: 'Submission Required',
+          duration: rawDate ? `Due ${rawDate}` : '',
+          course: proj.course || 'Projects',
+          completed: isCompleted,
+          isCoursework: true
         });
+      });
 
-        unlockedCoding.forEach((p: any) => {
-          const rawDate = p.created_date || p.dueDate || 'Today';
-          const dKey = parseScheduleItemDate({ date: rawDate }, today);
-          extra.push({
-            id: p.id,
-            title: p.title,
-            type: 'practice',
-            date: formatTaskDateLabel(dKey, today),
-            dateKey: dKey,
-            time: 'Anytime',
-            course: p.category || 'Practice Lab',
-            completed: p.solved
-          });
+      unlockedCoding.forEach((p: any) => {
+        const rawDate = p.created_date || p.dueDate || '';
+        const dKey = parseScheduleItemDate({ date: rawDate }, today);
+        const isCompleted = submittedProblemIds.has(p.id) || p.solved;
+        extra.push({
+          id: p.id,
+          title: p.title,
+          type: 'practice',
+          date: formatTaskDateLabel(dKey, today),
+          dateKey: dKey,
+          time: 'Anytime',
+          duration: rawDate ? `Due ${rawDate}` : '',
+          course: p.category || 'Practice Lab',
+          completed: isCompleted,
+          isCoursework: true
         });
+      });
 
-        setUnlockedExtraEvents(extra);
-      } catch (err) {
-        console.error("Error loading extra events:", err);
-      }
+      setUnlockedExtraEvents(extra);
+    } catch (err) {
+      console.error("Error loading extra events:", err);
     }
+  }, [user, isEntityUnlocked, today]);
+
+  useEffect(() => {
     loadUnlockedExtraEvents();
-  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.join(','), user?.unlockedLessonIds?.join(','), unlockReady]);
+  }, [loadUnlockedExtraEvents, user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.join(','), user?.unlockedLessonIds?.join(','), unlockReady]);
+
+  // Realtime listener for completed tasks & milestone unlocks
+  useEffect(() => {
+    if (!user?.id) return;
+    const channel = supabase
+      .channel('schedule-screen-realtime-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, () => {
+        loadUnlockedExtraEvents();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` }, () => {
+        loadUnlockedExtraEvents();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, () => {
+        loadUnlockedExtraEvents();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'milestone_locks' }, () => {
+        loadUnlockedExtraEvents();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id, loadUnlockedExtraEvents]);
 
   useEffect(() => {
     const loadTasks = async () => {
@@ -279,7 +337,15 @@ export function ScheduleScreen() {
   }));
 
   const selectedDateKey = getDateKey(selectedDate);
-  const itemsForSelectedDate = itemsWithDateKey.filter((item) => item.dateKey === selectedDateKey);
+  const todayKey = getDateKey(today);
+  const isSelectedToday = selectedDateKey === todayKey;
+
+  const itemsForSelectedDate = itemsWithDateKey.filter((item) => {
+    if (item.dateKey === selectedDateKey) return true;
+    if (isSelectedToday && item.isCoursework) return true;
+    return false;
+  });
+
   const activeTasks = itemsForSelectedDate.filter((item) => !item.completed);
   const completedTasks = itemsForSelectedDate.filter((item) => item.completed);
 
@@ -301,7 +367,12 @@ export function ScheduleScreen() {
         console.error("Error updating personal task completion in Supabase:", err);
       }
     } else {
-      setApiTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item));
+      setUnlockedExtraEvents((prev) =>
+        prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item)
+      );
+      setApiTasks((prev) =>
+        prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item)
+      );
     }
   };
 
@@ -464,7 +535,7 @@ export function ScheduleScreen() {
                   const isSelected = day === selectedDate.getDate() && calendarDate.getMonth() === selectedDate.getMonth() && calendarDate.getFullYear() === selectedDate.getFullYear();
                   const dayDate = day ? new Date(currentYear, calendarDate.getMonth(), day) : null;
                   const dayKey = dayDate ? getDateKey(dayDate) : '';
-                  const hasEvent = dayKey && itemsWithDateKey.some((item) => item.dateKey === dayKey);
+                  const hasEvent = dayKey && itemsWithDateKey.some((item) => item.dateKey === dayKey || (dayKey === todayKey && item.isCoursework));
 
                   return (
                     <button
@@ -834,7 +905,8 @@ export function ScheduleScreen() {
                               </button>
                               <div>
                                 <p className="text-base font-semibold text-slate-900 line-through decoration-slate-400/80">{item.title}</p>
-                                <p className="mt-1 text-sm text-slate-500">{item.time}</p>
+                                <p className="mt-1 text-sm text-slate-500">{item.time}{item.duration ? ` · ${item.duration}` : ''}</p>
+                                {item.course && <p className="mt-1 text-sm text-slate-500">{item.course}</p>}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
