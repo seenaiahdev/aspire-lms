@@ -14,6 +14,7 @@ import { fetchCoursesByIds, fetchCompletedLessons, fetchBatchStudentCount } from
 import { supabase } from '@/lib/supabase';
 import { usePreload } from '@/lib/PreloadContext';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
+import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 
 import { learningSteps } from '@/lib/tourSteps';
 
