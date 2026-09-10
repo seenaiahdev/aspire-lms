@@ -118,7 +118,7 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
       supabase.from('course_lessons').select('id, title, module_id').in('course_id', courseIds),
       supabase.from('milestones_data').select('id, stages, overview'),
       supabase.from('live_sessions').select('id, session_title, description, publish_status, batch_code, target_batch'),
-      supabase.from('assessments').select('topic_id, topic_name, course_id').in('course_id', courseIds),
+      supabase.from('assessments').select('topic_id, topic_name, course_id, target_batch'),
       supabase.from('quizzes').select('inner_topic_id, topic_name, course_id').in('course_id', courseIds),
       supabase.from('projects').select('inner_topic_id, title, description, course_id').in('course_id', courseIds),
     ]);
@@ -171,15 +171,33 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
     // AND the lesson title (topic_name), while milestones_data has migrated to Scheme B ids. Map each
     // entity's Scheme A lesson id → Scheme B id by matching its title to course_lessons. Without this,
     // `isUnlocked()` never resolves l_git_* ids and all assessments/quizzes stay hidden.
-    const bridgeByTitle = (aId: string, title: string) => {
+    const bridgeByTitle = (aId: string, title: string, modTitle?: string) => {
       const id = String(aId || '').trim();
-      const bId = titleToBId.get(norm(title));
-      if (id && bId && !bIds.has(id) && !aIdToBId.has(id)) aIdToBId.set(id, bId);
+      if (!id || bIds.has(id) || aIdToBId.has(id)) return;
+      let bId = titleToBId.get(norm(title));
+      if (!bId && modTitle) {
+        bId = compositeToBId.get(compositeKey(modTitle, title));
+      }
+      if (!bId) {
+        const targetWords = norm(title).split(' ').filter((w: string) => w.length > 2);
+        for (const [candTitle, candId] of titleToBId.entries()) {
+          const candWords = candTitle.split(' ').filter((w: string) => w.length > 2);
+          const overlap = targetWords.filter((w: string) => candWords.includes(w));
+          if (overlap.length >= 2 || (targetWords.length >= 2 && candWords.length >= 2 && targetWords[0] === candWords[0] && targetWords[1] === candWords[1])) {
+            bId = candId;
+            break;
+          }
+        }
+      }
+      if (bId) aIdToBId.set(id, bId);
     };
     for (const a of assessmentsRes.data || []) {
-      const aId = String(a.topic_id || '').split('||')[2] || '';
-      const title = String(a.topic_name || '').split('||').pop() || '';
-      bridgeByTitle(aId, title);
+      const parts = String(a.topic_id || '').split('||');
+      const aId = parts[2] || '';
+      const nameParts = String(a.topic_name || '').split('||');
+      const title = nameParts.pop() || '';
+      const modTitle = nameParts.pop() || '';
+      bridgeByTitle(aId, title, modTitle);
     }
     for (const z of quizzesRes.data || []) {
       bridgeByTitle(z.inner_topic_id, z.topic_name);

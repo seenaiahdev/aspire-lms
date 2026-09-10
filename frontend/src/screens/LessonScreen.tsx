@@ -203,12 +203,30 @@ export function LessonScreen() {
                   ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
                   : [];
                 const lessonTitleKey = normTitle(l.title);
+                const userBatch = (user?.batchCode || '').trim().toLowerCase();
+                const userCat = (user?.batchCategory || '').trim().toLowerCase();
                 const dbAssessments = assessments
                   ? assessments.filter((asmnt: any) => {
+                      const pub = String(asmnt.publish_status || '').toLowerCase();
+                      if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
+                      const tb = String(asmnt.target_batch || '').toLowerCase();
+                      const batchMatches = tb && (tb.includes('all batches') || tb === 'all' || (userBatch && tb.split(',').map((s: string) => s.trim()).includes(userBatch)) || (userCat && tb.includes(userCat)));
+                      if (asmnt.course_id && asmnt.course_id !== courseIdToFetch && !batchMatches) return false;
+
                       const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
                       if (resolver.resolveLessonId(parts[2]) === l.id) return true;
                       const t = assessLessonTitle(asmnt);
-                      return !!t && t === lessonTitleKey;
+                      if (t && t === lessonTitleKey) return true;
+                      const aModTitle = normTitle(parts[1] || (asmnt.topic_name ? asmnt.topic_name.split('||')[1] : ''));
+                      const currentModTitle = normTitle(sub.title);
+                      if (aModTitle && currentModTitle && (currentModTitle.includes(aModTitle) || aModTitle.includes(currentModTitle))) {
+                        const aWords = t.split(' ').filter((w: string) => w.length > 2);
+                        const lWords = lessonTitleKey.split(' ').filter((w: string) => w.length > 2);
+                        const overlap = aWords.filter((w: string) => lWords.includes(w));
+                        if (overlap.length >= 2) return true;
+                        if (aWords.length >= 2 && lWords.length >= 2 && aWords[0] === lWords[0] && aWords[1] === lWords[1]) return true;
+                      }
+                      return false;
                     })
                   : [];
                 const dbProjects = projects
@@ -303,7 +321,7 @@ export function LessonScreen() {
         ] = await Promise.all([
           supabase.from('course_topics').select('*').eq('course_id', courseData.id).order('id', { ascending: true }),
           supabase.from('course_lessons').select('*').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
-          supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title').eq('course_id', courseData.id),
+          supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title, course_id, target_batch, publish_status'),
           supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseData.id),
           supabase.from('projects').select('id, inner_topic_id, title, type, description').eq('course_id', courseData.id),
           supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseData.id),

@@ -460,17 +460,12 @@ export async function fetchCoursesByIds(courseIds: string[]) {
 // ASSIGNMENTS
 // ════════════════════════════════════════════════════════════════
 
-export async function fetchAssignments(batchCode: string, batchCategory?: string, courseId?: string) {
+export async function fetchAssignments(batchCode: string, batchCategory?: string, courseId?: string, enrolledCourses?: string[]) {
   try {
-    let query = supabase.from('assessments').select('*');
-    if (courseId) {
-      query = query.eq('course_id', courseId);
-    } else {
-      const targetBatchStr = batchCategory === 'Weekend' ? 'Weekend Batch' : 'Weekday Batch';
-      query = query.or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`);
-    }
-
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('assessments')
+      .select('*')
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.warn('assessments table not available:', error.message);
@@ -479,7 +474,36 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
 
     if (!data) return [];
 
-    return data.map((item: any) => {
+    const norm = (s: any) => String(s ?? '').trim().toLowerCase();
+    const wantBatch = norm(batchCode);
+    const wantCat = norm(batchCategory);
+    const validCourses = new Set([
+      ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
+      courseId
+    ].filter(Boolean));
+
+    const filtered = data.filter((item: any) => {
+      const pub = norm(item.publish_status);
+      if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
+
+      // 1. Batch targeting match
+      const tb = norm(item.target_batch);
+      if (tb) {
+        if (tb.includes('all batches') || tb === 'all') return true;
+        if (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) return true;
+        if (wantCat && tb.includes(wantCat)) return true;
+      }
+
+      // 2. Course match
+      if (item.course_id && validCourses.has(item.course_id)) return true;
+
+      // 3. If neither target_batch nor course restrictions exclude it
+      if (!tb && (!item.course_id || validCourses.has(item.course_id))) return true;
+
+      return false;
+    });
+
+    return filtered.map((item: any) => {
       // Assessments are taken entirely as MCQs — a code-based question is shown as a code
       // snippet inside the MCQ (options to pick the correct answer), never a separate IDE.
       const type = 'mcq' as 'coding' | 'mcq';

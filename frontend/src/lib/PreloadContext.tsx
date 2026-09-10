@@ -208,7 +208,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           ] = await Promise.all([
             supabase.from('course_topics').select('*').eq('course_id', courseId).order('id', { ascending: true }),
             supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
-            supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title').eq('course_id', courseId),
+            supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title, course_id, target_batch, publish_status'),
             supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
             supabase.from('projects').select('id, inner_topic_id, title, type, description').eq('course_id', courseId),
             supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseId),
@@ -216,6 +216,20 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
 
           if (cancelled) return;
           if (!topics || !lessons) return;
+
+          const userBatch = (batchCode || '').trim().toLowerCase();
+          const userCat = (batchCategory || '').trim().toLowerCase();
+          const relevantAssessments = (assessments || []).filter((a: any) => {
+            const pub = String(a.publish_status || '').toLowerCase();
+            if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
+            if (a.course_id === courseId) return true;
+            const tb = String(a.target_batch || '').toLowerCase();
+            if (!tb) return false;
+            if (tb.includes('all batches') || tb === 'all') return true;
+            if (userBatch && tb.split(',').map((s: string) => s.trim()).includes(userBatch)) return true;
+            if (userCat && tb.includes(userCat)) return true;
+            return false;
+          });
 
           const stages = topics.map((topic: any) => {
             const subtopics = topic.subtopics || [];
@@ -234,11 +248,21 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
                       resolver.resolveLessonId(cq.inner_topic_id) === l.id
                     );
                     const lessonTitleKey = normTitle(l.title);
-                    const dbAssessments = (assessments || []).filter((asmnt: any) => {
+                    const dbAssessments = (relevantAssessments || []).filter((asmnt: any) => {
                       const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
                       if (resolver.resolveLessonId(parts[2]) === l.id) return true;
-                      const t = assessLessonTitle(asmnt);
-                      return !!t && t === lessonTitleKey;
+                      const aLessonTitle = assessLessonTitle(asmnt);
+                      if (aLessonTitle && aLessonTitle === lessonTitleKey) return true;
+                      const aModTitle = normTitle(parts[1] || (asmnt.topic_name ? asmnt.topic_name.split('||')[1] : ''));
+                      const currentModTitle = normTitle(sub.title);
+                      if (aModTitle && currentModTitle && (currentModTitle.includes(aModTitle) || aModTitle.includes(currentModTitle))) {
+                        const aWords = aLessonTitle.split(' ').filter((w: string) => w.length > 2);
+                        const lWords = lessonTitleKey.split(' ').filter((w: string) => w.length > 2);
+                        const overlap = aWords.filter((w: string) => lWords.includes(w));
+                        if (overlap.length >= 2) return true;
+                        if (aWords.length >= 2 && lWords.length >= 2 && aWords[0] === lWords[0] && aWords[1] === lWords[1]) return true;
+                      }
+                      return false;
                     });
                     const dbProjects = (projects || []).filter((p: any) => {
                       const t = projLessonTitle(p);

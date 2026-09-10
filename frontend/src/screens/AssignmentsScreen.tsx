@@ -133,7 +133,7 @@ export function AssignmentsScreen() {
         try {
           const courseId = user?.enrolledCourses?.[0];
           const [data, attempts] = await Promise.all([
-            fetchAssignments(user.batchCode, user.batchCategory, courseId),
+            fetchAssignments(user.batchCode, user.batchCategory, courseId, user?.enrolledCourses),
             user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([])
           ]);
           
@@ -201,7 +201,7 @@ export function AssignmentsScreen() {
   // Initial load
   useEffect(() => { loadData(true); }, [loadData]);
 
-  // Real-time: refresh when this student's attempts change (e.g. a submission lands)
+  // Real-time: refresh when this student's attempts change or assessments table updates
   useEffect(() => {
     if (!user?.id) return;
     const attemptsCh = supabase
@@ -209,6 +209,11 @@ export function AssignmentsScreen() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` },
+        () => loadData(false)
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'assessments' },
         () => loadData(false)
       )
       .subscribe();
