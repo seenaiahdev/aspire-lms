@@ -8,7 +8,7 @@ import {
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
 import { Modal } from '@/components/ui/Modal';
-import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
+import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, CodeViewer, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
 import { submitPracticeProblem } from '@/lib/api';
@@ -697,9 +697,9 @@ export function WorkspaceScreen() {
                 </button>
               </div>
               {showCodePreview && (
-                <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs max-h-56 overflow-y-auto whitespace-pre-wrap">
-                  {stagedSubmission.primaryFile.content}
-                </pre>
+                <div className="rounded-xl border border-slate-200 overflow-hidden shadow-xs bg-white">
+                  <CodeViewer file={stagedSubmission.primaryFile} />
+                </div>
               )}
 
               {/* Custom Input Field */}
@@ -802,33 +802,13 @@ export function WorkspaceScreen() {
           {/* Right: Submitted File Structure */}
           <div className="flex-1 flex flex-col overflow-hidden bg-white">
             {uploadedStorageUrl ? (
-              <>
-                {/* File tree header */}
-                <div className="h-10 bg-slate-50 border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-                  <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <FolderOpen className="w-4 h-4 text-yellow-500" />
-                    <span className="font-extrabold text-slate-800">{uploadedProjectName || 'Project Solution'}</span>
-                    {uploadedFileCount > 0 && (
-                      <>
-                        <span>•</span>
-                        <span>{uploadedFileCount} file{uploadedFileCount !== 1 ? 's' : ''}</span>
-                      </>
-                    )}
-                  </div>
-                  <span className="text-[10px] text-[#7c3aed] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-purple-50 border border-purple-200/80">
-                    Read Only
-                  </span>
-                </div>
-
-                {/* Inline FileExplorerViewer (not fullscreen) */}
-                <div className="flex-1 overflow-hidden">
-                  <FileExplorerViewer
-                    storageUrl={uploadedStorageUrl}
-                    onClose={() => {}}
-                    inline
-                  />
-                </div>
-              </>
+              <div className="flex-1 overflow-hidden">
+                <FileExplorerViewer
+                  storageUrl={uploadedStorageUrl}
+                  onClose={() => {}}
+                  inline
+                />
+              </div>
             ) : (
               <div className="flex-1 flex items-center justify-center flex-col gap-4 text-center p-8 bg-slate-50">
                 <div className="w-16 h-16 rounded-2xl bg-white border border-slate-200 flex items-center justify-center shadow-xs">
@@ -948,10 +928,10 @@ export function WorkspaceScreen() {
                   </div>
 
                   {showCodePreview && (
-                    <div className="mt-4 pt-4 border-t border-slate-150">
-                      <pre className="p-4 rounded-xl bg-slate-900 text-slate-100 font-mono text-xs max-h-60 overflow-y-auto whitespace-pre-wrap">
-                        {stagedSubmission.primaryFile.content}
-                      </pre>
+                    <div className="mt-4 pt-4 border-t border-slate-200">
+                      <div className="rounded-xl border border-slate-200 overflow-hidden shadow-xs bg-white">
+                        <CodeViewer file={stagedSubmission.primaryFile} />
+                      </div>
                     </div>
                   )}
                 </div>

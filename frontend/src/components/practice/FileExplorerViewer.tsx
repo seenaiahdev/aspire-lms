@@ -195,7 +195,7 @@ function TreeNodeItem({
 
 // ── Code Viewer ────────────────────────────────────────────────────────────────
 
-function CodeViewer({ file }: { file: ProjectFile }) {
+export function CodeViewer({ file }: { file: ProjectFile }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = useCallback(() => {
@@ -357,11 +357,8 @@ export function FileExplorerViewer({ storageUrl, onClose, inline = false }: File
               </h2>
               {bundle && (
                 <div className="flex items-center gap-3 mt-0.5">
-                  <span className="text-[11px] text-slate-500">
-                    {bundle.totalFiles} files • {formatBytes(bundle.totalSize)}
-                  </span>
-                  <span className="text-[11px] text-slate-400 font-mono truncate hidden sm:block">
-                    {bundle.storageUrl}
+                  <span className="text-[11px] font-semibold text-slate-500">
+                    {bundle.totalFiles} {bundle.totalFiles === 1 ? 'file' : 'files'} • {formatBytes(bundle.totalSize)}
                   </span>
                 </div>
               )}
@@ -373,12 +370,14 @@ export function FileExplorerViewer({ storageUrl, onClose, inline = false }: File
               <div className="w-1.5 h-1.5 rounded-full bg-[#7c3aed] animate-pulse" />
               <span className="text-[10px] font-bold text-[#7c3aed]">READ ONLY</span>
             </div>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-lg bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all border border-slate-200 cursor-pointer"
-            >
-              <X className="w-4 h-4" />
-            </button>
+            {!inline && (
+              <button
+                onClick={onClose}
+                className="w-8 h-8 flex items-center justify-center rounded-lg bg-white hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-all border border-slate-200 cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -427,14 +426,11 @@ export function FileExplorerViewer({ storageUrl, onClose, inline = false }: File
                 ))}
               </div>
 
-              {/* Storage URL footer */}
+              {/* Submission info footer */}
               {bundle && (
-                <div className="px-3 py-2.5 border-t border-slate-200 bg-slate-100/50">
-                  <p className="text-[9px] text-slate-400 font-mono truncate">
-                    DB: {bundle.storageUrl}
-                  </p>
-                  <p className="text-[9px] text-slate-400 mt-0.5">
-                    Uploaded {new Date(bundle.uploadedAt).toLocaleString()}
+                <div className="px-3.5 py-2.5 border-t border-slate-200 bg-slate-100/60">
+                  <p className="text-[10px] text-slate-500 font-medium">
+                    Uploaded {new Date(bundle.uploadedAt).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(bundle.uploadedAt).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
                   </p>
                 </div>
               )}
