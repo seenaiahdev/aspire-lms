@@ -12,6 +12,7 @@ import {
   courseTargetsBatch, fetchRewards, fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts,
   evaluateBadgeCriteria,
 } from './api';
+import { getLessonResolver, rawLessonLink } from './lessonLinkResolver';
 
 export interface AppNotification {
   id: string;
@@ -46,13 +47,20 @@ const dismissedKey = (sid: string) => `aspire_dismissed_notifs_${sid}`;
 const norm = (s: any) => String(s ?? '').trim().toLowerCase();
 
 /** Whether a comma-list target_batch (or targetBatches array) includes the student's batch. */
-function targetsBatch(target: any, batchCode: string, targetBatches?: any[]): boolean {
+function targetsBatch(target: any, batchCode: string, targetBatches?: any[], category?: string): boolean {
   if (!batchCode) return true;
   const want = norm(batchCode);
-  if (Array.isArray(targetBatches) && targetBatches.some((b) => norm(b) === want || norm(b).includes('all'))) return true;
+  const cat = norm(category || (want.includes('w') ? 'weekday' : (want.includes('s') ? 'weekend' : '')));
+
+  if (Array.isArray(targetBatches) && targetBatches.some((b) => {
+    const nb = norm(b);
+    return nb === want || nb.includes('all') || (cat && (nb.includes(`${cat} batch`) || nb === cat));
+  })) return true;
+
   const t = norm(target);
   if (!t) return false;
-  if (t.includes('all batches') || t === 'all') return true;
+  if (t.includes('all batch') || t === 'all') return true;
+  if (cat && (t.includes(`${cat} batch`) || t === cat)) return true;
   return t.split(',').map((s) => s.trim()).includes(want);
 }
 
@@ -148,6 +156,35 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     [persistLocal]
   );
 
+  /** Checks if coursework entity belongs to an unlocked milestone lesson for the student */
+  const checkIsMilestoneUnlocked = useCallback(
+    async (entity: any): Promise<boolean> => {
+      const unlockedIds = userRef.current?.unlockedLessonIds || [];
+      if (unlockedIds.length === 0) return false;
+
+      const rawId = rawLessonLink(entity);
+      const enrolled = userRef.current?.enrolledCourses || [];
+      const studentBatch = userRef.current?.batchCode || '';
+
+      try {
+        const resolver = await getLessonResolver(enrolled, studentBatch);
+        const targetLessonId = resolver.resolveEntityLessonId(entity) || (rawId ? resolver.resolveLessonId(rawId) : '');
+
+        // If entity is not linked to any lesson, it is not milestone-gated (standalone)
+        if (!targetLessonId && !rawId) return true;
+
+        return (
+          (targetLessonId ? unlockedIds.includes(targetLessonId) : false) ||
+          (rawId ? unlockedIds.includes(rawId) : false)
+        );
+      } catch {
+        if (!rawId) return true;
+        return unlockedIds.includes(rawId);
+      }
+    },
+    []
+  );
+
   // ── Initial load: merge stored (local) + admin rows from the DB (no toasts) ──
   useEffect(() => {
     const sid = user?.id;
@@ -178,17 +215,40 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           byId.set(n.id, sanitizeNotification(n));
         }
       });
-      // Course-level notification purge: ensure students never see assessment notifications from other courses
+      // Course-level & milestone unlock purge: ensure students never see coursework notifications
+      // from other courses, non-matching batches, drafts, or currently LOCKED milestone lessons.
       const enrolledSet = new Set(user?.enrolledCourses || []);
+      const unlockedSet = new Set(user?.unlockedLessonIds || []);
+      const studentBatch = user?.batchCode || '';
+      const studentCat = user?.batchCategory || '';
+
       if (enrolledSet.size > 0) {
         try {
-          const [assessRes, cqRes] = await Promise.all([
-            supabase.from('assessments').select('id, course_id'),
-            supabase.from('coding_questions').select('id, course_id')
+          const resolver = await getLessonResolver(Array.from(enrolledSet), studentBatch);
+          const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
+            supabase.from('assessments').select('id, course_id, target_batch, topic_id, topic_name, publish_status'),
+            supabase.from('coding_questions').select('id, course_id, target_batch, inner_topic_id, lesson_title, topic_name'),
+            supabase.from('quizzes').select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, publish_status, status'),
+            supabase.from('projects').select('id, course_id, target_batch, inner_topic_id, description, publish_status, status')
           ]);
+
+          const isItemAllowed = (item: any) => {
+            if (item.course_id && !enrolledSet.has(item.course_id)) return false;
+            if (item.target_batch && !targetsBatch(item.target_batch, studentBatch, item.target_batches, studentCat)) return false;
+            const pub = norm(item.publish_status || item.status);
+            if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
+            const rawId = rawLessonLink(item);
+            const targetLessonId = resolver.resolveEntityLessonId(item) || (rawId ? resolver.resolveLessonId(rawId) : '');
+            if (!targetLessonId && !rawId) return true; // standalone coursework
+            return (
+              (targetLessonId ? unlockedSet.has(targetLessonId) : false) ||
+              (rawId ? unlockedSet.has(rawId) : false)
+            );
+          };
+
           if (assessRes.data) {
             const forbiddenAssessIds = new Set(
-              assessRes.data.filter((a: any) => a.course_id && !enrolledSet.has(a.course_id)).map((a: any) => a.id)
+              assessRes.data.filter((a: any) => !isItemAllowed(a)).map((a: any) => a.id)
             );
             for (const [id] of byId.entries()) {
               const match = id.match(/^notif-assess-(.+)$/);
@@ -197,13 +257,38 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
               }
             }
           }
+
           if (cqRes.data) {
             const forbiddenCqIds = new Set(
-              cqRes.data.filter((c: any) => c.course_id && !enrolledSet.has(c.course_id)).map((c: any) => c.id)
+              cqRes.data.filter((c: any) => !isItemAllowed(c)).map((c: any) => c.id)
             );
             for (const [id] of byId.entries()) {
               const match = id.match(/^notif-cq-(.+)$/);
               if (match && forbiddenCqIds.has(match[1])) {
+                byId.delete(id);
+              }
+            }
+          }
+
+          if (quizRes.data) {
+            const forbiddenQuizIds = new Set(
+              quizRes.data.filter((q: any) => !isItemAllowed(q)).map((q: any) => q.id)
+            );
+            for (const [id] of byId.entries()) {
+              const match = id.match(/^notif-quiz-(.+)$/);
+              if (match && forbiddenQuizIds.has(match[1])) {
+                byId.delete(id);
+              }
+            }
+          }
+
+          if (projRes.data) {
+            const forbiddenProjIds = new Set(
+              projRes.data.filter((p: any) => !isItemAllowed(p)).map((p: any) => p.id)
+            );
+            for (const [id] of byId.entries()) {
+              const match = id.match(/^notif-project-(.+)$/);
+              if (match && forbiddenProjIds.has(match[1])) {
                 byId.delete(id);
               }
             }
@@ -218,7 +303,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       persistLocal(sid, merged);
     })();
     return () => { alive = false; };
-  }, [user?.id, persistLocal]);
+  }, [user?.id, (user?.unlockedLessonIds || []).join(','), persistLocal]);
 
   // ── 1. Lesson unlocks: react to unlockedLessonIds growing (covers realtime + time-based) ──
 
@@ -261,6 +346,113 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           { showToast: true, persistDb: true }
         );
       });
+
+      // Also notify coursework attached to these newly unlocked lessons:
+      try {
+        const enrolled = userRef.current?.enrolledCourses || [];
+        const studentBatch = userRef.current?.batchCode || '';
+        const studentCat = userRef.current?.batchCategory || '';
+        const resolver = await getLessonResolver(enrolled, studentBatch);
+        const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
+          supabase.from('assessments').select('*').in('course_id', enrolled),
+          supabase.from('coding_questions').select('*').in('course_id', enrolled),
+          supabase.from('quizzes').select('*').in('course_id', enrolled),
+          supabase.from('projects').select('*').in('course_id', enrolled)
+        ]);
+
+        (assessRes.data || []).forEach((a: any) => {
+          if (a.target_batch && !targetsBatch(a.target_batch, studentBatch, a.target_batches, studentCat)) return;
+          const pub = norm(a.publish_status || a.status);
+          if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+          const rawId = rawLessonLink(a);
+          const targetLessonId = resolver.resolveEntityLessonId(a) || (rawId ? resolver.resolveLessonId(rawId) : '');
+          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
+            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
+            addNotification(
+              {
+                id: `notif-assess-${a.id}`,
+                student_id: sid,
+                type: 'assignment',
+                title: 'New assessment available',
+                message: `${a.title || 'Assessment'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                read: false,
+                created_at: new Date().toISOString()
+              },
+              { showToast: true, persistDb: true }
+            );
+          }
+        });
+
+        (cqRes.data || []).forEach((cq: any) => {
+          if (cq.target_batch && !targetsBatch(cq.target_batch, studentBatch, cq.target_batches, studentCat)) return;
+          const rawId = rawLessonLink(cq);
+          const targetLessonId = resolver.resolveEntityLessonId(cq) || (rawId ? resolver.resolveLessonId(rawId) : '');
+          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
+            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
+            addNotification(
+              {
+                id: `notif-cq-${cq.id}`,
+                student_id: sid,
+                type: 'assignment',
+                title: 'New practice problem available',
+                message: `${cq.title || 'Practice problem'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                read: false,
+                created_at: new Date().toISOString()
+              },
+              { showToast: true, persistDb: true }
+            );
+          }
+        });
+
+        (quizRes.data || []).forEach((q: any) => {
+          if (q.target_batch && !targetsBatch(q.target_batch, studentBatch, q.target_batches, studentCat)) return;
+          const pub = norm(q.publish_status || q.status);
+          if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+          const rawId = rawLessonLink(q);
+          const targetLessonId = resolver.resolveEntityLessonId(q) || (rawId ? resolver.resolveLessonId(rawId) : '');
+          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
+            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
+            addNotification(
+              {
+                id: `notif-quiz-${q.id}`,
+                student_id: sid,
+                type: 'assignment',
+                title: 'New weekly quiz available',
+                message: `${q.title || 'Quiz'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                read: false,
+                created_at: new Date().toISOString()
+              },
+              { showToast: true, persistDb: true }
+            );
+          }
+        });
+
+        (projRes.data || []).forEach((p: any) => {
+          if (p.target_batch && !targetsBatch(p.target_batch, studentBatch, p.target_batches, studentCat)) return;
+          const pub = norm(p.publish_status || p.status);
+          if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+          const rawId = rawLessonLink(p);
+          const targetLessonId = resolver.resolveEntityLessonId(p) || (rawId ? resolver.resolveLessonId(rawId) : '');
+          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
+            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
+            addNotification(
+              {
+                id: `notif-project-${p.id}`,
+                student_id: sid,
+                type: 'assignment',
+                title: 'New project assigned',
+                message: `${p.title || 'Project'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                read: false,
+                created_at: new Date().toISOString()
+              },
+              { showToast: true, persistDb: true }
+            );
+          }
+        });
+      } catch (err) {
+        console.warn('Error checking coursework for newly unlocked lessons:', err);
+      }
+
       try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -296,11 +488,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New assessments (INSERT) for the student's batch and course
-    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessments' }, (payload) => {
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessments' }, async (payload) => {
       const row = payload.new || {};
-      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
-      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      const curUser = userRef.current;
+      const curBatch = curUser?.batchCode || batch;
+      const curCategory = curUser?.batchCategory || category;
+      const curCourses = curUser?.enrolledCourses || courses;
+
+      if (row.course_id && curCourses.length > 0 && !curCourses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, curBatch, row.target_batches, curCategory)) return;
       if (!row.course_id && !row.target_batch) return;
+      const pub = norm(row.publish_status);
+      if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+
+      const unlocked = await checkIsMilestoneUnlocked(row);
+      if (!unlocked) return;
+
       addNotification(
         { id: `notif-assess-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New assessment posted', message: row.title || 'A new assessment is available.',
@@ -310,11 +513,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New projects (INSERT)
-    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' }, (payload) => {
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' }, async (payload) => {
       const row = payload.new || {};
-      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
-      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      const curUser = userRef.current;
+      const curBatch = curUser?.batchCode || batch;
+      const curCategory = curUser?.batchCategory || category;
+      const curCourses = curUser?.enrolledCourses || courses;
+
+      if (row.course_id && curCourses.length > 0 && !curCourses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, curBatch, row.target_batches, curCategory)) return;
       if (!row.course_id && !row.target_batch) return;
+      const pub = norm(row.publish_status || row.status);
+      if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+
+      const unlocked = await checkIsMilestoneUnlocked(row);
+      if (!unlocked) return;
+
       addNotification(
         { id: `notif-project-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New project assigned', message: row.title || 'A new project is available.',
@@ -365,11 +579,22 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New quizzes (INSERT) for the student's batch and course
-    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quizzes' }, (payload) => {
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quizzes' }, async (payload) => {
       const row = payload.new || {};
-      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
-      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      const curUser = userRef.current;
+      const curBatch = curUser?.batchCode || batch;
+      const curCategory = curUser?.batchCategory || category;
+      const curCourses = curUser?.enrolledCourses || courses;
+
+      if (row.course_id && curCourses.length > 0 && !curCourses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, curBatch, row.target_batches, curCategory)) return;
       if (!row.course_id && !row.target_batch) return;
+      const pub = norm(row.publish_status || row.status);
+      if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+
+      const unlocked = await checkIsMilestoneUnlocked(row);
+      if (!unlocked) return;
+
       addNotification(
         { id: `notif-quiz-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New quiz posted', message: row.title || 'A new quiz is available.',
@@ -379,11 +604,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     });
 
     // New coding questions (INSERT) for the student's batch and course
-    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'coding_questions' }, (payload) => {
+    channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'coding_questions' }, async (payload) => {
       const row = payload.new || {};
-      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
-      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      const curUser = userRef.current;
+      const curBatch = curUser?.batchCode || batch;
+      const curCategory = curUser?.batchCategory || category;
+      const curCourses = curUser?.enrolledCourses || courses;
+
+      if (row.course_id && curCourses.length > 0 && !curCourses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, curBatch, row.target_batches, curCategory)) return;
       if (!row.course_id && !row.target_batch) return;
+
+      const unlocked = await checkIsMilestoneUnlocked(row);
+      if (!unlocked) return;
+
       addNotification(
         { id: `notif-cq-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New practice problem available', message: row.title || 'A new coding problem is available in Practice Lab.',
