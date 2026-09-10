@@ -234,7 +234,7 @@ export function LessonScreen() {
                   videoUrl: rec?.video_url || l.video_url || '',
                   videoThumbnail: rec?.thumbnail || '',
                   video: {
-                    preview: idx === 0 || user?.unlockedLessonIds?.includes(l.id),
+                    preview: Boolean(user?.unlockedLessonIds?.includes(l.id)),
                     duration: rec?.duration || '45m',
                     completed: false
                   },
@@ -420,6 +420,14 @@ export function LessonScreen() {
 
   const lessonDone = !!currentLesson && completedLessonIds.has(currentLesson.id);
 
+  const isCurrentLessonLocked = useMemo(() => {
+    if (!currentLesson?.id) return false;
+    if (user?.unlockedLessonIds && Array.isArray(user.unlockedLessonIds)) {
+      return !user.unlockedLessonIds.includes(currentLesson.id);
+    }
+    return false;
+  }, [currentLesson?.id, user?.unlockedLessonIds]);
+
   // Load which lessons this student has already marked complete (re-runs on realtime reload).
   useEffect(() => {
     if (!user?.id || user.id === 'guest') return;
@@ -429,7 +437,7 @@ export function LessonScreen() {
   }, [user?.id, reloadKey]);
 
   const handleMarkComplete = async () => {
-    if (!currentLesson || !user?.id || lessonDone) return;
+    if (!currentLesson || !user?.id || lessonDone || isCurrentLessonLocked) return;
     setMarkingComplete(true);
     setCompletedLessonIds((prev) => new Set(prev).add(currentLesson.id)); // optimistic
     try {
@@ -642,13 +650,27 @@ export function LessonScreen() {
               <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 text-[10px] font-extrabold">
                 Lesson {safeCurrentIdx + 1} of {allLessons.length}
               </span>
+              {isCurrentLessonLocked && (
+                <span className="px-2 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-extrabold inline-flex items-center gap-1">
+                  <Lock className="w-3 h-3 text-amber-500" /> Locked Lesson
+                </span>
+              )}
             </div>
             <h1 className="font-extrabold text-slate-900 text-lg sm:text-xl">{currentLesson?.title || 'Loading Lesson...'}</h1>
           </div>
 
           {/* Lesson Navigation Actions */}
           <div className="flex items-center gap-2 shrink-0">
-            {lessonDone ? (
+            {isCurrentLessonLocked ? (
+              <button
+                type="button"
+                disabled
+                title="This lesson is locked according to your batch milestone schedule"
+                className="inline-flex items-center gap-1.5 rounded-xl font-extrabold text-xs px-3.5 py-2 bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed select-none shadow-2xs"
+              >
+                <Lock className="w-3.5 h-3.5 text-slate-400" /> Lesson Locked
+              </button>
+            ) : lessonDone ? (
               <span className="inline-flex items-center gap-1.5 rounded-xl font-extrabold text-xs px-3.5 py-2 bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <Check className="w-4 h-4" /> Completed
               </span>
@@ -688,13 +710,14 @@ export function LessonScreen() {
               size="sm"
               onClick={() => {
                 if (nextLesson) {
-                  if (!nextLesson.completed && !nextLesson.preview) return;
+                  const isNextLocked = Boolean(user?.unlockedLessonIds && Array.isArray(user.unlockedLessonIds) && !user.unlockedLessonIds.includes(nextLesson.id));
+                  if (isNextLocked && !nextLesson.completed) return;
                   navigate('lesson', { id: course.id, lesson: nextLesson.id });
                 } else {
                   navigate('course', { id: course.id });
                 }
               }}
-              disabled={nextLesson && !nextLesson.completed && !nextLesson.preview}
+              disabled={Boolean(nextLesson && user?.unlockedLessonIds && Array.isArray(user.unlockedLessonIds) && !user.unlockedLessonIds.includes(nextLesson.id) && !nextLesson.completed)}
               rightIcon={nextLesson ? <ArrowRight className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
               className="rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
             >
