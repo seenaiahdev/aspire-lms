@@ -66,6 +66,39 @@ export async function fetchBatchCategory(batchCode: string): Promise<'Weekday' |
 }
 
 /**
+ * Fetches the real-time student count for a specific batch code.
+ * Queries the students table for exact count, and falls back to batches table.
+ */
+export async function fetchBatchStudentCount(batchCode?: string): Promise<number> {
+  if (!batchCode) return 1;
+  try {
+    const { count, error } = await supabase
+      .from('students')
+      .select('id', { count: 'exact', head: true })
+      .eq('batch', batchCode);
+
+    if (!error && typeof count === 'number' && count > 0) {
+      return count;
+    }
+
+    const { data: bData } = await supabase
+      .from('batches')
+      .select('student_count')
+      .eq('code', batchCode)
+      .maybeSingle();
+
+    if (bData?.student_count && bData.student_count > 0) {
+      return bData.student_count;
+    }
+
+    return typeof count === 'number' && count > 0 ? count : 1;
+  } catch (err) {
+    console.warn('Failed to fetch batch student count:', err);
+    return 1;
+  }
+}
+
+/**
  * Fetches course tracks filtered by the user's batch category.
  */
 export async function fetchCourses(batchCategory: string) {
@@ -1020,8 +1053,8 @@ export async function fetchRecordingById(sessionId: string) {
     }
 
     const instructorName = typeof row.instructor === 'object' && row.instructor
-      ? (row.instructor.name || 'Lead Instructor')
-      : (row.instructor || 'Lead Instructor');
+      ? (row.instructor.name || 'Lead Trainer')
+      : (row.instructor || 'Lead Trainer');
 
     return {
       ...row,

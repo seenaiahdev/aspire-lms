@@ -10,10 +10,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
-import { fetchCoursesByIds } from '@/lib/api';
-import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
-import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
-import { fetchCompletedLessons } from '@/lib/api';
+import { fetchCoursesByIds, fetchCompletedLessons, fetchBatchStudentCount } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { usePreload } from '@/lib/PreloadContext';
 
@@ -152,6 +149,43 @@ export function LearningScreen() {
   const [syllabusLoading, setSyllabusLoading] = useState(() => !preload.ready);
   // Bumped by the realtime channel to force a syllabus re-fetch when admin edits content.
   const [reloadKey, setReloadKey] = useState(0);
+
+  const [batchStudentCount, setBatchStudentCount] = useState<number>(1);
+
+  // Real-time batch-wise student count for the logged-in user's batch
+  useEffect(() => {
+    const batchCode = user.batchCode || 'A26W1';
+    let isMounted = true;
+
+    async function loadBatchStudents() {
+      try {
+        const count = await fetchBatchStudentCount(batchCode);
+        if (isMounted && typeof count === 'number') {
+          setBatchStudentCount(count);
+        }
+      } catch (err) {
+        console.warn("Failed to load batch student count:", err);
+      }
+    }
+
+    loadBatchStudents();
+
+    const channel = supabase
+      .channel(`realtime-learning-batch-students-${batchCode}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'students', filter: `batch=eq.${batchCode}` },
+        () => {
+          loadBatchStudents();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [user.batchCode]);
 
   // ── Fast path: use preloaded data if ready (skips all Supabase fetches) ──────
   useEffect(() => {
@@ -593,7 +627,7 @@ export function LearningScreen() {
         level: (course.level || 'Intermediate') as 'Beginner' | 'Intermediate' | 'Advanced',
         duration: durationStr,
         lessonsCount: lessonsCount,
-        enrolledCount: `${course.enrolled_count || 0} enrolled`,
+        enrolledCount: `${batchStudentCount} ${batchStudentCount === 1 ? 'student' : 'students'}`,
         rating: course.rating || 5.0,
         progress: (user.courseProgress && user.courseProgress[course.id] !== undefined)
           ? user.courseProgress[course.id]
@@ -601,15 +635,15 @@ export function LearningScreen() {
           ? (user.progress || 0)
           : 0,
         instructor: {
-          name: course.instructor || 'Lead Instructor',
+          name: course.instructor || 'Lead Trainer',
           avatar: '',
-          role: 'LMS Specialist'
+          role: course.instructor_role ? course.instructor_role.replace(/instructor/gi, 'Trainer') : 'Course Trainer'
         },
         actionText: 'Go to Course',
         targetRoute: 'course'
       };
     });
-  }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses, dbSyllabi]);
+  }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses, dbSyllabi, batchStudentCount]);
 
   const filteredItems = useMemo(() => {
     return learningItems.filter((item) => {
@@ -1220,10 +1254,10 @@ export function LearningScreen() {
                             </p>
                           </div>
 
-                          {/* Instructor Info */}
+                          {/* Trainer Info */}
                           <div className="flex items-center gap-1 pt-1">
                             <div className="min-w-0 flex-1">
-                              <p className="text-xs font-extrabold text-slate-850 truncate">Instructor: {item.instructor.name}</p>
+                              <p className="text-xs font-extrabold text-slate-850 truncate">Trainer: {item.instructor.name}</p>
                               <p className="text-[10px] font-semibold text-slate-500 truncate">{item.instructor.role}</p>
                             </div>
                           </div>
@@ -1231,6 +1265,7 @@ export function LearningScreen() {
                           {/* Footer Meta Row */}
                           <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-3 border-t border-slate-100 mt-auto">
                             <div className="flex items-center gap-3 text-[11px]">
+                              <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5 text-slate-400" />{item.enrolledCount}</span>
                               <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" />{item.duration}</span>
                               <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5 text-slate-400" />{item.lessonsCount} lessons</span>
                             </div>

@@ -5,7 +5,7 @@ import {
   Download, Share2, Heart, Award, ChevronUp, ChevronDown, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { fetchResources } from '@/lib/api';
+import { fetchResources, fetchBatchStudentCount } from '@/lib/api';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -119,6 +119,43 @@ export function CourseScreen() {
 
   const [courseResources, setCourseResources] = useState<any[]>([]);
   const [allCourses, setAllCourses] = useState<any[]>([]);
+  const [batchStudentCount, setBatchStudentCount] = useState<number>(1);
+
+  // Real-time batch-wise student count for the logged-in user's batch
+  useEffect(() => {
+    const batchCode = user.batchCode || 'A26W1';
+    let isMounted = true;
+
+    async function loadBatchStudents() {
+      try {
+        const count = await fetchBatchStudentCount(batchCode);
+        if (isMounted && typeof count === 'number') {
+          setBatchStudentCount(count);
+        }
+      } catch (err) {
+        console.warn("Failed to load batch student count:", err);
+      }
+    }
+
+    loadBatchStudents();
+
+    // Subscribe to real-time additions/removals of students in the user's batch
+    const channel = supabase
+      .channel(`realtime-course-batch-students-${batchCode}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'students', filter: `batch=eq.${batchCode}` },
+        () => {
+          loadBatchStudents();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      supabase.removeChannel(channel);
+    };
+  }, [user.batchCode]);
 
   useEffect(() => {
     async function loadResources() {
@@ -289,18 +326,21 @@ export function CourseScreen() {
       durationStr = `${totalHours} hours`;
     }
 
-    const instructorName = dbCourse.instructor || 'Lead Instructor';
+    const instructorName = dbCourse.instructor || 'Lead Trainer';
     const instructorCourses = allCourses.filter(c => c.instructor === instructorName);
     const coursesCount = instructorCourses.length || 1;
-    const totalStudents = instructorCourses.reduce((acc, c) => acc + (c.enrolled_count || 0), 0);
     const ratedCourses = instructorCourses.filter(c => c.rating > 0);
     const avgRating = ratedCourses.length > 0 
       ? parseFloat((ratedCourses.reduce((acc, c) => acc + Number(c.rating), 0) / ratedCourses.length).toFixed(1)) 
       : 5.0;
 
-    // Instructor role/bio come from the DB when available; otherwise a neutral, non-fabricated fallback.
-    const role = dbCourse.instructor_role || 'Course Instructor';
-    const bio = dbCourse.instructor_bio || `${instructorName} leads this program.`;
+    // Trainer role/bio come from the DB when available; otherwise a clean fallback.
+    const role = dbCourse.instructor_role
+      ? dbCourse.instructor_role.replace(/instructor/gi, 'Trainer')
+      : 'Course Trainer';
+    const bio = dbCourse.instructor_bio
+      ? dbCourse.instructor_bio.replace(/instructor/gi, 'trainer')
+      : `${instructorName} leads this program as Master Trainer.`;
 
     return {
       id: dbCourse.id,
@@ -313,13 +353,13 @@ export function CourseScreen() {
         role: role,
         title: role,
         rating: avgRating,
-        students: totalStudents,
+        students: batchStudentCount,
         courses: coursesCount,
         bio: bio
       },
       rating: dbCourse.id === 'crs-1786624019154-w' ? (dbCourse.rating || 5.0) : (dbCourse.rating || 0),
       reviews: dbCourse.reviews_count || 0,
-      students: dbCourse.enrolled_count !== undefined && dbCourse.enrolled_count !== null ? dbCourse.enrolled_count : 0,
+      students: batchStudentCount,
       duration: durationStr,
       lessons: lessonsCount,
       stages: stages,
@@ -332,7 +372,7 @@ export function CourseScreen() {
       subtitle: dbCourse.description || '',
       tags: dbCourse.tags || ['Python Programming', 'Advanced OOP', 'Flask/Django', 'DSA & Algorithms', 'AI Integration']
     };
-  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, allCourses, params.id]);
+  }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, allCourses, params.id, batchStudentCount]);
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
@@ -404,7 +444,7 @@ export function CourseScreen() {
           <div className="flex flex-wrap items-center gap-6 text-xs sm:text-sm font-semibold text-purple-100 pt-2 border-t border-white/20">
             <span className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />
-              <span>{course.students >= 1000 ? `${(course.students / 1000).toFixed(1)}k` : course.students} students</span>
+              <span>{course.students >= 1000 ? `${(course.students / 1000).toFixed(1)}k` : course.students} {course.students === 1 ? 'student' : 'students'}</span>
             </span>
             <span className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
@@ -539,10 +579,10 @@ export function CourseScreen() {
 
         {/* Right — Sidebar */}
         <div className="space-y-6">
-          {/* Instructor */}
+          {/* Trainer */}
           <Card className="rounded-[2rem] border border-slate-200/90 shadow-sm bg-white overflow-hidden">
             <CardHeader className="p-6 pb-2">
-              <h3 className="font-extrabold text-slate-900 text-lg">Instructor</h3>
+              <h3 className="font-extrabold text-slate-900 text-lg">Trainer</h3>
             </CardHeader>
             <CardBody className="p-6 pt-2 space-y-4">
               <div className="flex items-center gap-3.5">

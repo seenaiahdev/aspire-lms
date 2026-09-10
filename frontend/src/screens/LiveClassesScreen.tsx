@@ -133,7 +133,7 @@ export function LiveClassesScreen() {
       course: courseName,
       date: cls.date || '',
       time: cls.time || '',
-      instructor: { name: cls.instructor || 'Lead Instructor', avatar: '', title: 'LMS Instructor' },
+      instructor: { name: cls.instructor || 'Lead Trainer', avatar: '', title: 'Course Trainer' },
       scheduledAt: cls.date && cls.time ? `${cls.date} at ${cls.time.slice(0, 5)}` : (cls.date || 'TBD'),
       duration: cls.duration || '1h 30m',
       participants: 120,
@@ -161,7 +161,7 @@ export function LiveClassesScreen() {
           time: '10:00 AM - 11:30 AM',
           meeting_link: r.video_url,
           status: 'completed',
-          instructor: r.instructor || 'Lead Instructor',
+          instructor: r.instructor || 'Lead Trainer',
           description: r.description || r.instructions,
           instructions: r.instructions,
           target_batch: r.target_batch,
@@ -473,7 +473,7 @@ export function LiveClassesScreen() {
               <SearchInput
                 value={searchQuery}
                 onChange={setSearchQuery}
-                placeholder="Search recordings by topic, lesson, instructor, or date..."
+                placeholder="Search recordings by topic, lesson, trainer, or date..."
                 className="w-full bg-slate-50"
               />
             </div>
@@ -981,7 +981,7 @@ export function LiveClassroomScreen() {
                   </div>
                   <div className="flex items-center gap-2 text-xs text-slate-500 font-medium bg-slate-900/50 px-4 py-2 rounded-xl border border-slate-800/80">
                     <span className="w-2 h-2 rounded-full bg-slate-600" />
-                    The instructor hasn't provided the meeting link yet.
+                    The trainer hasn't provided the meeting link yet.
                   </div>
                 </div>
               )}
