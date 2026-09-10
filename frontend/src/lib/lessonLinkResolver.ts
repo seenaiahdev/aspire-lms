@@ -118,7 +118,7 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
       supabase.from('course_lessons').select('id, title, module_id').in('course_id', courseIds),
       supabase.from('milestones_data').select('id, stages, overview'),
       supabase.from('live_sessions').select('id, session_title, description, publish_status, batch_code, target_batch'),
-      supabase.from('assessments').select('topic_id, topic_name, course_id, target_batch'),
+      supabase.from('assessments').select('topic_id, topic_name, course_id, target_batch').in('course_id', courseIds),
       supabase.from('quizzes').select('inner_topic_id, topic_name, course_id').in('course_id', courseIds),
       supabase.from('projects').select('inner_topic_id, title, description, course_id').in('course_id', courseIds),
     ]);

@@ -209,9 +209,12 @@ export function LessonScreen() {
                   ? assessments.filter((asmnt: any) => {
                       const pub = String(asmnt.publish_status || '').toLowerCase();
                       if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
+                      if (asmnt.course_id && asmnt.course_id !== courseIdToFetch) return false;
                       const tb = String(asmnt.target_batch || '').toLowerCase();
-                      const batchMatches = tb && (tb.includes('all batches') || tb === 'all' || (userBatch && tb.split(',').map((s: string) => s.trim()).includes(userBatch)) || (userCat && tb.includes(userCat)));
-                      if (asmnt.course_id && asmnt.course_id !== courseIdToFetch && !batchMatches) return false;
+                      if (tb) {
+                        const batchMatches = tb.includes('all batches') || tb === 'all' || (userBatch && tb.split(',').map((s: string) => s.trim()).includes(userBatch)) || (userCat && tb.includes(userCat));
+                        if (!batchMatches) return false;
+                      }
 
                       const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
                       if (resolver.resolveLessonId(parts[2]) === l.id) return true;

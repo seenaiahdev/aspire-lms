@@ -222,9 +222,10 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           const relevantAssessments = (assessments || []).filter((a: any) => {
             const pub = String(a.publish_status || '').toLowerCase();
             if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
-            if (a.course_id === courseId) return true;
+            // Strict course isolation: assessment must belong to this course
+            if (a.course_id && a.course_id !== courseId) return false;
             const tb = String(a.target_batch || '').toLowerCase();
-            if (!tb) return false;
+            if (!tb) return true;
             if (tb.includes('all batches') || tb === 'all') return true;
             if (userBatch && tb.split(',').map((s: string) => s.trim()).includes(userBatch)) return true;
             if (userCat && tb.includes(userCat)) return true;

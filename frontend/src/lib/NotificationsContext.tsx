@@ -178,6 +178,25 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           byId.set(n.id, sanitizeNotification(n));
         }
       });
+      // Course-level notification purge: ensure students never see assessment notifications from other courses
+      const enrolledSet = new Set(user?.enrolledCourses || []);
+      if (enrolledSet.size > 0) {
+        try {
+          const { data: assessList } = await supabase.from('assessments').select('id, course_id');
+          if (assessList) {
+            const forbiddenAssessIds = new Set(
+              assessList.filter((a: any) => a.course_id && !enrolledSet.has(a.course_id)).map((a: any) => a.id)
+            );
+            for (const [id] of byId.entries()) {
+              const match = id.match(/^notif-assess-(.+)$/);
+              if (match && forbiddenAssessIds.has(match[1])) {
+                byId.delete(id);
+              }
+            }
+          }
+        } catch {}
+      }
+
       const merged = Array.from(byId.values()).sort(
         (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
       );
@@ -262,10 +281,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       );
     });
 
-    // New assessments (INSERT) for the student's batch or course
+    // New assessments (INSERT) for the student's batch and course
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessments' }, (payload) => {
       const row = payload.new || {};
-      if (!(targetsBatch(row.target_batch, batch) || courses.includes(row.course_id))) return;
+      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      if (!row.course_id && !row.target_batch) return;
       addNotification(
         { id: `notif-assess-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New assessment posted', message: row.title || 'A new assessment is available.',
@@ -277,7 +298,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // New projects (INSERT)
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' }, (payload) => {
       const row = payload.new || {};
-      if (!(targetsBatch(row.target_batch, batch) || courses.includes(row.course_id))) return;
+      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      if (!row.course_id && !row.target_batch) return;
       addNotification(
         { id: `notif-project-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New project assigned', message: row.title || 'A new project is available.',
@@ -327,10 +350,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       );
     });
 
-    // New quizzes (INSERT) for the student's batch or course
+    // New quizzes (INSERT) for the student's batch and course
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quizzes' }, (payload) => {
       const row = payload.new || {};
-      if (!(targetsBatch(row.target_batch, batch) || courses.includes(row.course_id))) return;
+      if (row.course_id && courses.length > 0 && !courses.includes(row.course_id)) return;
+      if (row.target_batch && !targetsBatch(row.target_batch, batch)) return;
+      if (!row.course_id && !row.target_batch) return;
       addNotification(
         { id: `notif-quiz-${row.id}`, student_id: sid, type: 'assignment',
           title: 'New quiz posted', message: row.title || 'A new quiz is available.',

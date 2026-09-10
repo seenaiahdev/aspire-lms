@@ -486,21 +486,23 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
       const pub = norm(item.publish_status);
       if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
 
-      // 1. Batch targeting match
-      const tb = norm(item.target_batch);
-      if (tb) {
-        if (tb.includes('all batches') || tb === 'all') return true;
-        if (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) return true;
-        if (wantCat && tb.includes(wantCat)) return true;
+      // 1. Strict Course Check: If assessment specifies course_id, it MUST belong to the student's enrolled courses
+      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+        return false;
       }
 
-      // 2. Course match
-      if (item.course_id && validCourses.has(item.course_id)) return true;
+      // 2. Batch targeting check
+      const tb = norm(item.target_batch);
+      if (tb) {
+        const batchMatches =
+          tb.includes('all batches') ||
+          tb === 'all' ||
+          (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) ||
+          (wantCat && tb.includes(wantCat));
+        if (!batchMatches) return false;
+      }
 
-      // 3. If neither target_batch nor course restrictions exclude it
-      if (!tb && (!item.course_id || validCourses.has(item.course_id))) return true;
-
-      return false;
+      return true;
     });
 
     return filtered.map((item: any) => {
