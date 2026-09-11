@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, XCircle, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2, LayoutGrid, List } from 'lucide-react';
+import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, CheckCircle2, XCircle, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2, LayoutGrid, List } from 'lucide-react';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { fetchQuizzes, fetchLeaderboard, fetchQuizAttempts, submitQuizAttempt } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -1049,7 +1049,7 @@ export function QuizzesScreen() {
                 <div className="flex items-center justify-between text-sm border-b border-slate-200/60 pb-3">
                   <span className="font-bold text-slate-500">Evaluation Result</span>
                   <span className={`font-black text-sm ${isPassed ? 'text-emerald-700' : 'text-rose-700'}`}>
-                    {isPassed ? 'Passed (≥ 70%)' : 'Failed (< 70%)'}
+                    {isPassed ? 'Passed' : 'Failed'}
                   </span>
                 </div>
                 
@@ -1079,25 +1079,6 @@ export function QuizzesScreen() {
                     <HelpCircle className="w-4 h-4 text-slate-400" /> Unanswered / Skipped
                   </span>
                   <span className="font-black text-slate-700 text-base">{unansweredCount}</span>
-                </div>
-              </div>
-
-              {/* Academic passing criteria notice */}
-              <div className={`flex items-start gap-3 p-4 rounded-2xl border ${
-                isPassed 
-                  ? 'bg-emerald-50/80 border-emerald-200 text-emerald-900' 
-                  : 'bg-rose-50/80 border-rose-200 text-rose-900'
-              }`}>
-                <Info className={`w-5 h-5 shrink-0 mt-0.5 ${isPassed ? 'text-emerald-600' : 'text-rose-600'}`} />
-                <div className="text-xs leading-relaxed">
-                  <p className="font-black text-sm mb-0.5">
-                    {isPassed ? 'Module Credit Earned' : 'Passing Threshold Not Met'}
-                  </p>
-                  <p className={isPassed ? 'text-emerald-800/90' : 'text-rose-800/90'}>
-                    {isPassed 
-                      ? 'Congratulations! You achieved the required passing benchmark (≥ 70%). This quiz is marked as completed in your course progress.' 
-                      : 'A minimum score of 70% is required for this quiz to count toward course completion and certificate issuance. Please review the course materials and attempt again when ready.'}
-                  </p>
                 </div>
               </div>
 
