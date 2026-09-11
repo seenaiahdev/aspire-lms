@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { GraduationCap, Mail, Contact, Github, Linkedin, Globe } from 'lucide-react';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import { useUser } from '@/lib/UserContext';
@@ -10,11 +10,42 @@ export function ProfileScreen() {
   const { user, refetchUser } = useUser();
   const { navigate } = useNav();
   const [isHovered, setIsHovered] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [scale, setScale] = useState(1);
 
   // Fetch latest real-time student profile data on mount
   useEffect(() => {
     refetchUser();
   }, [refetchUser]);
+
+  // Responsive dynamic scaling for notebooks / tablets / mobile viewports
+  useEffect(() => {
+    const updateScale = () => {
+      if (!containerRef.current) return;
+      const containerWidth = containerRef.current.clientWidth || (window.innerWidth - 32);
+      if (containerWidth >= 935) {
+        setScale(1);
+      } else {
+        // Compute proportional scale factor to perfectly fit smaller screens
+        const computedScale = Math.min(1, Math.max(0.34, (containerWidth - 16) / 915));
+        setScale(computedScale);
+      }
+    };
+
+    updateScale();
+    const ro = new ResizeObserver(() => {
+      updateScale();
+    });
+    if (containerRef.current) {
+      ro.observe(containerRef.current);
+    }
+    window.addEventListener('resize', updateScale);
+
+    return () => {
+      ro.disconnect();
+      window.removeEventListener('resize', updateScale);
+    };
+  }, []);
 
   // Real-time dynamic student content from UserContext / Supabase
   const displayBatch = formatBatchDisplay(user.batchCode, user.registrationId) || user.batchCode || 'W2';
@@ -29,7 +60,10 @@ export function ProfileScreen() {
   const studentLevel = user.level || 1;
 
   return (
-    <div className="relative min-h-[70vh] flex items-center justify-center font-sans animate-fade-in py-2 px-4 select-none">
+    <div 
+      ref={containerRef}
+      className="relative min-h-[70vh] w-full flex items-center justify-center font-sans animate-fade-in py-6 px-2 sm:px-4 select-none overflow-x-hidden"
+    >
 
       {/* Subtle soft lavender/purple ambient background glow */}
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -38,348 +72,359 @@ export function ProfileScreen() {
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════════
-          DUAL-CARD RING-BOUND NOTEBOOK ID PASS CONTAINER (STATIC / NO-SCROLL)
+          DUAL-CARD RING-BOUND NOTEBOOK ID PASS CONTAINER
          ════════════════════════════════════════════════════════════════════════════ */}
       <div 
-        className="relative flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-0 font-sans transition-transform duration-300 w-full max-w-full px-2 sm:px-0"
+        style={{
+          width: `${915 * scale}px`,
+          height: `${440 * scale}px`,
+          maxWidth: '100%',
+        }}
+        className="relative flex items-center justify-center shrink-0 transition-[width,height] duration-150"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        style={{
-          transform: isHovered ? 'translateY(-2px)' : 'translateY(0px)'
-        }}
       >
+        <div
+          className="absolute top-0 left-0 w-[915px] h-[440px] flex items-center shrink-0 font-sans transition-transform duration-200"
+          style={{
+            transform: `scale(${scale}) translateY(${isHovered ? '-3px' : '0px'})`,
+            transformOrigin: 'top left',
+          }}
+        >
 
-        {/* ──────────────────────────────────────────────────────────────────────────
-            1. LEFT PORTRAIT CARD (PURPLE BRANDED ID PASS)
-           ────────────────────────────────────────────────────────────────────────── */}
-        <div className="relative w-full max-w-[285px] sm:w-[285px] h-[380px] sm:h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.35),0_8px_20px_rgba(0,0,0,0.06)] ring-1 ring-purple-100/90 z-10">
-          
-          <div 
-            className="w-full h-full rounded-[2.15rem] p-6 flex flex-col items-center justify-between text-white relative overflow-hidden"
-            style={{
-              background: 'linear-gradient(178deg, #7b3cf5 0%, #6d28f4 38%, #5a18dc 100%)'
-            }}
-          >
-            {/* Background S-Curve: flows from upper-left DOWN through center, back UP to right */}
-            <svg 
-              className="absolute inset-0 w-full h-full pointer-events-none" 
-              viewBox="0 0 280 440" 
-              preserveAspectRatio="none"
-            >
-              {/* Top-Right: very faint subtle corner tint */}
-              <path 
-                d="M 180 0 C 220 10, 260 25, 280 15 L 280 0 Z" 
-                fill="#5a1ad0" 
-                opacity="0.3" 
-              />
-              {/* Main S-Curve: starts upper-left ~52%, dips down to ~65% center, rises back up to ~55% right.
-                  Covers the LEVEL badge and flows to the right. Subtle shade only. */}
-              <path 
-                d="M 0 230 C 60 240, 100 280, 140 285 C 180 290, 230 260, 280 240 L 280 440 L 0 440 Z" 
-                fill="#4c14be" 
-                opacity="0.30" 
-              />
-            </svg>
-
-            {/* Bottom-Left Halftone Dot Matrix — small triangular corner cluster */}
+          {/* ──────────────────────────────────────────────────────────────────────────
+              1. LEFT PORTRAIT CARD (PURPLE BRANDED ID PASS)
+             ────────────────────────────────────────────────────────────────────────── */}
+          <div className="relative w-[285px] h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.35),0_8px_20px_rgba(0,0,0,0.06)] ring-1 ring-purple-100/90 z-10">
+            
             <div 
-              className="absolute bottom-2 left-2 w-24 h-20 pointer-events-none"
+              className="w-full h-full rounded-[2.15rem] p-6 flex flex-col items-center justify-between text-white relative overflow-hidden"
               style={{
-                backgroundImage: 'radial-gradient(circle, #ffffff 1.4px, transparent 1.4px)',
-                backgroundSize: '10px 10px',
-                opacity: 0.28,
-                WebkitMaskImage: 'linear-gradient(135deg, transparent 35%, rgba(0,0,0,0.6) 100%)',
-                maskImage: 'linear-gradient(135deg, transparent 35%, rgba(0,0,0,0.6) 100%)'
+                background: 'linear-gradient(178deg, #7b3cf5 0%, #6d28f4 38%, #5a18dc 100%)'
               }}
-            />
-
-            {/* Top Brand Header: real AspireNext Logo + Wordmark */}
-            <div className="relative z-10 flex items-center gap-2.5 mt-1">
-              <div className="w-8 h-8 rounded-full overflow-hidden bg-white border border-white/70 shadow-md shrink-0">
-                <img src={aspireLogo} alt="AspireNext" className="w-full h-full object-cover scale-110" />
-              </div>
-              <span className="font-extrabold text-xl text-white tracking-tight drop-shadow-sm">
-                AspireNext
-              </span>
-            </div>
-
-            {/* Photo Avatar with 3D White Bezel & Ambient Halo Glow */}
-            <div className="relative z-10 my-auto flex flex-col items-center">
-              <div 
-                className="w-34 h-34 sm:w-36 sm:h-36 rounded-full border-[3.5px] border-white overflow-hidden bg-white/20 flex items-center justify-center text-slate-800"
-                style={{
-                  boxShadow: '0 0 28px rgba(255,255,255,0.48), 0 10px 25px rgba(0,0,0,0.28)'
-                }}
-              >
-                <Avatar 
-                  src={user.avatar} 
-                  name={studentName} 
-                  size="xl" 
-                  className="w-full h-full object-cover" 
-                />
-              </div>
-
-              {/* LEVEL Label & Amber Circular Badge */}
-              <div className="flex items-center gap-2 mt-3.5">
-                <span className="text-[13px] font-extrabold text-white tracking-wider uppercase">
-                  LEVEL
-                </span>
-                <span className="w-7 h-7 rounded-full bg-[#f59e0b] text-[#3d1a00] font-black text-sm flex items-center justify-center border-2 border-white/80 shadow-md">
-                  {studentLevel}
-                </span>
-              </div>
-            </div>
-
-            {/* Handwritten Script Motivational Quote with Yellow Star Sparkle */}
-            <div className="relative z-10 text-center pb-3 pt-1">
-              <p 
-                className="text-white text-[22px] sm:text-[23px] leading-tight drop-shadow-sm tracking-wide font-bold italic"
-                style={{ fontFamily: "'Caveat', cursive, sans-serif" }}
-              >
-                Keep Learning,<br />
-                Keep Growing! <span className="text-[#fde047] text-base drop-shadow-sm inline-block translate-y-[-1px] not-italic">✦</span>
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        {/* ──────────────────────────────────────────────────────────────────────────
-            2. UNIFIED 3D BINDER RINGS (PRECISE PHYSICAL CONNECTOR ASSEMBLY)
-           ────────────────────────────────────────────────────────────────────────── */}
-        <div className="hidden lg:block absolute left-[262px] inset-y-0 w-16 z-30 pointer-events-none">
-          {/* Top Ring Assembly */}
-          <div className="absolute top-[102px] left-0">
-            <BinderRing />
-          </div>
-
-          {/* Bottom Ring Assembly */}
-          <div className="absolute bottom-[102px] left-0">
-            <BinderRing />
-          </div>
-        </div>
-
-        {/* ──────────────────────────────────────────────────────────────────────────
-            3. RIGHT LANDSCAPE CARD (CLEAN WHITE IDENTITY PASS)
-           ────────────────────────────────────────────────────────────────────────── */}
-        <div className="relative w-full max-w-[630px] sm:w-[630px] h-auto min-h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.2),0_8px_20px_rgba(0,0,0,0.04)] ring-1 ring-purple-100/90 z-10">
-          
-          <div className="w-full h-full rounded-[2.15rem] bg-gradient-to-b from-white via-white to-[#faf9fe] p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden space-y-4 sm:space-y-0">
-
-            {/* Subtle dotted texture — concentrated in the bottom-right corner and faded toward
-                the content so it never clashes with the email / identity text */}
-            <div
-              className="absolute bottom-0 right-0 w-64 h-52 pointer-events-none"
-              style={{
-                backgroundImage: 'radial-gradient(#a78bfa 1.25px, transparent 1.25px)',
-                backgroundSize: '13px 13px',
-                opacity: 0.32,
-                WebkitMaskImage: 'radial-gradient(125% 125% at 100% 100%, #000 28%, transparent 68%)',
-                maskImage: 'radial-gradient(125% 125% at 100% 100%, #000 28%, transparent 68%)'
-              }}
-            />
-
-            {/* Top-Right Attached Purple "Student ID Card" Header Tab */}
-            <div 
-              onClick={() => navigate('settings')}
-              title="Click to edit profile"
-              className="absolute top-0 right-0 cursor-pointer group z-20 transition-transform hover:scale-[1.01] active:scale-95"
             >
-              <div className="relative flex items-center">
-                <svg 
-                  viewBox="0 0 200 38" 
-                  className="w-[185px] h-[36px] overflow-visible"
-                >
-                  <defs>
-                    <linearGradient id="tabPurpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor="#6722f4" />
-                      <stop offset="100%" stopColor="#7626ee" />
-                    </linearGradient>
-                  </defs>
-                  {/* Seamless Curved Tab Path matching reference image */}
-                  <path 
-                    d="M 0 0 C 16 0 26 16 36 34 L 180 34 C 190 34 198 26 198 17 C 198 8 190 0 180 0 Z" 
-                    fill="url(#tabPurpleGrad)"
-                  />
-                </svg>
-
-                {/* Tab Content: Icon & Text */}
-                <div className="absolute inset-0 pl-8 pr-3 flex items-center justify-center gap-2 text-white pointer-events-none">
-                  <GraduationCap className="w-4 h-4 text-white shrink-0 -mt-0.5" />
-                  <span className="text-[12px] font-extrabold tracking-tight text-white select-none whitespace-nowrap -mt-0.5">
-                    Student ID Card
-                  </span>
-                </div>
-              </div>
-            </div>
-
-            {/* Student Name & Academic Affiliation */}
-            <div className="pt-8 sm:pt-1.5 pr-0 sm:pr-36">
-              <h1 className="font-black text-2xl sm:text-[28px] text-slate-900 tracking-tight leading-tight">
-                {studentName}
-              </h1>
-              
-              <div className="flex items-center gap-2 flex-wrap mt-1.5">
-                <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#6722f4] font-black text-xs border border-purple-100/80">
-                  {programName}
-                </span>
-                <span className="text-slate-500 text-xs font-semibold">
-                  {collegeName} ({startYear} – {endYear})
-                </span>
-              </div>
-            </div>
-
-            {/* 3 Identity Cards (Soft Lilac Tint, Rounded, Eliminates Empty Space) */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 my-2 sm:my-auto">
-              {/* Card 1: BATCH */}
-              <div className="flex flex-col items-center justify-center text-center py-3.5 sm:py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-1.5 sm:mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
-                  <GraduationCap className="w-5 h-5 text-[#6722f4]" />
-                </div>
-                <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">BATCH</span>
-                <span className="text-base font-black text-slate-900 mt-0.5 tracking-tight">{displayBatch}</span>
-              </div>
-
-              {/* Card 2: REG NO */}
-              <div className="flex flex-col items-center justify-center text-center py-3.5 sm:py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-1.5 sm:mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
-                  <Contact className="w-5 h-5 text-[#6722f4]" />
-                </div>
-                <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">REG NO</span>
-                <span className="text-sm sm:text-[15px] font-black font-mono text-slate-900 mt-0.5 tracking-tight">{displayRegNo}</span>
-              </div>
-
-              {/* Card 3: EMAIL */}
-              <div className="flex flex-col items-center justify-center text-center py-3.5 sm:py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group min-w-0">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-1.5 sm:mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
-                  <Mail className="w-5 h-5 text-[#6722f4]" />
-                </div>
-                <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">EMAIL</span>
-                <span className="text-[11px] sm:text-xs font-bold text-slate-800 mt-0.5 truncate w-full px-1" title={studentEmail}>
-                  {studentEmail}
-                </span>
-              </div>
-            </div>
-
-            {/* Dashed Horizontal Divider */}
-            <div className="border-t border-dashed border-slate-200/80 my-1" />
-
-            {/* Quotation + Social Links Container (clean unified row with margin to clear curled corner) */}
-            <div className="pt-1.5 mr-0 sm:mr-20">
-              <div className="bg-[#f6f2fe] px-3.5 py-2 rounded-2xl flex items-center justify-between gap-3 shadow-xs border border-purple-100/80">
-                
-                {/* Quote Text */}
-                <div className="flex items-center gap-2 min-w-0 flex-1">
-                  <span className="text-[#6722f4] font-serif text-xl font-black leading-none shrink-0 select-none">
-                    “
-                  </span>
-                  <p className="text-slate-700 text-[11px] sm:text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis tracking-tight">
-                    Every day is a step towards becoming better.
-                  </p>
-                </div>
-
-                {/* Vertical Divider */}
-                <div className="w-px h-4 bg-purple-200/90 shrink-0" />
-
-                {/* Clickable Social Icons */}
-                <div className="flex items-center gap-1.5 shrink-0">
-                  {(() => {
-                    const gh = user.socials?.find((s: any) => s.label === 'GitHub')?.value;
-                    const li = user.socials?.find((s: any) => s.label === 'LinkedIn')?.value;
-                    const pf = user.socials?.find((s: any) => s.label === 'Portfolio')?.value;
-                    const isLink = (v?: string) => v && v !== 'Not connected' && v.trim().length > 0;
-                    return (
-                      <>
-                        <a
-                          href={isLink(gh) ? (gh!.startsWith('http') ? gh : `https://${gh}`) : '#'}
-                          target={isLink(gh) ? '_blank' : undefined}
-                          rel="noopener noreferrer"
-                          title={isLink(gh) ? `GitHub: ${gh}` : 'GitHub (Not connected)'}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                            isLink(gh)
-                              ? 'bg-slate-900 text-white hover:bg-slate-700 hover:scale-105 shadow-xs cursor-pointer'
-                              : 'bg-purple-100/70 text-purple-300 hover:text-purple-400 cursor-default'
-                          }`}
-                          onClick={(e) => { if (!isLink(gh)) e.preventDefault(); }}
-                        >
-                          <Github className="w-3.5 h-3.5" />
-                        </a>
-                        <a
-                          href={isLink(li) ? (li!.startsWith('http') ? li : `https://${li}`) : '#'}
-                          target={isLink(li) ? '_blank' : undefined}
-                          rel="noopener noreferrer"
-                          title={isLink(li) ? `LinkedIn: ${li}` : 'LinkedIn (Not connected)'}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                            isLink(li)
-                              ? 'bg-[#0a66c2] text-white hover:bg-[#004182] hover:scale-105 shadow-xs cursor-pointer'
-                              : 'bg-purple-100/70 text-purple-300 hover:text-purple-400 cursor-default'
-                          }`}
-                          onClick={(e) => { if (!isLink(li)) e.preventDefault(); }}
-                        >
-                          <Linkedin className="w-3.5 h-3.5" />
-                        </a>
-                        <a
-                          href={isLink(pf) ? (pf!.startsWith('http') ? pf : `https://${pf}`) : '#'}
-                          target={isLink(pf) ? '_blank' : undefined}
-                          rel="noopener noreferrer"
-                          title={isLink(pf) ? `Portfolio: ${pf}` : 'Portfolio (Not connected)'}
-                          className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
-                            isLink(pf)
-                              ? 'bg-[#6722f4] text-white hover:bg-[#5515d0] hover:scale-105 shadow-xs cursor-pointer'
-                              : 'bg-purple-100/70 text-purple-300 hover:text-purple-400 cursor-default'
-                          }`}
-                          onClick={(e) => { if (!isLink(pf)) e.preventDefault(); }}
-                        >
-                          <Globe className="w-3.5 h-3.5" />
-                        </a>
-                      </>
-                    );
-                  })()}
-                </div>
-
-              </div>
-            </div>
-
-            {/* ──────────────────────────────────────────────────────────────────────────
-                REALISTIC ORGANIC CURLED / PEELED CORNER (BOTTOM-RIGHT)
-               ────────────────────────────────────────────────────────────────────────── */}
-            <div className="hidden sm:block absolute bottom-0 right-0 w-24 h-24 pointer-events-none z-10">
-              <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
-                <defs>
-                  {/* Soft violet gradient for the exposed corner underneath the curl */}
-                  <linearGradient id="pageCurlPurple" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#a78bfa" />
-                    <stop offset="55%" stopColor="#8b5cf6" />
-                    <stop offset="100%" stopColor="#6d28d9" />
-                  </linearGradient>
-
-                  {/* Curled paper flap shading (white → soft lavender) */}
-                  <linearGradient id="pageCurlShading" x1="0%" y1="0%" x2="100%" y2="100%">
-                    <stop offset="0%" stopColor="#ffffff" />
-                    <stop offset="45%" stopColor="#f7f4ff" />
-                    <stop offset="78%" stopColor="#ece5fb" />
-                    <stop offset="100%" stopColor="#d6c9f7" />
-                  </linearGradient>
-
-                  {/* Soft shadow cast by the curled flap */}
-                  <filter id="pageCurlDropShadow" x="-40%" y="-40%" width="180%" height="180%">
-                    <feDropShadow dx="-2.5" dy="-2.5" stdDeviation="4" floodColor="#4c1d95" floodOpacity="0.28" />
-                  </filter>
-                </defs>
-
-                {/* 1. Exposed soft-violet corner underneath */}
-                <path
-                  d="M 18 100 L 100 18 L 100 82 Q 100 100 82 100 Z"
-                  fill="url(#pageCurlPurple)"
+              {/* Background S-Curve: flows from upper-left DOWN through center, back UP to right */}
+              <svg 
+                className="absolute inset-0 w-full h-full pointer-events-none" 
+                viewBox="0 0 280 440" 
+                preserveAspectRatio="none"
+              >
+                {/* Top-Right: very faint subtle corner tint */}
+                <path 
+                  d="M 180 0 C 220 10, 260 25, 280 15 L 280 0 Z" 
+                  fill="#5a1ad0" 
+                  opacity="0.3" 
                 />
-
-                {/* 2. Curled paper flap with rounded apex + soft shadow */}
-                <path
-                  d="M 18 100 C 16 68 22 44 34 33 C 44 24 68 16 100 18 L 18 100 Z"
-                  fill="url(#pageCurlShading)"
-                  filter="url(#pageCurlDropShadow)"
+                {/* Main S-Curve: starts upper-left ~52%, dips down to ~65% center, rises back up to ~55% right.
+                    Covers the LEVEL badge and flows to the right. Subtle shade only. */}
+                <path 
+                  d="M 0 230 C 60 240, 100 280, 140 285 C 180 290, 230 260, 280 240 L 280 440 L 0 440 Z" 
+                  fill="#4c14be" 
+                  opacity="0.30" 
                 />
               </svg>
+
+              {/* Bottom-Left Halftone Dot Matrix — small triangular corner cluster */}
+              <div 
+                className="absolute bottom-2 left-2 w-24 h-20 pointer-events-none"
+                style={{
+                  backgroundImage: 'radial-gradient(circle, #ffffff 1.4px, transparent 1.4px)',
+                  backgroundSize: '10px 10px',
+                  opacity: 0.28,
+                  WebkitMaskImage: 'linear-gradient(135deg, transparent 35%, rgba(0,0,0,0.6) 100%)',
+                  maskImage: 'linear-gradient(135deg, transparent 35%, rgba(0,0,0,0.6) 100%)'
+                }}
+              />
+
+              {/* Top Brand Header: real AspireNext Logo + Wordmark */}
+              <div className="relative z-10 flex items-center gap-2.5 mt-1">
+                <div className="w-8 h-8 rounded-full overflow-hidden bg-white border border-white/70 shadow-md shrink-0">
+                  <img src={aspireLogo} alt="AspireNext" className="w-full h-full object-cover scale-110" />
+                </div>
+                <span className="font-extrabold text-xl text-white tracking-tight drop-shadow-sm">
+                  AspireNext
+                </span>
+              </div>
+
+              {/* Photo Avatar with 3D White Bezel & Ambient Halo Glow */}
+              <div className="relative z-10 my-auto flex flex-col items-center">
+                <div 
+                  className="w-36 h-36 rounded-full border-[3.5px] border-white overflow-hidden bg-white/20 flex items-center justify-center text-slate-800"
+                  style={{
+                    boxShadow: '0 0 28px rgba(255,255,255,0.48), 0 10px 25px rgba(0,0,0,0.28)'
+                  }}
+                >
+                  <Avatar 
+                    src={user.avatar} 
+                    name={studentName} 
+                    size="xl" 
+                    className="w-full h-full object-cover" 
+                  />
+                </div>
+
+                {/* LEVEL Label & Amber Circular Badge */}
+                <div className="flex items-center gap-2 mt-3.5">
+                  <span className="text-[13px] font-extrabold text-white tracking-wider uppercase">
+                    LEVEL
+                  </span>
+                  <span className="w-7 h-7 rounded-full bg-[#f59e0b] text-[#3d1a00] font-black text-sm flex items-center justify-center border-2 border-white/80 shadow-md">
+                    {studentLevel}
+                  </span>
+                </div>
+              </div>
+
+              {/* Handwritten Script Motivational Quote with Yellow Star Sparkle */}
+              <div className="relative z-10 text-center pb-3 pt-1">
+                <p 
+                  className="text-white text-[23px] leading-tight drop-shadow-sm tracking-wide font-bold italic"
+                  style={{ fontFamily: "'Caveat', cursive, sans-serif" }}
+                >
+                  Keep Learning,<br />
+                  Keep Growing! <span className="text-[#fde047] text-base drop-shadow-sm inline-block translate-y-[-1px] not-italic">✦</span>
+                </p>
+              </div>
+
+            </div>
+          </div>
+
+          {/* ──────────────────────────────────────────────────────────────────────────
+              2. UNIFIED 3D BINDER RINGS (PRECISE PHYSICAL CONNECTOR ASSEMBLY)
+             ────────────────────────────────────────────────────────────────────────── */}
+          <div className="absolute left-[262px] inset-y-0 w-16 z-30 pointer-events-none">
+            {/* Top Ring Assembly */}
+            <div className="absolute top-[102px] left-0">
+              <BinderRing />
+            </div>
+
+            {/* Bottom Ring Assembly */}
+            <div className="absolute bottom-[102px] left-0">
+              <BinderRing />
+            </div>
+          </div>
+
+          {/* ──────────────────────────────────────────────────────────────────────────
+              3. RIGHT LANDSCAPE CARD (CLEAN WHITE IDENTITY PASS)
+             ────────────────────────────────────────────────────────────────────────── */}
+          <div className="relative w-[630px] h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.2),0_8px_20px_rgba(0,0,0,0.04)] ring-1 ring-purple-100/90 z-10">
+            
+            <div className="w-full h-full rounded-[2.15rem] bg-gradient-to-b from-white via-white to-[#faf9fe] p-8 flex flex-col justify-between relative overflow-hidden">
+
+              {/* Subtle dotted texture — concentrated in the bottom-right corner and faded toward
+                  the content so it never clashes with the email / identity text */}
+              <div
+                className="absolute bottom-0 right-0 w-64 h-52 pointer-events-none"
+                style={{
+                  backgroundImage: 'radial-gradient(#a78bfa 1.25px, transparent 1.25px)',
+                  backgroundSize: '13px 13px',
+                  opacity: 0.32,
+                  WebkitMaskImage: 'radial-gradient(125% 125% at 100% 100%, #000 28%, transparent 68%)',
+                  maskImage: 'radial-gradient(125% 125% at 100% 100%, #000 28%, transparent 68%)'
+                }}
+              />
+
+              {/* Top-Right Attached Purple "Student ID Card" Header Tab */}
+              <div 
+                onClick={() => navigate('settings')}
+                title="Click to edit profile"
+                className="absolute top-0 right-0 cursor-pointer group z-20 transition-transform hover:scale-[1.01] active:scale-95"
+              >
+                <div className="relative flex items-center">
+                  <svg 
+                    viewBox="0 0 200 38" 
+                    className="w-[185px] h-[36px] overflow-visible"
+                  >
+                    <defs>
+                      <linearGradient id="tabPurpleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#6722f4" />
+                        <stop offset="100%" stopColor="#7626ee" />
+                      </linearGradient>
+                    </defs>
+                    {/* Seamless Curved Tab Path matching reference image */}
+                    <path 
+                      d="M 0 0 C 16 0 26 16 36 34 L 180 34 C 190 34 198 26 198 17 C 198 8 190 0 180 0 Z" 
+                      fill="url(#tabPurpleGrad)"
+                    />
+                  </svg>
+
+                  {/* Tab Content: Icon & Text */}
+                  <div className="absolute inset-0 pl-8 pr-3 flex items-center justify-center gap-2 text-white pointer-events-none">
+                    <GraduationCap className="w-4 h-4 text-white shrink-0 -mt-0.5" />
+                    <span className="text-[12px] font-extrabold tracking-tight text-white select-none whitespace-nowrap -mt-0.5">
+                      Student ID Card
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Student Name & Academic Affiliation */}
+              <div className="pt-1.5 pr-36">
+                <h1 className="font-black text-[28px] text-slate-900 tracking-tight leading-tight">
+                  {studentName}
+                </h1>
+                
+                <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#6722f4] font-black text-xs border border-purple-100/80">
+                    {programName}
+                  </span>
+                  <span className="text-slate-500 text-xs font-semibold">
+                    {collegeName} ({startYear} – {endYear})
+                  </span>
+                </div>
+              </div>
+
+              {/* 3 Identity Cards (Soft Lilac Tint, Rounded, Eliminates Empty Space) */}
+              <div className="grid grid-cols-3 gap-3.5 my-auto">
+                {/* Card 1: BATCH */}
+                <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
+                    <GraduationCap className="w-5 h-5 text-[#6722f4]" />
+                  </div>
+                  <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">BATCH</span>
+                  <span className="text-base font-black text-slate-900 mt-0.5 tracking-tight">{displayBatch}</span>
+                </div>
+
+                {/* Card 2: REG NO */}
+                <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
+                    <Contact className="w-5 h-5 text-[#6722f4]" />
+                  </div>
+                  <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">REG NO</span>
+                  <span className="text-[15px] font-black font-mono text-slate-900 mt-0.5 tracking-tight">{displayRegNo}</span>
+                </div>
+
+                {/* Card 3: EMAIL */}
+                <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
+                    <Mail className="w-5 h-5 text-[#6722f4]" />
+                  </div>
+                  <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">EMAIL</span>
+                  <span className="text-xs font-bold text-slate-800 mt-0.5 truncate w-full px-1" title={studentEmail}>
+                    {studentEmail}
+                  </span>
+                </div>
+              </div>
+
+              {/* Dashed Horizontal Divider */}
+              <div className="border-t border-dashed border-slate-200/80 my-1" />
+
+              {/* Quotation + Social Links Container (clean unified row with margin to clear curled corner) */}
+              <div className="pt-1.5 mr-20">
+                <div className="bg-[#f6f2fe] px-3.5 py-2 rounded-2xl flex items-center justify-between gap-3 shadow-xs border border-purple-100/80">
+                  
+                  {/* Quote Text */}
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-[#6722f4] font-serif text-xl font-black leading-none shrink-0 select-none">
+                      “
+                    </span>
+                    <p className="text-slate-700 text-xs font-semibold whitespace-nowrap overflow-hidden text-ellipsis tracking-tight">
+                      Every day is a step towards becoming better.
+                    </p>
+                  </div>
+
+                  {/* Vertical Divider */}
+                  <div className="w-px h-4 bg-purple-200/90 shrink-0" />
+
+                  {/* Clickable Social Icons */}
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {(() => {
+                      const gh = user.socials?.find((s: any) => s.label === 'GitHub')?.value;
+                      const li = user.socials?.find((s: any) => s.label === 'LinkedIn')?.value;
+                      const pf = user.socials?.find((s: any) => s.label === 'Portfolio')?.value;
+                      const isLink = (v?: string) => v && v !== 'Not connected' && v.trim().length > 0;
+                      return (
+                        <>
+                          <a
+                            href={isLink(gh) ? (gh!.startsWith('http') ? gh : `https://${gh}`) : '#'}
+                            target={isLink(gh) ? '_blank' : undefined}
+                            rel="noopener noreferrer"
+                            title={isLink(gh) ? `GitHub: ${gh}` : 'GitHub (Not connected)'}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                              isLink(gh)
+                                ? 'bg-slate-900 text-white hover:bg-slate-700 hover:scale-105 shadow-xs cursor-pointer'
+                                : 'bg-purple-100/70 text-purple-300 hover:text-purple-400 cursor-default'
+                            }`}
+                            onClick={(e) => { if (!isLink(gh)) e.preventDefault(); }}
+                          >
+                            <Github className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={isLink(li) ? (li!.startsWith('http') ? li : `https://${li}`) : '#'}
+                            target={isLink(li) ? '_blank' : undefined}
+                            rel="noopener noreferrer"
+                            title={isLink(li) ? `LinkedIn: ${li}` : 'LinkedIn (Not connected)'}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                              isLink(li)
+                                ? 'bg-[#0a66c2] text-white hover:bg-[#004182] hover:scale-105 shadow-xs cursor-pointer'
+                                : 'bg-purple-100/70 text-purple-300 hover:text-purple-400 cursor-default'
+                            }`}
+                            onClick={(e) => { if (!isLink(li)) e.preventDefault(); }}
+                          >
+                            <Linkedin className="w-3.5 h-3.5" />
+                          </a>
+                          <a
+                            href={isLink(pf) ? (pf!.startsWith('http') ? pf : `https://${pf}`) : '#'}
+                            target={isLink(pf) ? '_blank' : undefined}
+                            rel="noopener noreferrer"
+                            title={isLink(pf) ? `Portfolio: ${pf}` : 'Portfolio (Not connected)'}
+                            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all ${
+                              isLink(pf)
+                                ? 'bg-[#6722f4] text-white hover:bg-[#5515d0] hover:scale-105 shadow-xs cursor-pointer'
+                                : 'bg-purple-100/70 text-purple-300 hover:text-purple-400 cursor-default'
+                            }`}
+                            onClick={(e) => { if (!isLink(pf)) e.preventDefault(); }}
+                          >
+                            <Globe className="w-3.5 h-3.5" />
+                          </a>
+                        </>
+                      );
+                    })()}
+                  </div>
+
+                </div>
+              </div>
+
+              {/* ──────────────────────────────────────────────────────────────────────────
+                  REALISTIC ORGANIC CURLED / PEELED CORNER (BOTTOM-RIGHT)
+                 ────────────────────────────────────────────────────────────────────────── */}
+              <div className="absolute bottom-0 right-0 w-24 h-24 pointer-events-none z-10">
+                <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
+                  <defs>
+                    {/* Soft violet gradient for the exposed corner underneath the curl */}
+                    <linearGradient id="pageCurlPurple" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#a78bfa" />
+                      <stop offset="55%" stopColor="#8b5cf6" />
+                      <stop offset="100%" stopColor="#6d28d9" />
+                    </linearGradient>
+
+                    {/* Curled paper flap shading (white → soft lavender) */}
+                    <linearGradient id="pageCurlShading" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stopColor="#ffffff" />
+                      <stop offset="45%" stopColor="#f7f4ff" />
+                      <stop offset="78%" stopColor="#ece5fb" />
+                      <stop offset="100%" stopColor="#d6c9f7" />
+                    </linearGradient>
+
+                    {/* Soft shadow cast by the curled flap */}
+                    <filter id="pageCurlDropShadow" x="-40%" y="-40%" width="180%" height="180%">
+                      <feDropShadow dx="-2.5" dy="-2.5" stdDeviation="4" floodColor="#4c1d95" floodOpacity="0.28" />
+                    </filter>
+                  </defs>
+
+                  {/* 1. Exposed soft-violet corner underneath */}
+                  <path
+                    d="M 18 100 L 100 18 L 100 82 Q 100 100 82 100 Z"
+                    fill="url(#pageCurlPurple)"
+                  />
+
+                  {/* 2. Curled paper flap with rounded apex + soft shadow */}
+                  <path
+                    d="M 18 100 C 16 68 22 44 34 33 C 44 24 68 16 100 18 L 18 100 Z"
+                    fill="url(#pageCurlShading)"
+                    filter="url(#pageCurlDropShadow)"
+                  />
+                </svg>
+              </div>
+
             </div>
 
           </div>
