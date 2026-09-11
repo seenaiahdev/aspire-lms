@@ -99,7 +99,7 @@ export function AIChatbot() {
       {/* Chat Window */}
       <div
         className={cn(
-          "fixed bottom-24 lg:bottom-8 right-4 lg:right-8 z-50 w-[360px] h-[580px] max-h-[85vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 origin-bottom-right border border-slate-200",
+          "fixed bottom-20 sm:bottom-24 lg:bottom-8 right-2 sm:right-4 lg:right-8 z-50 w-[calc(100vw-1rem)] sm:w-[360px] max-w-[360px] h-[520px] sm:h-[580px] max-h-[80vh] flex flex-col bg-white rounded-2xl shadow-2xl overflow-hidden transition-all duration-300 origin-bottom-right border border-slate-200",
           isOpen ? "scale-100 opacity-100" : "scale-50 opacity-0 pointer-events-none"
         )}
       >

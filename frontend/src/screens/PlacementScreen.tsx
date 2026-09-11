@@ -546,7 +546,7 @@ export function PlacementScreen() {
           className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
           onClick={(e) => { if (e.target === e.currentTarget) setApplyJobTarget(null); }}
         >
-          <div className="w-full max-w-md bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto p-6 space-y-6">
+          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-2xl sm:rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto p-5 sm:p-6 space-y-6">
             
             <div className="text-center space-y-2">
               {applyJobTarget.logo ? (

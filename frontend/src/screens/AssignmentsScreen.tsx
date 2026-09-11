@@ -1042,7 +1042,7 @@ export function AssignmentsScreen() {
           </div>
 
           {/* RIGHT COLUMN: Action & History Panel */}
-          <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-200/60 shadow-md p-6 flex flex-col gap-6 sticky top-24 min-h-[380px]">
+          <div className="lg:col-span-1 bg-white rounded-3xl border border-slate-200/60 shadow-md p-6 flex flex-col gap-6 lg:sticky lg:top-24 min-h-[380px]">
             
             {/* Performance History (Moved to top of right panel) */}
             <div className="flex-1">

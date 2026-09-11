@@ -80,22 +80,22 @@ export function TopNav() {
           <Menu className="w-5 h-5" />
         </button>
 
-        <h1 className="font-extrabold text-sm sm:text-lg text-slate-900 truncate max-w-[160px] sm:max-w-none">
+        <h1 className="font-extrabold text-sm sm:text-lg text-slate-900 truncate max-w-[110px] sm:max-w-xs md:max-w-none">
           {titles[route] || 'AspireLMS'}
         </h1>
       </div>
 
       {/* Right Action Bar (Streak + XP + Notifications + Profile Dropdown) */}
-      <div className="flex items-center gap-2.5 sm:gap-3 ml-auto">
+      <div className="flex items-center gap-1.5 sm:gap-2.5 md:gap-3 ml-auto">
         
         {/* 🔥 STREAK BADGE (Numeric) */}
         <div 
           id="tour-streak"
           onClick={() => navigate('dashboard')}
           title="Daily Streak"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-extrabold shadow-sm hover:bg-amber-100 transition-all cursor-pointer"
+          className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 text-xs font-extrabold shadow-sm hover:bg-amber-100 transition-all cursor-pointer"
         >
-          <Flame className="w-4 h-4 text-amber-500 fill-amber-500" />
+          <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-500 fill-amber-500" />
           <span>{currentUser.streak}</span>
         </div>
 
@@ -103,10 +103,10 @@ export function TopNav() {
         <div 
           onClick={() => navigate('rewards')}
           title="Total Student XP"
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-[#7c3aed] text-xs font-extrabold shadow-sm hover:bg-purple-100 transition-all cursor-pointer"
+          className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-purple-50 border border-purple-200 text-[#7c3aed] text-xs font-extrabold shadow-sm hover:bg-purple-100 transition-all cursor-pointer"
         >
-          <Zap className="w-4 h-4 text-[#7c3aed] fill-[#7c3aed]" />
-          <span>{currentUser.xp || 0} XP</span>
+          <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#7c3aed] fill-[#7c3aed]" />
+          <span>{currentUser.xp || 0} <span className="hidden sm:inline">XP</span></span>
         </div>
 
         {/* Notifications Bell Button */}

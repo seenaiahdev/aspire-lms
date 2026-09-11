@@ -645,7 +645,7 @@ export function DashboardScreen() {
 
       {/* Greeting Header */}
       <div className="flex items-center gap-2 px-1">
-        <h1 className="text-3xl sm:text-4xl font-black text-[#0c0f26] tracking-tight">
+        <h1 className="text-2xl sm:text-4xl font-black text-[#0c0f26] tracking-tight">
           {getGreeting()}, {currentUser.name.split(' ')[0]}
         </h1>
       </div>
@@ -653,10 +653,10 @@ export function DashboardScreen() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* ════════ LEFT SIDE (8 COLS): DAILY TASKS & CURRICULUM SCHEDULE ════════ */}
-        <div className="lg:col-span-8 border border-slate-200/80 shadow-sm rounded-[2rem] overflow-visible bg-white p-6 sm:p-7 space-y-6">
+        <div className="lg:col-span-8 border border-slate-200/80 shadow-sm rounded-2xl sm:rounded-[2rem] overflow-visible bg-white p-4 sm:p-7 space-y-6">
           
           {/* Top Header Row: "Your Schedule" & "Calendar" Button with Floating Popover */}
-          <div id="tour-schedule" className="flex items-center justify-between relative z-20">
+          <div id="tour-schedule" className="flex items-center justify-between relative z-20 flex-wrap gap-2">
             <div>
               <h2 className="font-extrabold text-slate-900 text-xl sm:text-2xl tracking-tight flex items-center gap-2">
                 <span>Your Schedule</span>
@@ -668,7 +668,7 @@ export function DashboardScreen() {
             <div className="relative">
               <button
                 onClick={() => setShowFullCalendar(!showFullCalendar)}
-                className="flex items-center gap-2 px-4 py-2 rounded-2xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-extrabold text-xs sm:text-sm transition-all duration-150 active:scale-95 border border-purple-100 shadow-2xs"
+                className="flex items-center gap-2 px-3.5 sm:px-4 py-2 rounded-2xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] font-extrabold text-xs sm:text-sm transition-all duration-150 active:scale-95 border border-purple-100 shadow-2xs"
               >
                 <CalendarIcon className="w-4.5 h-4.5 text-[#7c3aed]" />
                 <span>Calendar</span>
@@ -678,7 +678,7 @@ export function DashboardScreen() {
               {showFullCalendar && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowFullCalendar(false)} />
-                  <div className="absolute right-0 top-12 z-50 w-72 bg-white rounded-[1.5rem] p-4 shadow-2xl border border-slate-200/90 space-y-3 animate-scale-in">
+                  <div className="absolute right-0 top-12 z-50 w-[calc(100vw-2.5rem)] max-w-72 bg-white rounded-[1.5rem] p-3.5 sm:p-4 shadow-2xl border border-slate-200/90 space-y-3 animate-scale-in">
                   
                   {/* Header Month Switcher: < Aug 2026 > */}
                   <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">

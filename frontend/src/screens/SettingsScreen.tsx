@@ -360,24 +360,24 @@ export function SettingsScreen() {
 
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
         
-        {/* Sidebar Nav */}
-        <div className="lg:col-span-1 space-y-2 sticky top-24">
+        {/* Sidebar Nav (Horizontal scrollable tab bar on mobile, stacked sticky on desktop) */}
+        <div className="lg:col-span-1 flex lg:flex-col gap-2 overflow-x-auto pb-2 scrollbar-hide lg:sticky lg:top-24 shrink-0 -mx-1 px-1">
           {sections.map((s) => (
             <button
               key={s.id}
               onClick={() => setSection(s.id)}
               className={cn(
-                'w-full flex items-center gap-3 px-4 py-3 rounded-2xl text-sm font-extrabold transition-all group',
+                'whitespace-nowrap flex items-center gap-2 sm:gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 rounded-xl sm:rounded-2xl text-xs sm:text-sm font-extrabold transition-all group shrink-0 cursor-pointer',
                 section === s.id 
                   ? 'bg-purple-50 text-[#7c3aed] shadow-sm border border-purple-100' 
                   : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800 border border-transparent'
               )}
             >
               <s.icon className={cn(
-                "w-5 h-5 transition-colors",
+                "w-4 h-4 sm:w-5 sm:h-5 transition-colors shrink-0",
                 section === s.id ? "text-[#7c3aed]" : "text-slate-400 group-hover:text-slate-600"
               )} />
-              {s.label}
+              <span>{s.label}</span>
             </button>
           ))}
         </div>

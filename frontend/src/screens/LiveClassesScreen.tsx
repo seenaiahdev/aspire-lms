@@ -712,7 +712,7 @@ export function LiveClassesScreen() {
                   <StatusChip status={cls.status} />
                 </div>
                 
-                <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 mb-5 pt-4 border-t border-slate-100">
+                <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap text-xs font-semibold text-slate-500 mb-5 pt-4 border-t border-slate-100">
                   <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400" />{cls.scheduledAt}</span>
                   <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-slate-400" />{cls.duration}</span>
                   <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-slate-400" />{cls.participants}</span>

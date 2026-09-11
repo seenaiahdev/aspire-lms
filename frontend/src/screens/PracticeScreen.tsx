@@ -285,7 +285,7 @@ export function PracticeScreen() {
       {/* ── Problems Tab ── */}
       {tab === 'problems' && (
         <div className="space-y-4">
-          <div id="tour-practice-difficulty" className="flex gap-2">
+          <div id="tour-practice-difficulty" className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
             {['all', 'Easy', 'Medium', 'Hard'].map((d) => (
               <button
                 key={d}
@@ -407,19 +407,19 @@ export function PracticeScreen() {
                       navigate('workspace', { id: p.id });
                     }}
                     className={cn(
-                      "flex items-center gap-4 p-4 transition-colors group",
+                      "flex items-center gap-3 sm:gap-4 p-3 sm:p-4 transition-colors group",
                       isLocked ? "cursor-not-allowed opacity-90 grayscale-[15%] bg-slate-50" : "cursor-pointer bg-white hover:bg-slate-50"
                     )}
                   >
-                    <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0 border", isLocked ? "bg-slate-200 text-slate-400 border-slate-300" : "bg-purple-50 text-[#7c3aed] border-purple-100")}>
-                      <Code2 className="w-5 h-5" />
+                    <div className={cn("w-9 h-9 sm:w-10 sm:h-10 rounded-xl flex items-center justify-center shrink-0 border", isLocked ? "bg-slate-200 text-slate-400 border-slate-300" : "bg-purple-50 text-[#7c3aed] border-purple-100")}>
+                      <Code2 className="w-4 h-4 sm:w-5 sm:h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <h3 className={cn("font-bold text-sm", isLocked ? "text-slate-500" : "text-slate-900 group-hover:text-[#7c3aed]")}>{p.title}</h3>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className={cn("font-bold text-sm truncate", isLocked ? "text-slate-500" : "text-slate-900 group-hover:text-[#7c3aed]")}>{p.title}</h3>
                         <DifficultyBadge difficulty={p.difficulty} />
                       </div>
-                      <div className="flex items-center gap-4 text-xs font-semibold text-slate-500">
+                      <div className="flex items-center gap-2 sm:gap-4 text-xs font-semibold text-slate-500 flex-wrap">
                         <span>{p.category}</span>
                         <span className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-slate-400" />{p.successRate}% success</span>
                         <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-amber-500" />{p.points} XP</span>

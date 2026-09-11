@@ -8,8 +8,8 @@ export function ForgotPasswordScreen() {
   const [sent, setSent] = useState(false);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-ink-50">
-      <div className="absolute top-6 left-6">
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 bg-ink-50">
+      <div className="w-full max-w-md mb-2 sm:mb-0 sm:absolute sm:top-6 sm:left-6">
         <button onClick={() => navigate('login')} className="flex items-center gap-2 text-ink-500 hover:text-ink-800 transition-colors text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Back to login
         </button>
@@ -83,9 +83,9 @@ export function ResetPasswordScreen() {
           <div className="space-y-4">
             <div>
               <label className="label">Verification Code</label>
-              <div className="flex justify-center gap-2">
+              <div className="flex justify-center gap-1.5 sm:gap-2">
                 {Array.from({ length: 6 }).map((_, i) => (
-                  <input key={i} type="text" maxLength={1} className="w-11 h-12 text-center text-lg font-bold rounded-xl border border-ink-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
+                  <input key={i} type="text" maxLength={1} className="w-9 h-11 sm:w-11 sm:h-12 text-center text-base sm:text-lg font-bold rounded-xl border border-ink-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20" />
                 ))}
               </div>
             </div>

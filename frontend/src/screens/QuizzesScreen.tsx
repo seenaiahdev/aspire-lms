@@ -100,6 +100,7 @@ export function QuizzesScreen() {
   const [showFullscreenWarning, setShowFullscreenWarning] = useState(false);
   const [autoSubmittedScore, setAutoSubmittedScore] = useState<number | null>(null);
   const [reviewQuizAttempt, setReviewQuizAttempt] = useState<{ quiz: any, attempt: any } | null>(null);
+  const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
   const isExitingIntentionally = useRef(false);
 
   useEffect(() => {
@@ -587,23 +588,23 @@ export function QuizzesScreen() {
         <div className="fixed inset-0 z-[99999] bg-slate-50 flex flex-col animate-fade-in font-sans h-[100dvh] w-screen overflow-hidden">
           
           {/* Top Navbar */}
-          <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 sm:px-12 shrink-0 shadow-sm z-50 relative">
+          <div className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-6 lg:px-12 shrink-0 shadow-sm z-50 relative">
             {!isExamStarted ? (
               <button 
                 onClick={() => setSelectedQuiz(null)}
-                className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition-colors"
+                className="flex items-center gap-2 text-slate-500 hover:text-slate-900 font-bold transition-colors text-xs sm:text-sm"
               >
                 <X className="w-5 h-5" />
                 <span>Cancel & Return</span>
               </button>
             ) : (
-              <div className="flex items-center gap-4">
-                <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center">
-                  <Code2 className="w-5 h-5 text-indigo-600" />
+              <div className="flex items-center gap-2.5 sm:gap-4 min-w-0">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center shrink-0">
+                  <Code2 className="w-4 h-4 sm:w-5 sm:h-5 text-indigo-600" />
                 </div>
-                <div>
-                  <h3 className="font-extrabold text-slate-900 text-sm leading-tight">{selectedQuiz.title}</h3>
-                  <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Quiz</p>
+                <div className="min-w-0">
+                  <h3 className="font-extrabold text-slate-900 text-xs sm:text-sm leading-tight truncate max-w-[110px] sm:max-w-xs">{selectedQuiz.title}</h3>
+                  <p className="text-[9px] sm:text-[10px] font-bold text-slate-500 uppercase tracking-wider">Active Quiz</p>
                 </div>
               </div>
             )}
@@ -611,16 +612,16 @@ export function QuizzesScreen() {
             {!isExamStarted ? (
               <div />
             ) : (
-              <div className="flex items-center gap-6">
+              <div className="flex items-center gap-2.5 sm:gap-6 shrink-0">
                 <div className="flex flex-col items-end">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Time Remaining</span>
-                  <span className={cn("font-black text-sm tabular-nums", timeLeft < 300 ? "text-rose-600 animate-pulse" : "text-slate-900")}>
+                  <span className="text-[9px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider">Time Left</span>
+                  <span className={cn("font-black text-xs sm:text-sm tabular-nums", timeLeft < 300 ? "text-rose-600 animate-pulse" : "text-slate-900")}>
                     {formatTime(timeLeft)}
                   </span>
                 </div>
-                <div className="flex items-center gap-2 bg-rose-50 px-3 py-1.5 rounded-full border border-rose-100">
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-rose-50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full border border-rose-100">
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-                  <span className="text-xs font-black text-rose-700 tracking-widest uppercase">Recording</span>
+                  <span className="text-[9px] sm:text-xs font-black text-rose-700 tracking-widest uppercase">Live</span>
                 </div>
               </div>
             )}
@@ -628,9 +629,9 @@ export function QuizzesScreen() {
 
           {!isExamStarted ? (
             /* ════════ PRE-EXAM VIEW (SLEEK PROFESSIONAL UI) ════════ */
-            <div className="flex-1 flex overflow-hidden bg-slate-50/50 items-center justify-center p-6 sm:p-10">
+            <div className="flex-1 flex overflow-y-auto bg-slate-50/50 items-center justify-center p-4 sm:p-8 lg:p-10">
               
-              <div className="w-full max-w-[1000px] bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 flex flex-col lg:flex-row overflow-hidden relative">
+              <div className="w-full max-w-[1000px] bg-white rounded-2xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-200/60 flex flex-col lg:flex-row overflow-visible lg:overflow-hidden relative my-auto">
                 
                 {/* LEFT SIDE - Info & Rules */}
                 <div className="flex-1 p-8 sm:p-12 flex flex-col justify-center">
@@ -739,16 +740,24 @@ export function QuizzesScreen() {
               <div className="flex-1 w-full max-w-[1600px] mx-auto flex overflow-hidden">
                 
                 {/* LEFT PANEL - Question Area */}
-                <div className="flex-1 flex flex-col p-4 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar">
+                <div className="flex-1 flex flex-col p-3 sm:p-6 lg:p-8 overflow-y-auto custom-scrollbar">
                   
                   <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col min-h-0">
-                    <div className="flex items-center justify-between mb-4 shrink-0">
+                    <div className="flex items-center justify-between mb-4 shrink-0 gap-2">
                       <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[11px] font-black tracking-widest uppercase">
                         Question {currentQuestionIdx + 1} of {selectedQuiz.questions}
                       </span>
+                      <button
+                        type="button"
+                        onClick={() => setMobilePaletteOpen(true)}
+                        className="lg:hidden flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 hover:bg-purple-50 hover:text-[#7c3aed] border border-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                      >
+                        <LayoutGrid className="w-3.5 h-3.5" />
+                        <span>Palette ({Object.keys(answers).length}/{selectedQuiz.questions})</span>
+                      </button>
                     </div>
 
-                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 leading-snug mb-6 shrink-0">
+                    <h2 className="text-lg sm:text-2xl font-black text-slate-900 leading-snug mb-4 sm:mb-6 shrink-0">
                       {selectedQuiz.mcqs?.[currentQuestionIdx]?.question}
                     </h2>
 
@@ -790,11 +799,11 @@ export function QuizzesScreen() {
                     </div>
 
                     {/* Action Controls */}
-                    <div className="flex items-center justify-between shrink-0 border-t border-slate-200 pt-6">
+                    <div className="flex items-center justify-between shrink-0 border-t border-slate-200 pt-4 sm:pt-6 gap-2 flex-wrap">
                       <button 
                         onClick={() => setReviewMarked(prev => ({ ...prev, [currentQuestionIdx]: !prev[currentQuestionIdx] }))}
                         className={cn(
-                          "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-xs transition-all border",
+                          "flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl font-bold text-xs transition-all border",
                           reviewMarked[currentQuestionIdx]
                             ? "bg-amber-50 text-amber-700 border-amber-200"
                             : "bg-white text-slate-500 border-slate-200 hover:bg-slate-50 hover:text-slate-700"
@@ -804,21 +813,32 @@ export function QuizzesScreen() {
                         <span>{reviewMarked[currentQuestionIdx] ? "Marked for Review" : "Mark for Review"}</span>
                       </button>
 
-                      <button 
-                        onClick={handleNextQuestion}
-                        disabled={currentQuestionIdx === (selectedQuiz?.questions || 20) - 1}
-                        className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-bold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        <span>Save & Next</span>
-                        <ChevronRight className="w-4 h-4" />
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openExamConfirm('submit')}
+                          className="lg:hidden flex items-center gap-1.5 px-3.5 py-2 sm:py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Submit</span>
+                        </button>
+
+                        <button 
+                          onClick={handleNextQuestion}
+                          disabled={currentQuestionIdx === (selectedQuiz?.questions || 20) - 1}
+                          className="flex items-center gap-1.5 sm:gap-2 px-4 sm:px-5 py-2 sm:py-2.5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-bold text-xs shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <span>Save & Next</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   </div>
 
                 </div>
 
-                {/* RIGHT PANEL - Question Palette */}
-                <div className="w-64 lg:w-72 bg-white border-l border-slate-200 flex flex-col shrink-0">
+                {/* RIGHT PANEL - Question Palette (Desktop) */}
+                <div className="hidden lg:flex w-72 bg-white border-l border-slate-200 flex-col shrink-0">
                   <div className="p-4 border-b border-slate-100">
                     <h3 className="font-extrabold text-slate-900 text-sm mb-3">Question Palette</h3>
                     
@@ -890,6 +910,89 @@ export function QuizzesScreen() {
                     </button>
                   </div>
                 </div>
+
+                {/* MOBILE PALETTE SLIDE-UP DRAWER */}
+                {mobilePaletteOpen && (
+                  <div className="fixed inset-0 z-[100000] lg:hidden flex flex-col justify-end bg-black/40 backdrop-blur-xs animate-fade-in">
+                    <div className="fixed inset-0" onClick={() => setMobilePaletteOpen(false)} />
+                    <div className="relative bg-white rounded-t-3xl max-h-[80vh] flex flex-col p-4 shadow-2xl z-10 animate-in slide-in-from-bottom duration-200">
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                        <div>
+                          <h3 className="font-extrabold text-slate-900 text-sm">Question Palette</h3>
+                          <p className="text-[11px] text-slate-500">{Object.keys(answers).length} answered of {selectedQuiz.questions}</p>
+                        </div>
+                        <button onClick={() => setMobilePaletteOpen(false)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600">
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+
+                      {/* Legend */}
+                      <div className="grid grid-cols-2 gap-2 text-[10px] font-bold text-slate-600 py-3 border-b border-slate-100">
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm bg-[#7c3aed]" />
+                          <span>Answered</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm bg-amber-400" />
+                          <span>Review</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm border border-slate-300 bg-white" />
+                          <span>Unanswered</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <div className="w-2.5 h-2.5 rounded-sm border border-[#7c3aed] bg-purple-50" />
+                          <span>Current</span>
+                        </div>
+                      </div>
+
+                      {/* Numbers */}
+                      <div className="flex-1 p-2 overflow-y-auto custom-scrollbar my-2">
+                        <div className="grid grid-cols-5 gap-2">
+                          {Array.from({ length: selectedQuiz?.questions || 20 }).map((_, i) => {
+                            const isAnswered = answers[i] !== undefined;
+                            const isReview = reviewMarked[i];
+                            const isCurrent = currentQuestionIdx === i;
+                            
+                            return (
+                              <button
+                                key={i}
+                                onClick={() => { setCurrentQuestionIdx(i); setMobilePaletteOpen(false); }}
+                                className={cn(
+                                  "aspect-square rounded-lg flex items-center justify-center text-xs font-bold transition-all relative overflow-hidden",
+                                  isCurrent ? "border-2 border-[#7c3aed] bg-purple-50 text-[#7c3aed]" : "border border-slate-200",
+                                  isAnswered ? "bg-[#7c3aed] text-white border-transparent" : "bg-white text-slate-600",
+                                  !isAnswered && isReview ? "bg-amber-100 text-amber-800 border-amber-300" : ""
+                                )}
+                              >
+                                <span className="relative z-10">{i + 1}</span>
+                                {isAnswered && isReview && (
+                                  <div className="absolute top-0 right-0 w-0 h-0 border-t-[10px] border-r-[10px] border-t-amber-400 border-r-transparent rounded-tr-sm" />
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex gap-2">
+                        <button
+                          onClick={() => { setMobilePaletteOpen(false); openExamConfirm('submit'); }}
+                          className="flex-1 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs shadow-md flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                          <span>Submit Exam</span>
+                        </button>
+                        <button
+                          onClick={() => { setMobilePaletteOpen(false); handleExitExam(); }}
+                          className="px-4 py-3 rounded-xl bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 font-bold text-xs"
+                        >
+                          Exit
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
               </div>
 

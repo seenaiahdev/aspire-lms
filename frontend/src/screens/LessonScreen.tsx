@@ -554,10 +554,10 @@ export function LessonScreen() {
   }
 
   return (
-    <div className="h-[calc(100vh-5.5rem)] flex flex-col lg:flex-row gap-6 overflow-hidden font-sans pb-2 relative">
+    <div className="min-h-[calc(100vh-5.5rem)] lg:h-[calc(100vh-5.5rem)] flex flex-col lg:flex-row gap-4 lg:gap-6 overflow-y-auto lg:overflow-hidden font-sans pb-6 lg:pb-2 relative">
       
       {/* Left Area: Sized Video Player + Notes Tabs */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto space-y-4 pr-1 pb-6">
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-visible lg:overflow-y-auto space-y-4 pr-0 lg:pr-1 pb-6">
         
         {/* Back Navigation (Outside Video) */}
         <div>
@@ -570,7 +570,7 @@ export function LessonScreen() {
         </div>
 
         {/* Modern High-End Video Player Container (Matches Reference UI) */}
-        <div className="relative aspect-video max-h-[380px] xl:max-h-[440px] w-full rounded-[2.2rem] overflow-hidden bg-[#0a0d18] shadow-2xl border border-slate-800 shrink-0 group">
+        <div className="relative aspect-video max-h-[380px] xl:max-h-[440px] w-full rounded-2xl sm:rounded-[2.2rem] overflow-hidden bg-[#0a0d18] shadow-2xl border border-slate-800 shrink-0 group">
           {/* Rich Dark Background Image Overlay */}
           <div className="absolute inset-0 bg-gradient-to-tr from-slate-950 via-[#101537] to-[#1e1438]" />
           <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1555066931-4365d14bab8c?auto=format&fit=crop&w=1200&q=80')] bg-cover bg-center opacity-45 mix-blend-luminosity" />
@@ -770,12 +770,32 @@ export function LessonScreen() {
 
       </div>
 
+      {/* Mobile Syllabus Toggle Button (Shown on mobile when closed) */}
+      {!sidebarOpen && (
+        <div className="lg:hidden flex items-center justify-between bg-white p-3 rounded-2xl border border-slate-200/90 shadow-2xs">
+          <div className="flex items-center gap-2">
+            <List className="w-4 h-4 text-[#7c3aed]" />
+            <span className="font-extrabold text-xs text-slate-800">Course Syllabus</span>
+            <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#7c3aed] text-[10px] font-black border border-purple-100">
+              {course.progress}%
+            </span>
+          </div>
+          <button 
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-bold transition-all"
+          >
+            View Syllabus
+          </button>
+        </div>
+      )}
+
       {/* Right Area: Collapsed Fallen Vertical Bar OR Full Course Content Panel */}
       {!sidebarOpen ? (
-        /* Slim Vertical Fallen Text Bar (Appears on the right side when hidden) */
+        /* Slim Vertical Fallen Text Bar (Appears only on Desktop lg+ when collapsed) */
         <div 
           onClick={() => setSidebarOpen(true)}
-          className="w-12 h-full bg-white rounded-2xl border border-slate-200/90 shadow-sm flex flex-col items-center py-5 gap-6 cursor-pointer hover:border-purple-300 hover:bg-purple-50/20 transition-all shrink-0 z-20 group"
+          className="hidden lg:flex w-12 h-full bg-white rounded-2xl border border-slate-200/90 shadow-sm flex-col items-center py-5 gap-6 cursor-pointer hover:border-purple-300 hover:bg-purple-50/20 transition-all shrink-0 z-20 group"
           title="Click to Open Course Content"
         >
           <button 
@@ -794,7 +814,7 @@ export function LessonScreen() {
         </div>
       ) : (
         /* Full Course Content Panel */
-        <div className="w-full lg:w-80 h-full bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 flex flex-col shrink-0 overflow-hidden transition-all duration-300 animate-fade-in">
+        <div className="w-full lg:w-80 max-h-[500px] lg:max-h-none lg:h-full bg-white rounded-2xl border border-slate-200/90 shadow-sm p-4 flex flex-col shrink-0 overflow-y-auto lg:overflow-hidden transition-all duration-300 animate-fade-in">
           {/* Panel Header with Close Button */}
           <div className="flex items-center justify-between mb-3 shrink-0 border-b border-slate-100 pb-2.5">
             <div className="flex items-center gap-2">

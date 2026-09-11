@@ -41,7 +41,7 @@ export function ProfileScreen() {
           DUAL-CARD RING-BOUND NOTEBOOK ID PASS CONTAINER (STATIC / NO-SCROLL)
          ════════════════════════════════════════════════════════════════════════════ */}
       <div 
-        className="relative flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-4 transition-transform duration-500 ease-out"
+        className="relative flex flex-col lg:flex-row items-center justify-center gap-6 lg:gap-0 font-sans transition-transform duration-300 w-full max-w-full px-2 sm:px-0"
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         style={{
@@ -52,7 +52,7 @@ export function ProfileScreen() {
         {/* ──────────────────────────────────────────────────────────────────────────
             1. LEFT PORTRAIT CARD (PURPLE BRANDED ID PASS)
            ────────────────────────────────────────────────────────────────────────── */}
-        <div className="relative w-full max-w-[285px] sm:w-[285px] h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.35),0_8px_20px_rgba(0,0,0,0.06)] ring-1 ring-purple-100/90 z-10">
+        <div className="relative w-full max-w-[285px] sm:w-[285px] h-[380px] sm:h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.35),0_8px_20px_rgba(0,0,0,0.06)] ring-1 ring-purple-100/90 z-10">
           
           <div 
             className="w-full h-full rounded-[2.15rem] p-6 flex flex-col items-center justify-between text-white relative overflow-hidden"
@@ -162,9 +162,9 @@ export function ProfileScreen() {
         {/* ──────────────────────────────────────────────────────────────────────────
             3. RIGHT LANDSCAPE CARD (CLEAN WHITE IDENTITY PASS)
            ────────────────────────────────────────────────────────────────────────── */}
-        <div className="relative w-full max-w-[630px] sm:w-[630px] h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.2),0_8px_20px_rgba(0,0,0,0.04)] ring-1 ring-purple-100/90 z-10">
+        <div className="relative w-full max-w-[630px] sm:w-[630px] h-auto min-h-[440px] shrink-0 rounded-[2.5rem] bg-white p-[6px] shadow-[0_25px_60px_-15px_rgba(109,40,217,0.2),0_8px_20px_rgba(0,0,0,0.04)] ring-1 ring-purple-100/90 z-10">
           
-          <div className="w-full h-full rounded-[2.15rem] bg-gradient-to-b from-white via-white to-[#faf9fe] p-7 sm:p-8 flex flex-col justify-between relative overflow-hidden">
+          <div className="w-full h-full rounded-[2.15rem] bg-gradient-to-b from-white via-white to-[#faf9fe] p-5 sm:p-8 flex flex-col justify-between relative overflow-hidden space-y-4 sm:space-y-0">
 
             {/* Subtle dotted texture — concentrated in the bottom-right corner and faded toward
                 the content so it never clashes with the email / identity text */}
@@ -214,7 +214,7 @@ export function ProfileScreen() {
             </div>
 
             {/* Student Name & Academic Affiliation */}
-            <div className="pt-1.5 pr-36">
+            <div className="pt-8 sm:pt-1.5 pr-0 sm:pr-36">
               <h1 className="font-black text-2xl sm:text-[28px] text-slate-900 tracking-tight leading-tight">
                 {studentName}
               </h1>
@@ -230,10 +230,10 @@ export function ProfileScreen() {
             </div>
 
             {/* 3 Identity Cards (Soft Lilac Tint, Rounded, Eliminates Empty Space) */}
-            <div className="grid grid-cols-3 gap-3 sm:gap-3.5 my-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-3.5 my-2 sm:my-auto">
               {/* Card 1: BATCH */}
-              <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
-                <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
+              <div className="flex flex-col items-center justify-center text-center py-3.5 sm:py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-1.5 sm:mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
                   <GraduationCap className="w-5 h-5 text-[#6722f4]" />
                 </div>
                 <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">BATCH</span>
@@ -241,8 +241,8 @@ export function ProfileScreen() {
               </div>
 
               {/* Card 2: REG NO */}
-              <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
-                <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
+              <div className="flex flex-col items-center justify-center text-center py-3.5 sm:py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-1.5 sm:mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
                   <Contact className="w-5 h-5 text-[#6722f4]" />
                 </div>
                 <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">REG NO</span>
@@ -250,8 +250,8 @@ export function ProfileScreen() {
               </div>
 
               {/* Card 3: EMAIL */}
-              <div className="flex flex-col items-center justify-center text-center py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group min-w-0">
-                <div className="w-10 h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
+              <div className="flex flex-col items-center justify-center text-center py-3.5 sm:py-4 px-2.5 rounded-2xl bg-gradient-to-b from-[#faf7fe] to-[#f2ecfd] border border-purple-100/90 shadow-2xs transition-all hover:border-purple-200 hover:shadow-xs group min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white shadow-2xs flex items-center justify-center text-[#6722f4] mb-1.5 sm:mb-2 ring-1 ring-purple-100 transition-transform group-hover:scale-105">
                   <Mail className="w-5 h-5 text-[#6722f4]" />
                 </div>
                 <span className="text-[9.5px] font-black text-purple-900/60 uppercase tracking-wider">EMAIL</span>
@@ -265,7 +265,7 @@ export function ProfileScreen() {
             <div className="border-t border-dashed border-slate-200/80 my-1" />
 
             {/* Quotation + Social Links Container (clean unified row with margin to clear curled corner) */}
-            <div className="pt-1.5 mr-16 sm:mr-20">
+            <div className="pt-1.5 mr-0 sm:mr-20">
               <div className="bg-[#f6f2fe] px-3.5 py-2 rounded-2xl flex items-center justify-between gap-3 shadow-xs border border-purple-100/80">
                 
                 {/* Quote Text */}
@@ -343,7 +343,7 @@ export function ProfileScreen() {
             {/* ──────────────────────────────────────────────────────────────────────────
                 REALISTIC ORGANIC CURLED / PEELED CORNER (BOTTOM-RIGHT)
                ────────────────────────────────────────────────────────────────────────── */}
-            <div className="absolute bottom-0 right-0 w-24 h-24 pointer-events-none z-10">
+            <div className="hidden sm:block absolute bottom-0 right-0 w-24 h-24 pointer-events-none z-10">
               <svg viewBox="0 0 100 100" className="w-full h-full overflow-visible">
                 <defs>
                   {/* Soft violet gradient for the exposed corner underneath the curl */}

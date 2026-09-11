@@ -1288,14 +1288,14 @@ export function LearningScreen() {
                           </div>
 
                           {/* Footer Meta Row */}
-                          <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-3 border-t border-slate-100 mt-auto">
-                            <div className="flex items-center gap-3 text-[11px]">
+                          <div className="flex items-center justify-between text-xs font-semibold text-slate-500 pt-3 border-t border-slate-100 mt-auto flex-wrap gap-2">
+                            <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] flex-wrap">
                               <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5 text-slate-400" />{item.enrolledCount}</span>
                               <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5 text-slate-400" />{item.duration}</span>
                               <span className="flex items-center gap-1"><BookOpen className="w-3.5 h-3.5 text-slate-400" />{item.lessonsCount} lessons</span>
                             </div>
 
-                            <span className={cn("text-xs font-extrabold transition-transform flex items-center gap-1", isLocked ? "text-slate-400" : "text-[#7c3aed] group-hover:translate-x-0.5")}>
+                            <span className={cn("text-xs font-extrabold transition-transform flex items-center gap-1 shrink-0", isLocked ? "text-slate-400" : "text-[#7c3aed] group-hover:translate-x-0.5")}>
                               {isLocked ? <><Lock className="w-3.5 h-3.5 mb-0.5"/> Coming Soon</> : <>{item.actionText} →</>}
                             </span>
                           </div>

@@ -497,8 +497,8 @@ export function ScheduleScreen() {
       <div className="grid gap-6 lg:grid-cols-[320px_1fr]">
         <aside className="space-y-5">
           <Card id="tour-schedule-calendar" className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
-            <CardBody className="p-5">
-              <div className="flex items-center justify-between mb-5">
+            <CardBody className="p-3.5 sm:p-5">
+              <div className="flex items-center justify-between mb-4 sm:mb-5">
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{currentMonth} {currentYear}</p>
                   <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Tap a date</p>
@@ -506,14 +506,14 @@ export function ScheduleScreen() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setCalendarDate(new Date(currentYear, calendarDate.getMonth() - 1, 1))}
-                    className="w-9 h-9 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center transition hover:bg-slate-200"
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center transition hover:bg-slate-200"
                     type="button"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => setCalendarDate(new Date(currentYear, calendarDate.getMonth() + 1, 1))}
-                    className="w-9 h-9 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center transition hover:bg-slate-200"
+                    className="w-8 h-8 sm:w-9 sm:h-9 rounded-2xl bg-slate-100 text-slate-600 flex items-center justify-center transition hover:bg-slate-200"
                     type="button"
                   >
                     <ChevronRight className="w-4 h-4" />
@@ -521,15 +521,15 @@ export function ScheduleScreen() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-7 gap-1 text-center mb-3">
+              <div className="grid grid-cols-7 gap-1 text-center mb-2">
                 {days.map((d) => (
-                  <div key={d} className="text-[11px] font-semibold uppercase text-slate-400 py-1">
+                  <div key={d} className="text-[10px] sm:text-[11px] font-semibold uppercase text-slate-400 py-1">
                     {d}
                   </div>
                 ))}
               </div>
 
-              <div className="grid grid-cols-7 gap-2">
+              <div className="grid grid-cols-7 gap-1 sm:gap-2">
                 {calendarDays.map((day, i) => {
                   const isToday = day === today.getDate() && calendarDate.getMonth() === today.getMonth() && calendarDate.getFullYear() === today.getFullYear();
                   const isSelected = day === selectedDate.getDate() && calendarDate.getMonth() === selectedDate.getMonth() && calendarDate.getFullYear() === selectedDate.getFullYear();
@@ -544,12 +544,12 @@ export function ScheduleScreen() {
                       disabled={day === null}
                       onClick={() => day && handleDateClick(day)}
                       className={cn(
-                        'aspect-square min-w-[2.5rem] rounded-full flex items-center justify-center text-sm font-semibold transition-all',
+                        'w-full aspect-square rounded-full flex items-center justify-center text-xs sm:text-sm font-semibold transition-all',
                         day === null ? 'cursor-default bg-transparent' : 'focus-visible:outline-none',
                         isSelected
-                          ? 'bg-[#1d4ed8] text-white shadow-lg'
+                          ? 'bg-[#1d4ed8] text-white shadow-md'
                           : isToday
-                          ? 'bg-slate-950 text-white shadow-md'
+                          ? 'bg-slate-950 text-white shadow-sm'
                           : hasEvent
                           ? 'bg-slate-100 text-[#1d4ed8] border border-slate-200'
                           : 'bg-slate-50 text-slate-600 hover:bg-slate-100',
@@ -558,7 +558,7 @@ export function ScheduleScreen() {
                       {day && (
                         <div className="relative flex flex-col items-center">
                           <span>{day}</span>
-                          {hasEvent && !isSelected && <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[#2563eb]" />}
+                          {hasEvent && !isSelected && <span className="mt-0.5 sm:mt-1 h-1 w-1 sm:h-1.5 sm:w-1.5 rounded-full bg-[#2563eb]" />}
                         </div>
                       )}
                     </button>

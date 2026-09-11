@@ -21,7 +21,7 @@ export function NotificationsDrawer() {
       />
 
       {/* Floating Dropdown Panel */}
-      <aside className="fixed top-[72px] right-4 sm:right-[72px] w-80 sm:w-96 max-h-[calc(100vh-6rem)] h-auto z-[9999] bg-white border border-slate-200/90 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] rounded-2xl flex flex-col font-sans animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 overflow-hidden origin-top-right">
+      <aside className="fixed top-[72px] right-2 sm:right-[72px] w-[calc(100vw-1rem)] max-w-[380px] sm:w-96 max-h-[calc(100vh-6rem)] h-auto z-[9999] bg-white border border-slate-200/90 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.15)] rounded-2xl flex flex-col font-sans animate-in fade-in zoom-in-95 slide-in-from-top-2 duration-200 overflow-hidden origin-top-right">
         
         {/* Drawer Top Header (Electric Blue Gradient matching Screenshot) */}
         <div className="p-4 sm:p-5 border-b border-blue-700/30 flex items-center justify-between bg-gradient-to-r from-[#1d4ed8] via-[#2563eb] to-[#3b82f6] text-white shadow-md">

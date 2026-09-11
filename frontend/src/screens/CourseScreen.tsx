@@ -420,11 +420,11 @@ export function CourseScreen() {
       />
 
       {/* Hero Header */}
-      <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xl border border-purple-400/30">
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-[2.5rem] bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xl border border-purple-400/30">
         <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10 mix-blend-overlay" />
         <div className="absolute top-0 right-0 w-96 h-96 rounded-full bg-white/20 blur-3xl translate-x-1/3 -translate-y-1/3" />
         
-        <div className="relative z-10 p-8 sm:p-10 space-y-4">
+        <div className="relative z-10 p-5 sm:p-8 lg:p-10 space-y-3 sm:space-y-4">
           <div className="flex flex-wrap items-center gap-2">
             <span className="px-3 py-1 rounded-full bg-white/20 border border-white/20 text-xs font-black tracking-wider shadow-sm">
               {course.category}
@@ -434,14 +434,14 @@ export function CourseScreen() {
             </span>
           </div>
 
-          <h1 className="font-extrabold text-2xl sm:text-4xl text-white leading-snug max-w-3xl">
+          <h1 className="font-extrabold text-xl sm:text-3xl lg:text-4xl text-white leading-snug max-w-3xl">
             {course.title}
           </h1>
-          <p className="text-purple-100 text-sm sm:text-base max-w-2xl font-medium leading-relaxed">
+          <p className="text-purple-100 text-xs sm:text-base max-w-2xl font-medium leading-relaxed">
             {course.subtitle}
           </p>
 
-          <div className="flex flex-wrap items-center gap-6 text-xs sm:text-sm font-semibold text-purple-100 pt-2 border-t border-white/20">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs sm:text-sm font-semibold text-purple-100 pt-2 border-t border-white/20">
             <span className="flex items-center gap-1.5">
               <Users className="w-4 h-4" />
               <span>{course.students >= 1000 ? `${(course.students / 1000).toFixed(1)}k` : course.students} {course.students === 1 ? 'student' : 'students'}</span>

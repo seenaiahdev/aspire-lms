@@ -3,7 +3,7 @@ import {
   ArrowLeft, CheckCircle2, Upload, FolderOpen,
   ExternalLink, AlertCircle, BookOpen, ChevronLeft, ChevronRight,
   MonitorSmartphone, Eye, Lock, FileText, Loader2,
-  Play, Terminal, RotateCcw, Clock, FileCode, Check, XCircle, GripVertical
+  Play, Terminal, RotateCcw, Clock, FileCode, Check, XCircle, GripVertical, Code2
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
@@ -155,6 +155,7 @@ export function WorkspaceScreen() {
   const [leftWidthPercent, setLeftWidthPercent] = useState<number>(50);
   const [isDraggingSplitter, setIsDraggingSplitter] = useState(false);
   const [isDesktop, setIsDesktop] = useState(typeof window !== 'undefined' ? window.innerWidth >= 1024 : true);
+  const [mobileActiveTab, setMobileActiveTab] = useState<'description' | 'workspace'>('description');
   const splitContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -627,9 +628,13 @@ export function WorkspaceScreen() {
   const LeftPanel = (
     <div
       style={isDesktop ? { width: `${leftWidthPercent}%` } : undefined}
-      className={`w-full lg:w-auto min-w-0 bg-white border-b lg:border-b-0 border-slate-200 flex flex-col shrink-0 overflow-hidden ${
-        isDraggingSplitter ? '' : 'transition-[width] duration-150 ease-out'
-      }`}
+      className={`${
+        isDesktop
+          ? 'min-w-0 bg-white border-b lg:border-b-0 border-slate-200 flex flex-col shrink-0 overflow-hidden'
+          : mobileActiveTab === 'description'
+          ? 'w-full flex-1 flex flex-col overflow-hidden bg-white'
+          : 'hidden'
+      } ${isDraggingSplitter ? '' : 'transition-[width] duration-150 ease-out'}`}
     >
       <div className="flex items-center border-b border-slate-200 bg-slate-50 px-2 justify-between">
         <button className="px-4 py-3.5 text-xs font-black border-b-2 border-[#7c3aed] text-[#7c3aed] bg-white flex items-center gap-2">
@@ -765,40 +770,69 @@ export function WorkspaceScreen() {
         )}
 
         {/* Header */}
-        <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm">
-          <div className="flex items-center gap-3">
-            <button onClick={() => navigate('practice', { tab: 'history' })} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
+        <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 shrink-0 shadow-sm">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+            <button onClick={() => navigate('practice', { tab: 'history' })} className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
               <ArrowLeft className="w-4 h-4" />
             </button>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="font-bold text-slate-900 text-base">{problemConfig.title}</h1>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 sm:gap-2">
+                <h1 className="font-bold text-slate-900 text-sm sm:text-base truncate max-w-[130px] sm:max-w-xs md:max-w-none">{problemConfig.title}</h1>
+                <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase border shrink-0 ${
                   problemConfig.difficulty === 'Easy'
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
                     : 'bg-amber-50 text-amber-700 border-amber-200/70'
                 }`}>{problemConfig.difficulty}</span>
-                <span className="px-2 py-0.5 rounded bg-purple-50 text-[#7c3aed] border border-purple-200/70 text-[10px] font-bold flex items-center gap-1">
-                  <Lock className="w-3 h-3" /> Submitted
+                <span className="px-1.5 sm:px-2 py-0.5 rounded bg-purple-50 text-[#7c3aed] border border-purple-200/70 text-[9px] sm:text-[10px] font-bold flex items-center gap-1 shrink-0">
+                  <Lock className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> <span className="hidden xs:inline">Submitted</span>
                 </span>
               </div>
-              <p className="text-[11px] text-slate-500 mt-0.5">Practice Lab • {problemConfig.category}</p>
+              <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 truncate">Practice Lab • {problemConfig.category}</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {uploadedStorageUrl && (
               <>
                 <Button size="sm" onClick={() => setShowFullExplorer(true)} leftIcon={<Eye className="w-4 h-4" />}
-                  className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs px-3 shadow-xs">
+                  className="hidden sm:inline-flex bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs px-3 shadow-xs">
                   Expand View
                 </Button>
               </>
             )}
             <Button size="sm" variant="secondary" onClick={() => navigate('practice', { tab: 'history' })}
-              className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs">
-              Back to Practice
+              className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs px-2.5 sm:px-3">
+              <span className="hidden sm:inline">Back to Practice</span>
+              <span className="sm:hidden">Back</span>
             </Button>
           </div>
+        </div>
+
+        {/* Mobile Tab Switcher */}
+        <div className="lg:hidden flex items-center bg-slate-100 p-1 rounded-xl mx-3 sm:mx-4 my-2 border border-slate-200">
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab('description')}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              mobileActiveTab === 'description'
+                ? 'bg-white text-[#7c3aed] shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            Description
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileActiveTab('workspace')}
+            className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+              mobileActiveTab === 'workspace'
+                ? 'bg-white text-[#7c3aed] shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <FolderOpen className="w-3.5 h-3.5" />
+            Submitted Files
+          </button>
         </div>
 
         {/* Modal for Testing in Review Mode */}
@@ -937,12 +971,14 @@ export function WorkspaceScreen() {
         )}
 
         {/* Layout: Left = Question | Right = File Structure */}
-        <div ref={splitContainerRef} className="flex-1 flex overflow-hidden">
+        <div ref={splitContainerRef} className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           {LeftPanel}
           {Splitter}
 
           {/* Right: Submitted File Structure */}
-          <div className="flex-1 min-w-0 flex flex-col overflow-hidden bg-white">
+          <div className={`flex-1 min-w-0 flex flex-col overflow-hidden bg-white ${
+            isDesktop || mobileActiveTab === 'workspace' ? 'flex' : 'hidden'
+          }`}>
             {uploadedStorageUrl ? (
               <div className="flex-1 overflow-hidden">
                 <FileExplorerViewer
@@ -977,29 +1013,58 @@ export function WorkspaceScreen() {
     <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col font-sans text-slate-800">
 
       {/* Header */}
-      <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm">
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('practice', uploadedStorageUrl ? { tab: 'history' } : undefined)} className="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
+      <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 shrink-0 shadow-sm">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <button onClick={() => navigate('practice', uploadedStorageUrl ? { tab: 'history' } : undefined)} className="w-8 h-8 sm:w-9 sm:h-9 shrink-0 flex items-center justify-center rounded-xl bg-slate-50 hover:bg-slate-100 text-slate-500 hover:text-slate-700 transition-all border border-slate-200">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="font-bold text-slate-900 text-base">{problemConfig.title}</h1>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase border ${
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <h1 className="font-bold text-slate-900 text-sm sm:text-base truncate max-w-[130px] sm:max-w-xs md:max-w-none">{problemConfig.title}</h1>
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded text-[9px] sm:text-[10px] font-black uppercase border shrink-0 ${
                 problemConfig.difficulty === 'Easy'
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-200/70'
                   : 'bg-amber-50 text-amber-700 border-amber-200/70'
               }`}>{problemConfig.difficulty}</span>
             </div>
-            <p className="text-[11px] text-slate-500 mt-0.5">Practice Lab • {problemConfig.category}</p>
+            <p className="text-[10px] sm:text-[11px] text-slate-500 mt-0.5 truncate">Practice Lab • {problemConfig.category}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           <Button size="sm" variant="secondary" onClick={() => navigate('practice', uploadedStorageUrl ? { tab: 'history' } : undefined)}
-            className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs">
-            Back to Practice
+            className="bg-slate-50 text-slate-700 hover:bg-slate-100 border border-slate-200 text-xs px-2.5 sm:px-3">
+            <span className="hidden sm:inline">Back to Practice</span>
+            <span className="sm:hidden">Back</span>
           </Button>
         </div>
+      </div>
+
+      {/* Mobile Tab Switcher */}
+      <div className="lg:hidden flex items-center bg-slate-100 p-1 rounded-xl mx-3 sm:mx-4 my-2 border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setMobileActiveTab('description')}
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            mobileActiveTab === 'description'
+              ? 'bg-white text-[#7c3aed] shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          Description
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileActiveTab('workspace')}
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            mobileActiveTab === 'workspace'
+              ? 'bg-white text-[#7c3aed] shadow-xs'
+              : 'text-slate-600 hover:text-slate-900'
+          }`}
+        >
+          <Code2 className="w-3.5 h-3.5" />
+          Solution & Upload
+        </button>
       </div>
 
       {/* Full-screen explorer modal */}
@@ -1008,12 +1073,14 @@ export function WorkspaceScreen() {
       )}
 
       {/* Main layout */}
-      <div ref={splitContainerRef} className="flex-1 flex overflow-hidden">
+      <div ref={splitContainerRef} className="flex-1 flex flex-col lg:flex-row overflow-hidden">
         {LeftPanel}
         {Splitter}
 
         {/* Right: Upload area */}
-        <div className="flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-slate-50 p-6 sm:p-10">
+        <div className={`flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-slate-50 p-4 sm:p-6 lg:p-10 ${
+          isDesktop || mobileActiveTab === 'workspace' ? 'block' : 'hidden'
+        }`}>
           <div className="max-w-2xl mx-auto space-y-6">
 
             {/* ── STAGED STATE: Test Against Uploaded File Before Submitting ── */}

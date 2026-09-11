@@ -14,8 +14,8 @@ export function RegisterScreen() {
   const steps = ['Student Info', 'Academic', 'Password', 'Verify'];
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-ink-50">
-      <div className="absolute top-6 left-6">
+    <div className="min-h-screen flex flex-col justify-center items-center p-4 sm:p-6 bg-ink-50">
+      <div className="w-full max-w-md mb-2 sm:mb-0 sm:absolute sm:top-6 sm:left-6">
         <button onClick={() => navigate('welcome')} className="flex items-center gap-2 text-ink-500 hover:text-ink-800 transition-colors text-sm font-medium">
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
@@ -30,22 +30,22 @@ export function RegisterScreen() {
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center justify-between mb-6 px-2">
+        <div className="flex items-center justify-between mb-6 px-1 sm:px-2">
           {steps.map((s, i) => (
-            <div key={i} className="flex items-center flex-1 last:flex-none">
-              <div className="flex flex-col items-center gap-1.5">
+            <div key={i} className="flex items-center flex-1 last:flex-none min-w-0">
+              <div className="flex flex-col items-center gap-1">
                 <div className={cn(
-                  'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all',
+                  'w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-xs font-bold transition-all shrink-0',
                   step > i + 1 ? 'bg-primary-600 text-white' :
                   step === i + 1 ? 'bg-primary-600 text-white ring-4 ring-primary-100' :
                   'bg-ink-100 text-ink-400',
                 )}>
                   {step > i + 1 ? <CheckCircle2 className="w-4 h-4" /> : i + 1}
                 </div>
-                <span className={cn('text-2xs font-semibold whitespace-nowrap', step >= i + 1 ? 'text-ink-700' : 'text-ink-400')}>{s}</span>
+                <span className={cn('text-[10px] sm:text-2xs font-semibold truncate max-w-[60px] sm:max-w-none text-center', step >= i + 1 ? 'text-ink-700' : 'text-ink-400')}>{s}</span>
               </div>
               {i < steps.length - 1 && (
-                <div className={cn('h-0.5 flex-1 mx-1 rounded-full transition-colors', step > i + 1 ? 'bg-primary-500' : 'bg-ink-100')} />
+                <div className={cn('h-0.5 flex-1 mx-0.5 sm:mx-1 rounded-full transition-colors', step > i + 1 ? 'bg-primary-500' : 'bg-ink-100')} />
               )}
             </div>
           ))}
@@ -181,13 +181,13 @@ export function RegisterScreen() {
                 <h2 className="font-display font-bold text-xl text-ink-900 mb-1">Verify Your Email</h2>
                 <p className="text-ink-500 text-sm">Enter the 6-digit code sent to your email.</p>
               </div>
-              <div className="flex justify-center gap-2">
+              <div className="flex justify-center gap-1.5 sm:gap-2">
                 {Array.from({ length: 6 }).map((_, i) => (
                   <input
                     key={i}
                     type="text"
                     maxLength={1}
-                    className="w-11 h-12 text-center text-lg font-bold rounded-xl border border-ink-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
+                    className="w-9 h-11 sm:w-11 sm:h-12 text-center text-base sm:text-lg font-bold rounded-xl border border-ink-200 focus:border-primary-500 focus:ring-2 focus:ring-primary-500/20 transition-all"
                   />
                 ))}
               </div>
