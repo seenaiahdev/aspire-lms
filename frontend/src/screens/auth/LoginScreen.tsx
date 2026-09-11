@@ -423,7 +423,7 @@ export function LoginScreen() {
 
   return (
     <div 
-      className="min-h-[100dvh] w-full overflow-x-hidden overflow-y-auto flex items-center justify-center relative p-4 sm:p-6 lg:py-6 lg:px-12 font-sans select-none"
+      className="min-h-[100dvh] w-full overflow-x-hidden overflow-y-auto flex items-center justify-center relative p-3 sm:p-5 lg:py-3 lg:px-8 font-sans select-none"
       style={{ 
         // 3D Ambient Full-Screen Background in AspireNext Logo Colors (Midnight Navy & Logo Indigo)
         background: 'radial-gradient(ellipse at 25% 30%, #321d72 0%, #47269f 45%, #0c0f26 100%)',
@@ -444,23 +444,23 @@ export function LoginScreen() {
       />
 
       {/* Full Width & Height Layout Container */}
-      <div className="w-full max-w-7xl mx-auto grid lg:grid-cols-12 gap-6 lg:gap-10 items-center justify-between relative z-10 my-auto py-2 sm:py-3">
+      <div className="w-full max-w-7xl mx-auto grid lg:grid-cols-12 gap-6 lg:gap-10 items-center justify-between relative z-10 my-auto py-1">
 
         {/* ════════════════ LEFT SIDE — FULL HEIGHT HERO BRAND & 3D STAGE ════════════════ */}
-        <div className="lg:col-span-7 flex flex-col justify-between items-center lg:items-start text-center lg:text-left text-white py-1 lg:py-2 pr-0 lg:pr-6 shrink-0">
+        <div className="lg:col-span-7 flex flex-col justify-between items-center lg:items-start text-center lg:text-left text-white py-1 pr-0 lg:pr-6 shrink-0">
           
           {/* Top Header */}
           <div>
-            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-1.5 text-white">
+            <h1 className="text-2xl sm:text-4xl lg:text-[42px] font-extrabold tracking-tight leading-tight mb-1 text-white">
               Welcome Back
             </h1>
-            <p className="text-primary-100/90 text-sm sm:text-base lg:text-lg font-medium tracking-wide">
+            <p className="text-primary-100/90 text-xs sm:text-sm lg:text-base font-medium tracking-wide">
               Build skills. Track growth. Succeed smarter.
             </p>
           </div>
 
           {/* Prominent Center 3D Character Stage */}
-          <div className="relative mx-auto lg:mx-0 my-2 sm:my-3.5 flex items-center justify-center py-2">
+          <div className="relative mx-auto lg:mx-0 my-1 sm:my-2.5 flex items-center justify-center py-1 sm:py-2">
             
             {/* Soft Ambient Radial Glow behind Stage */}
             <div 
@@ -469,9 +469,9 @@ export function LoginScreen() {
             />
 
             {/* Circular Stage with Floating Badges relative to the circle */}
-            <div className="relative shrink-0">
+            <div className="relative shrink-0 w-[120px] h-[120px] sm:w-[200px] sm:h-[200px] lg:w-[245px] lg:h-[245px]">
               {/* 3D Floating Circular Stage */}
-              <div className="relative w-[130px] h-[130px] sm:w-[220px] sm:h-[220px] lg:w-[275px] lg:h-[275px] rounded-full bg-white flex items-center justify-center shadow-[0_25px_65px_-10px_rgba(30,39,97,0.6)] border-2 sm:border-4 border-white overflow-hidden group shrink-0">
+              <div className="w-full h-full rounded-full bg-white flex items-center justify-center shadow-[0_25px_65px_-10px_rgba(30,39,97,0.6)] border-2 sm:border-4 border-white overflow-hidden group">
                 {/* Horizontally flipped video to face directly towards the Login Card on the right */}
                 <video
                   src={studentVideo}
@@ -484,28 +484,28 @@ export function LoginScreen() {
                 />
               </div>
 
-              {/* ════════ FLOATING GLASS STAT BADGES (SYMMETRICALLY FRAMING THE CIRCLE) ════════ */}
+              {/* ════════ FLOATING GLASS STAT BADGES (WITH 25PX CLEAR SPACE FROM CIRCLE) ════════ */}
               
               {/* Label 1: Top-Left — Interactive Labs */}
-              <div className="hidden sm:flex absolute top-2 sm:top-3 -left-8 sm:-left-12 lg:-left-14 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_5s_ease-in-out_infinite] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+              <div className="hidden sm:flex absolute top-3 sm:top-5 right-[85%] sm:right-[88%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_5s_ease-in-out_infinite] hover:scale-105 transition-transform z-20 whitespace-nowrap">
                 <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-200 shrink-0" />
                 <span className="text-[10px] sm:text-xs font-semibold text-white">Interactive Labs</span>
               </div>
 
               {/* Label 2: Top-Right — 100% Placement Assistance */}
-              <div className="hidden sm:flex absolute top-2 sm:top-3 left-[70%] sm:left-[72%] lg:left-[74%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_6s_ease-in-out_infinite_1s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+              <div className="hidden sm:flex absolute top-3 sm:top-5 left-[85%] sm:left-[88%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_6s_ease-in-out_infinite_1s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
                 <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
                 <span className="text-[10px] sm:text-xs font-semibold text-white">100% Placement Assistance</span>
               </div>
 
               {/* Label 3: Bottom-Right — Goal Driven */}
-              <div className="hidden sm:flex absolute bottom-2 sm:bottom-3 left-[70%] sm:left-[72%] lg:left-[74%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_5.5s_ease-in-out_infinite_0.5s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+              <div className="hidden sm:flex absolute bottom-3 sm:bottom-5 left-[85%] sm:left-[88%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_5.5s_ease-in-out_infinite_0.5s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
                 <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-primary-400 animate-ping shrink-0" />
                 <span className="text-[10px] sm:text-xs font-semibold text-white">Goal Driven</span>
               </div>
 
               {/* Label 4: Bottom-Left — WWH Model */}
-              <div className="hidden sm:flex absolute bottom-2 sm:bottom-3 -left-6 sm:-left-8 lg:-left-10 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+              <div className="hidden sm:flex absolute bottom-3 sm:bottom-5 right-[85%] sm:right-[88%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
                 <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-200 shrink-0" />
                 <span className="text-[10px] sm:text-xs font-semibold text-white">WWH Model</span>
               </div>
@@ -515,7 +515,7 @@ export function LoginScreen() {
           </div>
 
           {/* Bottom Tagline */}
-          <p className="hidden sm:block text-primary-100/90 text-xs sm:text-sm leading-relaxed max-w-lg font-normal text-center lg:text-left mt-2">
+          <p className="hidden sm:block text-primary-100/90 text-xs sm:text-[13px] leading-snug max-w-md font-normal text-center lg:text-left mt-1.5">
             Learn with purpose, grow with confidence, and build skills that move you forward every day.
           </p>
         </div>
