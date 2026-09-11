@@ -227,9 +227,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           const resolver = await getLessonResolver(Array.from(enrolledSet), studentBatch);
           const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
             supabase.from('assessments').select('id, course_id, target_batch, topic_id, topic_name, publish_status'),
-            supabase.from('coding_questions').select('id, course_id, target_batch, inner_topic_id, lesson_title, topic_name'),
-            supabase.from('quizzes').select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, publish_status, status'),
-            supabase.from('projects').select('id, course_id, target_batch, inner_topic_id, description, publish_status, status')
+            supabase.from('coding_questions').select('id, course_id, target_batch, inner_topic_id, title'),
+            supabase.from('quizzes').select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, status, title'),
+            supabase.from('projects').select('id, course_id, target_batch, inner_topic_id, description, status, title')
           ]);
 
           const isItemAllowed = (item: any) => {
