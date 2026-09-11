@@ -307,8 +307,18 @@ export function QuizzesScreen() {
       const correctAnswers = computeCorrectCount();
 
       try {
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray(), totalQuestions, correctAnswers);
+        const saved = await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray(), totalQuestions, correctAnswers);
         await loadData();
+        setReviewQuizAttempt({
+          quiz: selectedQuiz,
+          attempt: saved || {
+            score: calculatedScore,
+            total_questions: totalQuestions,
+            correct_answers: correctAnswers,
+            answers: answersToArray(),
+            attempted_at: new Date().toISOString()
+          }
+        });
       } catch (err) {
         console.error('Failed to submit quiz attempt:', err);
       }
@@ -1001,15 +1011,15 @@ export function QuizzesScreen() {
           const isPassed = score >= 70;
           const totalQuestions = attempt?.total_questions ?? (mcqs.length > 0 ? mcqs.length : (quiz?.total_questions || quiz?.questions || 0));
           
-          let correctCount = attempt?.correct_answers;
-          if (correctCount === null || correctCount === undefined) {
-            if (mcqs.length > 0 && Array.isArray(attempt?.answers)) {
-              correctCount = mcqs.filter((q: any, i: number) => attempt.answers[i] === q.correctIndex).length;
-            } else {
-              correctCount = Math.round((score / 100) * (totalQuestions || 1));
-            }
+          let answeredCount = 0;
+          if (Array.isArray(attempt?.answers)) {
+            answeredCount = attempt.answers.filter((ans: any) => ans !== -1 && ans !== null && ans !== undefined).length;
+          } else if (attempt?.answered_count !== undefined && attempt?.answered_count !== null) {
+            answeredCount = Number(attempt.answered_count);
+          } else {
+            answeredCount = totalQuestions;
           }
-          const incorrectCount = Math.max(0, (totalQuestions || 0) - (correctCount || 0));
+          const unansweredCount = Math.max(0, (totalQuestions || 0) - answeredCount);
 
           return (
             <div className="p-6 sm:p-8 space-y-5">
@@ -1058,17 +1068,17 @@ export function QuizzesScreen() {
                 </div>
 
                 <div className="flex items-center justify-between text-sm border-b border-slate-200/60 pb-3">
-                  <span className="font-bold text-emerald-700 flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4" /> Correct Answers
+                  <span className="font-bold text-slate-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" /> Questions Answered
                   </span>
-                  <span className="font-black text-emerald-700 text-base">{correctCount}</span>
+                  <span className="font-black text-slate-800 text-base">{answeredCount}</span>
                 </div>
 
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-bold text-rose-700 flex items-center gap-1.5">
-                    <XCircle className="w-4 h-4" /> Incorrect / Skipped
+                  <span className="font-bold text-slate-500 flex items-center gap-1.5">
+                    <HelpCircle className="w-4 h-4 text-slate-400" /> Unanswered / Skipped
                   </span>
-                  <span className="font-black text-rose-700 text-base">{incorrectCount}</span>
+                  <span className="font-black text-slate-700 text-base">{unansweredCount}</span>
                 </div>
               </div>
 
