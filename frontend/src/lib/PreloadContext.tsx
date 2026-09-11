@@ -238,7 +238,14 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
               id: topic.id,
               title: topic.title,
               modules: subtopics.map((sub: any) => {
-                const moduleLessons = lessons.filter((l: any) => l.module_id === sub.id);
+                const rawModuleLessons = lessons.filter((l: any) => l.module_id === sub.id);
+                const seenTitles = new Set<string>();
+                const moduleLessons = rawModuleLessons.filter((l: any) => {
+                  const norm = String(l.title || '').toLowerCase().trim();
+                  if (seenTitles.has(norm)) return false;
+                  seenTitles.add(norm);
+                  return true;
+                });
                 return {
                   id: sub.id,
                   title: sub.title,
