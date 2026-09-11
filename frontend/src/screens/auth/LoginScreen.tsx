@@ -423,7 +423,7 @@ export function LoginScreen() {
 
   return (
     <div 
-      className="min-h-[100dvh] w-full overflow-x-hidden overflow-y-auto flex items-center justify-center relative p-4 sm:p-8 lg:p-14 font-sans select-none"
+      className="min-h-[100dvh] w-full overflow-x-hidden overflow-y-auto flex items-center justify-center relative p-4 sm:p-6 lg:py-6 lg:px-12 font-sans select-none"
       style={{ 
         // 3D Ambient Full-Screen Background in AspireNext Logo Colors (Midnight Navy & Logo Indigo)
         background: 'radial-gradient(ellipse at 25% 30%, #321d72 0%, #47269f 45%, #0c0f26 100%)',
@@ -444,73 +444,78 @@ export function LoginScreen() {
       />
 
       {/* Full Width & Height Layout Container */}
-      <div className="w-full max-w-7xl mx-auto grid lg:grid-cols-12 gap-6 lg:gap-14 items-center justify-between relative z-10 my-auto py-4">
+      <div className="w-full max-w-7xl mx-auto grid lg:grid-cols-12 gap-6 lg:gap-10 items-center justify-between relative z-10 my-auto py-2 sm:py-3">
 
         {/* ════════════════ LEFT SIDE — FULL HEIGHT HERO BRAND & 3D STAGE ════════════════ */}
-        <div className="lg:col-span-7 flex flex-col justify-between items-center lg:items-start text-center lg:text-left text-white py-2 lg:py-4 pr-0 lg:pr-6 shrink-0">
+        <div className="lg:col-span-7 flex flex-col justify-between items-center lg:items-start text-center lg:text-left text-white py-1 lg:py-2 pr-0 lg:pr-6 shrink-0">
           
           {/* Top Header */}
           <div>
-            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-2 text-white">
+            <h1 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-1.5 text-white">
               Welcome Back
             </h1>
-            <p className="text-primary-100/90 text-sm sm:text-lg lg:text-xl font-medium tracking-wide">
+            <p className="text-primary-100/90 text-sm sm:text-base lg:text-lg font-medium tracking-wide">
               Build skills. Track growth. Succeed smarter.
             </p>
           </div>
 
           {/* Prominent Center 3D Character Stage */}
-          <div className="relative w-full max-w-[240px] sm:max-w-md mx-auto lg:mx-0 my-3 sm:my-6 flex items-center justify-center py-2">
+          <div className="relative mx-auto lg:mx-0 my-2 sm:my-3.5 flex items-center justify-center py-2">
             
             {/* Soft Ambient Radial Glow behind Stage */}
             <div 
               className="absolute inset-0 rounded-full blur-3xl opacity-60"
               style={{ background: 'radial-gradient(circle, #7540ff 0%, #5f32d7 70%)' }}
             />
-            {/* 3D Floating Circular Stage */}
-            <div className="relative w-[110px] h-[110px] sm:w-[250px] sm:h-[250px] lg:w-[310px] lg:h-[310px] rounded-full bg-white flex items-center justify-center shadow-[0_25px_65px_-10px_rgba(30,39,97,0.6)] border-2 sm:border-4 border-white overflow-hidden group shrink-0">
-              {/* Horizontally flipped video to face directly towards the Login Card on the right */}
-              <video
-                src={studentVideo}
-                autoPlay
-                loop
-                muted
-                playsInline
-                style={{ transform: 'scaleX(-1)' }}
-                className="w-[115%] h-[115%] max-w-none object-cover transition-transform duration-500 group-hover:scale-105"
-              />
-            </div>
 
-            {/* ════════ FLOATING GLASS STAT BADGES (VISIBLE ON TABLET & DESKTOP TO PREVENT MOBILE OVERFLOW) ════════ */}
-            
-            {/* Label 1: Top-Left — Interactive Labs */}
-            <div className="hidden sm:flex absolute sm:top-3 sm:-left-4 lg:-left-6 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_5s_ease-in-out_infinite] hover:scale-105 transition-transform z-20">
-              <Code2 className="w-3 h-3 sm:w-4 sm:h-4 text-primary-200" />
-              <span className="text-[9px] sm:text-xs font-semibold text-white">Interactive Labs</span>
-            </div>
+            {/* Circular Stage with Floating Badges relative to the circle */}
+            <div className="relative shrink-0">
+              {/* 3D Floating Circular Stage */}
+              <div className="relative w-[130px] h-[130px] sm:w-[220px] sm:h-[220px] lg:w-[275px] lg:h-[275px] rounded-full bg-white flex items-center justify-center shadow-[0_25px_65px_-10px_rgba(30,39,97,0.6)] border-2 sm:border-4 border-white overflow-hidden group shrink-0">
+                {/* Horizontally flipped video to face directly towards the Login Card on the right */}
+                <video
+                  src={studentVideo}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  style={{ transform: 'scaleX(-1)' }}
+                  className="w-[115%] h-[115%] max-w-none object-cover transition-transform duration-500 group-hover:scale-105"
+                />
+              </div>
 
-            {/* Label 2: Top-Right — 100% Placement Assistance */}
-            <div className="hidden sm:flex absolute sm:top-3 sm:-right-8 lg:-right-10 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6s_ease-in-out_infinite_1s] hover:scale-105 transition-transform z-20">
-              <Briefcase className="w-3 h-3 sm:w-4 sm:h-4 text-amber-300" />
-              <span className="text-[9px] sm:text-xs font-semibold text-white">100% Placement Assistance</span>
-            </div>
+              {/* ════════ FLOATING GLASS STAT BADGES (SYMMETRICALLY FRAMING THE CIRCLE) ════════ */}
+              
+              {/* Label 1: Top-Left — Interactive Labs */}
+              <div className="hidden sm:flex absolute top-2 sm:top-3 -left-8 sm:-left-12 lg:-left-14 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_5s_ease-in-out_infinite] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+                <Code2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary-200 shrink-0" />
+                <span className="text-[10px] sm:text-xs font-semibold text-white">Interactive Labs</span>
+              </div>
 
-            {/* Label 3: Bottom-Right — Goal Driven */}
-            <div className="hidden sm:flex absolute sm:bottom-3 sm:-right-4 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_5.5s_ease-in-out_infinite_0.5s] hover:scale-105 transition-transform z-20">
-              <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-primary-400 animate-ping" />
-              <span className="text-[9px] sm:text-xs font-semibold text-white">Goal Driven</span>
-            </div>
+              {/* Label 2: Top-Right — 100% Placement Assistance */}
+              <div className="hidden sm:flex absolute top-2 sm:top-3 left-[70%] sm:left-[72%] lg:left-[74%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_6s_ease-in-out_infinite_1s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+                <Briefcase className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-300 shrink-0" />
+                <span className="text-[10px] sm:text-xs font-semibold text-white">100% Placement Assistance</span>
+              </div>
 
-            {/* Label 4: Bottom-Left — WWH Model */}
-            <div className="hidden sm:flex absolute sm:bottom-3 sm:-left-4 px-2 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20">
-              <Users className="w-3 h-3 sm:w-4 sm:h-4 text-sky-200" />
-              <span className="text-[9px] sm:text-xs font-semibold text-white">WWH Model</span>
+              {/* Label 3: Bottom-Right — Goal Driven */}
+              <div className="hidden sm:flex absolute bottom-2 sm:bottom-3 left-[70%] sm:left-[72%] lg:left-[74%] px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_5.5s_ease-in-out_infinite_0.5s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+                <div className="w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full bg-primary-400 animate-ping shrink-0" />
+                <span className="text-[10px] sm:text-xs font-semibold text-white">Goal Driven</span>
+              </div>
+
+              {/* Label 4: Bottom-Left — WWH Model */}
+              <div className="hidden sm:flex absolute bottom-2 sm:bottom-3 -left-6 sm:-left-8 lg:-left-10 px-2.5 py-1 sm:px-3.5 sm:py-1.5 rounded-xl sm:rounded-2xl bg-white/20 backdrop-blur-md border border-white/30 shadow-xl items-center gap-1.5 sm:gap-2 animate-[float_6.5s_ease-in-out_infinite_1.5s] hover:scale-105 transition-transform z-20 whitespace-nowrap">
+                <Users className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-200 shrink-0" />
+                <span className="text-[10px] sm:text-xs font-semibold text-white">WWH Model</span>
+              </div>
+
             </div>
 
           </div>
 
           {/* Bottom Tagline */}
-          <p className="hidden sm:block text-primary-100/90 text-xs sm:text-base leading-relaxed max-w-lg font-normal text-center lg:text-left mt-2">
+          <p className="hidden sm:block text-primary-100/90 text-xs sm:text-sm leading-relaxed max-w-lg font-normal text-center lg:text-left mt-2">
             Learn with purpose, grow with confidence, and build skills that move you forward every day.
           </p>
         </div>
@@ -519,7 +524,7 @@ export function LoginScreen() {
         {/* ════════════════ RIGHT SIDE — PROPORTIONED LIGHT GREY/LAVENDER LOGIN CARD ════════════════ */}
         <div className="lg:col-span-5 flex items-center justify-center lg:justify-end shrink-0 w-full">
           <div 
-            className="w-full max-w-[340px] sm:max-w-md rounded-[2rem] sm:rounded-[2.2rem] p-5 sm:p-9 flex flex-col justify-between items-center relative overflow-hidden transition-all duration-300 border border-white/80 shadow-2xl"
+            className="w-full max-w-[340px] sm:max-w-md rounded-[2rem] sm:rounded-[2.2rem] p-5 sm:p-7 flex flex-col justify-between items-center relative overflow-hidden transition-all duration-300 border border-white/80 shadow-2xl"
             style={{ 
               background: 'linear-gradient(145deg, #dfe3f2 0%, #ebedf7 100%)',
               boxShadow: '0 30px 70px -15px rgba(2, 6, 23, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.9)'
@@ -530,7 +535,7 @@ export function LoginScreen() {
 
             {/* Top Logo Badge Container */}
             <div className="flex flex-col items-center">
-              <div className="w-16 h-16 sm:w-24 sm:h-24 rounded-full overflow-hidden shadow-xl border-2 border-white/90 mb-2 sm:mb-3 hover:scale-105 transition-transform duration-300 shrink-0 bg-white">
+              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden shadow-xl border-2 border-white/90 mb-2 sm:mb-2.5 hover:scale-105 transition-transform duration-300 shrink-0 bg-white">
                 <img
                   src={aspireLogo}
                   alt="AspireLMS Logo"
@@ -541,7 +546,7 @@ export function LoginScreen() {
 
               {/* AspireNext Signature Underline Accent Line */}
               <div 
-                className="w-12 sm:w-16 h-1 sm:h-1.5 rounded-full shadow-sm mb-4 sm:mb-8" 
+                className="w-12 sm:w-16 h-1 sm:h-1.5 rounded-full shadow-sm mb-3 sm:mb-6" 
                 style={{ background: 'linear-gradient(90deg, #321d72 0%, #7540ff 60%, #9364ff 100%)' }} 
               />
             </div>
