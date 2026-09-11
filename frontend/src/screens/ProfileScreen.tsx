@@ -23,11 +23,11 @@ export function ProfileScreen() {
     const updateScale = () => {
       if (!containerRef.current) return;
       const containerWidth = containerRef.current.clientWidth || (window.innerWidth - 32);
-      if (containerWidth >= 935) {
+      if (containerWidth >= 950) {
         setScale(1);
       } else {
-        // Compute proportional scale factor to perfectly fit smaller screens
-        const computedScale = Math.min(1, Math.max(0.34, (containerWidth - 16) / 915));
+        // Compute proportional scale factor to perfectly fit smaller screens (931px = 285px left + 16px gap + 630px right)
+        const computedScale = Math.min(1, Math.max(0.34, (containerWidth - 16) / 931));
         setScale(computedScale);
       }
     };
@@ -72,11 +72,11 @@ export function ProfileScreen() {
       </div>
 
       {/* ════════════════════════════════════════════════════════════════════════════
-          DUAL-CARD RING-BOUND NOTEBOOK ID PASS CONTAINER
+          DUAL-CARD RING-BOUND NOTEBOOK ID PASS CONTAINER (WITH INTER-CARD GAP)
          ════════════════════════════════════════════════════════════════════════════ */}
       <div 
         style={{
-          width: `${915 * scale}px`,
+          width: `${931 * scale}px`,
           height: `${440 * scale}px`,
           maxWidth: '100%',
         }}
@@ -85,7 +85,7 @@ export function ProfileScreen() {
         onMouseLeave={() => setIsHovered(false)}
       >
         <div
-          className="absolute top-0 left-0 w-[915px] h-[440px] flex items-center shrink-0 font-sans transition-transform duration-200"
+          className="absolute top-0 left-0 w-[931px] h-[440px] flex items-center gap-4 shrink-0 font-sans transition-transform duration-200"
           style={{
             transform: `scale(${scale}) translateY(${isHovered ? '-3px' : '0px'})`,
             transformOrigin: 'top left',
