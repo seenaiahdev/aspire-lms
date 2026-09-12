@@ -18,7 +18,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { triggerFileDownload } from '@/lib/downloadHelper';
-import { cn } from '@/lib/utils';
+import { cn, isDueDatePassed } from '@/lib/utils';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 import { useNav } from '@/lib/nav';
@@ -548,9 +548,12 @@ export function ProjectsScreen() {
         const details = parseProjectDetails(p);
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
         const hasLink = Boolean(driveLinks[p.id]);
+        const dueDate = details?.dueDate || p.due_date || p.dueDate || '';
+        const isOverdue = isDueDatePassed(dueDate);
+        const isAutoSubmitted = !hasLink && isOverdue;
 
         let status = 'assigned';
-        if (hasLink) {
+        if (hasLink || isOverdue) {
           status = 'submitted';
         }
         if (String(p.status || '').toLowerCase() === 'feedback') {
@@ -562,8 +565,9 @@ export function ProjectsScreen() {
           ...details,
           projectType,
           status,
+          isAutoSubmitted,
           course: details?.courseName || p.course || p.category || 'General Curriculum',
-          dueDate: details?.dueDate || '',
+          dueDate,
           skills: details?.skills || []
         };
       });
@@ -623,9 +627,12 @@ export function ProjectsScreen() {
       const details = parseProjectDetails(rawP);
       const projectType = (rawP.project_type || rawP.type || rawP.projectType || 'mini').toLowerCase();
       const hasLink = Boolean(driveLinks[rawP.id]);
+      const dueDate = details?.dueDate || rawP.due_date || rawP.dueDate || '';
+      const isOverdue = isDueDatePassed(dueDate);
+      const isAutoSubmitted = !hasLink && isOverdue;
 
       let status = 'assigned';
-      if (hasLink) {
+      if (hasLink || isOverdue) {
         status = 'submitted';
       }
       if (String(rawP.status || '').toLowerCase() === 'feedback') {
@@ -637,9 +644,10 @@ export function ProjectsScreen() {
         ...details,
         projectType,
         status,
+        isAutoSubmitted,
         shortDescription: details?.shortDescription || formatProjectDescription(rawP.description) || details?.overview || '',
         course: details?.courseName || rawP.course || rawP.category || 'General Curriculum',
-        dueDate: details?.dueDate || '',
+        dueDate,
         skills: details?.skills || []
       };
     },
@@ -722,9 +730,15 @@ export function ProjectsScreen() {
 
           <div className="flex items-center gap-2">
             <DifficultyBadge difficulty={selectedProject.difficulty} />
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 capitalize shadow-2xs">
-              {selectedProject.status}
-            </span>
+            {selectedProject.isAutoSubmitted ? (
+              <span className="rounded-full border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800 shadow-2xs">
+                ⚡ Auto-Submitted
+              </span>
+            ) : (
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-bold text-slate-600 capitalize shadow-2xs">
+                {selectedProject.status}
+              </span>
+            )}
           </div>
         </div>
 
@@ -771,7 +785,9 @@ export function ProjectsScreen() {
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
-                <p className="mt-1 text-xs font-bold text-[#7c3aed] capitalize leading-snug">{selectedProject.status}</p>
+                <p className={cn("mt-1 text-xs font-bold capitalize leading-snug", selectedProject.isAutoSubmitted ? "text-amber-700" : "text-[#7c3aed]")}>
+                  {selectedProject.isAutoSubmitted ? 'Auto-Submitted' : selectedProject.status}
+                </p>
               </div>
             </div>
           </div>
@@ -951,8 +967,28 @@ export function ProjectsScreen() {
             </div>
           ) : (
             <div className="space-y-4">
+              {selectedProject.isAutoSubmitted && (
+                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
+                  <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 text-amber-800 font-bold text-sm">
+                    ⚡
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h4 className="text-xs font-black uppercase tracking-wider text-amber-900">Auto-Submitted on Due Date</h4>
+                      <span className="px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-900 text-[10px] font-black">
+                        Deadline Passed ({selectedProject.dueDate})
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-800 mt-1 leading-relaxed font-medium">
+                      This project has completed its deadline and was automatically marked as submitted. You can still upload your solution code files below if you would like to provide your implementation for mentor review.
+                    </p>
+                  </div>
+                </div>
+              )}
               <div>
-                <h3 className="text-base font-extrabold text-slate-900">Submit Your Project Solution</h3>
+                <h3 className="text-base font-extrabold text-slate-900">
+                  {selectedProject.isAutoSubmitted ? 'Upload Project Solution' : 'Submit Your Project Solution'}
+                </h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Upload your completed single code file or full project folder.
                 </p>
@@ -1164,7 +1200,13 @@ export function ProjectsScreen() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-[#7c3aed] transition-colors line-clamp-1">{p.title}</h3>
-                      <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">{p.status}</span>
+                      {p.isAutoSubmitted ? (
+                        <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider">
+                          Auto-Submitted
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">{p.status}</span>
+                      )}
                     </div>
                     <p className="text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">
                       {p.course}{p.dueDate ? ` • Due ${p.dueDate}` : ''}
@@ -1205,15 +1247,24 @@ export function ProjectsScreen() {
                 >
                   <div>
                   <div className="flex items-start justify-between mb-4 gap-3">
-                    <div className="flex items-center gap-3.5">
+                    <div className="flex items-center gap-3.5 min-w-0">
                       <div className="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
                         <FolderGit2 className="w-6 h-6 text-slate-400" />
                       </div>
-                      <div>
-                        <h3 className="font-extrabold text-slate-900 text-base leading-snug">{p.title}</h3>
+                      <div className="min-w-0">
+                        <h3 className="font-extrabold text-slate-900 text-base leading-snug line-clamp-1">{p.title}</h3>
                         <p className="text-xs font-bold text-slate-500 mt-0.5">{p.course}</p>
                       </div>
                     </div>
+                    {p.isAutoSubmitted ? (
+                      <span className="shrink-0 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider">
+                        Auto-Submitted
+                      </span>
+                    ) : (
+                      <span className="shrink-0 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">
+                        {p.status}
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{formatProjectDescription(p.description)}</p>

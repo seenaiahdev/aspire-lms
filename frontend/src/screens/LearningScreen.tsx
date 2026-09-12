@@ -8,7 +8,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Avatar } from '@/components/ui/Avatar';
-import { cn } from '@/lib/utils';
+import { cn, isDueDatePassed } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchCoursesByIds, fetchCompletedLessons, fetchBatchStudentCount } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -329,7 +329,7 @@ export function LearningScreen() {
             supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
             supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title, course_id, target_batch, publish_status'),
             supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
-            supabase.from('projects').select('id, inner_topic_id, title, type, description').eq('course_id', courseId),
+            supabase.from('projects').select('id, inner_topic_id, title, type, description, due_date').eq('course_id', courseId),
             supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseId)
           ]);
 
@@ -426,12 +426,24 @@ export function LearningScreen() {
                           failed: isFailed
                         };
                       });
-                      const lessonProjects = dbProjects.map((p: any) => ({
-                        id: p.id,
-                        title: p.title,
-                        type: p.type || 'mini',
-                        completed: donePractice.has(p.id) || donePractice.has(String(p.id || '').trim())
-                      }));
+                      const lessonProjects = dbProjects.map((p: any) => {
+                        let dueDate = p.due_date || '';
+                        if (!dueDate && p.description && typeof p.description === 'string') {
+                          try {
+                            const parsed = JSON.parse(p.description);
+                            dueDate = parsed.due_date || parsed.dueDate || '';
+                          } catch {}
+                        }
+                        const isOverdue = isDueDatePassed(dueDate);
+                        const isManualDone = donePractice.has(p.id) || donePractice.has(String(p.id || '').trim());
+                        return {
+                          id: p.id,
+                          title: p.title,
+                          type: p.type || 'mini',
+                          completed: isManualDone || isOverdue,
+                          isAutoSubmitted: !isManualDone && isOverdue
+                        };
+                      });
                       const lessonQuizzes = dbQuizzes.map((q: any) => {
                         const isDone = doneQuiz.has(q.id) || doneQuiz.has(String(q.id || '').trim());
                         const isFailed = !isDone && (failedQuiz.has(q.id) || failedQuiz.has(String(q.id || '').trim()));
@@ -1635,14 +1647,19 @@ export function LearningScreen() {
                                      </span>
                                      <h4 className="font-bold text-sm mt-1 leading-tight text-slate-900 group-hover/item:text-emerald-700 transition-colors">{proj.title}</h4>
                                      <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
-                                       <Clock className="w-3 h-3" /> {proj.completed ? 'Submitted & Saved' : 'Submission Required'}
+                                       <Clock className="w-3 h-3" /> {proj.completed ? (proj.isAutoSubmitted ? 'Auto-Submitted (Due Date)' : 'Submitted & Saved') : 'Submission Required'}
                                      </span>
                                    </div>
                                  </div>
                                  {proj.completed ? (
                                    <div className="flex items-center gap-2 shrink-0">
-                                     <span className="px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-xs">
-                                       <CheckCircle2 className="w-4 h-4" /> Done
+                                     <span className={cn(
+                                       "px-3 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1 border shadow-xs",
+                                       proj.isAutoSubmitted
+                                         ? "bg-amber-50 text-amber-700 border-amber-200"
+                                         : "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                     )}>
+                                       <CheckCircle2 className="w-4 h-4" /> {proj.isAutoSubmitted ? 'Auto-Submitted' : 'Done'}
                                      </span>
                                      <button 
                                        type="button"

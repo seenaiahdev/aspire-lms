@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
-import { cachedQuery, invalidateCache } from './queryCache';/**
+import { cachedQuery, invalidateCache } from './queryCache';
+import { isDueDatePassed } from './utils';/**
  * Clean phone number to compare suffixes (removes non-digits and takes last 10 digits)
  */
 function cleanPhoneSuffix(phone: string): string {
@@ -1533,7 +1534,7 @@ export async function computeCourseProgress(userId: string, courseId: string): P
       cachedQuery(`course_items_assess:${courseId}`, () => supabase.from('assessments').select('id').eq('course_id', courseId), 60000),
       cachedQuery(`course_items_quizzes:${courseId}`, () => supabase.from('quizzes').select('id').eq('course_id', courseId), 60000),
       cachedQuery(`course_items_coding:${courseId}`, () => supabase.from('coding_questions').select('id').eq('course_id', courseId), 60000),
-      cachedQuery(`course_items_projects:${courseId}`, () => supabase.from('projects').select('id').eq('course_id', courseId), 60000),
+      cachedQuery(`course_items_projects:${courseId}`, () => supabase.from('projects').select('id, due_date, description').eq('course_id', courseId), 60000),
     ]);
     const lessonIds = new Set((lRes.data || []).map((r: any) => String(r.id || '').trim()));
     const assessIds = new Set((aRes.data || []).map((r: any) => String(r.id || '').trim()));
@@ -1544,6 +1545,21 @@ export async function computeCourseProgress(userId: string, courseId: string): P
     ]);
     const total = lessonIds.size + assessIds.size + quizIds.size + practiceIds.size;
     if (total === 0) return 0;
+
+    // Detect overdue projects that are automatically considered submitted
+    const autoSubmittedProjectIds = new Set<string>();
+    (pRes.data || []).forEach((p: any) => {
+      let dueDate = p.due_date || '';
+      if (!dueDate && p.description && typeof p.description === 'string') {
+        try {
+          const desc = JSON.parse(p.description);
+          dueDate = desc.due_date || desc.dueDate || '';
+        } catch {}
+      }
+      if (isDueDatePassed(dueDate)) {
+        autoSubmittedProjectIds.add(String(p.id || '').trim());
+      }
+    });
 
     // Student coursework attempt caches (15s TTL; shared across all enrolled courses evaluated in parallel)
     const [lp, aa, qa, ps] = await Promise.all([
@@ -1560,11 +1576,16 @@ export async function computeCourseProgress(userId: string, courseId: string): P
       return score >= 70 || status === 'passed';
     };
 
+    const donePracticeIds = new Set<string>([
+      ...(ps.data || []).map((r: any) => String(r.problem_id || '').trim()),
+      ...autoSubmittedProjectIds,
+    ]);
+
     const done =
       new Set((lp.data || []).filter((r: any) => r.completed).map((r: any) => String(r.lesson_id || '').trim()).filter((id: any) => lessonIds.has(id))).size +
       new Set((aa.data || []).filter(isAttemptPassed).map((r: any) => String(r.assignment_id || '').trim()).filter((id: any) => assessIds.has(id))).size +
       new Set((qa.data || []).filter(isAttemptPassed).map((r: any) => String(r.quiz_id || '').trim()).filter((id: any) => quizIds.has(id))).size +
-      new Set((ps.data || []).map((r: any) => String(r.problem_id || '').trim()).filter((id: any) => practiceIds.has(id))).size;
+      new Set([...donePracticeIds].filter((id: any) => practiceIds.has(id))).size;
 
     return Math.min(100, Math.round((done / total) * 100));
   } catch (err) {

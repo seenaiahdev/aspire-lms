@@ -98,3 +98,30 @@ export function formatBatchDisplay(batchCode?: string, registrationId?: string):
   return 'S1';
 }
 
+/**
+ * Checks if a project or coursework due date has passed.
+ * Handles formats like: "Aug 30", "Due Aug 30", "Oct 15", "2026-08-30", "Aug 30, 2026".
+ * Sets cutoff to 23:59:59 of the specified date.
+ */
+export function isDueDatePassed(rawDueDate?: string): boolean {
+  if (!rawDueDate) return false;
+  const clean = String(rawDueDate).replace(/^(due|by)\s+/i, '').trim();
+  if (!clean || clean.toLowerCase() === 'no deadline') return false;
+
+  const now = new Date();
+  const currentYear = now.getFullYear();
+
+  // If clean does not have a 4-digit year, append the current year
+  let dateStrToParse = clean;
+  if (!/\b(20\d\d)\b/.test(clean)) {
+    dateStrToParse = `${clean} ${currentYear}`;
+  }
+
+  const parsed = new Date(dateStrToParse);
+  if (!isNaN(parsed.getTime())) {
+    parsed.setHours(23, 59, 59, 999);
+    return now.getTime() > parsed.getTime();
+  }
+  return false;
+}
+

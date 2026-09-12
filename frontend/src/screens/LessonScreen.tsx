@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tabs } from '@/components/ui/Tabs';
-import { cn } from '@/lib/utils';
+import { cn, isDueDatePassed } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { supabase } from '@/lib/supabase';
 
@@ -284,11 +284,20 @@ export function LessonScreen() {
                     duration: `${asmnt.duration_minutes || 15}m`,
                     completed: false
                   })),
-                  projects: dbProjects.map((p: any) => ({
-                    id: p.id,
-                    title: p.title,
-                    completed: false
-                  })),
+                  projects: dbProjects.map((p: any) => {
+                    let dueDate = p.due_date || '';
+                    if (!dueDate && p.description && typeof p.description === 'string') {
+                      try {
+                        const parsed = JSON.parse(p.description);
+                        dueDate = parsed.due_date || parsed.dueDate || '';
+                      } catch {}
+                    }
+                    return {
+                      id: p.id,
+                      title: p.title,
+                      completed: isDueDatePassed(dueDate)
+                    };
+                  }),
                   quizzes: dbQuizzes.map((q: any) => ({
                     id: q.id,
                     title: q.title,
@@ -339,7 +348,7 @@ export function LessonScreen() {
           supabase.from('course_lessons').select('*').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
           supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title, course_id, target_batch, publish_status'),
           supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseData.id),
-          supabase.from('projects').select('id, inner_topic_id, title, type, description').eq('course_id', courseData.id),
+          supabase.from('projects').select('id, inner_topic_id, title, type, description, due_date').eq('course_id', courseData.id),
           supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseData.id),
           supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status'),
           getLessonResolver(user?.enrolledCourses || [], user?.batchCode || '')

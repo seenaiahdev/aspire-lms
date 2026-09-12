@@ -17,6 +17,7 @@ import {
   fetchCompletedLessons,
 } from './api';
 import { getLessonResolver, clearLessonResolverCache } from './lessonLinkResolver';
+import { isDueDatePassed } from './utils';
 
 // ─────────────────────────────────────────────
 // Types
@@ -210,7 +211,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
             supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
             supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title, course_id, target_batch, publish_status'),
             supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
-            supabase.from('projects').select('id, inner_topic_id, title, type, description').eq('course_id', courseId),
+            supabase.from('projects').select('id, inner_topic_id, title, type, description, due_date').eq('course_id', courseId),
             supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseId),
           ]);
 
@@ -297,10 +298,24 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
                       const isFailed = !isDone && (failedAssess.has(asmnt.id) || failedAssess.has(String(asmnt.id || '').trim()));
                       return { id: asmnt.id, title: asmnt.title, duration: `${asmnt.duration_minutes || 15}m`, completed: isDone, failed: isFailed };
                     });
-                    const lessonProjects = dbProjects.map((p: any) => ({
-                      id: p.id, title: p.title, type: p.type || 'mini',
-                      completed: donePractice.has(p.id) || donePractice.has(String(p.id || '').trim()),
-                    }));
+                    const lessonProjects = dbProjects.map((p: any) => {
+                      let dueDate = p.due_date || '';
+                      if (!dueDate && p.description && typeof p.description === 'string') {
+                        try {
+                          const parsed = JSON.parse(p.description);
+                          dueDate = parsed.due_date || parsed.dueDate || '';
+                        } catch {}
+                      }
+                      const isOverdue = isDueDatePassed(dueDate);
+                      const isManualDone = donePractice.has(p.id) || donePractice.has(String(p.id || '').trim());
+                      return {
+                        id: p.id,
+                        title: p.title,
+                        type: p.type || 'mini',
+                        completed: isManualDone || isOverdue,
+                        isAutoSubmitted: !isManualDone && isOverdue,
+                      };
+                    });
                     const lessonQuizzes = dbQuizzes.map((q: any) => {
                       const isDone = doneQuiz.has(q.id) || doneQuiz.has(String(q.id || '').trim());
                       const isFailed = !isDone && (failedQuiz.has(q.id) || failedQuiz.has(String(q.id || '').trim()));
