@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { cachedQuery, invalidateCache } from './queryCache';
-import { isDueDatePassed } from './utils';/**
+
+/**
  * Clean phone number to compare suffixes (removes non-digits and takes last 10 digits)
  */
 function cleanPhoneSuffix(phone: string): string {
@@ -865,12 +866,6 @@ export function evaluateBadgeCriteria(
     Object.keys(localLinks).forEach((pid) => {
       if (localLinks[pid]) submittedProjectIds.add(pid);
     });
-    // From projectsList if overdue
-    (extraData?.projectsList || []).forEach((p: any) => {
-      if (isDueDatePassed(p.due_date || p.dueDate)) {
-        submittedProjectIds.add(String(p.id));
-      }
-    });
 
     if (criteria.includes('capstone')) {
       const hasCapstone = (extraData?.projectsList || []).some((p: any) => {
@@ -1625,22 +1620,6 @@ export async function computeCourseProgress(userId: string, courseId: string): P
     ]);
     const total = lessonIds.size + assessIds.size + quizIds.size + practiceIds.size;
     if (total === 0) return 0;
-
-    // Detect overdue projects that are automatically considered submitted
-    const autoSubmittedProjectIds = new Set<string>();
-    (pRes.data || []).forEach((p: any) => {
-      let dueDate = p.due_date || '';
-      if (!dueDate && p.description && typeof p.description === 'string') {
-        try {
-          const desc = JSON.parse(p.description);
-          dueDate = desc.due_date || desc.dueDate || '';
-        } catch {}
-      }
-      if (isDueDatePassed(dueDate)) {
-        autoSubmittedProjectIds.add(String(p.id || '').trim());
-      }
-    });
-
     // Student coursework attempt caches (15s TTL; shared across all enrolled courses evaluated in parallel)
     const [lp, aa, qa, ps] = await Promise.all([
       cachedQuery(`student_lp:${userId}`, () => supabase.from('lesson_progress').select('lesson_id, completed').eq('student_id', userId), 15000),
@@ -1656,10 +1635,11 @@ export async function computeCourseProgress(userId: string, courseId: string): P
       return score >= 70 || status === 'passed';
     };
 
-    const donePracticeIds = new Set<string>([
-      ...(ps.data || []).map((r: any) => String(r.problem_id || '').trim()),
-      ...autoSubmittedProjectIds,
-    ]);
+    // Only actual submissions made by the student count towards completion.
+    // Overdue/auto-submitted projects without student uploads are closed/expired and do NOT grant completion progress.
+    const donePracticeIds = new Set<string>(
+      (ps.data || []).map((r: any) => String(r.problem_id || '').trim())
+    );
 
     const done =
       new Set((lp.data || []).filter((r: any) => r.completed).map((r: any) => String(r.lesson_id || '').trim()).filter((id: any) => lessonIds.has(id))).size +

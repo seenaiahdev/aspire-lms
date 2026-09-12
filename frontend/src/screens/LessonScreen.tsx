@@ -12,9 +12,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Avatar } from '@/components/ui/Avatar';
-import { Tabs } from '@/components/ui/Tabs';
-import { cn, isDueDatePassed } from '@/lib/utils';
-import { useUser } from '@/lib/UserContext';
+import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 
 /**
@@ -284,20 +282,11 @@ export function LessonScreen() {
                     duration: `${asmnt.duration_minutes || 15}m`,
                     completed: false
                   })),
-                  projects: dbProjects.map((p: any) => {
-                    let dueDate = p.due_date || '';
-                    if (!dueDate && p.description && typeof p.description === 'string') {
-                      try {
-                        const parsed = JSON.parse(p.description);
-                        dueDate = parsed.due_date || parsed.dueDate || '';
-                      } catch {}
-                    }
-                    return {
-                      id: p.id,
-                      title: p.title,
-                      completed: isDueDatePassed(dueDate)
-                    };
-                  }),
+                  projects: dbProjects.map((p: any) => ({
+                    id: p.id,
+                    title: p.title,
+                    completed: false
+                  })),
                   quizzes: dbQuizzes.map((q: any) => ({
                     id: q.id,
                     title: q.title,

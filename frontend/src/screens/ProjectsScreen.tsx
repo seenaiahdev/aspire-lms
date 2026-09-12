@@ -980,7 +980,7 @@ export function ProjectsScreen() {
                       </span>
                     </div>
                     <p className="text-xs text-amber-800 mt-1 leading-relaxed font-medium">
-                      This project has completed its deadline and was automatically marked as submitted. You can still upload your solution code files below if you would like to provide your implementation for mentor review.
+                      This project reached its deadline and was automatically closed. Because no solution files were uploaded, it does not count towards your completed course progress. You can still upload your solution files below to complete it.
                     </p>
                   </div>
                 </div>

@@ -312,7 +312,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
                         id: p.id,
                         title: p.title,
                         type: p.type || 'mini',
-                        completed: isManualDone || isOverdue,
+                        completed: isManualDone,
                         isAutoSubmitted: !isManualDone && isOverdue,
                       };
                     });
