@@ -239,10 +239,16 @@ export function LessonScreen() {
                       return false;
                     })
                   : [];
+                const seenProjTitles = new Set<string>();
                 const dbProjects = projects
                   ? projects.filter((p: any) => {
                       const t = projLessonTitle(p);
-                      return (!!t && t === lessonTitleKey) || resolver.resolveLessonId(p.inner_topic_id) === l.id;
+                      const matches = (!!t && t === lessonTitleKey) || resolver.resolveLessonId(p.inner_topic_id) === l.id;
+                      if (!matches) return false;
+                      const titleKey = String(p.title || '').trim().toLowerCase();
+                      if (seenProjTitles.has(titleKey)) return false;
+                      seenProjTitles.add(titleKey);
+                      return true;
                     })
                   : [];
                 const dbQuizzes = quizzes
