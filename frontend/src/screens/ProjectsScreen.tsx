@@ -150,6 +150,13 @@ export function parseProjectDetails(p: any) {
     (typeof p.description === 'string' && !p.description.trim().startsWith('{') ? p.description : '') ||
     '';
 
+  const shortDescription =
+    descObj.text ||
+    descObj.short_description ||
+    descObj.summary ||
+    (typeof p.description === 'string' && !p.description.trim().startsWith('{') ? p.description : '') ||
+    (overview ? overview.split('. ')[0] + '.' : '');
+
   const dueDate = p.due_date || descObj.due_date || descObj.dueDate || p.dueDate || '';
 
   let rawReqs = p.requirements || descObj.requirements || [];
@@ -218,6 +225,7 @@ export function parseProjectDetails(p: any) {
 
   return {
     overview,
+    shortDescription,
     dueDate,
     requirements,
     steps,
@@ -629,6 +637,7 @@ export function ProjectsScreen() {
         ...details,
         projectType,
         status,
+        shortDescription: details?.shortDescription || formatProjectDescription(rawP.description) || details?.overview || '',
         course: details?.courseName || rawP.course || rawP.category || 'General Curriculum',
         dueDate: details?.dueDate || '',
         skills: details?.skills || []
@@ -637,7 +646,7 @@ export function ProjectsScreen() {
     [selectedProjectId, effectiveProjects, projectsState, driveLinks]
   );
   const selectedGuide = selectedProject ? (projectGuides[selectedProject.id] || {
-    brief: selectedProject.overview || formatProjectDescription(selectedProject.description),
+    brief: selectedProject.shortDescription || formatProjectDescription(selectedProject.description) || selectedProject.overview,
     techStack: selectedProject.skills,
     fileStructure: [{ path: 'src/App.tsx', purpose: 'Main component layout' }],
     functions: ['renderApp', 'handleSubmit'],
@@ -726,7 +735,7 @@ export function ProjectsScreen() {
                 {selectedProject.projectType || 'mini'} project
               </span>
               <h2 className="text-2xl sm:text-3xl font-extrabold text-slate-900 leading-tight">{selectedProject.title}</h2>
-              <p className="text-sm text-slate-500 leading-relaxed">{selectedProject.overview || selectedGuide.brief}</p>
+              <p className="text-sm text-slate-500 leading-relaxed">{selectedProject.shortDescription || selectedGuide?.brief || selectedProject.overview}</p>
 
               <div className="flex flex-wrap gap-2 pt-1">
                 {(selectedProject.skills?.length > 0 ? selectedProject.skills : selectedGuide.techStack || []).map((item: string) => (
