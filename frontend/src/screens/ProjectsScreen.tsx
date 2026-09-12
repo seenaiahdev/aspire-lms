@@ -247,12 +247,15 @@ export function ProjectsScreen() {
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
-  // Automatically switch tab based on route params
+  // Automatically switch tab and select project based on route params
   useEffect(() => {
     if (params.tab && ['mini', 'major', 'capstone'].includes(params.tab)) {
       setMainCategory(params.tab as any);
     }
-  }, [params.tab]);
+    if (params.id) {
+      setSelectedProjectId(params.id);
+    }
+  }, [params.tab, params.id]);
 
   const [driveLinks, setDriveLinks] = useState<Record<string, string>>(() => {
     try {
