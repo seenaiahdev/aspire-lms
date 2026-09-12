@@ -44,10 +44,8 @@ function isDirectMediaUrl(raw?: string): boolean {
   return /\.(mp4|webm|ogg|ogv|mov|m4v)(\?|#|$)/i.test(u) || /supabase\.co\/storage\//.test(u);
 }
 
-function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, onToggle }: any) {
+function SidebarModuleAccordion({ mod, course, currentLesson, completedLessonIds, navigate, isOpen, onToggle }: any) {
   const { user } = useUser();
-  const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
-  const completedCount = Math.round((allLessons.length * (course.progress || 0)) / 100);
 
   return (
     <div className="space-y-1.5 border border-slate-100 p-2 rounded-xl">
@@ -66,8 +64,7 @@ function SidebarModuleAccordion({ mod, course, currentLesson, navigate, isOpen, 
           {mod.lessons.map((lesson: any, li: number) => {
             const isCurrent = lesson.id === currentLesson?.id;
             const isPreview = lesson.video?.preview || lesson.preview;
-            const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
-            const isCompleted = lesson.completed || (globalIdx < completedCount && globalIdx !== -1);
+            const isCompleted = Boolean(completedLessonIds?.has(lesson.id) || lesson.completed);
             const isLocked = !user?.unlockedLessonIds?.includes(lesson.id);
             return (
               <button
@@ -879,6 +876,7 @@ export function LessonScreen() {
                           mod={mod} 
                           course={course} 
                           currentLesson={currentLesson} 
+                          completedLessonIds={completedLessonIds}
                           navigate={navigate} 
                           isOpen={openModuleId === mod.id}
                           onToggle={() => setOpenModuleId(openModuleId === mod.id ? null : mod.id)}
