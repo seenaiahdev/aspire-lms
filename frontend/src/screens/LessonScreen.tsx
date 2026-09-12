@@ -14,6 +14,7 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { useUser } from '@/lib/UserContext';
 
 /**
  * Turns an admin-pasted video link into an embeddable URL. Supports Google Drive share links
