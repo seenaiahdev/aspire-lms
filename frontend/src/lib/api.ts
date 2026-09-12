@@ -811,42 +811,122 @@ export function evaluateBadgeCriteria(
   badge: any,
   user: any,
   submissions: any[] = [],
-  assignmentSubmissions: any[] = []
+  assignmentSubmissions: any[] = [],
+  extraData?: {
+    quizAttempts?: any[];
+    projectLinks?: Record<string, any>;
+    projectsList?: any[];
+  }
 ): boolean {
   if (!badge?.criteria) return false;
-  const criteria = badge.criteria.toLowerCase();
+  const rawCriteria = String(badge.criteria || '').trim().toLowerCase();
+  // Strip commas from numbers like "1,000 XP" or "2,500 XP"
+  const criteria = rawCriteria.replace(/,/g, '');
 
+  // 1. Streak-based criteria (e.g. "3-Day Streak", "7-Day Streak", "14-Day Streak", "30-Day Streak", "100-Day Streak")
   if (criteria.includes('streak')) {
     const match = criteria.match(/\d+/);
     const requiredStreak = match ? parseInt(match[0], 10) : 10;
-    return (user?.streak || 0) >= requiredStreak;
+    const currentStreak = Math.max(Number(user?.streak || 0), Number(user?.attendance || 0));
+    return currentStreak >= requiredStreak;
   }
 
+  // 2. Score / Assessment / Quiz criteria (e.g. "85% Score", "90% Score", "95% Score", "100% Perfect Score")
   if (criteria.includes('score') || criteria.includes('assessment') || criteria.includes('quiz') || criteria.includes('test')) {
     const scoreMatch = criteria.match(/(\d+)%/);
     const requiredScore = scoreMatch ? parseInt(scoreMatch[1], 10) : 70;
-    return (assignmentSubmissions || []).some((a: any) => (a.grade || 0) >= requiredScore);
+    
+    // Check both assessment attempts and quiz attempts for score >= requiredScore
+    const allAttempts = [
+      ...(assignmentSubmissions || []),
+      ...(extraData?.quizAttempts || [])
+    ];
+    return allAttempts.some((a: any) => {
+      const s = Number(a?.score ?? a?.grade ?? 0);
+      return s >= requiredScore;
+    });
   }
 
-  if (criteria.includes('problem') || criteria.includes('coding') || criteria.includes('solve') || criteria.includes('project')) {
+  // 3. Project Milestone criteria (MUST be evaluated before general coding problems!)
+  // e.g. "1 Project Completed", "2 Projects Completed", "Capstone Project Approved"
+  if (criteria.includes('project') || criteria.includes('capstone') || criteria.includes('portfolio') || criteria.includes('build')) {
+    const localLinks = extraData?.projectLinks || (() => {
+      try { return JSON.parse(localStorage.getItem('projectDriveLinks') || '{}'); } catch { return {}; }
+    })();
+
+    const submittedProjectIds = new Set<string>();
+    // From practice_submissions
+    (submissions || []).forEach((s: any) => {
+      if (s.language === 'project' || String(s.problem_id || '').startsWith('proj-')) {
+        submittedProjectIds.add(String(s.problem_id));
+      }
+    });
+    // From drive links in localStorage
+    Object.keys(localLinks).forEach((pid) => {
+      if (localLinks[pid]) submittedProjectIds.add(pid);
+    });
+    // From projectsList if overdue
+    (extraData?.projectsList || []).forEach((p: any) => {
+      if (isDueDatePassed(p.due_date || p.dueDate)) {
+        submittedProjectIds.add(String(p.id));
+      }
+    });
+
+    if (criteria.includes('capstone')) {
+      const hasCapstone = (extraData?.projectsList || []).some((p: any) => {
+        const isCap = (p.project_type || p.type || '').toLowerCase() === 'capstone' ||
+                      String(p.title || '').toLowerCase().includes('capstone');
+        return isCap && submittedProjectIds.has(String(p.id));
+      });
+      return hasCapstone || submittedProjectIds.size >= 3;
+    }
+
+    const match = criteria.match(/\d+/);
+    const requiredProjects = match ? parseInt(match[0], 10) : 1;
+    return submittedProjectIds.size >= requiredProjects;
+  }
+
+  // 4. Coding & Practice Problem criteria
+  // e.g. "1 Coding Problems Solved", "10 Problems", "25 Coding Problems Solved", "50 Problems", "100 Problems"
+  if (criteria.includes('problem') || criteria.includes('coding') || criteria.includes('solve')) {
     const match = criteria.match(/\d+/);
     const requiredCount = match ? parseInt(match[0], 10) : 5;
-    const uniqueSolved = new Set((submissions || []).filter((s: any) => s.status === 'solved' || s.language === 'project').map((s: any) => s.problem_id)).size;
+    // Coding problems (exclude projects)
+    const uniqueSolved = new Set(
+      (submissions || [])
+        .filter((s: any) => s.status === 'solved' && s.language !== 'project')
+        .map((s: any) => s.problem_id)
+    ).size;
     return uniqueSolved >= requiredCount;
   }
 
+  // 5. Course Completion / Progress criteria
+  // e.g. "25% Progress", "50% Progress", "75% Progress", "100% Course Completion"
   if (criteria.includes('completion') || criteria.includes('progress') || criteria.includes('complete')) {
     const match = criteria.match(/\d+/);
     const requiredProgress = match ? parseInt(match[0], 10) : 100;
-    return (user?.progress || 0) >= requiredProgress;
+    const maxCourseProg = Math.max(
+      Number(user?.progress || 0),
+      ...Object.values(user?.courseProgress || {}).map(Number)
+    );
+    return maxCourseProg >= requiredProgress;
   }
 
+  // 6. Attendance criteria
+  // e.g. "85% Attendance", "90% Attendance", "100% Perfect Attendance"
   if (criteria.includes('attendance') || criteria.includes('attend')) {
     const match = criteria.match(/\d+/);
     const requiredAttendance = match ? parseInt(match[0], 10) : 75;
-    return (user?.attendance || 0) >= requiredAttendance;
+    let attendanceVal = Number(user?.attendance || 0);
+    // If attendance was stored as a streak number (<= 10), use their course completion rate
+    if (attendanceVal <= 10) {
+      attendanceVal = Math.max(attendanceVal, Number(user?.progress || 0));
+    }
+    return attendanceVal >= requiredAttendance;
   }
 
+  // 7. XP Points criteria
+  // e.g. "100 XP", "250 XP", "500 XP", "1,000 XP", "2,500 XP", "5,000 XP", "7500 XP Points", "10000 XP Points"
   if (criteria.includes('xp') || criteria.includes('points')) {
     const match = criteria.match(/\d+/);
     const requiredXP = match ? parseInt(match[0], 10) : 100;

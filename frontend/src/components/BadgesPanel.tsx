@@ -2,7 +2,14 @@ import { useState, useEffect } from 'react';
 import { Award, ShieldCheck, Lock, Loader2, Linkedin } from 'lucide-react';
 import { getIcon } from '@/lib/icons';
 import { useUser } from '@/lib/UserContext';
-import { fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts, evaluateBadgeCriteria } from '@/lib/api';
+import {
+  fetchBadges,
+  fetchUserSubmissions,
+  fetchAssignmentAttempts,
+  fetchQuizAttempts,
+  fetchProjects,
+  evaluateBadgeCriteria
+} from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 /** Opens a LinkedIn share composer pre-filled with the earned badge. */
@@ -72,6 +79,8 @@ export function BadgesPanel() {
   const [badges, setBadges] = useState<any[]>([]);
   const [submissions, setSubmissions] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
+  const [quizAttempts, setQuizAttempts] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -79,15 +88,19 @@ export function BadgesPanel() {
     (async () => {
       setLoading(true);
       try {
-        const [b, s, a] = await Promise.all([
+        const [b, s, a, q, p] = await Promise.all([
           fetchBadges(),
           user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([]),
           user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([]),
+          user?.id ? fetchQuizAttempts(user.id) : Promise.resolve([]),
+          fetchProjects()
         ]);
         if (!active) return;
         setBadges(b || []);
         setSubmissions(s || []);
         setAttempts(a || []);
+        setQuizAttempts(q || []);
+        setProjects(p || []);
       } catch (err) {
         console.error('Failed to load badges:', err);
       } finally {
@@ -98,7 +111,13 @@ export function BadgesPanel() {
   }, [user?.id]);
 
   const evaluated = badges
-    .map((b) => ({ ...b, earned: evaluateBadgeCriteria(b, user, submissions, attempts) }))
+    .map((b) => ({
+      ...b,
+      earned: evaluateBadgeCriteria(b, user, submissions, attempts, {
+        quizAttempts,
+        projectsList: projects
+      })
+    }))
     .sort((a, b) => Number(b.earned) - Number(a.earned));
   const earnedCount = evaluated.filter((b) => b.earned).length;
 

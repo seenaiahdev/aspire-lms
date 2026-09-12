@@ -2,7 +2,7 @@ import { Trophy, Flame, Zap, Lock, Sparkles, ArrowLeft, Award, Linkedin, Loader2
 import { useState, useEffect } from 'react';
 import { useUser } from '@/lib/UserContext';
 import { useNav } from '@/lib/nav';
-import { fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts } from '@/lib/api';
+import { fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts, fetchQuizAttempts, fetchProjects, evaluateBadgeCriteria } from '@/lib/api';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressRing } from '@/components/ui/ProgressRing';
@@ -67,86 +67,31 @@ const badgeMedalStyles: Record<string, { bg: string; border: string; glow: strin
   }
 };
 
-function evaluateBadgeCriteria(
-  badge: any,
-  user: any,
-  submissions: any[],
-  assignmentSubmissions: any[]
-): boolean {
-  if (!badge.criteria) return false;
-  const criteria = badge.criteria.toLowerCase();
-
-  // 1. Streak-based criteria
-  if (criteria.includes('streak')) {
-    const match = criteria.match(/\d+/);
-    const requiredStreak = match ? parseInt(match[0], 10) : 10;
-    return (user.streak || 0) >= requiredStreak;
-  }
-
-  // 2. Score/Assessment-based criteria
-  if (criteria.includes('score') || criteria.includes('assessment') || criteria.includes('quiz') || criteria.includes('test')) {
-    const scoreMatch = criteria.match(/(\d+)%/);
-    const requiredScore = scoreMatch ? parseInt(scoreMatch[1], 10) : 70;
-    
-    const hasMatchingAttempt = (assignmentSubmissions || []).some(
-      (a) => (a.grade || 0) >= requiredScore
-    );
-    return hasMatchingAttempt;
-  }
-
-  // 3. Coding/Practice Problem-based criteria
-  if (criteria.includes('problem') || criteria.includes('coding') || criteria.includes('solve') || criteria.includes('project')) {
-    const match = criteria.match(/\d+/);
-    const requiredCount = match ? parseInt(match[0], 10) : 5;
-    const uniqueSolved = new Set((submissions || []).filter(s => s.status === 'solved' || s.language === 'project').map(s => s.problem_id)).size;
-    return uniqueSolved >= requiredCount;
-  }
-
-  // 4. Course Completion / Progress criteria
-  if (criteria.includes('completion') || criteria.includes('progress') || criteria.includes('complete')) {
-    const match = criteria.match(/\d+/);
-    const requiredProgress = match ? parseInt(match[0], 10) : 100;
-    return (user.progress || 0) >= requiredProgress;
-  }
-
-  // 5. Daily Attendance criteria
-  if (criteria.includes('attendance') || criteria.includes('attend')) {
-    const match = criteria.match(/\d+/);
-    const requiredAttendance = match ? parseInt(match[0], 10) : 75;
-    return (user.attendance || 0) >= requiredAttendance;
-  }
-
-  // 6. XP/Points criteria
-  if (criteria.includes('xp') || criteria.includes('points')) {
-    const match = criteria.match(/\d+/);
-    const requiredXP = match ? parseInt(match[0], 10) : 100;
-    const totalXP = user.xp || 0;
-    return totalXP >= requiredXP;
-  }
-
-  // Fallback: if criteria doesn't match any keywords, check if the student has any activity (XP > 0)
-  return (user.xp || 0) > 0;
-}
-
 export function AchievementsScreen() {
   const { user: currentUser } = useUser();
   const { navigate } = useNav();
   const [badges, setBadges] = useState<any[]>([]);
   const [submissions, setSubSubmissions] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<any[]>([]);
+  const [quizAttempts, setQuizAttempts] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [badgesData, subsData, attemptsData] = await Promise.all([
+        const [badgesData, subsData, attemptsData, quizData, projectsData] = await Promise.all([
           fetchBadges(),
           currentUser?.id ? fetchUserSubmissions(currentUser.id) : Promise.resolve([]),
-          currentUser?.id ? fetchAssignmentAttempts(currentUser.id) : Promise.resolve([])
+          currentUser?.id ? fetchAssignmentAttempts(currentUser.id) : Promise.resolve([]),
+          currentUser?.id ? fetchQuizAttempts(currentUser.id) : Promise.resolve([]),
+          fetchProjects()
         ]);
         setBadges(badgesData || []);
         setSubSubmissions(subsData || []);
         setAttempts(attemptsData || []);
+        setQuizAttempts(quizData || []);
+        setProjects(projectsData || []);
       } catch (error) {
         console.error('Failed to fetch data for achievements:', error);
       } finally {
@@ -163,7 +108,10 @@ export function AchievementsScreen() {
   const xpToNextLevel = 500 - (totalXP % 500);
 
   const dynamicBadges = badges.map((badge) => {
-    const earned = evaluateBadgeCriteria(badge, currentUser, submissions, attempts);
+    const earned = evaluateBadgeCriteria(badge, currentUser, submissions, attempts, {
+      quizAttempts,
+      projectsList: projects
+    });
 
     return {
       ...badge,

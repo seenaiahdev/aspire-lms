@@ -299,15 +299,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
             if (newRow.xp !== undefined || newRow.streak !== undefined || newRow.attendance !== undefined) {
               setUser((prev) => {
                 const nextXp = newRow.xp !== undefined ? Number(newRow.xp) : prev.xp;
-                const nextStreak = newRow.attendance !== undefined 
-                  ? Number(newRow.attendance) 
-                  : (newRow.streak !== undefined ? Number(newRow.streak) : prev.streak);
+                const nextStreak = newRow.streak !== undefined ? Number(newRow.streak) : prev.streak;
+                const nextAttendance = newRow.attendance !== undefined ? Number(newRow.attendance) : prev.attendance;
                 const updated = {
                   ...prev,
                   xp: nextXp,
                   level: Math.floor(nextXp / 500) + 1,
                   streak: nextStreak,
-                  attendance: nextStreak,
+                  attendance: nextAttendance,
                 };
                 try { localStorage.setItem('aspire_cached_user', JSON.stringify(updated)); } catch {}
                 return updated;
@@ -335,15 +334,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
           if (sid && (targetId === sid || targetId === regId)) {
             const curr = userRef.current;
             const nextXp = newRow.xp !== undefined ? Number(newRow.xp) : curr?.xp;
-            const nextStreak = newRow.attendance !== undefined 
-              ? Number(newRow.attendance) 
-              : (newRow.streak !== undefined ? Number(newRow.streak) : curr?.streak);
+            const nextStreak = newRow.streak !== undefined ? Number(newRow.streak) : curr?.streak;
+            const nextAttendance = newRow.attendance !== undefined ? Number(newRow.attendance) : curr?.attendance;
             const nextProgress = newRow.progress !== undefined ? Number(newRow.progress) : curr?.progress;
             const nextGpa = newRow.gpa !== undefined ? Number(newRow.gpa) : curr?.gpa;
 
             const hasChanged = curr && (
               (newRow.xp !== undefined && nextXp !== curr.xp) ||
-              (newRow.attendance !== undefined && nextStreak !== curr.streak) ||
+              (newRow.attendance !== undefined && nextAttendance !== curr.attendance) ||
               (newRow.streak !== undefined && nextStreak !== curr.streak) ||
               (newRow.progress !== undefined && nextProgress !== curr.progress) ||
               (newRow.gpa !== undefined && nextGpa !== curr.gpa)
@@ -357,7 +355,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                   xp: nextXp,
                   level: Math.floor(nextXp / 500) + 1,
                   streak: nextStreak,
-                  attendance: nextStreak,
+                  attendance: nextAttendance,
                   progress: nextProgress,
                   gpa: nextGpa,
                   rank: nextGpa,

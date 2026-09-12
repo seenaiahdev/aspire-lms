@@ -10,6 +10,7 @@ import {
   fetchNotifications, persistNotification,
   updateNotificationReadStatus, markAllNotificationsAsRead, deleteNotificationRow,
   courseTargetsBatch, fetchRewards, fetchBadges, fetchUserSubmissions, fetchAssignmentAttempts,
+  fetchQuizAttempts, fetchProjects,
   evaluateBadgeCriteria,
 } from './api';
 import { getLessonResolver, rawLessonLink } from './lessonLinkResolver';
@@ -713,11 +714,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     (async () => {
       try {
-        const [rewardsData, badgesData, submissionsData, attemptsData] = await Promise.all([
+        const [rewardsData, badgesData, submissionsData, attemptsData, quizData, projectsData] = await Promise.all([
           fetchRewards(),
           fetchBadges(),
           fetchUserSubmissions(sid),
           fetchAssignmentAttempts(sid),
+          fetchQuizAttempts(sid),
+          fetchProjects(),
         ]);
 
         if (isCancelled) return;
@@ -767,7 +770,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
         // 2. BADGES EARNED CHECK
         const earnedBadges = (badgesData || []).filter((b: any) =>
-          evaluateBadgeCriteria(b, user, submissionsData || [], attemptsData || [])
+          evaluateBadgeCriteria(b, user, submissionsData || [], attemptsData || [], {
+            quizAttempts: quizData || [],
+            projectsList: projectsData || []
+          })
         );
         const currentEarnedBadgeIds = earnedBadges.map((b: any) => b.id);
 
