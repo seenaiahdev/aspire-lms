@@ -5,7 +5,8 @@ import {
   Download, Share2, Heart, Award, ChevronUp, ChevronDown, Check
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { fetchResources, fetchBatchStudentCount } from '@/lib/api';
+import { fetchResources, fetchBatchStudentCount, fetchCompletedLessons } from '@/lib/api';
+import { usePreload } from '@/lib/PreloadContext';
 import { Card, CardBody, CardHeader } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
@@ -25,7 +26,21 @@ const lessonIcons: Record<string, any> = {
   video: Play, reading: FileText, quiz: ClipboardCheck, project: FolderGit2,
 };
 
-function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any, course: any, navigate: any, isOpen: boolean, onToggle: () => void }) {
+function ModuleAccordion({ 
+  mod, 
+  course, 
+  navigate, 
+  isOpen, 
+  onToggle, 
+  completedLessonIds 
+}: { 
+  mod: any, 
+  course: any, 
+  navigate: any, 
+  isOpen: boolean, 
+  onToggle: () => void,
+  completedLessonIds?: Set<string>
+}) {
   const { user } = useUser();
   const allLessons = course.stages ? course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons)) : [];
   const completedCount = Math.round((allLessons.length * (course.progress || 0)) / 100);
@@ -51,7 +66,14 @@ function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any
             const Icon = Play;
             const isPreview = lesson.video?.preview || lesson.preview;
             const globalIdx = allLessons.findIndex((l: any) => l.id === lesson.id);
-            const isCompleted = lesson.completed || (globalIdx < completedCount && globalIdx !== -1);
+            const hasRealCompletions = Boolean(completedLessonIds && completedLessonIds.size > 0);
+            const isCompleted = Boolean(
+              completedLessonIds?.has(lesson.id) ||
+              completedLessonIds?.has(String(lesson.id || '').trim()) ||
+              lesson.completed ||
+              lesson.videoCompleted ||
+              (!hasRealCompletions && globalIdx < completedCount && globalIdx !== -1)
+            );
             const isLessonLocked = !user?.unlockedLessonIds?.includes(lesson.id);
             
             return (
@@ -102,6 +124,7 @@ function ModuleAccordion({ mod, course, navigate, isOpen, onToggle }: { mod: any
 export function CourseScreen() {
   const { navigate, params } = useNav();
   const { user } = useUser();
+  const preload = usePreload();
   const [tab, setTab] = useState('modules');
   // Stages and modules both start CLOSED — the student expands what they want to see.
   const [openStageIndex, setOpenStageIndex] = useState<number | null>(null);
@@ -113,6 +136,27 @@ export function CourseScreen() {
   const [loading, setLoading] = useState(true);
   // Bumped by the realtime channel to re-fetch this course's syllabus on admin edits.
   const [reloadKey, setReloadKey] = useState(0);
+
+  const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(() => preload.completedLessons || new Set());
+
+  // Keep in sync with preload context
+  useEffect(() => {
+    if (preload.completedLessons && preload.completedLessons.size > 0) {
+      setCompletedLessonIds(preload.completedLessons);
+    }
+  }, [preload.completedLessons]);
+
+  // Load completed lessons directly from database for the logged-in student
+  useEffect(() => {
+    if (!user?.id || user.id === 'guest') return;
+    let alive = true;
+    fetchCompletedLessons(user.id).then((s) => {
+      if (alive && s) {
+        setCompletedLessonIds(s);
+      }
+    });
+    return () => { alive = false; };
+  }, [user?.id, reloadKey]);
 
   const batchCategory = user.batchCategory || 'Weekday';
   const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
@@ -195,7 +239,7 @@ export function CourseScreen() {
                 id: l.id,
                 title: l.title,
                 description: l.description,
-                completed: false
+                completed: Boolean(completedLessonIds.has(l.id) || completedLessonIds.has(String(l.id || '').trim()))
               }))
             };
           })
@@ -203,7 +247,7 @@ export function CourseScreen() {
       });
       setDbSyllabus({ id: courseIdToFetch, stages });
     }
-  }, [courseDataLists, courseIdToFetch]);
+  }, [courseDataLists, courseIdToFetch, completedLessonIds]);
 
   useEffect(() => {
     async function fetchCourseAndSyllabus() {
@@ -271,8 +315,8 @@ export function CourseScreen() {
         setReloadKey((k) => k + 1);
       }, 600);
     };
-    const tables = ['course_topics', 'course_lessons', 'courses', 'live_sessions'];
-    const channel = supabase.channel('course_detail_realtime');
+    const tables = ['course_topics', 'course_lessons', 'courses', 'live_sessions', 'lesson_progress'];
+    const channel = supabase.channel(`course_detail_realtime_${courseIdToFetch}`);
     tables.forEach((table) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
     });
@@ -380,6 +424,18 @@ export function CourseScreen() {
       tags: dbCourse.tags || ['Python Programming', 'Advanced OOP', 'Flask/Django', 'DSA & Algorithms', 'AI Integration']
     };
   }, [dbCourse, dbSyllabus, user.progress, user.courseProgress, user.enrolledCourses, allCourses, params.id, batchStudentCount]);
+
+  const completedInThisCourse = useMemo(() => {
+    if (!course.stages) return 0;
+    const thisCourseLessonIds = new Set(
+      course.stages.flatMap((s: any) => s.modules.flatMap((m: any) => m.lessons.map((l: any) => l.id)))
+    );
+    let count = 0;
+    completedLessonIds.forEach((id) => {
+      if (thisCourseLessonIds.has(id) || thisCourseLessonIds.has(String(id || '').trim())) count++;
+    });
+    return count;
+  }, [course.stages, completedLessonIds]);
 
   const [commentText, setCommentText] = useState('');
   const [comments, setComments] = useState<any[]>([]);
@@ -505,13 +561,26 @@ export function CourseScreen() {
                   <div className="p-4 sm:p-6 space-y-4">
                     {course.stages?.map((stage: any, i: number) => {
                       const stageLessons = stage.modules.flatMap((m: any) => m.lessons);
+                      const stageCompletedCount = stageLessons.filter((l: any) => 
+                        completedLessonIds.has(l.id) || completedLessonIds.has(String(l.id || '').trim()) || l.completed
+                      ).length;
                       return (
                       <AccordionItem
                         key={stage.id}
                         title={stage.title}
                         isOpen={openStageIndex === i}
                         onToggle={() => setOpenStageIndex(openStageIndex === i ? null : i)}
-                        rightSlot={<span className="text-xs font-extrabold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">{stageLessons.length} lessons</span>}
+                        rightSlot={
+                          stageCompletedCount > 0 ? (
+                            <span className="text-xs font-extrabold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                              {stageCompletedCount}/{stageLessons.length} completed
+                            </span>
+                          ) : (
+                            <span className="text-xs font-extrabold text-purple-600 bg-purple-50 px-2.5 py-1 rounded-lg border border-purple-100">
+                              {stageLessons.length} lessons
+                            </span>
+                          )
+                        }
                       >
                         <div className="space-y-4 pt-2">
                           {stage.modules.map((mod: any) => (
@@ -522,6 +591,7 @@ export function CourseScreen() {
                               navigate={navigate} 
                               isOpen={openModuleId === mod.id}
                               onToggle={() => setOpenModuleId(openModuleId === mod.id ? null : mod.id)}
+                              completedLessonIds={completedLessonIds}
                             />
                           ))}
                         </div>
@@ -633,11 +703,25 @@ export function CourseScreen() {
               </div>
               <div>
                 <p className="font-extrabold text-slate-900 text-base mb-1">{course.progress}% Completed</p>
-                <p className="text-xs font-semibold text-slate-500">{Math.round(course.lessons * course.progress / 100)} of {course.lessons} lessons</p>
+                <p className="text-xs font-semibold text-slate-500">
+                  {completedInThisCourse > 0 
+                    ? `${completedInThisCourse} of ${course.lessons} lessons`
+                    : `${Math.round(course.lessons * course.progress / 100)} of ${course.lessons} lessons`
+                  }
+                </p>
               </div>
 
               <button
-                onClick={() => navigate('lesson', { id: course.id })}
+                onClick={() => {
+                  const allCourseLessons = course.stages?.flatMap((s: any) => s.modules).flatMap((m: any) => m.lessons) || [];
+                  const nextIncomplete = allCourseLessons.find((l: any) => 
+                    !completedLessonIds.has(l.id) && !completedLessonIds.has(String(l.id || '').trim())
+                  );
+                  navigate('lesson', { 
+                    id: course.id, 
+                    lesson: nextIncomplete?.id || allCourseLessons[0]?.id 
+                  });
+                }}
                 className="w-full py-3.5 px-4 rounded-2xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2"
               >
                 <Play className="w-4 h-4 fill-white" />
