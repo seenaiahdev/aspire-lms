@@ -969,29 +969,35 @@ export function ProjectsScreen() {
                 </Button>
               </div>
             </div>
+          ) : selectedProject.isAutoSubmitted ? (
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-2">
+              <div className="flex items-start sm:items-center gap-4">
+                <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 text-amber-700">
+                  <Lock className="w-7 h-7" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-extrabold text-slate-900 text-base">Submissions Closed</h3>
+                    <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider">
+                      Auto-Submitted
+                    </span>
+                    {selectedProject.dueDate && (
+                      <span className="text-slate-400 text-xs font-semibold">
+                        • Deadline Passed ({selectedProject.dueDate})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed max-w-xl">
+                    This project reached its deadline and was automatically closed without file submission. Submissions are no longer accepted for this project.
+                  </p>
+                </div>
+              </div>
+            </div>
           ) : (
             <div className="space-y-4">
-              {selectedProject.isAutoSubmitted && (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50/80 p-4 sm:p-5 flex items-start gap-3.5 shadow-2xs">
-                  <div className="w-9 h-9 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center shrink-0 text-amber-800 font-bold text-sm">
-                    ⚡
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="text-xs font-black uppercase tracking-wider text-amber-900">Auto-Submitted on Due Date</h4>
-                      <span className="px-2 py-0.5 rounded-full bg-amber-200/70 text-amber-900 text-[10px] font-black">
-                        Deadline Passed ({selectedProject.dueDate})
-                      </span>
-                    </div>
-                    <p className="text-xs text-amber-800 mt-1 leading-relaxed font-medium">
-                      This project reached its deadline and was automatically closed. Because no solution files were uploaded, it does not count towards your completed course progress. You can still upload your solution files below to complete it.
-                    </p>
-                  </div>
-                </div>
-              )}
               <div>
                 <h3 className="text-base font-extrabold text-slate-900">
-                  {selectedProject.isAutoSubmitted ? 'Upload Project Solution' : 'Submit Your Project Solution'}
+                  Submit Your Project Solution
                 </h3>
                 <p className="text-xs text-slate-500 mt-1">
                   Upload your completed single code file or full project folder.
