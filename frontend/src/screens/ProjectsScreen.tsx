@@ -22,6 +22,7 @@ import { cn, isDueDatePassed } from '@/lib/utils';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 import { useNav } from '@/lib/nav';
+import { ProjectOverviewRenderer } from '@/components/projects/ProjectOverviewRenderer';
 
 import { projectsSteps } from '@/lib/tourSteps';
 
@@ -804,15 +805,15 @@ export function ProjectsScreen() {
             
             {/* Project Overview & Requirements */}
             <Card className="p-6 sm:p-7 border border-slate-200/90 shadow-sm rounded-[2rem] bg-white space-y-5">
-              <div>
-                <div className="flex items-center gap-2 text-[#7c3aed] text-xs font-black uppercase tracking-wider mb-1">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2 text-[#7c3aed] text-xs font-black uppercase tracking-wider">
                   <FileText className="w-4 h-4" />
                   <span>PROJECT BRIEF & OBJECTIVES</span>
                 </div>
                 <h3 className="text-lg font-extrabold text-slate-900">Project Overview</h3>
-                <p className="text-xs text-slate-600 font-medium leading-relaxed mt-2 whitespace-pre-line">
-                  {selectedProject.overview || selectedGuide.brief || 'Develop a production-ready solution adhering to industry coding standards, modular component organization, and clean user experience.'}
-                </p>
+                <ProjectOverviewRenderer
+                  overview={selectedProject.overview || selectedGuide.brief || 'Develop a production-ready solution adhering to industry coding standards, modular component organization, and clean user experience.'}
+                />
               </div>
 
               {/* Requirements Checklist */}
