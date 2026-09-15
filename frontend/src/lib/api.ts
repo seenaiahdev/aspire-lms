@@ -1086,30 +1086,24 @@ export async function fetchPracticeProblems(
     }
     if (!data) return [];
 
-    const norm = (s: any) => String(s ?? '').trim().toLowerCase();
-    const wantBatch = norm(batchCode);
-    const wantCat = norm(batchCategory);
     const validCourses = new Set([
       ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
       courseId
     ].filter(Boolean));
 
     const filtered = data.filter((item: any) => {
-      // 1. Strict Course Check: If question specifies course_id, it MUST belong to the student's enrolled courses
+      // 1. Strict Course Check: If question specifies course_id, it MUST belong to the student's enrolled courses.
       if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
         return false;
       }
 
-      // 2. Batch targeting check
-      const tb = norm(item.target_batch);
-      if (tb) {
-        const batchMatches =
-          tb.includes('all batches') ||
-          tb === 'all' ||
-          (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) ||
-          (wantCat && tb.includes(wantCat));
-        if (!batchMatches) return false;
-      }
+      // 2. Batch targeting: target_batch is used by the admin as a hint for when to create the problem,
+      // NOT as a hard visibility gate. The actual unlock gate is milestone_locks (checked in PracticeScreen
+      // via isUnlocked(inner_topic_id)). Accept items whose target_batch is explicitly "all"/"all batches",
+      // OR whose batch code/category matches, OR if no target_batch is set.
+      // If the item HAS a target_batch that clearly targets a DIFFERENT batch category (e.g. "Weekend Batch"
+      // for a Weekday student), still show it — the milestone unlock is the real gate.
+      // This prevents admins from accidentally hiding valid problems by mis-setting target_batch.
 
       return true;
     });
@@ -1119,6 +1113,7 @@ export async function fetchPracticeProblems(
     return [];
   }
 }
+
 
 // ════════════════════════════════════════════════════════════════
 // REWARDS / SWAG
