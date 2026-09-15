@@ -14,6 +14,7 @@ import { useUser } from '@/lib/UserContext';
 import { submitPracticeProblem } from '@/lib/api';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 import { executeCodeFile, type ExecutionResult } from '@/lib/codeRunner';
+import { ProblemDescriptionRenderer, renderInlineText } from '@/components/practice/ProblemDescriptionRenderer';
 
 
 // ── Problem config ────────────────────────────────────────────────────────────
@@ -644,19 +645,33 @@ export function WorkspaceScreen() {
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar text-slate-700 bg-white">
         <div>
-          <h2 className="text-xl font-black text-slate-900 mb-2">{problemConfig.title}</h2>
-          <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-line">{problemConfig.description}</p>
+          <h2 className="text-xl font-black text-slate-900 mb-3 tracking-tight">{problemConfig.title}</h2>
+          <ProblemDescriptionRenderer description={problemConfig.description} />
         </div>
 
         <div className="space-y-4">
           <h3 className="text-xs font-black uppercase tracking-wider text-slate-500">Examples</h3>
           {problemConfig.examples && problemConfig.examples.length > 0 ? (
             problemConfig.examples.map((ex, idx) => (
-              <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-1.5 font-mono text-xs">
+              <div key={idx} className="p-4 rounded-xl bg-slate-50 border border-slate-200/90 space-y-2 font-mono text-xs">
                 <p className="font-bold text-slate-500 text-[10px] uppercase">Example {idx + 1}:</p>
-                <p><span className="text-[#7c3aed] font-bold">Input:</span> {ex.input}</p>
-                <p><span className="text-emerald-600 font-bold">Output:</span> {ex.output}</p>
-                {ex.explanation && <p className="text-slate-500 text-[11px] font-sans mt-1">{ex.explanation}</p>}
+                <div className="space-y-1">
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-[#7c3aed] font-bold shrink-0">Input:</span>
+                    <span className="text-slate-800 break-all">{ex.input}</span>
+                  </div>
+                  <div className="flex items-start gap-1.5">
+                    <span className="text-emerald-600 font-bold shrink-0">Output:</span>
+                    <pre className="text-slate-800 font-mono text-xs whitespace-pre-wrap break-all bg-slate-100/80 px-2 py-1 rounded border border-slate-200/60 flex-1">
+                      {ex.output}
+                    </pre>
+                  </div>
+                </div>
+                {ex.explanation && (
+                  <p className="text-slate-600 text-[11px] font-sans mt-2 pt-1.5 border-t border-slate-200/70 leading-relaxed">
+                    {renderInlineText(ex.explanation)}
+                  </p>
+                )}
               </div>
             ))
           ) : (
