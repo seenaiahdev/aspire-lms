@@ -21,7 +21,7 @@ const initialUser: ExtendedUser = {
   avatar: '',
   role: 'Student',
   program: 'Engineering Degree',
-  college: 'IIT Hyderabad',
+  college: '',
   startYear: 2023,
   endYear: 2027,
   joinedDate: 'Aug 2026',

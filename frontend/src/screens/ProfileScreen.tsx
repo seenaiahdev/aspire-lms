@@ -52,9 +52,12 @@ export function ProfileScreen() {
   const displayRegNo = user.registrationId || 'A26W0011';
   const studentName = user.name || 'Seenu Dommalapati';
   const programName = user.program || 'Engineering Degree';
-  const collegeName = user.college || 'kalasalingam';
-  const startYear = user.startYear || 2023;
-  const endYear = user.endYear || 2027;
+  // Show real college name only; never fabricate one when the student has not provided it.
+  const collegeName = (user.college && user.college.trim()) ? user.college.trim() : '';
+  const startYear = user.startYear;
+  const endYear = user.endYear;
+  const academicYears = (startYear && endYear) ? `(${startYear} – ${endYear})` : '';
+  const academicAffiliation = [collegeName, academicYears].filter(Boolean).join(' ');
   // Show the real email only; never fabricate one when the student record has none.
   const studentEmail = (user.email && user.email.trim()) ? user.email.trim() : 'Not provided';
   const studentLevel = user.level || 1;
@@ -266,9 +269,11 @@ export function ProfileScreen() {
                   <span className="inline-flex items-center px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#6722f4] font-black text-xs border border-purple-100/80">
                     {programName}
                   </span>
-                  <span className="text-slate-500 text-xs font-semibold">
-                    {collegeName} ({startYear} – {endYear})
-                  </span>
+                  {academicAffiliation && (
+                    <span className="text-slate-500 text-xs font-semibold">
+                      {academicAffiliation}
+                    </span>
+                  )}
                 </div>
               </div>
 
