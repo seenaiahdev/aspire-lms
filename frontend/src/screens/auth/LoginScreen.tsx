@@ -271,7 +271,7 @@ export function LoginScreen() {
           email: student.email,
           avatar: student.avatar || '',
           role: 'Student',
-          program: 'Engineering Degree',
+          program: "Bachelor's Degree",
           college: '',
           joinedDate: student.joined_date || 'Jan 2026',
           xp: student.xp || 0,

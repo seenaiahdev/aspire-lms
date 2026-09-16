@@ -51,7 +51,7 @@ export function ProfileScreen() {
   const displayBatch = formatBatchDisplay(user.batchCode, user.registrationId) || user.batchCode || 'W2';
   const displayRegNo = user.registrationId || 'A26W0011';
   const studentName = user.name || 'Seenu Dommalapati';
-  const programName = user.program || 'Engineering Degree';
+  const programName = user.program || "Bachelor's Degree";
   // Show real college name only; never fabricate one when the student has not provided it.
   const collegeName = (user.college && user.college.trim()) ? user.college.trim() : '';
   const startYear = user.startYear;

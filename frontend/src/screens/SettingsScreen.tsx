@@ -123,7 +123,7 @@ export function SettingsScreen() {
   const [profileForm, setProfileForm] = useState({
     name: currentUser.name,
     email: currentUser.email,
-    program: currentUser.program,
+    program: currentUser.program || "Bachelor's Degree",
     college: currentUser.college || '',
     startYear: currentUser.startYear || 2023,
     endYear: currentUser.endYear || 2027,
@@ -150,7 +150,7 @@ export function SettingsScreen() {
           setProfileForm({
             name: currentUser.name,
             email: currentUser.email,
-            program: profile.program || currentUser.program,
+            program: profile.program || currentUser.program || "Bachelor's Degree",
             college: profile.college || '',
             startYear: profile.start_year || currentUser.startYear || 2023,
             endYear: profile.end_year || currentUser.endYear || 2027,
@@ -522,6 +522,7 @@ export function SettingsScreen() {
                     <input 
                       value={profileForm.program} 
                       onChange={(e) => setProfileForm({ ...profileForm, program: e.target.value })}
+                      placeholder="e.g. Bachelor's Degree"
                       className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
                     />
                   </div>
