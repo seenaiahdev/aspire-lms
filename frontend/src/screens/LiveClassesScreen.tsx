@@ -118,9 +118,13 @@ export function LiveClassesScreen() {
       cls.date, cls.time, cls.duration, cls.status, 10, now
     );
     let descCourse = '';
+    let metaCourseId = '';
+    let metaLessonId = '';
     try {
       const meta = typeof cls.description === 'string' ? JSON.parse(cls.description) : cls.description;
       if (meta?.courseName) descCourse = meta.courseName;
+      if (meta?.courseId) metaCourseId = meta.courseId;
+      if (meta?.moduleId) metaLessonId = meta.moduleId;
     } catch {}
 
     let courseName = descCourse || (cls.technology || '').trim();
@@ -131,6 +135,8 @@ export function LiveClassesScreen() {
       id: cls.id,
       title: cls.session_title,
       course: courseName,
+      courseId: metaCourseId,
+      lessonId: metaLessonId,
       date: cls.date || '',
       time: cls.time || '',
       instructor: { name: cls.instructor || 'Lead Trainer', avatar: '', title: 'Course Trainer' },
@@ -316,29 +322,43 @@ export function LiveClassesScreen() {
 
   const handleWatchRecording = async (cls: any) => {
     const defaultCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
+
+    // 1. If the session already carries a lessonId from admin metadata, navigate directly
+    if (cls.lessonId) {
+      navigate('lesson', {
+        id: cls.courseId || defaultCourseId,
+        lesson: cls.lessonId
+      });
+      return;
+    }
+
+    // 2. Try to find a matching lesson by title in the DB
     try {
       const cleanTitle = (cls.title || '').trim();
+      // Use only the first segment before any comma — commas break PostgREST .or() parser
       const firstWords = cleanTitle.split(',')[0].split('&')[0].trim();
-      
-      const { data: matchedLessons } = await supabase
-        .from('course_lessons')
-        .select('id, title, course_id')
-        .or(`title.ilike.%${cleanTitle}%,title.ilike.%${firstWords}%`)
-        .limit(1);
 
-      if (matchedLessons && matchedLessons.length > 0) {
-        navigate('lesson', {
-          id: matchedLessons[0].course_id || defaultCourseId,
-          lesson: matchedLessons[0].id
-        });
-        return;
+      if (firstWords) {
+        const { data: matchedLessons } = await supabase
+          .from('course_lessons')
+          .select('id, title, course_id')
+          .ilike('title', `%${firstWords}%`)
+          .limit(1);
+
+        if (matchedLessons && matchedLessons.length > 0) {
+          navigate('lesson', {
+            id: matchedLessons[0].course_id || cls.courseId || defaultCourseId,
+            lesson: matchedLessons[0].id
+          });
+          return;
+        }
       }
     } catch (err) {
       console.error('Error finding matching course lesson for recording:', err);
     }
 
-    // Fallback: If no direct lesson in curriculum matches, navigate to the dedicated recording player!
-    navigate('recording', { id: cls.id });
+    // 3. Fallback: open the course details screen instead of a broken recording player
+    navigate('course', { id: cls.courseId || defaultCourseId });
   };
 
   const filtered = useMemo(() => {
