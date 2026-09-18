@@ -153,7 +153,8 @@ export function LiveClassesScreen() {
       status: resolvedStatus,
       joinable,
       thumbnail: courseThumbnail,
-      link: cls.meeting_link || ''
+      link: cls.meeting_link || '',
+      isRecording: Boolean(cls.isRecording || cls.video_url || cls.recording_url)
     };
   }, [primaryCourseTitle, userCourses]);
 
@@ -181,7 +182,8 @@ export function LiveClassesScreen() {
           batch_code: batchCode,
           duration: r.duration || '1h 30m',
           video_url: r.video_url,
-          thumbnail_url: r.thumbnail
+          thumbnail_url: r.thumbnail,
+          isRecording: true
         }));
 
         const existingIds = new Set((liveData || []).map((s: any) => s.id));
@@ -385,13 +387,14 @@ export function LiveClassesScreen() {
       if (tab === 'upcoming') {
         if (c.status === 'ongoing') return true; // always show live-now sessions
         if (c.status !== 'upcoming') return false;
-        // Only show upcoming sessions scheduled for today or tomorrow
-        if (!c.date) return true;
-        const tomorrowDate = new Date(Date.now() + 86400000);
-        const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2, '0')}-${String(tomorrowDate.getDate()).padStart(2, '0')}`;
-        return c.date === todayStr || c.date === tomorrowStr;
+        // Unscheduled sessions (date is null/empty in DB) must not be shown
+        if (!c.date) return false;
+        // Only show live sessions scheduled for today
+        return c.date === todayStr;
       }
       if (tab === 'completed') {
+        // Only show genuine recordings from recordings table, not unrecorded live sessions
+        if (!c.isRecording) return false;
         if (c.status !== 'completed') return false;
 
         // Keyword Search (title, instructor, course, date)
