@@ -383,7 +383,13 @@ export function LiveClassesScreen() {
 
     return mappedSessions.filter((c) => {
       if (tab === 'upcoming') {
-        return c.status === 'upcoming' || c.status === 'ongoing';
+        if (c.status === 'ongoing') return true; // always show live-now sessions
+        if (c.status !== 'upcoming') return false;
+        // Only show upcoming sessions scheduled for today or tomorrow
+        if (!c.date) return true;
+        const tomorrowDate = new Date(Date.now() + 86400000);
+        const tomorrowStr = `${tomorrowDate.getFullYear()}-${String(tomorrowDate.getMonth() + 1).padStart(2, '0')}-${String(tomorrowDate.getDate()).padStart(2, '0')}`;
+        return c.date === todayStr || c.date === tomorrowStr;
       }
       if (tab === 'completed') {
         if (c.status !== 'completed') return false;
