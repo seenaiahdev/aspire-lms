@@ -499,8 +499,11 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
         const batchMatches =
           tb.includes('all batches') ||
           tb === 'all' ||
+          tb === 'all batch' ||
           (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) ||
-          (wantCat && tb.includes(wantCat));
+          (wantCat && (tb.includes(wantCat) || (wantCat === 'weekend' && (tb.includes('weekend') || tb.includes('s1') || tb.includes('s2'))) || (wantCat === 'weekday' && (tb.includes('weekday') || tb.includes('w1') || tb.includes('w2'))))) ||
+          // Cohort-level match: if both belong to the same cohort prefix (e.g. A26) for the student's enrolled course
+          (wantBatch.length >= 3 && tb.includes(wantBatch.slice(0, 3)));
         if (!batchMatches) return false;
       }
 

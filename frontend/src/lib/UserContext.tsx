@@ -94,7 +94,25 @@ export function UserProvider({ children }: { children: ReactNode }) {
       try {
         const student = await fetchStudentByPhone(loggedInMobile);
         if (student) {
-          const batchCategory = await fetchBatchCategory(student.batch);
+          const dbCat = await fetchBatchCategory(student.batch);
+          const regUpper = String(student.registration_id || '').toUpperCase();
+          const batchUpper = String(student.batch || '').toUpperCase();
+
+          let resolvedCategory: 'Weekday' | 'Weekend' = dbCat || 'Weekday';
+          if (regUpper.startsWith('A26S') || regUpper.includes('S0') || batchUpper.includes('S')) {
+            resolvedCategory = 'Weekend';
+          } else if (regUpper.startsWith('A26W') || regUpper.includes('W0') || batchUpper.includes('W')) {
+            resolvedCategory = 'Weekday';
+          }
+
+          let resolvedBatch = student.batch;
+          if (regUpper.startsWith('A26S') && (!resolvedBatch || resolvedBatch.toUpperCase().includes('W'))) {
+            resolvedBatch = 'A26S1';
+          } else if (regUpper.startsWith('A26W') && (!resolvedBatch || resolvedBatch.toUpperCase().includes('S'))) {
+            resolvedBatch = 'A26W1';
+          }
+
+          const batchCategory = resolvedCategory;
           const profile = await fetchStudentProfile(student.id);
 
           // Effective course set = the student's enrolled_courses UNION every course RELEASED to their
@@ -177,7 +195,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const realGpa = profile?.gpa ?? 0.00;
 
           let unlockedLessonIds: string[] = [];
-          const batchList = student.batch ? [student.batch, 'ALL'] : ['ALL'];
+          const batchList = Array.from(new Set([resolvedBatch, student.batch, 'ALL'].filter(Boolean) as string[]));
           const { data: locks } = await supabase
             .from('milestone_locks')
             .select('lesson_id, is_locked, unlock_datetime')
@@ -217,8 +235,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
               { label: 'LinkedIn', value: 'Not connected' },
               { label: 'Portfolio', value: 'Not connected' },
             ],
-            batchCode: student.batch,
-            batchCategory: batchCategory || 'Weekday',
+            batchCode: resolvedBatch || student.batch,
+            batchCategory: resolvedCategory,
             mobile: loggedInMobile,
             gpa: realGpa,
             attendance: realStreak,
