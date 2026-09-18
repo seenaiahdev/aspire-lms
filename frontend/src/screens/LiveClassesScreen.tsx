@@ -131,6 +131,13 @@ export function LiveClassesScreen() {
     if (!courseName || courseName.toLowerCase() === 'general' || courseName.toLowerCase() === 'core programming') {
       courseName = primaryCourseTitle || 'Live Session';
     }
+
+    // Resolve course thumbnail: match by courseId first, then by course name, then fallback
+    const matchedCourse = userCourses.find((c: any) => c.id === metaCourseId)
+      || userCourses.find((c: any) => c.title && courseName && c.title.toLowerCase() === courseName.toLowerCase())
+      || userCourses[0];
+    const courseThumbnail = cls.thumbnail_url || matchedCourse?.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80';
+
     return {
       id: cls.id,
       title: cls.session_title,
@@ -145,10 +152,10 @@ export function LiveClassesScreen() {
       participants: 120,
       status: resolvedStatus,
       joinable,
-      thumbnail: 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=800&q=80',
+      thumbnail: courseThumbnail,
       link: cls.meeting_link || ''
     };
-  }, [primaryCourseTitle]);
+  }, [primaryCourseTitle, userCourses]);
 
   useEffect(() => {
     async function loadSessions() {
