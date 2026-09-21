@@ -89,12 +89,36 @@ export function ScheduleScreen() {
 
   useEffect(() => {
     async function loadPersonalTasks() {
+      const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
+      let cachedTasks: any[] = [];
+      try {
+        const raw = localStorage.getItem(storageKey);
+        if (raw) {
+          cachedTasks = JSON.parse(raw);
+          if (Array.isArray(cachedTasks)) {
+            setLocalTasks(cachedTasks);
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse cached personal tasks:', e);
+      }
+
       if (!user?.id) return;
       try {
         const tasks = await fetchPersonalTasks(user.id);
-        setLocalTasks(tasks);
+        if (Array.isArray(tasks) && tasks.length > 0) {
+          const dbIds = new Set(tasks.map((t: any) => t.id));
+          const combined = [
+            ...tasks,
+            ...cachedTasks.filter((t: any) => !dbIds.has(t.id))
+          ];
+          setLocalTasks(combined);
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(combined));
+          } catch {}
+        }
       } catch (err) {
-        console.error("Error loading personal tasks from Supabase:", err);
+        console.warn("Error loading personal tasks from Supabase (using local cache):", err);
       }
     }
     loadPersonalTasks();
@@ -138,11 +162,20 @@ export function ScheduleScreen() {
       const unlockedProjects = projectsData.filter((p: any) => isEntityUnlocked(p));
       const unlockedCoding = codingData.filter((p: any) => isEntityUnlocked(p));
 
+      const manualCompletedEvents = new Set<string>();
+      try {
+        const raw = localStorage.getItem(user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) list.forEach((id: string) => manualCompletedEvents.add(id));
+        }
+      } catch {}
+
       const extra: any[] = [];
       unlockedAssessments.forEach((asmnt: any) => {
         const rawDate = asmnt.dueDate || asmnt.due_date || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
-        const isCompleted = completedAssessmentIds.has(asmnt.id) || asmnt.status === 'completed';
+        const isCompleted = completedAssessmentIds.has(asmnt.id) || asmnt.status === 'completed' || manualCompletedEvents.has(asmnt.id);
         extra.push({
           id: asmnt.id,
           title: asmnt.title,
@@ -160,7 +193,7 @@ export function ScheduleScreen() {
       unlockedQuizzes.forEach((quiz: any) => {
         const rawDate = quiz.dueDate || quiz.due_date || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
-        const isCompleted = completedQuizIds.has(quiz.id) || quiz.status === 'completed';
+        const isCompleted = completedQuizIds.has(quiz.id) || quiz.status === 'completed' || manualCompletedEvents.has(quiz.id);
         extra.push({
           id: quiz.id,
           title: quiz.title,
@@ -178,7 +211,7 @@ export function ScheduleScreen() {
       unlockedProjects.forEach((proj: any) => {
         const rawDate = proj.due_date || proj.dueDate || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
-        const isCompleted = submittedProblemIds.has(proj.id) || proj.status === 'submitted' || proj.status === 'feedback';
+        const isCompleted = submittedProblemIds.has(proj.id) || proj.status === 'submitted' || proj.status === 'feedback' || manualCompletedEvents.has(proj.id);
         extra.push({
           id: proj.id,
           title: proj.title,
@@ -196,7 +229,7 @@ export function ScheduleScreen() {
       unlockedCoding.forEach((p: any) => {
         const rawDate = p.created_date || p.dueDate || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
-        const isCompleted = submittedProblemIds.has(p.id) || p.solved;
+        const isCompleted = submittedProblemIds.has(p.id) || p.solved || manualCompletedEvents.has(p.id);
         extra.push({
           id: p.id,
           title: p.title,
@@ -271,6 +304,15 @@ export function ScheduleScreen() {
           .order('time', { ascending: true });
 
         if (data) {
+          const manualCompletedEvents = new Set<string>();
+          try {
+            const raw = localStorage.getItem(user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest');
+            if (raw) {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) list.forEach((id: string) => manualCompletedEvents.add(id));
+            }
+          } catch {}
+
           const formatted = data.map((row: any) => ({
             id: row.id,
             title: row.session_title || row.title || row.program_name || 'Class Session',
@@ -279,7 +321,7 @@ export function ScheduleScreen() {
             dateKey: row.date,
             time: row.time,
             course: row.technology || row.program_name || 'Live Class',
-            completed: row.status === 'completed'
+            completed: row.status === 'completed' || manualCompletedEvents.has(row.id)
           }));
           setApiTasks(formatted);
         }
@@ -357,33 +399,84 @@ export function ScheduleScreen() {
   };
 
   const toggleTaskCompletion = async (id: string) => {
-    const target = localTasks.find(t => t.id === id);
+    const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
+    const completedEventsKey = user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest';
+
+    const target = localTasks.find((t) => t.id === id);
     if (target) {
       const nextCompleted = !target.completed;
+      // 1. Immediately update UI state and persistent local storage
+      setLocalTasks((prev) => {
+        const updated = prev.map((item) => (item.id === id ? { ...item, completed: nextCompleted } : item));
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(updated));
+        } catch (e) {
+          console.warn(e);
+        }
+        return updated;
+      });
+
+      // 2. Best-effort background sync to Supabase
       try {
         await updatePersonalTaskCompletion(id, nextCompleted);
-        setLocalTasks((prev) => prev.map((item) => item.id === id ? { ...item, completed: nextCompleted } : item));
       } catch (err) {
-        console.error("Error updating personal task completion in Supabase:", err);
+        console.warn("Task completion state saved locally; Supabase sync deferred:", err);
       }
     } else {
+      let isNowCompleted = false;
       setUnlockedExtraEvents((prev) =>
-        prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item)
+        prev.map((item) => {
+          if (item.id === id) {
+            isNowCompleted = !item.completed;
+            return { ...item, completed: isNowCompleted };
+          }
+          return item;
+        })
       );
       setApiTasks((prev) =>
-        prev.map((item) => item.id === id ? { ...item, completed: !item.completed } : item)
+        prev.map((item) => {
+          if (item.id === id) {
+            isNowCompleted = !item.completed;
+            return { ...item, completed: isNowCompleted };
+          }
+          return item;
+        })
       );
+
+      // Persist manual event completion to localStorage so it stays checked
+      try {
+        const raw = localStorage.getItem(completedEventsKey);
+        const set = new Set(raw ? JSON.parse(raw) : []);
+        if (isNowCompleted) {
+          set.add(id);
+        } else {
+          set.delete(id);
+        }
+        localStorage.setItem(completedEventsKey, JSON.stringify(Array.from(set)));
+      } catch (e) {
+        console.warn(e);
+      }
     }
   };
 
   const handleDeleteTask = async (id: string) => {
-    try {
-      if (user?.id) {
-        await deletePersonalTask(id);
+    const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
+    setLocalTasks((prev) => {
+      const updated = prev.filter((item) => item.id !== id);
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch (e) {
+        console.warn(e);
       }
-      setLocalTasks((prev) => prev.filter((item) => item.id !== id));
-    } catch (err) {
-      console.error("Error deleting personal task from Supabase:", err);
+      return updated;
+    });
+
+    if (user?.id) {
+      try {
+        await deletePersonalTask(id);
+      } catch (err) {
+        console.warn("Task deleted locally; Supabase delete deferred:", err);
+      }
     }
   };
 
@@ -428,35 +521,50 @@ export function ScheduleScreen() {
     e.preventDefault();
     if (!taskForm.title.trim()) return;
 
+    const taskDateKey = taskForm.date || getDateKey(today);
     const newTask = {
       id: `s-${Date.now()}`,
       student_id: user?.id || 'anon',
       title: taskForm.title.trim(),
       type: taskForm.type as typeof taskForm.type,
-      date: formatTaskDateLabel(taskForm.date, today),
-      dateKey: taskForm.date,
+      date: formatTaskDateLabel(taskDateKey, today),
+      dateKey: taskDateKey,
       time: taskForm.time.trim() ? formatTimeTo12Hour(taskForm.time) : 'Anytime',
       duration: '',
       course: taskForm.course.trim() || undefined,
       completed: false,
     };
 
-    try {
-      if (user?.id) {
-        await submitPersonalTask(newTask);
+    // 1. Immediately update UI state & localStorage so the task appears without lag
+    const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
+    setLocalTasks((prev) => {
+      const updated = [newTask, ...prev];
+      try {
+        localStorage.setItem(storageKey, JSON.stringify(updated));
+      } catch (e) {
+        console.warn(e);
       }
-      setLocalTasks((prev) => [newTask, ...prev]);
-      setSelectedDate(new Date(taskForm.date));
-      setShowAddTask(false);
-      setTaskForm({
-        title: '',
-        type: 'task',
-        date: taskForm.date,
-        time: '',
-        course: '',
-      });
-    } catch (err) {
-      console.error("Error adding personal task to Supabase:", err);
+      return updated;
+    });
+
+    // 2. Safely jump to the selected date in local timezone
+    setSelectedDate(new Date(taskDateKey + 'T00:00:00'));
+    setShowAddTask(false);
+    setTaskForm({
+      title: '',
+      type: 'task',
+      date: taskDateKey,
+      time: '',
+      course: '',
+    });
+
+    // 3. Best-effort background sync to Supabase (won't block UI if RLS/network fails)
+    if (user?.id) {
+      try {
+        await submitPersonalTask(newTask);
+      } catch (err) {
+        console.warn("Personal task saved locally; Supabase sync deferred:", err);
+      }
     }
   };
 
@@ -622,7 +730,7 @@ export function ScheduleScreen() {
                         onClick={() => setDatePickerOpen(!datePickerOpen)}
                         className="w-full flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/50 px-4 py-2.5 text-xs font-bold text-slate-700 outline-none focus:border-purple-600 focus:ring-4 focus:ring-purple-600/10 transition-all text-left cursor-pointer"
                       >
-                        <span>{taskForm.date ? new Date(taskForm.date).toLocaleDateString('en-GB') : 'Select date'}</span>
+                        <span>{taskForm.date ? new Date(taskForm.date + 'T00:00:00').toLocaleDateString('en-GB') : 'Select date'}</span>
                         <CalendarIcon className="w-3.5 h-3.5 text-slate-400" />
                       </button>
 
