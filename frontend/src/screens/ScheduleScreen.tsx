@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2 } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2, Check } from 'lucide-react';
 import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
@@ -78,7 +78,11 @@ export function ScheduleScreen() {
   const { user } = useUser();
   const { isUnlocked, isEntityUnlocked, ready: unlockReady } = useUnlockResolver();
   const { navigate } = useNav();
-  const today = new Date();
+  const today = useMemo(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  }, []);
   const [calendarDate, setCalendarDate] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   
@@ -86,6 +90,27 @@ export function ScheduleScreen() {
   const [unlockedExtraEvents, setUnlockedExtraEvents] = useState<any[]>([]);
   const [localTasks, setLocalTasks] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+
+  const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(() => {
+    const s = new Set<string>();
+    try {
+      const rawEvents = localStorage.getItem(user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest');
+      if (rawEvents) {
+        const list = JSON.parse(rawEvents);
+        if (Array.isArray(list)) list.forEach((id: string) => s.add(String(id)));
+      }
+      const rawTasks = localStorage.getItem(user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest');
+      if (rawTasks) {
+        const list = JSON.parse(rawTasks);
+        if (Array.isArray(list)) {
+          list.forEach((t: any) => {
+            if (t.completed) s.add(String(t.id));
+          });
+        }
+      }
+    } catch {}
+    return s;
+  });
 
   useEffect(() => {
     async function loadPersonalTasks() {
@@ -97,6 +122,13 @@ export function ScheduleScreen() {
           cachedTasks = JSON.parse(raw);
           if (Array.isArray(cachedTasks)) {
             setLocalTasks(cachedTasks);
+            setCompletedTaskIds((prev) => {
+              const next = new Set(prev);
+              cachedTasks.forEach((t: any) => {
+                if (t.completed) next.add(String(t.id));
+              });
+              return next;
+            });
           }
         }
       } catch (e) {
@@ -107,12 +139,27 @@ export function ScheduleScreen() {
       try {
         const tasks = await fetchPersonalTasks(user.id);
         if (Array.isArray(tasks) && tasks.length > 0) {
-          const dbIds = new Set(tasks.map((t: any) => t.id));
+          const cachedMap = new Map(cachedTasks.map((t: any) => [String(t.id), t]));
+          const mergedTasks = tasks.map((dbTask: any) => {
+            const cached = cachedMap.get(String(dbTask.id));
+            if (cached && cached.completed) {
+              return { ...dbTask, completed: true };
+            }
+            return dbTask;
+          });
+          const dbIds = new Set(tasks.map((t: any) => String(t.id)));
           const combined = [
-            ...tasks,
-            ...cachedTasks.filter((t: any) => !dbIds.has(t.id))
+            ...mergedTasks,
+            ...cachedTasks.filter((t: any) => !dbIds.has(String(t.id)))
           ];
           setLocalTasks(combined);
+          setCompletedTaskIds((prev) => {
+            const next = new Set(prev);
+            combined.forEach((t: any) => {
+              if (t.completed) next.add(String(t.id));
+            });
+            return next;
+          });
           try {
             localStorage.setItem(storageKey, JSON.stringify(combined));
           } catch {}
@@ -372,11 +419,15 @@ export function ScheduleScreen() {
     ...Array.from({ length: daysInMonth }, (_, i): number => i + 1),
   ];
 
-  const itemsWithDateKey = items.map((item) => ({
-    ...item,
-    completed: item.completed ?? false,
-    dateKey: item.dateKey ?? parseScheduleItemDate(item, today),
-  }));
+  const itemsWithDateKey = items.map((item) => {
+    const sId = String(item.id);
+    const isCompleted = completedTaskIds.has(sId) || Boolean(item.completed);
+    return {
+      ...item,
+      completed: isCompleted,
+      dateKey: item.dateKey ?? parseScheduleItemDate(item, today),
+    };
+  });
 
   const selectedDateKey = getDateKey(selectedDate);
   const todayKey = getDateKey(today);
@@ -398,16 +449,36 @@ export function ScheduleScreen() {
     setShowAddTask(false);
   };
 
-  const toggleTaskCompletion = async (id: string) => {
+  const toggleTaskCompletion = async (id: string | number) => {
+    const sId = String(id);
     const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
     const completedEventsKey = user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest';
 
-    const target = localTasks.find((t) => t.id === id);
-    if (target) {
-      const nextCompleted = !target.completed;
-      // 1. Immediately update UI state and persistent local storage
+    // Current state check
+    const isCurrentlyCompleted = completedTaskIds.has(sId) || items.some((t) => String(t.id) === sId && t.completed);
+    const nextCompleted = !isCurrentlyCompleted;
+
+    // 1. Immediately toggle in completedTaskIds Set & persistent localStorage
+    setCompletedTaskIds((prev) => {
+      const next = new Set(prev);
+      if (nextCompleted) {
+        next.add(sId);
+      } else {
+        next.delete(sId);
+      }
+      try {
+        localStorage.setItem(completedEventsKey, JSON.stringify(Array.from(next)));
+      } catch (e) {
+        console.warn(e);
+      }
+      return next;
+    });
+
+    // 2. If it's a personal task, update localTasks state and storage too
+    const isPersonal = localTasks.some((t) => String(t.id) === sId);
+    if (isPersonal) {
       setLocalTasks((prev) => {
-        const updated = prev.map((item) => (item.id === id ? { ...item, completed: nextCompleted } : item));
+        const updated = prev.map((item) => (String(item.id) === sId ? { ...item, completed: nextCompleted } : item));
         try {
           localStorage.setItem(storageKey, JSON.stringify(updated));
         } catch (e) {
@@ -416,53 +487,40 @@ export function ScheduleScreen() {
         return updated;
       });
 
-      // 2. Best-effort background sync to Supabase
+      // Best-effort background sync to Supabase
       try {
-        await updatePersonalTaskCompletion(id, nextCompleted);
+        await updatePersonalTaskCompletion(sId, nextCompleted);
       } catch (err) {
         console.warn("Task completion state saved locally; Supabase sync deferred:", err);
       }
     } else {
-      let isNowCompleted = false;
       setUnlockedExtraEvents((prev) =>
-        prev.map((item) => {
-          if (item.id === id) {
-            isNowCompleted = !item.completed;
-            return { ...item, completed: isNowCompleted };
-          }
-          return item;
-        })
+        prev.map((item) => (String(item.id) === sId ? { ...item, completed: nextCompleted } : item))
       );
       setApiTasks((prev) =>
-        prev.map((item) => {
-          if (item.id === id) {
-            isNowCompleted = !item.completed;
-            return { ...item, completed: isNowCompleted };
-          }
-          return item;
-        })
+        prev.map((item) => (String(item.id) === sId ? { ...item, completed: nextCompleted } : item))
       );
-
-      // Persist manual event completion to localStorage so it stays checked
-      try {
-        const raw = localStorage.getItem(completedEventsKey);
-        const set = new Set(raw ? JSON.parse(raw) : []);
-        if (isNowCompleted) {
-          set.add(id);
-        } else {
-          set.delete(id);
-        }
-        localStorage.setItem(completedEventsKey, JSON.stringify(Array.from(set)));
-      } catch (e) {
-        console.warn(e);
-      }
     }
   };
 
-  const handleDeleteTask = async (id: string) => {
+  const handleDeleteTask = async (id: string | number) => {
+    const sId = String(id);
     const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
+    const completedEventsKey = user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest';
+
+    setCompletedTaskIds((prev) => {
+      const next = new Set(prev);
+      next.delete(sId);
+      try {
+        localStorage.setItem(completedEventsKey, JSON.stringify(Array.from(next)));
+      } catch (e) {
+        console.warn(e);
+      }
+      return next;
+    });
+
     setLocalTasks((prev) => {
-      const updated = prev.filter((item) => item.id !== id);
+      const updated = prev.filter((item) => String(item.id) !== sId);
       try {
         localStorage.setItem(storageKey, JSON.stringify(updated));
       } catch (e) {
@@ -473,7 +531,7 @@ export function ScheduleScreen() {
 
     if (user?.id) {
       try {
-        await deletePersonalTask(id);
+        await deletePersonalTask(sId);
       } catch (err) {
         console.warn("Task deleted locally; Supabase delete deferred:", err);
       }
@@ -951,18 +1009,29 @@ export function ScheduleScreen() {
                     return (
                       <div 
                         key={item.id} 
-                        className="rounded-[1.8rem] border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                        className="rounded-[1.8rem] border border-slate-200 bg-slate-50 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between transition-all hover:border-slate-300"
                       >
-                        <div className="flex items-start gap-4">
+                        <div 
+                          onClick={() => toggleTaskCompletion(item.id)}
+                          className="flex items-start gap-4 cursor-pointer flex-1 group"
+                          role="button"
+                          tabIndex={0}
+                        >
                           <button
-                            onClick={() => toggleTaskCompletion(item.id)}
-                            className="h-11 w-11 rounded-2xl bg-white text-slate-600 border border-slate-200 flex items-center justify-center transition hover:bg-slate-100 shrink-0"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleTaskCompletion(item.id);
+                            }}
+                            className="h-11 w-11 rounded-2xl bg-white text-slate-400 border-2 border-slate-200 flex items-center justify-center transition-all group-hover:border-purple-500 group-hover:text-purple-600 shrink-0 cursor-pointer shadow-xs"
                             type="button"
+                            title="Mark as completed"
                           >
-                            ✓
+                            <span className="w-5 h-5 rounded-lg border-2 border-slate-300 group-hover:border-purple-500 transition-colors flex items-center justify-center">
+                              <Check className="w-3.5 h-3.5 text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </span>
                           </button>
-                          <div>
-                            <p className="text-base font-semibold text-slate-900">{item.title}</p>
+                          <div className="flex-1">
+                            <p className="text-base font-semibold text-slate-900 group-hover:text-purple-950 transition-colors">{item.title}</p>
                             <p className="mt-1 text-sm text-slate-500">{item.time}{item.duration ? ` · ${item.duration}` : ''}</p>
                             {item.course && <p className="mt-1 text-sm text-slate-500">{item.course}</p>}
                           </div>
@@ -970,16 +1039,22 @@ export function ScheduleScreen() {
                         <div className="flex items-center gap-2">
                           {item.type !== 'task' && (
                             <button
-                              onClick={() => handleItemClick(item.type)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleItemClick(item.type);
+                              }}
                               className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-100 hover:border-slate-300 transition-all cursor-pointer"
                             >
                               <Icon className="w-4 h-4 text-slate-500" />
                               {cfg.label}
                             </button>
                           )}
-                          {item.id.startsWith('s-') && (
+                          {String(item.id).startsWith('s-') && (
                             <button
-                              onClick={() => handleDeleteTask(item.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteTask(item.id);
+                              }}
                               className="h-10 w-10 rounded-2xl bg-white text-rose-500 border border-slate-200 flex items-center justify-center transition hover:bg-rose-50 hover:border-rose-100 cursor-pointer shadow-sm"
                               type="button"
                               title="Delete task"
@@ -993,43 +1068,63 @@ export function ScheduleScreen() {
                   })}
 
                   {completedTasks.length > 0 && (
-                    <div className="space-y-3">
-                      <p className="text-sm font-semibold text-slate-900">Completed</p>
+                    <div className="space-y-3 pt-3">
+                      <div className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-wider px-1">
+                        <span>Completed</span>
+                        <span className="bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
+                          {completedTasks.length}
+                        </span>
+                      </div>
                       {completedTasks.map((item) => {
                         const cfg = typeConfig[item.type] || typeConfig.class;
                         const Icon = cfg.icon;
                         return (
                           <div 
                             key={item.id} 
-                            className="rounded-[1.8rem] border border-slate-200 bg-white p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between opacity-80"
+                            className="rounded-[1.8rem] border border-emerald-200/80 bg-emerald-50/20 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between opacity-90 transition-all hover:opacity-100"
                           >
-                            <div className="flex items-start gap-4">
+                            <div 
+                              onClick={() => toggleTaskCompletion(item.id)}
+                              className="flex items-start gap-4 cursor-pointer flex-1 group"
+                              role="button"
+                              tabIndex={0}
+                            >
                               <button
-                                onClick={() => toggleTaskCompletion(item.id)}
-                                className="h-11 w-11 rounded-2xl bg-[#eff6ff] text-[#1d4ed8] border border-[#bfdbfe] flex items-center justify-center transition hover:bg-[#dbeafe] shrink-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  toggleTaskCompletion(item.id);
+                                }}
+                                className="h-11 w-11 rounded-2xl bg-emerald-600 text-white border-2 border-emerald-600 flex items-center justify-center transition-all hover:bg-emerald-700 shrink-0 cursor-pointer shadow-xs shadow-emerald-600/20"
                                 type="button"
+                                title="Click to mark incomplete"
                               >
-                                ✓
+                                <Check className="w-5 h-5 text-white stroke-[2.5]" />
                               </button>
-                              <div>
-                                <p className="text-base font-semibold text-slate-900 line-through decoration-slate-400/80">{item.title}</p>
-                                <p className="mt-1 text-sm text-slate-500">{item.time}{item.duration ? ` · ${item.duration}` : ''}</p>
-                                {item.course && <p className="mt-1 text-sm text-slate-500">{item.course}</p>}
+                              <div className="flex-1">
+                                <p className="text-base font-semibold text-slate-500 line-through decoration-slate-400">{item.title}</p>
+                                <p className="mt-1 text-sm text-slate-400">{item.time}{item.duration ? ` · ${item.duration}` : ''}</p>
+                                {item.course && <p className="mt-1 text-sm text-slate-400">{item.course}</p>}
                               </div>
                             </div>
                             <div className="flex items-center gap-2">
                               {item.type !== 'task' && (
                                 <button
-                                  onClick={() => handleItemClick(item.type)}
-                                  className="inline-flex items-center gap-2 rounded-2xl bg-[#eff6ff] px-4 py-2 text-sm font-semibold text-[#1d4ed8] border border-[#bfdbfe] hover:bg-[#dbeafe] transition-all cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleItemClick(item.type);
+                                  }}
+                                  className="inline-flex items-center gap-2 rounded-2xl bg-white px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 hover:bg-slate-50 transition-all cursor-pointer"
                                 >
-                                  <Icon className="w-4 h-4" />
+                                  <Icon className="w-4 h-4 text-slate-400" />
                                   {cfg.label}
                                 </button>
                               )}
-                              {item.id.startsWith('s-') && (
+                              {String(item.id).startsWith('s-') && (
                                 <button
-                                  onClick={() => handleDeleteTask(item.id)}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteTask(item.id);
+                                  }}
                                   className="h-10 w-10 rounded-2xl bg-white text-rose-500 border border-slate-200 flex items-center justify-center transition hover:bg-rose-50 hover:border-rose-100 cursor-pointer shadow-sm"
                                   type="button"
                                   title="Delete task"
