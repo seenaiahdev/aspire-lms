@@ -53,29 +53,62 @@ function getDateKey(date: Date) {
   return `${yyyy}-${mm}-${dd}`;
 }
 
+const MONTH_MAP: Record<string, string> = {
+  jan: '01', january: '01',
+  feb: '02', february: '02',
+  mar: '03', march: '03',
+  apr: '04', april: '04',
+  may: '05',
+  jun: '06', june: '06',
+  jul: '07', july: '07',
+  aug: '08', august: '08',
+  sep: '09', sept: '09', september: '09',
+  oct: '10', october: '10',
+  nov: '11', november: '11',
+  dec: '12', december: '12',
+};
+
 function formatTaskDateLabel(dateKey: string, today: Date) {
   const todayKey = getDateKey(today);
   const tomorrowKey = getDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
   if (dateKey === todayKey) return 'Today';
   if (dateKey === tomorrowKey) return 'Tomorrow';
   const date = new Date(dateKey + 'T00:00:00');
+  if (Number.isNaN(date.getTime())) return dateKey;
   return date.toLocaleString('default', { month: 'short', day: 'numeric' });
+}
+
+function formatDueLabel(rawDate: string, dateKey: string, today: Date) {
+  if (!rawDate) return '';
+  const todayKey = getDateKey(today);
+  const tmrwKey = getDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
+  if (dateKey === todayKey) return 'Due Today';
+  if (dateKey === tmrwKey) return 'Due Tomorrow';
+  if (dateKey) {
+    const dateObj = new Date(dateKey + 'T00:00:00');
+    if (!Number.isNaN(dateObj.getTime())) {
+      const monthDay = dateObj.toLocaleString('default', { month: 'short', day: 'numeric' });
+      return `Due ${monthDay}`;
+    }
+  }
+  const clean = rawDate.replace(/^due\s*(on|by)?[:\s]*/i, '').trim();
+  return `Due ${clean}`;
 }
 
 function parseScheduleItemDate(item: { date?: string; dateKey?: string }, today: Date) {
   if (item.dateKey && /^\d{4}-\d{2}-\d{2}$/.test(item.dateKey)) return item.dateKey;
   const raw = (item.dateKey || item.date || '').trim();
-  if (!raw || raw === 'Today') return getDateKey(today);
-  if (raw === 'Tomorrow') {
+  if (!raw || raw.toLowerCase() === 'today') return getDateKey(today);
+  if (raw.toLowerCase() === 'tomorrow') {
     const tmrw = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
     return getDateKey(tmrw);
   }
 
   // Strip 'due', 'due on', 'due by', colons, extra whitespace
-  const clean = raw.replace(/^due\s*(on|by)?[:\s]*/i, '').trim();
+  let clean = raw.replace(/^due\s*(on|by)?[:\s]*/i, '').trim();
 
-  // 1. Check ISO format YYYY-MM-DD
-  const isoMatch = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  // 1. Check ISO format YYYY-MM-DD or YYYY/MM/DD (with optional timestamp)
+  const isoMatch = clean.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
   if (isoMatch) {
     return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
   }
@@ -83,10 +116,48 @@ function parseScheduleItemDate(item: { date?: string; dateKey?: string }, today:
   // 2. Check DD-MM-YYYY or DD/MM/YYYY
   const dmyMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
   if (dmyMatch) {
-    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+    let day = parseInt(dmyMatch[1], 10);
+    let month = parseInt(dmyMatch[2], 10);
+    const yr = dmyMatch[3];
+    if (month > 12 && day <= 12) {
+      const temp = day;
+      day = month;
+      month = temp;
+    }
+    return `${yr}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
-  // 3. If month and day without 4-digit year, append today's year
+  // 3. Check DD-MM or DD/MM without year
+  const dmMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})$/);
+  if (dmMatch) {
+    let day = parseInt(dmMatch[1], 10);
+    let month = parseInt(dmMatch[2], 10);
+    if (month > 12 && day <= 12) {
+      const temp = day;
+      day = month;
+      month = temp;
+    }
+    return `${today.getFullYear()}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }
+
+  // 4. Strip ordinal suffixes (e.g. 30th Sep -> 30 Sep, 1st Aug -> 1 Aug)
+  clean = clean.replace(/(\d+)(st|nd|rd|th)\b/i, '$1');
+
+  // 5. Month name text format: "Sep 30", "September 30", "30 Sep", "30 September", "Aug 30", etc.
+  const monthMatch = clean.match(/\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i);
+  if (monthMatch) {
+    const mStr = monthMatch[1].toLowerCase();
+    const mm = MONTH_MAP[mStr];
+    const dayMatch = clean.match(/\b([1-9]|[12]\d|3[01])\b/);
+    const yearMatch = clean.match(/\b(19\d\d|20\d\d)\b/);
+    const yyyy = yearMatch ? yearMatch[1] : String(today.getFullYear());
+    const dd = dayMatch ? dayMatch[1].padStart(2, '0') : '01';
+    if (mm) {
+      return `${yyyy}-${mm}-${dd}`;
+    }
+  }
+
+  // 6. Direct JS Date fallback with current year
   const hasYear = /\b(19\d\d|20\d\d)\b/.test(clean);
   const toParse = hasYear ? clean : `${clean} ${today.getFullYear()}`;
   const parsed = new Date(toParse);
@@ -253,7 +324,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: asmnt.timeEstimate || '45 mins',
-          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
+          duration: formatDueLabel(rawDate, dKey, today),
           course: asmnt.category || asmnt.course || 'Daily Assessment',
           completed: isCompleted,
           isCoursework: true
@@ -271,7 +342,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: quiz.time_limit_mins ? `${quiz.time_limit_mins} mins` : '45 mins',
-          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
+          duration: formatDueLabel(rawDate, dKey, today),
           course: quiz.course || 'Weekly Assessment',
           completed: isCompleted,
           isCoursework: true
@@ -289,7 +360,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: 'Submission Required',
-          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
+          duration: formatDueLabel(rawDate, dKey, today),
           course: proj.course || 'Projects',
           completed: isCompleted,
           isCoursework: true
@@ -307,7 +378,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: 'Anytime',
-          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
+          duration: formatDueLabel(rawDate, dKey, today),
           course: p.category || 'Practice Lab',
           completed: isCompleted,
           isCoursework: true
@@ -368,10 +439,7 @@ export function ScheduleScreen() {
           .from('live_sessions')
           .select('*')
           .or(batchFilter)
-          .gte('date', startOfMonth)
-          .lte('date', endOfMonth)
-          .order('date', { ascending: true })
-          .order('time', { ascending: true });
+          .not('date', 'is', null);
 
         if (data) {
           const manualCompletedEvents = new Set<string>();
@@ -383,16 +451,22 @@ export function ScheduleScreen() {
             }
           } catch {}
 
-          const formatted = data.map((row: any) => ({
-            id: row.id,
-            title: row.session_title || row.title || row.program_name || 'Class Session',
-            type: 'class',
-            date: row.date,
-            dateKey: row.date,
-            time: row.time,
-            course: row.technology || row.program_name || 'Live Class',
-            completed: row.status === 'completed' || manualCompletedEvents.has(row.id)
-          }));
+          const currentMonthPrefix = `${year}-${String(monthNum + 1).padStart(2, '0')}`;
+          const formatted = data
+            .map((row: any) => {
+              const dKey = parseScheduleItemDate({ date: row.date }, today);
+              return {
+                id: row.id,
+                title: row.session_title || row.title || row.program_name || 'Class Session',
+                type: 'class',
+                date: formatTaskDateLabel(dKey, today),
+                dateKey: dKey,
+                time: row.time || 'Live',
+                course: row.technology || row.program_name || 'Live Class',
+                completed: row.status === 'completed' || manualCompletedEvents.has(row.id)
+              };
+            })
+            .filter((item: any) => item.dateKey.startsWith(currentMonthPrefix));
           setApiTasks(formatted);
         }
       } catch (err) {
