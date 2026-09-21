@@ -381,7 +381,13 @@ export function ScheduleScreen() {
     loadTasks();
   }, [calendarDate, user?.batchCode]);
 
-  const items = [...apiTasks, ...unlockedExtraEvents, ...localTasks];
+  // Personal/user-added tasks are placed at the very top, sorted newest first
+  const sortedLocalTasks = [...localTasks].sort((a, b) => {
+    const timeA = String(a.id).startsWith('s-') ? Number(String(a.id).slice(2)) || 0 : 0;
+    const timeB = String(b.id).startsWith('s-') ? Number(String(b.id).slice(2)) || 0 : 0;
+    return timeB - timeA;
+  });
+  const items = [...sortedLocalTasks, ...apiTasks, ...unlockedExtraEvents];
   const [showAddTask, setShowAddTask] = useState(false);
   const [typeDropdownOpen, setTypeDropdownOpen] = useState(false);
   const [datePickerOpen, setDatePickerOpen] = useState(false);
