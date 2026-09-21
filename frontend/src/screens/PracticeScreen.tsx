@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
-import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Flame, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
+import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
 import { fetchPracticeProblems, fetchUserSubmissions } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
@@ -227,31 +227,12 @@ export function PracticeScreen() {
         <p className="text-ink-500 text-sm mt-1">Sharpen your skills with coding problems and challenges</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        {[
-          { label: 'Solved Problems', value: `${solved}`, icon: CheckCircle2 },
-          { label: 'Current Streak', value: `${user?.streak || 0} Days`, icon: Flame },
-          { label: 'Total Points', value: `${user?.xp || 0} XP`, icon: Zap },
-        ].map((s, i) => (
-          <Card key={i} className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
-            <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
-              <s.icon className="w-5.5 h-5.5 text-[#7c3aed]" />
-            </div>
-            <div>
-              <p className="text-2xl font-black text-slate-900 tracking-tight">{s.value}</p>
-              <p className="text-xs font-extrabold text-[#7c3aed]">{s.label}</p>
-            </div>
-          </Card>
-        ))}
-      </div>
-
       <div id="tour-practice-tabs" className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <Tabs
           variant="pills"
           tabs={[
             { id: 'problems', label: 'Coding Problems' },
-            { id: 'history', label: 'Completed & Submitted' },
+            { id: 'history', label: solved > 0 ? `Completed & Submitted (${solved})` : 'Completed & Submitted' },
           ]}
           active={tab}
           onChange={setTab}
