@@ -440,7 +440,27 @@ export function ScheduleScreen() {
   const isSelectedToday = selectedDateKey === todayKey;
 
   const itemsForSelectedDate = itemsWithDateKey.filter((item) => {
-    return item.dateKey === selectedDateKey;
+    // 1. If viewing another calendar date, show exact items for that date
+    if (!isSelectedToday) {
+      return item.dateKey === selectedDateKey;
+    }
+
+    // 2. When viewing Today:
+    // - Show items explicitly scheduled for today
+    if (item.dateKey === todayKey) return true;
+
+    // - For coursework items (assignments, quizzes, projects, practice):
+    //   Show active coursework whose due date is upcoming / active (dueDate >= todayKey)
+    //   Hide coursework whose due date has already passed / ended (dueDate < todayKey)
+    if (item.isCoursework) {
+      const isPastDueDate = item.dateKey && item.dateKey < todayKey;
+      if (isPastDueDate) {
+        return false;
+      }
+      return true;
+    }
+
+    return false;
   });
 
   const activeTasks = itemsForSelectedDate.filter((item) => !item.completed);
