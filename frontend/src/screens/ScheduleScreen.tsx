@@ -440,9 +440,7 @@ export function ScheduleScreen() {
   const isSelectedToday = selectedDateKey === todayKey;
 
   const itemsForSelectedDate = itemsWithDateKey.filter((item) => {
-    if (item.dateKey === selectedDateKey) return true;
-    if (isSelectedToday && item.isCoursework) return true;
-    return false;
+    return item.dateKey === selectedDateKey;
   });
 
   const activeTasks = itemsForSelectedDate.filter((item) => !item.completed);
@@ -707,7 +705,7 @@ export function ScheduleScreen() {
                   const isSelected = day === selectedDate.getDate() && calendarDate.getMonth() === selectedDate.getMonth() && calendarDate.getFullYear() === selectedDate.getFullYear();
                   const dayDate = day ? new Date(currentYear, calendarDate.getMonth(), day) : null;
                   const dayKey = dayDate ? getDateKey(dayDate) : '';
-                  const hasEvent = dayKey && itemsWithDateKey.some((item) => item.dateKey === dayKey || (dayKey === todayKey && item.isCoursework));
+                  const hasEvent = dayKey && itemsWithDateKey.some((item) => item.dateKey === dayKey);
 
                   return (
                     <button
