@@ -62,15 +62,38 @@ function formatTaskDateLabel(dateKey: string, today: Date) {
   return date.toLocaleString('default', { month: 'short', day: 'numeric' });
 }
 
-function parseScheduleItemDate(item: { date: string; dateKey?: string }, today: Date) {
+function parseScheduleItemDate(item: { date?: string; dateKey?: string }, today: Date) {
   if (item.dateKey && /^\d{4}-\d{2}-\d{2}$/.test(item.dateKey)) return item.dateKey;
-  if (!item.date || item.date === 'Today') return getDateKey(today);
-  if (item.date === 'Tomorrow') return getDateKey(new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1));
-  if (/^\d{4}-\d{2}-\d{2}$/.test(item.date)) return item.date;
-  const parsedDirect = new Date(item.date);
-  if (!Number.isNaN(parsedDirect.getTime())) return getDateKey(parsedDirect);
-  const parsedWithYear = new Date(`${item.date} ${today.getFullYear()} 00:00:00`);
-  if (!Number.isNaN(parsedWithYear.getTime())) return getDateKey(parsedWithYear);
+  const raw = (item.dateKey || item.date || '').trim();
+  if (!raw || raw === 'Today') return getDateKey(today);
+  if (raw === 'Tomorrow') {
+    const tmrw = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 1);
+    return getDateKey(tmrw);
+  }
+
+  // Strip 'due', 'due on', 'due by', colons, extra whitespace
+  const clean = raw.replace(/^due\s*(on|by)?[:\s]*/i, '').trim();
+
+  // 1. Check ISO format YYYY-MM-DD
+  const isoMatch = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (isoMatch) {
+    return `${isoMatch[1]}-${isoMatch[2].padStart(2, '0')}-${isoMatch[3].padStart(2, '0')}`;
+  }
+
+  // 2. Check DD-MM-YYYY or DD/MM/YYYY
+  const dmyMatch = clean.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})$/);
+  if (dmyMatch) {
+    return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+  }
+
+  // 3. If month and day without 4-digit year, append today's year
+  const hasYear = /\b(19\d\d|20\d\d)\b/.test(clean);
+  const toParse = hasYear ? clean : `${clean} ${today.getFullYear()}`;
+  const parsed = new Date(toParse);
+  if (!Number.isNaN(parsed.getTime())) {
+    return getDateKey(parsed);
+  }
+
   return getDateKey(today);
 }
 
@@ -230,7 +253,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: asmnt.timeEstimate || '45 mins',
-          duration: rawDate ? `Due ${rawDate}` : '',
+          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
           course: asmnt.category || asmnt.course || 'Daily Assessment',
           completed: isCompleted,
           isCoursework: true
@@ -248,7 +271,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: quiz.time_limit_mins ? `${quiz.time_limit_mins} mins` : '45 mins',
-          duration: rawDate ? `Due ${rawDate}` : '',
+          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
           course: quiz.course || 'Weekly Assessment',
           completed: isCompleted,
           isCoursework: true
@@ -266,7 +289,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: 'Submission Required',
-          duration: rawDate ? `Due ${rawDate}` : '',
+          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
           course: proj.course || 'Projects',
           completed: isCompleted,
           isCoursework: true
@@ -284,7 +307,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: 'Anytime',
-          duration: rawDate ? `Due ${rawDate}` : '',
+          duration: rawDate ? (rawDate.toLowerCase().startsWith('due') ? rawDate : `Due ${rawDate}`) : '',
           course: p.category || 'Practice Lab',
           completed: isCompleted,
           isCoursework: true
@@ -431,7 +454,7 @@ export function ScheduleScreen() {
     return {
       ...item,
       completed: isCompleted,
-      dateKey: item.dateKey ?? parseScheduleItemDate(item, today),
+      dateKey: parseScheduleItemDate(item, today),
     };
   });
 
@@ -760,7 +783,7 @@ export function ScheduleScreen() {
 
           <Card id="tour-schedule-filters" className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
             <CardBody className="p-5">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400 font-extrabold">Today summary</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-400 font-extrabold">{isSelectedToday ? 'Today summary' : `${selectedDateLabel} summary`}</p>
               <div className="mt-4 grid gap-3">
                 <div className="rounded-3xl bg-slate-50 p-4 border border-slate-100">
                   <p className="text-sm font-semibold text-slate-900">Total tasks</p>
