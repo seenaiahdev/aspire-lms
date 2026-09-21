@@ -736,15 +736,19 @@ export function ScheduleScreen() {
 
           <Card id="tour-schedule-filters" className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
             <CardBody className="p-5">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Today summary</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-slate-400 font-extrabold">Today summary</p>
               <div className="mt-4 grid gap-3">
-                <div className="rounded-3xl bg-slate-50 p-4">
+                <div className="rounded-3xl bg-slate-50 p-4 border border-slate-100">
                   <p className="text-sm font-semibold text-slate-900">Total tasks</p>
                   <p className="mt-2 text-2xl font-extrabold text-slate-950">{itemsForSelectedDate.length}</p>
                 </div>
-                <div className="rounded-3xl bg-slate-50 p-4">
+                <div className="rounded-3xl bg-slate-50 p-4 border border-slate-100">
+                  <p className="text-sm font-semibold text-slate-900">Remaining</p>
+                  <p className="mt-2 text-2xl font-extrabold text-amber-600">{activeTasks.length}</p>
+                </div>
+                <div className="rounded-3xl bg-slate-50 p-4 border border-slate-100">
                   <p className="text-sm font-semibold text-slate-900">Completed</p>
-                  <p className="mt-2 text-2xl font-extrabold text-slate-950">{completedTasks.length}</p>
+                  <p className="mt-2 text-2xl font-extrabold text-emerald-600">{completedTasks.length}</p>
                 </div>
               </div>
             </CardBody>
@@ -1022,13 +1026,11 @@ export function ScheduleScreen() {
                               e.stopPropagation();
                               toggleTaskCompletion(item.id);
                             }}
-                            className="h-11 w-11 rounded-2xl bg-white text-slate-400 border-2 border-slate-200 flex items-center justify-center transition-all group-hover:border-purple-500 group-hover:text-purple-600 shrink-0 cursor-pointer shadow-xs"
+                            className="w-6 h-6 rounded-lg border-2 border-slate-300 bg-white flex items-center justify-center transition-all group-hover:border-purple-600 group-hover:bg-purple-50/50 shrink-0 cursor-pointer shadow-2xs mt-0.5"
                             type="button"
                             title="Mark as completed"
                           >
-                            <span className="w-5 h-5 rounded-lg border-2 border-slate-300 group-hover:border-purple-500 transition-colors flex items-center justify-center">
-                              <Check className="w-3.5 h-3.5 text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                            </span>
+                            <Check className="w-3.5 h-3.5 text-purple-600 opacity-0 group-hover:opacity-100 transition-opacity" />
                           </button>
                           <div className="flex-1">
                             <p className="text-base font-semibold text-slate-900 group-hover:text-purple-950 transition-colors">{item.title}</p>
@@ -1094,11 +1096,11 @@ export function ScheduleScreen() {
                                   e.stopPropagation();
                                   toggleTaskCompletion(item.id);
                                 }}
-                                className="h-11 w-11 rounded-2xl bg-emerald-600 text-white border-2 border-emerald-600 flex items-center justify-center transition-all hover:bg-emerald-700 shrink-0 cursor-pointer shadow-xs shadow-emerald-600/20"
+                                className="w-6 h-6 rounded-lg border-2 border-emerald-600 bg-emerald-600 text-white flex items-center justify-center transition-all hover:bg-emerald-700 hover:border-emerald-700 shrink-0 cursor-pointer shadow-2xs mt-0.5"
                                 type="button"
                                 title="Click to mark incomplete"
                               >
-                                <Check className="w-5 h-5 text-white stroke-[2.5]" />
+                                <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
                               </button>
                               <div className="flex-1">
                                 <p className="text-base font-semibold text-slate-500 line-through decoration-slate-400">{item.title}</p>
