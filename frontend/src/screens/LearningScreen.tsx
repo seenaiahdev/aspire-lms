@@ -628,25 +628,27 @@ export function LearningScreen() {
 
   const learningItems = useMemo(() => {
     // 1. Dynamic Courses from DB
-    return dbCourses.map(course => {
+    const mapped = dbCourses.map(course => {
       // Map category dynamically based on DB values to support different tabs
-      const rawCat = (course.category || '').toLowerCase();
+      const catStr = (course.category || '').toLowerCase().trim();
+      const titleStr = (course.title || '').toLowerCase().trim();
+      const checkStr = catStr || titleStr;
       let category: 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin' = 'courses';
       let categoryLabel = 'Courses';
       
-      if (rawCat.includes('soft') || rawCat.includes('communication')) {
+      if (checkStr.includes('soft') || checkStr.includes('communication')) {
         category = 'soft_skills';
         categoryLabel = 'Communication & Soft Skills';
-      } else if (rawCat.includes('aptitude') || rawCat.includes('reasoning')) {
+      } else if (checkStr.includes('aptitude') || checkStr.includes('reasoning')) {
         category = 'aptitude';
         categoryLabel = 'Aptitude & Reasoning';
-      } else if (rawCat.includes('resume')) {
+      } else if (checkStr.includes('resume')) {
         category = 'resume';
         categoryLabel = 'Resume';
-      } else if (rawCat.includes('portfolio') || rawCat.includes('capstone')) {
+      } else if (checkStr.includes('portfolio') || checkStr.includes('capstone')) {
         category = 'portfolio';
         categoryLabel = 'Portfolio';
-      } else if (rawCat.includes('linkedin') || rawCat.includes('networking')) {
+      } else if (checkStr.includes('linkedin') || checkStr.includes('networking')) {
         category = 'linkedin';
         categoryLabel = 'LinkedIn';
       }
@@ -692,6 +694,38 @@ export function LearningScreen() {
         actionText: 'Go to Course',
         targetRoute: 'course'
       };
+    });
+
+    // Enforce display order matching the category tabs in My Learning:
+    // 1. Courses
+    // 2. Communication & Soft Skills
+    // 3. Aptitude & Reasoning
+    // 4. Resume
+    // 5. Portfolio
+    // 6. LinkedIn
+    const categoryOrder: Record<string, number> = {
+      courses: 1,
+      soft_skills: 2,
+      aptitude: 3,
+      resume: 4,
+      portfolio: 5,
+      linkedin: 6,
+    };
+
+    const enrolledMap = new Map((user.enrolledCourses || []).map((id: string, idx: number) => [id, idx]));
+
+    return mapped.sort((a, b) => {
+      const orderA = categoryOrder[a.category] || 99;
+      const orderB = categoryOrder[b.category] || 99;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      const idxA = enrolledMap.has(a.id) ? (enrolledMap.get(a.id) as number) : 999;
+      const idxB = enrolledMap.has(b.id) ? (enrolledMap.get(b.id) as number) : 999;
+      if (idxA !== idxB) {
+        return idxA - idxB;
+      }
+      return 0;
     });
   }, [dbCourses, user.progress, user.courseProgress, user.enrolledCourses, dbSyllabi, batchStudentCount]);
 
