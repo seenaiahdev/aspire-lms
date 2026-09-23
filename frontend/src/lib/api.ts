@@ -1264,13 +1264,20 @@ export async function fetchRecordings(batchCode?: string, batchCategory?: string
         if (rCourseId && !r.course_id) r.course_id = rCourseId;
         if (rModuleId && !r.module_id) r.module_id = rModuleId;
 
-        // 1. Course-level match: if student is enrolled in the course, display across all batches!
-        if (rCourseId && userEnrolled.length > 0) {
-          if (userEnrolled.includes(rCourseId)) return true;
+        // 1. If target_batch is specified and not 'all', strictly check if it matches student's batch
+        const tb = (r.target_batch || '').toLowerCase();
+        const hasExplicitBatch = tb && !tb.includes('all') && tb !== 'all batches';
+        if (hasExplicitBatch) {
+          const matchesBatch = (b && tb.includes(b.toLowerCase())) || (targetBatchStr && tb.includes(targetBatchStr.toLowerCase()));
+          if (!matchesBatch) return false;
         }
 
-        // 2. Batch match: target_batch matches student's batch or 'all batches'
-        const tb = (r.target_batch || '').toLowerCase();
+        // 2. Course-level match: if student is enrolled in the course, check enrollment
+        if (rCourseId && userEnrolled.length > 0) {
+          return userEnrolled.includes(rCourseId);
+        }
+
+        // 3. Batch match fallback
         if (tb.includes('all batches') || tb === 'all' || !tb) return true;
         if (b && tb.includes(b.toLowerCase())) return true;
         if (targetBatchStr && tb.includes(targetBatchStr.toLowerCase())) return true;

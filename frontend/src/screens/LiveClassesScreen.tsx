@@ -468,6 +468,68 @@ export function LiveClassesScreen() {
           return false;
         }
 
+        // Target batch isolation
+        const tb = String(c.target_batch || '').toLowerCase();
+        const userBatch = (batchCode || '').toLowerCase();
+        const userCat = (user.batchCategory || '').toLowerCase();
+        const isWeekend = userCat === 'weekend' || userBatch.includes('s') || userBatch.includes('weekend');
+        const targetBatchStr = isWeekend ? 'weekend batch' : 'weekday batch';
+        if (tb && !tb.includes('all') && tb !== 'all batches') {
+          const matchesBatch = (userBatch && tb.includes(userBatch)) || tb.includes(targetBatchStr);
+          if (!matchesBatch) return false;
+        }
+
+        // Live Class Completion Gating:
+        // A recording must NEVER be displayed before the live class for that topic
+        // has actually been scheduled AND completed for the student's batch!
+        const liveSessionsOnly = dbSessions.filter((s: any) => !s.isRecording);
+        const norm = (s: any) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, ' ').trim();
+
+        const matchingLiveSession = liveSessionsOnly.find((s: any) => {
+          let sLessonId = '';
+          try {
+            const m = typeof s.description === 'string' ? JSON.parse(s.description) : s.description;
+            sLessonId = m?.moduleId || m?.lessonId || '';
+          } catch {}
+          if (!sLessonId && s.instructions) {
+            try {
+              const instr = typeof s.instructions === 'string' ? JSON.parse(s.instructions) : s.instructions;
+              sLessonId = instr?.moduleId || instr?.lessonId || '';
+            } catch {}
+          }
+          if (targetLessonId && sLessonId && targetLessonId === sLessonId) return true;
+
+          const normS = norm(s.session_title || s.title);
+          const normC = norm(c.title);
+          if (normS && normC && (normS === normC || normS.includes(normC) || normC.includes(normS))) {
+            return true;
+          }
+          return false;
+        });
+
+        if (matchingLiveSession) {
+          // If the live class is unscheduled for this student's batch, DO NOT display the recording!
+          if (!matchingLiveSession.date) {
+            return false;
+          }
+          // If scheduled, verify that the live class has actually finished!
+          const { status: liveStatus } = resolveLiveClassStatus(
+            matchingLiveSession.date,
+            matchingLiveSession.time,
+            matchingLiveSession.duration,
+            matchingLiveSession.status,
+            10,
+            now
+          );
+          if (liveStatus !== 'completed') {
+            // Live class is still upcoming or in progress!
+            return false;
+          }
+        } else if (targetLessonId) {
+          // This recording is tied to a curriculum lesson, but this student's batch has no live class scheduled/completed for it
+          return false;
+        }
+
         // Keyword Search (title, instructor, course, date)
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase().trim();
@@ -493,7 +555,7 @@ export function LiveClassesScreen() {
       }
       return true;
     });
-  }, [mappedSessions, tab, searchQuery, selectedTech, dateFilter, customDate, isUnlocked, resolver]);
+  }, [mappedSessions, dbSessions, batchCode, user.batchCategory, tab, searchQuery, selectedTech, dateFilter, customDate, isUnlocked, resolver]);
 
   const displayList = useMemo(() => {
     if (tab === 'completed') return filtered.slice(0, completedVisible);   // windowed, 10 at a time
