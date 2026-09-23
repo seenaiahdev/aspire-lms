@@ -401,5 +401,5 @@ export function useUnlockResolver() {
     [resolver, unlockedKey]
   );
 
-  return { isUnlocked, isEntityUnlocked, ready: !!resolver };
+  return { isUnlocked, isEntityUnlocked, ready: !!resolver, resolver };
 }

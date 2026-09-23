@@ -19,11 +19,13 @@ import { StatusChip } from '@/components/ui/StatusChip';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings } from '@/lib/api';
+import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { supabase } from '@/lib/supabase';
 
 export function LiveClassesScreen() {
   const { navigate, params, route } = useNav();
+  const { isUnlocked, isEntityUnlocked, resolver } = useUnlockResolver();
   const [tab, setTab] = useState(() => {
     if (route === 'recordings' || params.tab === 'completed' || params.tab === 'recordings') return 'completed';
     return params.tab || localStorage.getItem('aspire_live_tab') || 'upcoming';
@@ -118,13 +120,21 @@ export function LiveClassesScreen() {
       cls.date, cls.time, cls.duration, cls.status, 10, now
     );
     let descCourse = '';
-    let metaCourseId = '';
-    let metaLessonId = '';
+    let metaCourseId = cls.course_id || '';
+    let metaLessonId = cls.module_id || cls.lesson_id || '';
     try {
       const meta = typeof cls.description === 'string' ? JSON.parse(cls.description) : cls.description;
       if (meta?.courseName) descCourse = meta.courseName;
-      if (meta?.courseId) metaCourseId = meta.courseId;
-      if (meta?.moduleId) metaLessonId = meta.moduleId;
+      if (meta?.courseId && !metaCourseId) metaCourseId = meta.courseId;
+      if (meta?.moduleId && !metaLessonId) metaLessonId = meta.moduleId;
+      if (meta?.lessonId && !metaLessonId) metaLessonId = meta.lessonId;
+    } catch {}
+    try {
+      const instr = typeof cls.instructions === 'string' ? JSON.parse(cls.instructions) : cls.instructions;
+      if (instr?.courseName && !descCourse) descCourse = instr.courseName;
+      if (instr?.courseId && !metaCourseId) metaCourseId = instr.courseId;
+      if (instr?.moduleId && !metaLessonId) metaLessonId = instr.moduleId;
+      if (instr?.lessonId && !metaLessonId) metaLessonId = instr.lessonId;
     } catch {}
 
     let courseName = descCourse || (cls.technology || '').trim();
@@ -158,16 +168,34 @@ export function LiveClassesScreen() {
     };
   }, [primaryCourseTitle, userCourses]);
 
-  useEffect(() => {
-    async function loadSessions() {
-      setSessionsLoading(true);
-      try {
-        const [liveData, recData] = await Promise.all([
-          fetchAllLiveSessions(batchCode),
-          fetchRecordings(batchCode, user.batchCategory)
-        ]);
+  const loadSessions = useCallback(async () => {
+    setSessionsLoading(true);
+    try {
+      const [liveData, recData] = await Promise.all([
+        fetchAllLiveSessions(batchCode),
+        fetchRecordings(batchCode, user.batchCategory, user.enrolledCourses)
+      ]);
 
-        const normalizedRecordings = (recData || []).map((r: any) => ({
+      const normalizedRecordings = (recData || []).map((r: any) => {
+        let parsedCourseId = r.course_id || '';
+        let parsedLessonId = r.module_id || r.lesson_id || '';
+        if (r.instructions) {
+          try {
+            const parsed = typeof r.instructions === 'string' ? JSON.parse(r.instructions) : r.instructions;
+            if (parsed?.courseId) parsedCourseId = parsed.courseId;
+            if (parsed?.moduleId) parsedLessonId = parsed.moduleId;
+            if (parsed?.lessonId) parsedLessonId = parsed.lessonId;
+          } catch {}
+        }
+        if (!parsedCourseId && r.description) {
+          try {
+            const parsed = typeof r.description === 'string' ? JSON.parse(r.description) : r.description;
+            if (parsed?.courseId) parsedCourseId = parsed.courseId;
+            if (parsed?.moduleId && !parsedLessonId) parsedLessonId = parsed.moduleId;
+            if (parsed?.lessonId && !parsedLessonId) parsedLessonId = parsed.lessonId;
+          } catch {}
+        }
+        return {
           id: r.id,
           session_title: r.title || r.concept_name,
           technology: r.technology || '',
@@ -178,31 +206,61 @@ export function LiveClassesScreen() {
           instructor: r.instructor || 'Lead Trainer',
           description: r.description || r.instructions,
           instructions: r.instructions,
+          course_id: parsedCourseId,
+          module_id: parsedLessonId,
           target_batch: r.target_batch,
           batch_code: batchCode,
           duration: r.duration || '1h 30m',
           video_url: r.video_url,
           thumbnail_url: r.thumbnail,
           isRecording: true
-        }));
+        };
+      });
 
-        const existingIds = new Set((liveData || []).map((s: any) => s.id));
-        const combined = [...(liveData || [])];
-        for (const r of normalizedRecordings) {
-          if (!existingIds.has(r.id)) {
-            combined.push(r);
-          }
+      const existingIds = new Set((liveData || []).map((s: any) => s.id));
+      const combined = [...(liveData || [])];
+      for (const r of normalizedRecordings) {
+        if (!existingIds.has(r.id)) {
+          combined.push(r);
         }
-
-        setDbSessions(combined);
-      } catch (err) {
-        console.error("Failed to load live sessions:", err);
-      } finally {
-        setSessionsLoading(false);
       }
+
+      setDbSessions(combined);
+    } catch (err) {
+      console.error("Failed to load live sessions:", err);
+    } finally {
+      setSessionsLoading(false);
     }
+  }, [batchCode, user.batchCategory, user.enrolledCourses]);
+
+  useEffect(() => {
     loadSessions();
-  }, [batchCode, user.batchCategory]);
+  }, [loadSessions]);
+
+  // Realtime subscription: auto-refresh when classes finish or recordings are published
+  useEffect(() => {
+    const channel = supabase
+      .channel(`live_classes_realtime_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'recordings' },
+        () => {
+          loadSessions();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'live_sessions' },
+        () => {
+          loadSessions();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [loadSessions]);
 
   const mappedSessions = useMemo(() => {
     const parseStartTime = (timeStr: string) => {
@@ -332,7 +390,13 @@ export function LiveClassesScreen() {
   const handleWatchRecording = async (cls: any) => {
     const defaultCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
 
-    // 1. If the session already carries a lessonId from admin metadata, navigate directly
+    // 1. If it's a dedicated recording from recordings table or has video_url, navigate to recording player
+    if (cls.isRecording || String(cls.id).startsWith('rec-') || cls.video_url) {
+      navigate('recording', { id: cls.id });
+      return;
+    }
+
+    // 2. If the session already carries a lessonId from admin metadata, navigate directly
     if (cls.lessonId) {
       navigate('lesson', {
         id: cls.courseId || defaultCourseId,
@@ -341,7 +405,7 @@ export function LiveClassesScreen() {
       return;
     }
 
-    // 2. Try to find a matching lesson by title in the DB
+    // 3. Try to find a matching lesson by title in the DB
     try {
       const cleanTitle = (cls.title || '').trim();
       // Use only the first segment before any comma — commas break PostgREST .or() parser
@@ -366,7 +430,7 @@ export function LiveClassesScreen() {
       console.error('Error finding matching course lesson for recording:', err);
     }
 
-    // 3. Fallback: open the course details screen instead of a broken recording player
+    // 4. Fallback: open the course details screen instead of a broken recording player
     navigate('course', { id: cls.courseId || defaultCourseId });
   };
 
@@ -397,6 +461,13 @@ export function LiveClassesScreen() {
         if (!c.isRecording) return false;
         if (c.status !== 'completed') return false;
 
+        // Concept gating: if this recording belongs to a curriculum concept/lesson,
+        // ensure the student's batch has reached and completed/unlocked this concept.
+        const targetLessonId = c.lessonId || (resolver ? resolver.resolveEntityLessonId(c) : '');
+        if (targetLessonId && !isUnlocked(targetLessonId)) {
+          return false;
+        }
+
         // Keyword Search (title, instructor, course, date)
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase().trim();
@@ -422,7 +493,7 @@ export function LiveClassesScreen() {
       }
       return true;
     });
-  }, [mappedSessions, tab, searchQuery, selectedTech, dateFilter, customDate]);
+  }, [mappedSessions, tab, searchQuery, selectedTech, dateFilter, customDate, isUnlocked, resolver]);
 
   const displayList = useMemo(() => {
     if (tab === 'completed') return filtered.slice(0, completedVisible);   // windowed, 10 at a time

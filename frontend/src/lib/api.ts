@@ -1222,24 +1222,67 @@ export async function fetchRecordingById(sessionId: string) {
   }
 }
 
-export async function fetchRecordings(batchCode?: string, batchCategory?: string) {
+export async function fetchRecordings(batchCode?: string, batchCategory?: string, enrolledCourses?: string[]) {
   try {
     const isWeekend = batchCategory === 'Weekend' || (batchCode && (batchCode.toLowerCase().includes('s') || batchCode.toLowerCase().includes('weekend')));
     const targetBatchStr = isWeekend ? 'Weekend Batch' : 'Weekday Batch';
     const b = batchCode || '';
+    const userEnrolled = enrolledCourses || [];
 
-    // 1. Try recordings table using target_batch (the real column in DB)
+    // 1. Fetch published recordings from recordings table
     let recQuery = supabase.from('recordings').select('*');
-    if (b) {
-      recQuery = recQuery.or(`target_batch.ilike.%${b}%,target_batch.ilike.%all batches%,target_batch.ilike.%${targetBatchStr}%`);
-    }
     const { data: recData, error: recError } = await recQuery.order('created_at', { ascending: false });
 
+    let filteredRecData: any[] = [];
     if (!recError && recData && recData.length > 0) {
-      return recData;
+      filteredRecData = recData.filter((r: any) => {
+        // Exclude drafts / hidden
+        const pub = String(r.publish_status || '').toLowerCase();
+        if (pub === 'draft' || pub === 'hidden') return false;
+
+        // Parse instructions or metadata
+        let rCourseId = r.course_id || '';
+        let rModuleId = r.module_id || r.lesson_id || '';
+        if (r.instructions) {
+          try {
+            const parsed = typeof r.instructions === 'string' ? JSON.parse(r.instructions) : r.instructions;
+            if (parsed?.courseId) rCourseId = parsed.courseId;
+            if (parsed?.moduleId) rModuleId = parsed.moduleId;
+            if (parsed?.lessonId) rModuleId = parsed.lessonId;
+          } catch {}
+        }
+        if (!rCourseId && r.description) {
+          try {
+            const parsed = typeof r.description === 'string' ? JSON.parse(r.description) : r.description;
+            if (parsed?.courseId) rCourseId = parsed.courseId;
+            if (parsed?.moduleId && !rModuleId) rModuleId = parsed.moduleId;
+            if (parsed?.lessonId && !rModuleId) rModuleId = parsed.lessonId;
+          } catch {}
+        }
+
+        // Attach resolved IDs onto the record
+        if (rCourseId && !r.course_id) r.course_id = rCourseId;
+        if (rModuleId && !r.module_id) r.module_id = rModuleId;
+
+        // 1. Course-level match: if student is enrolled in the course, display across all batches!
+        if (rCourseId && userEnrolled.length > 0) {
+          if (userEnrolled.includes(rCourseId)) return true;
+        }
+
+        // 2. Batch match: target_batch matches student's batch or 'all batches'
+        const tb = (r.target_batch || '').toLowerCase();
+        if (tb.includes('all batches') || tb === 'all' || !tb) return true;
+        if (b && tb.includes(b.toLowerCase())) return true;
+        if (targetBatchStr && tb.includes(targetBatchStr.toLowerCase())) return true;
+
+        // If user has no enrolledCourses filter specified, allow default
+        if (userEnrolled.length === 0) return true;
+
+        return false;
+      });
     }
 
-    // 2. Fallback: completed live_sessions
+    // 2. Also check completed live_sessions for live classes that have ended
     let liveQuery = supabase
       .from('live_sessions')
       .select('*')
@@ -1249,13 +1292,22 @@ export async function fetchRecordings(batchCode?: string, batchCategory?: string
       liveQuery = liveQuery.or(liveSessionBatchFilter(b));
     }
 
-    const { data, error } = await liveQuery.order('date', { ascending: false });
+    const { data: liveData, error: liveError } = await liveQuery.order('date', { ascending: false });
 
-    if (error) {
-      console.warn('Error fetching recordings from live_sessions:', error.message);
-      return [];
+    if (liveError) {
+      console.warn('Error fetching recordings from live_sessions:', liveError.message);
+      return filteredRecData;
     }
-    return data || [];
+
+    const recIds = new Set(filteredRecData.map((r: any) => r.id));
+    const combined = [...filteredRecData];
+    for (const item of (liveData || [])) {
+      if (!recIds.has(item.id)) {
+        combined.push(item);
+      }
+    }
+
+    return combined;
   } catch {
     return [];
   }
