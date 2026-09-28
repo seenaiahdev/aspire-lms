@@ -2363,7 +2363,8 @@ export function invalidateAttendanceCache(studentId?: string) {
  */
 export async function fetchStudentAttendanceStats(
   studentId: string,
-  batchCode?: string
+  batchCode?: string,
+  registrationId?: string
 ): Promise<AttendanceStats> {
   if (!studentId || studentId === 'guest') {
     return {
@@ -2375,15 +2376,21 @@ export async function fetchStudentAttendanceStats(
     };
   }
 
-  const cacheKey = `attendance_stats:${studentId}:${batchCode || ''}`;
+  const cacheKey = `attendance_stats:${studentId}:${registrationId || ''}:${batchCode || ''}`;
   return cachedQuery(cacheKey, async () => {
     try {
-      // 1. Fetch attendance records for this student
-      const { data: studentRecords, error: errStudent } = await supabase
+      // 1. Fetch attendance records for this student (by student_id or registration_id)
+      let query = supabase
         .from('attendance_records')
-        .select('*')
-        .eq('student_id', studentId)
-        .order('date', { ascending: false });
+        .select('*');
+
+      if (registrationId && registrationId !== studentId) {
+        query = query.or(`student_id.eq.${studentId},student_id.eq.${registrationId}`);
+      } else {
+        query = query.eq('student_id', studentId);
+      }
+
+      const { data: studentRecords, error: errStudent } = await query.order('date', { ascending: false });
 
       if (errStudent) {
         console.warn('Error fetching student attendance records:', errStudent);
@@ -2391,21 +2398,9 @@ export async function fetchStudentAttendanceStats(
 
       const records: AttendanceRecord[] = (studentRecords as AttendanceRecord[]) || [];
 
-      // 2. Fetch all attendance dates marked by mentors for this batch
-      let totalBatchDates = 0;
-      if (batchCode) {
-        const { data: batchRecords, error: errBatch } = await supabase
-          .from('attendance_records')
-          .select('date')
-          .eq('batch_code', batchCode);
-
-        if (!errBatch && batchRecords) {
-          const uniqueDates = new Set(batchRecords.map((r: any) => r.date));
-          totalBatchDates = uniqueDates.size;
-        }
-      }
-
-      // Calculate counts
+      // Calculate counts:
+      // Only sessions explicitly marked Present or Absent are counted towards total held classes.
+      // Unmarked days, holidays, leaves, or off-days are considered "No Class".
       const presentCount = records.filter((r) => {
         const s = (r.status || '').toLowerCase().trim();
         return s === 'present' || s === 'attended' || s === 'late';
@@ -2416,10 +2411,10 @@ export async function fetchStudentAttendanceStats(
         return s === 'absent';
       }).length;
 
-      // The denominator is the total sessions conducted for this batch/student
-      const totalSessions = Math.max(totalBatchDates, records.length);
+      // Strictly total evaluated classes (present + absent)
+      const totalSessions = presentCount + absentCount;
 
-      // Percentage out of 100% (defaults to 0 if no sessions conducted yet)
+      // Percentage out of 100% (0% if no classes held yet)
       let percentage = 0;
       if (totalSessions > 0) {
         percentage = Math.min(100, Math.max(0, Math.round((presentCount / totalSessions) * 100)));
@@ -2445,7 +2440,7 @@ export async function fetchStudentAttendanceStats(
         records: [],
       };
     }
-  });
+  }, 10_000); // 10s TTL for real-time responsiveness
 }
 
 

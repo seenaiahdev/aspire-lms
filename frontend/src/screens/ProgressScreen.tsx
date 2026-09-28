@@ -41,7 +41,7 @@ export function ProgressScreen() {
   const presentCount = attStats ? attStats.presentCount : 0;
   const absentCount = attStats ? attStats.absentCount : 0;
   const attendancePct = totalSessions > 0
-    ? (currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : Math.round((presentCount / totalSessions) * 100)))
+    ? (attStats?.percentage ?? Math.round((presentCount / totalSessions) * 100))
     : 0;
   const latestRecord = attStats?.latestRecord;
 
@@ -109,7 +109,7 @@ export function ProgressScreen() {
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-bold text-ink-900">Live Class Attendance</h3>
               <Badge variant={totalSessions === 0 ? 'secondary' : attendancePct >= 85 ? 'success' : attendancePct >= 75 ? 'warning' : 'danger'}>
-                {attendancePct}%
+                {totalSessions === 0 ? 'No Classes' : `${attendancePct}%`}
               </Badge>
             </div>
             <p className="text-xs text-ink-500 mb-4">Mentor-verified live sessions attendance rate</p>
@@ -118,7 +118,7 @@ export function ProgressScreen() {
               <div>
                 <div className="flex items-center justify-between text-xs mb-1.5 font-semibold text-slate-700">
                   <span>Attendance Progress</span>
-                  <span>{presentCount} of {totalSessions} sessions attended</span>
+                  <span>{totalSessions === 0 ? 'No session logs yet' : `${presentCount} of ${totalSessions} sessions attended`}</span>
                 </div>
                 <ProgressBar
                   value={attendancePct}

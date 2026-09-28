@@ -226,7 +226,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           };
           if (student.id && student.id !== 'guest') {
             try {
-              attendanceStats = await fetchStudentAttendanceStats(student.id, resolvedBatch || student.batch);
+              attendanceStats = await fetchStudentAttendanceStats(student.id, resolvedBatch || student.batch, student.registration_id);
             } catch (attErr) {
               console.warn('Attendance calculation skipped:', attErr);
             }
@@ -448,9 +448,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const newRow = payload.new as any;
           const oldRow = payload.old as any;
           const sid = userRef.current?.id;
+          const regId = userRef.current?.registrationId;
           const batch = userRef.current?.batchCode;
-          if (sid && (!newRow?.student_id || newRow.student_id === sid || oldRow?.student_id === sid || newRow?.batch_code === batch)) {
+          const isRelevant = !sid || !newRow?.student_id ||
+            newRow?.student_id === sid ||
+            oldRow?.student_id === sid ||
+            (regId && (newRow?.student_id === regId || oldRow?.student_id === regId)) ||
+            (batch && (newRow?.batch_code === batch || oldRow?.batch_code === batch));
+
+          if (isRelevant) {
             invalidateAttendanceCache(sid);
+            invalidateAttendanceCache();
             bumpProgress();
           }
         });
@@ -464,6 +472,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       // 6. Window focus & visibility change: instant resync when user returns from DB editor / another tab
       const onSyncCheck = () => {
         if (document.visibilityState === 'visible') {
+          invalidateAttendanceCache();
           refetchUser();
         }
       };

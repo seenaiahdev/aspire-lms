@@ -79,8 +79,10 @@ export function TopNav() {
   const totalSessions = attStats ? attStats.totalSessions : 0;
   const presentCount = attStats ? attStats.presentCount : 0;
   const absentCount = attStats ? attStats.absentCount : 0;
+  // Strictly compute from live mentor records (presentCount / (presentCount + absentCount))
+  // Unmarked days or dates with neither present nor absent are considered "No Class".
   const attendancePct = totalSessions > 0
-    ? (currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : Math.round((presentCount / totalSessions) * 100)))
+    ? (attStats?.percentage ?? Math.round((presentCount / totalSessions) * 100))
     : 0;
   const latestRecord = attStats?.latestRecord;
 
@@ -183,7 +185,7 @@ export function TopNav() {
           <button 
             id="tour-attendance"
             onClick={() => setAttendanceOpen(!attendanceOpen)}
-            title={totalSessions === 0 ? "Live Class Attendance: No sessions recorded yet" : `Attendance: ${attendancePct}% (Mentor Verified)`}
+            title={totalSessions === 0 ? "Attendance: No classes held yet (No class consideration)" : `Attendance: ${attendancePct}% (${presentCount} Present / ${absentCount} Absent)`}
             className={cn(
               "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl border text-xs font-extrabold shadow-sm transition-all cursor-pointer active:scale-95",
               totalSessions === 0
@@ -203,8 +205,10 @@ export function TopNav() {
                 attendancePct >= 85 ? "text-emerald-600" : attendancePct >= 75 ? "text-amber-600" : "text-rose-600"
               )} />
             )}
-            <span>{attendancePct}%</span>
-            <span className="hidden md:inline font-semibold text-[10px] opacity-75">Att.</span>
+            <span>{totalSessions === 0 ? 'No Class' : `${attendancePct}%`}</span>
+            {totalSessions > 0 && (
+              <span className="hidden md:inline font-semibold text-[10px] opacity-75">Att.</span>
+            )}
           </button>
 
           {/* Fixed-anchor positioning wrapper (zero horizontal shift or jumping from profile) */}
@@ -233,7 +237,7 @@ export function TopNav() {
                       ? "bg-amber-500 text-white shadow-amber-500/20"
                       : "bg-rose-500 text-white shadow-rose-500/20"
                   )}>
-                    {attendancePct}%
+                    {totalSessions === 0 ? '--' : `${attendancePct}%`}
                   </div>
                   <div>
                     <div className="flex items-center gap-1.5">
@@ -259,7 +263,7 @@ export function TopNav() {
                       ? "bg-amber-50 text-amber-700 border-amber-200"
                       : "bg-rose-50 text-rose-700 border-rose-200"
                   )}>
-                    {totalSessions === 0 ? 'No Sessions' : attendancePct >= 85 ? 'Eligible' : attendancePct >= 75 ? 'Warning' : 'Low'}
+                    {totalSessions === 0 ? 'No Classes' : attendancePct >= 85 ? 'Eligible' : attendancePct >= 75 ? 'Warning' : 'Low'}
                   </span>
                   <button
                     type="button"
@@ -293,9 +297,9 @@ export function TopNav() {
                 <div className="flex items-center justify-between text-[10px] font-bold mb-1">
                   <span className="text-slate-500">Placement Target: 85%</span>
                   <span className={cn(
-                    totalSessions === 0 ? "text-slate-500" : attendancePct >= 85 ? "text-emerald-600" : "text-amber-600"
+                    totalSessions === 0 ? "text-slate-400" : attendancePct >= 85 ? "text-emerald-600" : "text-amber-600"
                   )}>
-                    {totalSessions === 0 ? "Pending Sessions" : attendancePct >= 85 ? "Qualified" : "Need Improvement"}
+                    {totalSessions === 0 ? "No Session Logs Yet" : attendancePct >= 85 ? "Qualified" : "Need Improvement"}
                   </span>
                 </div>
                 <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
@@ -313,6 +317,11 @@ export function TopNav() {
                     style={{ width: `${Math.min(100, attendancePct)}%` }}
                   />
                 </div>
+                {totalSessions === 0 && (
+                  <p className="text-[10px] text-slate-400 mt-1 italic leading-tight">
+                    * Days without Present or Absent logs are considered No Class.
+                  </p>
+                )}
               </div>
 
               {/* Month Navigator Toolbar */}
@@ -370,7 +379,13 @@ export function TopNav() {
                         e.stopPropagation();
                         setSelectedDateKey(selectedDateKey === dKey ? null : dKey);
                       }}
-                      title={rec ? `${dKey}: ${rec.status} ${rec.remarks ? `(${rec.remarks})` : ''}` : dKey}
+                      title={
+                        isPresent
+                          ? `${dKey}: Present ${rec.remarks ? `(${rec.remarks})` : ''}`
+                          : isAbsent
+                          ? `${dKey}: Absent ${rec.remarks ? `(${rec.remarks})` : ''}`
+                          : `${dKey}: No Class (Holiday / Off-day)`
+                      }
                       className={cn(
                         "w-7 h-7 sm:w-8 sm:h-8 rounded-xl mx-auto flex items-center justify-center text-[11px] font-bold transition-all duration-150 cursor-pointer",
                         isPresent
@@ -411,7 +426,7 @@ export function TopNav() {
                     </div>
                   ) : (
                     <div className="text-slate-500 text-[10px] text-center w-full font-medium">
-                      <span>{selectedDateKey} — No live session recorded</span>
+                      <span>{selectedDateKey} — No Class (Holiday, leave, or no live session)</span>
                     </div>
                   )
                 ) : latestRecord ? (
@@ -433,7 +448,7 @@ export function TopNav() {
                   </div>
                 ) : (
                   <div className="text-slate-500 text-[10px] text-center w-full font-medium py-0.5">
-                    No attendance records logged yet by mentors for this cohort.
+                    No classes recorded yet. Only days marked Present or Absent count toward attendance.
                   </div>
                 )}
               </div>
