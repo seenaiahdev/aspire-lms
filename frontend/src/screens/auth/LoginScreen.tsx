@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
+import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle, KeyRound, Copy, Check, Eye, EyeOff } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
@@ -10,6 +10,8 @@ import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
 
 // OTP Length is 6 digits
 const OTP_LENGTH = 6;
+// Admin Passkey Length is 6 alphanumeric characters (mix of uppercase, lowercase, numbers)
+const PASSKEY_LENGTH = 6;
 
 // Mask an email so the OTP screen never reveals the full address (A3).
 function maskEmail(email?: string): string {
@@ -23,8 +25,11 @@ export function LoginScreen() {
   const { login } = useNav();
   const { refetchUser, setUser, updateUser } = useUser();
   const [mobile, setMobile] = useState('');
-  const [step, setStep] = useState<'mobile' | 'otp'>('mobile');
+  const [step, setStep] = useState<'mobile' | 'otp' | 'passkey'>('mobile');
   const [otp, setOtp] = useState<string[]>(() => new Array(OTP_LENGTH).fill(''));
+  const [passkey, setPasskey] = useState<string[]>(() => new Array(PASSKEY_LENGTH).fill(''));
+  const [showPasskey, setShowPasskey] = useState(true);
+  const [pasteFeedback, setPasteFeedback] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');            // demo fallback code only
@@ -338,7 +343,8 @@ export function LoginScreen() {
       // 1. Instant check for Demo Mode (0ms delay)
       if (otpMode === 'demo') {
         if (generatedOtp && enteredOtp === generatedOtp) {
-          completeLogin();
+          setIsSubmitting(false);
+          setStep('passkey');
           return;
         }
         setIsSubmitting(false);
@@ -350,7 +356,8 @@ export function LoginScreen() {
       if (confirmationResultRef.current) {
         try {
           await confirmationResultRef.current.confirm(enteredOtp);
-          completeLogin();
+          setIsSubmitting(false);
+          setStep('passkey');
           return;
         } catch (err: any) {
           if (err?.code !== 'auth/invalid-verification-code') {
@@ -369,7 +376,8 @@ export function LoginScreen() {
           });
           const data = await resp.json().catch(() => ({ ok: false }));
           if (data.ok) {
-            completeLogin();
+            setIsSubmitting(false);
+            setStep('passkey');
             return;
           }
         } catch (err) {
@@ -382,6 +390,117 @@ export function LoginScreen() {
     } catch (err) {
       setIsSubmitting(false);
       setError('Verification failed. Please try again.');
+    }
+  };
+
+  // ── Step 3: Admin Alphanumeric Passkey Handlers ───────────────────────────
+  const handlePasskeyChange = (index: number, value: string) => {
+    // Retain exact case: accept uppercase (A-Z), lowercase (a-z), digits (0-9)
+    const cleanChars = value.replace(/[^A-Za-z0-9]/g, '');
+    if (!cleanChars) {
+      const newKey = [...passkey];
+      newKey[index] = '';
+      setPasskey(newKey);
+      return;
+    }
+    const char = cleanChars[cleanChars.length - 1];
+    const newKey = [...passkey];
+    newKey[index] = char;
+    setPasskey(newKey);
+    if (error) setError('');
+
+    if (index < PASSKEY_LENGTH - 1) {
+      const nextInput = document.getElementById(`passkey-input-${index + 1}`);
+      nextInput?.focus();
+    }
+  };
+
+  const handlePasskeyKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!passkey[index] && index > 0) {
+        const newKey = [...passkey];
+        newKey[index - 1] = '';
+        setPasskey(newKey);
+        const prevInput = document.getElementById(`passkey-input-${index - 1}`);
+        prevInput?.focus();
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      document.getElementById(`passkey-input-${index - 1}`)?.focus();
+    } else if (e.key === 'ArrowRight' && index < PASSKEY_LENGTH - 1) {
+      document.getElementById(`passkey-input-${index + 1}`)?.focus();
+    }
+  };
+
+  const handlePasskeyPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/[^A-Za-z0-9]/g, '').slice(0, PASSKEY_LENGTH);
+    if (pasted.length > 0) {
+      const newKey = [...passkey];
+      for (let i = 0; i < PASSKEY_LENGTH; i++) {
+        newKey[i] = pasted[i] || '';
+      }
+      setPasskey(newKey);
+      if (error) setError('');
+      const focusIndex = Math.min(pasted.length - 1, PASSKEY_LENGTH - 1);
+      document.getElementById(`passkey-input-${focusIndex}`)?.focus();
+    }
+  };
+
+  const handlePasteFromClipboard = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      const clean = text.replace(/[^A-Za-z0-9]/g, '').slice(0, PASSKEY_LENGTH);
+      if (clean.length > 0) {
+        const newKey = new Array(PASSKEY_LENGTH).fill('');
+        for (let i = 0; i < clean.length; i++) {
+          newKey[i] = clean[i];
+        }
+        setPasskey(newKey);
+        if (error) setError('');
+        setPasteFeedback(true);
+        setTimeout(() => setPasteFeedback(false), 2000);
+        const focusIndex = Math.min(clean.length - 1, PASSKEY_LENGTH - 1);
+        document.getElementById(`passkey-input-${focusIndex}`)?.focus();
+      }
+    } catch (err) {
+      console.warn('Clipboard read failed:', err);
+    }
+  };
+
+  const handlePasskeySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const enteredPasskey = passkey.join('');
+    if (enteredPasskey.length < PASSKEY_LENGTH) {
+      setError(`Please enter your complete ${PASSKEY_LENGTH}-character Admin Passkey`);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError('');
+
+    try {
+      const resp = await fetch('/api/verify-passkey', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          phone: mobile,
+          studentId: studentRecordRef.current?.id,
+          passkey: enteredPasskey,
+        }),
+      });
+
+      const data = await resp.json().catch(() => ({ ok: false, error: 'Verification response failed' }));
+
+      if (resp.ok && data.ok) {
+        completeLogin();
+      } else {
+        setIsSubmitting(false);
+        setError(data.error || 'Invalid or expired Passkey. Please verify uppercase/lowercase characters.');
+      }
+    } catch (err) {
+      console.error('Passkey verification failed:', err);
+      setIsSubmitting(false);
+      setError('Connection error verifying passkey. Please try again.');
     }
   };
 
@@ -583,7 +702,7 @@ export function LoginScreen() {
                   An OTP will be sent to your mobile number and registered email.
                 </p>
               </form>
-            ) : (
+            ) : step === 'otp' ? (
               /* STEP 2: OTP VERIFICATION FORM */
               <form onSubmit={handleOtpSubmit} className="w-full flex flex-col items-center my-auto animate-fade-in">
                 <div className="text-center mb-5">
@@ -649,7 +768,7 @@ export function LoginScreen() {
                   >
                     <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white border-r-white animate-spin shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
                     <span className="tracking-widest font-bold text-xs sm:text-sm uppercase text-white drop-shadow-sm flex items-center gap-1.5">
-                      <span>VERIFYING & LOGGING IN</span>
+                      <span>VERIFYING & CONTINUING</span>
                       <span className="inline-flex">
                         <span className="animate-bounce">.</span>
                         <span className="animate-bounce delay-100">.</span>
@@ -693,6 +812,134 @@ export function LoginScreen() {
                 >
                   Change Mobile Number
                 </button>
+              </form>
+            ) : (
+              /* STEP 3: ADMIN ALPHANUMERIC PASSKEY VERIFICATION FORM */
+              <form onSubmit={handlePasskeySubmit} className="w-full flex flex-col items-center my-auto animate-fade-in">
+                <div className="flex flex-col items-center text-center mb-4">
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-900 text-[11px] sm:text-xs font-bold mb-2 shadow-xs border border-purple-200/60">
+                    <KeyRound className="w-3.5 h-3.5 text-purple-600 animate-pulse" />
+                    <span>ADMIN PASSKEY ACCESS</span>
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping ml-0.5" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight flex items-center gap-1.5">
+                    Enter One-Time Key
+                  </h3>
+                  <p className="text-xs text-slate-500 font-normal mt-1 max-w-[280px] sm:max-w-xs leading-relaxed">
+                    Enter the single-use alphanumeric key provided by your admin. It rotates immediately upon login.
+                  </p>
+                </div>
+
+                {/* 6 Alphanumeric Monospace Input Cells */}
+                <div className="flex gap-2 sm:gap-2.5 justify-center mb-3">
+                  {passkey.map((char, idx) => (
+                    <input
+                      key={idx}
+                      id={`passkey-input-${idx}`}
+                      type={showPasskey ? 'text' : 'password'}
+                      maxLength={1}
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck="false"
+                      value={char}
+                      onChange={(e) => handlePasskeyChange(idx, e.target.value)}
+                      onKeyDown={(e) => handlePasskeyKeyDown(idx, e)}
+                      onPaste={handlePasskeyPaste}
+                      className={`w-9 h-12 sm:w-11 sm:h-13 bg-white rounded-xl border-2 text-center font-mono font-bold text-lg sm:text-xl text-slate-800 outline-none shadow-xs transition-all duration-200 ${
+                        error
+                          ? 'border-red-500 bg-red-50/20 focus:ring-2 focus:ring-red-500/30'
+                          : char
+                          ? 'border-purple-600 bg-purple-50/20 ring-1 ring-purple-500/20'
+                          : 'border-slate-300/90 focus:border-purple-600 focus:ring-2 focus:ring-purple-500/30'
+                      }`}
+                    />
+                  ))}
+                </div>
+
+                {/* Controls Bar: Paste Key + Show/Hide + Case Sensitivity Indicator */}
+                <div className="flex items-center justify-between w-full px-1 mb-4 text-[11px]">
+                  <button
+                    type="button"
+                    onClick={handlePasteFromClipboard}
+                    className="inline-flex items-center gap-1 font-semibold text-purple-700 hover:text-purple-800 transition-colors bg-purple-50/80 hover:bg-purple-100/80 px-2.5 py-1 rounded-lg border border-purple-200/50"
+                  >
+                    {pasteFeedback ? (
+                      <>
+                        <Check className="w-3 h-3 text-emerald-600" />
+                        <span className="text-emerald-700 font-bold">Pasted!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3 h-3" />
+                        <span>Paste Key</span>
+                      </>
+                    )}
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <span className="text-slate-400 font-medium text-[10px] hidden sm:inline">
+                      Case-sensitive (A-Z, a-z, 0-9)
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowPasskey(!showPasskey)}
+                      className="p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                      title={showPasskey ? 'Hide passkey' : 'Show passkey'}
+                    >
+                      {showPasskey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Error Message */}
+                {error && (
+                  <p className="w-full text-left text-xs font-semibold text-red-600 mb-4 pl-1 flex items-center gap-1.5 animate-fade-in">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {error}
+                  </p>
+                )}
+
+                {/* Submit button / In-place Indicator Loader */}
+                {isSubmitting ? (
+                  <div 
+                    className="w-full h-[52px] sm:h-[56px] rounded-xl flex items-center justify-center gap-3 px-4 shadow-lg animate-fade-in text-white select-none cursor-wait"
+                    style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
+                  >
+                    <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white border-r-white animate-spin shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
+                    <span className="tracking-widest font-bold text-xs sm:text-sm uppercase text-white drop-shadow-sm flex items-center gap-1.5">
+                      <span>VERIFYING PASSKEY</span>
+                      <span className="inline-flex">
+                        <span className="animate-bounce">.</span>
+                        <span className="animate-bounce delay-100">.</span>
+                        <span className="animate-bounce delay-200">.</span>
+                      </span>
+                    </span>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    className="w-full text-white font-bold text-xs sm:text-sm py-3.5 sm:py-4 rounded-xl uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-[0_10px_25px_-5px_rgba(117,64,255,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(117,64,255,0.55)] group"
+                    style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
+                  >
+                    <KeyRound className="w-4 h-4" />
+                    <span>UNLOCK DASHBOARD</span>
+                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                  </button>
+                )}
+
+                {/* Bottom Assistance & Back Actions */}
+                <div className="flex flex-col items-center gap-1 mt-4">
+                  <p className="text-[11px] text-slate-400 font-medium text-center">
+                    This key auto-rotates immediately upon verification.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => { setStep('otp'); setError(''); }}
+                    className="text-xs font-semibold text-primary-700 hover:underline mt-1"
+                  >
+                    Back to OTP Verification
+                  </button>
+                </div>
               </form>
             )}
 
