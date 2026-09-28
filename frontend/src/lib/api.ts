@@ -2367,7 +2367,7 @@ export async function fetchStudentAttendanceStats(
 ): Promise<AttendanceStats> {
   if (!studentId || studentId === 'guest') {
     return {
-      percentage: 100,
+      percentage: 0,
       presentCount: 0,
       absentCount: 0,
       totalSessions: 0,
@@ -2419,8 +2419,8 @@ export async function fetchStudentAttendanceStats(
       // The denominator is the total sessions conducted for this batch/student
       const totalSessions = Math.max(totalBatchDates, records.length);
 
-      // Percentage out of 100%
-      let percentage = 100;
+      // Percentage out of 100% (defaults to 0 if no sessions conducted yet)
+      let percentage = 0;
       if (totalSessions > 0) {
         percentage = Math.min(100, Math.max(0, Math.round((presentCount / totalSessions) * 100)));
       }
@@ -2438,7 +2438,7 @@ export async function fetchStudentAttendanceStats(
     } catch (err) {
       console.error('Failed to compute attendance stats:', err);
       return {
-        percentage: 100,
+        percentage: 0,
         presentCount: 0,
         absentCount: 0,
         totalSessions: 0,

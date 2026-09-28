@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Menu, Bell, LogOut, Flame, Zap, User, Settings, ChevronDown, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Menu, Bell, LogOut, Flame, Zap, User, Settings, ChevronDown, CheckCircle2, AlertCircle, ShieldCheck, ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
 import { useNotifications } from '@/lib/NotificationsContext';
@@ -75,12 +75,69 @@ export function TopNav() {
     settings: 'Settings',
   };
 
-  const attendancePct = currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : 100);
   const attStats = currentUser.attendanceStats;
-  const totalSessions = attStats ? attStats.totalSessions : (currentUser.attendance ? 1 : 0);
-  const presentCount = attStats ? attStats.presentCount : (attendancePct >= 85 ? totalSessions : 0);
-  const absentCount = attStats ? attStats.absentCount : Math.max(0, totalSessions - presentCount);
+  const totalSessions = attStats ? attStats.totalSessions : 0;
+  const presentCount = attStats ? attStats.presentCount : 0;
+  const absentCount = attStats ? attStats.absentCount : 0;
+  const attendancePct = totalSessions > 0
+    ? (currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : Math.round((presentCount / totalSessions) * 100)))
+    : 0;
   const latestRecord = attStats?.latestRecord;
+
+  // Calendar popover browsing state
+  const now = new Date();
+  const [calMonth, setCalMonth] = useState(() => now.getMonth());
+  const [calYear, setCalYear] = useState(() => now.getFullYear());
+  const [selectedDateKey, setSelectedDateKey] = useState<string | null>(null);
+
+  // Map student attendance records by date (YYYY-MM-DD)
+  const recordsByDate = useMemo(() => {
+    const map = new Map<string, any>();
+    if (attStats?.records) {
+      for (const rec of attStats.records) {
+        if (rec.date) {
+          map.set(rec.date, rec);
+        }
+      }
+    }
+    return map;
+  }, [attStats?.records]);
+
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  const firstDayOfMonth = new Date(calYear, calMonth, 1).getDay();
+  const calendarStartOffset = (firstDayOfMonth + 6) % 7; // Monday-first
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+
+  const realTodayYear = now.getFullYear();
+  const realTodayMonth = now.getMonth();
+  const realTodayDate = now.getDate();
+  const todayKey = `${realTodayYear}-${String(realTodayMonth + 1).padStart(2, '0')}-${String(realTodayDate).padStart(2, '0')}`;
+
+  const handlePrevMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (calMonth === 0) {
+      setCalMonth(11);
+      setCalYear((prev) => prev - 1);
+    } else {
+      setCalMonth((prev) => prev - 1);
+    }
+  };
+
+  const handleNextMonth = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (calMonth === 11) {
+      setCalMonth(0);
+      setCalYear((prev) => prev + 1);
+    } else {
+      setCalMonth((prev) => prev + 1);
+    }
+  };
+
+  const selectedRecord = selectedDateKey ? recordsByDate.get(selectedDateKey) : null;
 
   return (
     <header className="sticky top-0 z-40 h-16 bg-white border-b border-slate-200/90 text-slate-900 flex items-center justify-between px-4 lg:px-6 font-sans">
@@ -126,115 +183,217 @@ export function TopNav() {
           <button 
             id="tour-attendance"
             onClick={() => setAttendanceOpen(!attendanceOpen)}
-            title={`Attendance: ${attendancePct}% (Mentor Verified)`}
+            title={totalSessions === 0 ? "Live Class Attendance: No sessions recorded yet" : `Attendance: ${attendancePct}% (Mentor Verified)`}
             className={cn(
               "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl border text-xs font-extrabold shadow-sm transition-all cursor-pointer active:scale-95",
-              attendancePct >= 85
+              totalSessions === 0
+                ? "bg-slate-100 border-slate-200 text-slate-600 hover:bg-slate-200"
+                : attendancePct >= 85
                 ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
                 : attendancePct >= 75
                 ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
                 : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
             )}
           >
-            <CheckCircle2 className={cn(
-              "w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0",
-              attendancePct >= 85 ? "text-emerald-600" : attendancePct >= 75 ? "text-amber-600" : "text-rose-600"
-            )} />
+            {totalSessions === 0 ? (
+              <CalendarDays className="w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0 text-slate-500" />
+            ) : (
+              <CheckCircle2 className={cn(
+                "w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0",
+                attendancePct >= 85 ? "text-emerald-600" : attendancePct >= 75 ? "text-amber-600" : "text-rose-600"
+              )} />
+            )}
             <span>{attendancePct}%</span>
             <span className="hidden md:inline font-semibold text-[10px] opacity-75">Att.</span>
           </button>
 
-          {/* Interactive Popover Menu */}
+          {/* Interactive Attendance Calendar Popover */}
           <div className={cn(
-            "absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-4 z-[10001] transition-all duration-200 origin-top",
+            "absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-2 w-[calc(100vw-2rem)] max-w-[21rem] sm:max-w-[22rem] bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-3.5 sm:p-4 z-[10001] transition-all duration-200 origin-top",
             attendanceOpen ? "opacity-100 scale-100 pointer-events-auto animate-scale-in" : "opacity-0 scale-95 pointer-events-none"
           )}>
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            {/* Header: Title + Status */}
+            <div className="flex items-center justify-between pb-2.5 border-b border-slate-100">
               <div className="flex items-center gap-2">
                 <div className={cn(
                   "w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs",
-                  attendancePct >= 85 ? "bg-emerald-100 text-emerald-700" : attendancePct >= 75 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
+                  totalSessions === 0
+                    ? "bg-slate-100 text-slate-600"
+                    : attendancePct >= 85
+                    ? "bg-emerald-100 text-emerald-700"
+                    : attendancePct >= 75
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-rose-100 text-rose-700"
                 )}>
                   {attendancePct}%
                 </div>
                 <div>
-                  <h4 className="text-xs font-extrabold text-slate-900 leading-tight">Live Class Attendance</h4>
-                  <span className="text-[10px] font-semibold text-slate-500">Verified by Mentors</span>
+                  <h4 className="text-xs font-extrabold text-slate-900 leading-tight">Attendance Calendar</h4>
+                  <span className="text-[10px] font-semibold text-slate-500">Mentor Verified</span>
                 </div>
               </div>
               <span className={cn(
                 "text-[10px] font-extrabold px-2 py-0.5 rounded-full border",
-                attendancePct >= 85
+                totalSessions === 0
+                  ? "bg-slate-50 text-slate-600 border-slate-200"
+                  : attendancePct >= 85
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                   : attendancePct >= 75
                   ? "bg-amber-50 text-amber-700 border-amber-200"
                   : "bg-rose-50 text-rose-700 border-rose-200"
               )}>
-                {attendancePct >= 85 ? 'Eligible' : attendancePct >= 75 ? 'Warning' : 'Low'}
+                {totalSessions === 0 ? 'No Sessions' : attendancePct >= 85 ? 'Eligible' : attendancePct >= 75 ? 'Warning' : 'Low'}
               </span>
             </div>
 
-            {/* Metric Breakdown */}
-            <div className="grid grid-cols-3 gap-2 my-3 text-center">
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="block text-[10px] font-bold text-slate-500">Present</span>
+            {/* Quick Metrics */}
+            <div className="grid grid-cols-3 gap-1.5 my-2.5 text-center">
+              <div className="p-1.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Present</span>
                 <span className="text-xs font-black text-emerald-600">{presentCount}</span>
               </div>
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="block text-[10px] font-bold text-slate-500">Absent</span>
+              <div className="p-1.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Absent</span>
                 <span className="text-xs font-black text-rose-600">{absentCount}</span>
               </div>
-              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
-                <span className="block text-[10px] font-bold text-slate-500">Total</span>
+              <div className="p-1.5 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider">Conducted</span>
                 <span className="text-xs font-black text-slate-700">{totalSessions}</span>
               </div>
             </div>
 
-            {/* Placement requirement status */}
-            <div className={cn(
-              "p-2.5 rounded-xl text-[11px] font-medium mb-3 flex items-start gap-2",
-              attendancePct >= 85 ? "bg-emerald-50/80 text-emerald-900" : "bg-amber-50/90 text-amber-900"
-            )}>
-              {attendancePct >= 85 ? (
-                <>
-                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
-                  <span>You meet the <strong>85% attendance criteria</strong> required for placement opportunities & certificates.</span>
-                </>
+            {/* Month Navigator: < September 2026 > */}
+            <div className="flex items-center justify-between py-1.5 px-2 bg-slate-50 rounded-xl border border-slate-100 mb-2">
+              <button
+                type="button"
+                onClick={handlePrevMonth}
+                className="w-6 h-6 rounded-lg hover:bg-slate-200/80 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
+              <span className="text-xs font-extrabold text-slate-800">
+                {monthNames[calMonth]} {calYear}
+              </span>
+              <button
+                type="button"
+                onClick={handleNextMonth}
+                className="w-6 h-6 rounded-lg hover:bg-slate-200/80 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* Calendar Grid */}
+            <div className="grid grid-cols-7 gap-1 text-center mb-2.5">
+              {['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((day, idx) => (
+                <span key={idx} className="text-[10px] font-bold text-slate-400 py-0.5">
+                  {day}
+                </span>
+              ))}
+
+              {Array.from({ length: calendarStartOffset }).map((_, offset) => (
+                <div key={`offset-${offset}`} className="w-7 h-7 sm:w-8 sm:h-8" />
+              ))}
+
+              {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
+                const dKey = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+                const rec = recordsByDate.get(dKey);
+                const s = (rec?.status || '').toLowerCase().trim();
+                const isPresent = s === 'present' || s === 'attended' || s === 'late';
+                const isAbsent = s === 'absent';
+                const isToday = dKey === todayKey;
+                const isSelected = selectedDateKey === dKey;
+
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedDateKey(selectedDateKey === dKey ? null : dKey);
+                    }}
+                    title={rec ? `${dKey}: ${rec.status} ${rec.remarks ? `(${rec.remarks})` : ''}` : dKey}
+                    className={cn(
+                      "w-7 h-7 sm:w-8 sm:h-8 rounded-xl mx-auto flex items-center justify-center text-[10px] font-extrabold transition-all cursor-pointer",
+                      isPresent
+                        ? "bg-emerald-500 text-white font-black shadow-xs ring-2 ring-emerald-200 scale-105"
+                        : isAbsent
+                        ? "bg-rose-500 text-white font-black shadow-xs ring-2 ring-rose-200 scale-105"
+                        : isToday
+                        ? "bg-purple-50 text-[#7c3aed] border border-[#7c3aed] font-black"
+                        : "text-slate-700 hover:bg-slate-100",
+                      isSelected && !isPresent && !isAbsent && "ring-2 ring-purple-400 bg-purple-50"
+                    )}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected Date or Latest Status Banner */}
+            <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 text-[11px] mb-2.5 min-h-[38px] flex items-center">
+              {selectedDateKey ? (
+                selectedRecord ? (
+                  <div className="flex items-center justify-between w-full">
+                    <div className="min-w-0 pr-2">
+                      <span className="font-bold text-slate-800">{selectedDateKey}</span>
+                      {selectedRecord.remarks && (
+                        <p className="text-[10px] text-slate-500 italic truncate max-w-[150px]">"{selectedRecord.remarks}"</p>
+                      )}
+                    </div>
+                    <span className={cn(
+                      "text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0",
+                      (selectedRecord.status || '').toLowerCase() === 'present'
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-rose-100 text-rose-800"
+                    )}>
+                      {selectedRecord.status}
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-slate-500 text-[10px] text-center w-full">
+                    <span>{selectedDateKey} — No live session recorded</span>
+                  </div>
+                )
+              ) : latestRecord ? (
+                <div className="flex items-center justify-between w-full">
+                  <div className="min-w-0 pr-2">
+                    <span className="text-[10px] text-slate-500 block">Latest session ({latestRecord.date}):</span>
+                    {latestRecord.remarks && (
+                      <p className="text-[10px] text-slate-600 italic truncate max-w-[150px]">"{latestRecord.remarks}"</p>
+                    )}
+                  </div>
+                  <span className={cn(
+                    "text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider shrink-0",
+                    (latestRecord.status || '').toLowerCase() === 'present'
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-rose-100 text-rose-800"
+                  )}>
+                    {latestRecord.status}
+                  </span>
+                </div>
               ) : (
-                <>
-                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                  <span>Aspire requires <strong>85% attendance</strong> for placements. Attend upcoming sessions to raise your score.</span>
-                </>
+                <div className="text-slate-500 text-[10px] text-center w-full">
+                  No attendance records logged yet by mentors for this cohort.
+                </div>
               )}
             </div>
 
-            {/* Latest verification note */}
-            {latestRecord && (
-              <div className="text-[10px] text-slate-500 pb-3 mb-3 border-b border-slate-100 flex items-center justify-between">
-                <span>Latest: <strong>{latestRecord.date}</strong></span>
-                <span className={cn(
-                  "font-bold uppercase tracking-wider",
-                  latestRecord.status?.toLowerCase() === 'present' ? "text-emerald-600" : "text-rose-600"
-                )}>
-                  {latestRecord.status} {latestRecord.remarks ? `• ${latestRecord.remarks}` : ''}
-                </span>
+            {/* Legend */}
+            <div className="flex items-center justify-center gap-4 pt-2 border-t border-slate-100 text-[10px] font-semibold text-slate-500">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+                <span>Present</span>
               </div>
-            )}
-
-            {/* Direct navigation buttons */}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => { setAttendanceOpen(false); navigate('live'); }}
-                className="flex-1 py-1.5 px-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] text-[11px] font-bold transition-colors text-center cursor-pointer"
-              >
-                Live Classes
-              </button>
-              <button
-                onClick={() => { setAttendanceOpen(false); navigate('progress'); }}
-                className="flex-1 py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors text-center cursor-pointer"
-              >
-                View Progress
-              </button>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-rose-200" />
+                <span>Absent</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-slate-200" />
+                <span>No Class</span>
+              </div>
             </div>
           </div>
         </div>

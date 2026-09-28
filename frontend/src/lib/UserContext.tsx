@@ -218,7 +218,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const realXp = Number(profile?.xp ?? (student as any)?.xp ?? 0);
 
           let attendanceStats: AttendanceStats = {
-            percentage: 100,
+            percentage: 0,
             presentCount: 0,
             absentCount: 0,
             totalSessions: 0,

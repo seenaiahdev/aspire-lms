@@ -36,11 +36,13 @@ export function ProgressScreen() {
     loadData();
   }, [currentUser?.id, currentUser?.enrolledCourses?.join(',')]);
 
-  const attendancePct = currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : 100);
   const attStats = currentUser.attendanceStats;
-  const totalSessions = attStats ? attStats.totalSessions : (currentUser.attendance ? 1 : 0);
-  const presentCount = attStats ? attStats.presentCount : (attendancePct >= 85 ? totalSessions : 0);
-  const absentCount = attStats ? attStats.absentCount : Math.max(0, totalSessions - presentCount);
+  const totalSessions = attStats ? attStats.totalSessions : 0;
+  const presentCount = attStats ? attStats.presentCount : 0;
+  const absentCount = attStats ? attStats.absentCount : 0;
+  const attendancePct = totalSessions > 0
+    ? (currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : Math.round((presentCount / totalSessions) * 100)))
+    : 0;
   const latestRecord = attStats?.latestRecord;
 
   return (
@@ -106,7 +108,7 @@ export function ProgressScreen() {
           <CardBody>
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-bold text-ink-900">Live Class Attendance</h3>
-              <Badge variant={attendancePct >= 85 ? 'success' : attendancePct >= 75 ? 'warning' : 'danger'}>
+              <Badge variant={totalSessions === 0 ? 'secondary' : attendancePct >= 85 ? 'success' : attendancePct >= 75 ? 'warning' : 'danger'}>
                 {attendancePct}%
               </Badge>
             </div>
