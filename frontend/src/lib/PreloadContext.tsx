@@ -18,6 +18,7 @@ import {
 } from './api';
 import { getLessonResolver, clearLessonResolverCache } from './lessonLinkResolver';
 import { isDueDatePassed } from './utils';
+import { invalidateCache } from './queryCache';
 
 // ─────────────────────────────────────────────
 // Types
@@ -96,8 +97,19 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
 
   const bumpReload = useCallback(() => {
     clearLessonResolverCache();
+    const sid = user?.id;
+    if (sid) {
+      invalidateCache(`student_lp:${sid}`);
+      invalidateCache(`student_lp_set:${sid}`);
+      invalidateCache(`student_aa:${sid}`);
+      invalidateCache(`student_aa_full:${sid}`);
+      invalidateCache(`student_qa:${sid}`);
+      invalidateCache(`student_qa_full:${sid}`);
+      invalidateCache(`student_ps:${sid}`);
+      invalidateCache(`student_ps_full:${sid}`);
+    }
     setReloadKey(k => k + 1);
-  }, []);
+  }, [user?.id]);
 
   useEffect(() => {
     const sid = user?.id;
@@ -396,7 +408,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       timer = setTimeout(() => bumpReload(), 800);
     };
 
-    const channel = supabase.channel('preload_realtime');
+    const channel = supabase.channel(`preload_realtime_${sid}_${Date.now()}`);
     [
       'course_lessons', 'course_topics', 'assessments', 'quizzes',
       'projects', 'coding_questions', 'milestones_data', 'recordings',

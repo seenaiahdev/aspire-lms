@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { usePreload } from '@/lib/PreloadContext';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
+import { invalidateCache } from '@/lib/queryCache';
 
 import { learningSteps } from '@/lib/tourSteps';
 
@@ -605,10 +606,22 @@ export function LearningScreen() {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         clearLessonResolverCache();
+        const sid = user?.id;
+        if (sid) {
+          invalidateCache(`student_lp:${sid}`);
+          invalidateCache(`student_lp_set:${sid}`);
+          invalidateCache(`student_aa:${sid}`);
+          invalidateCache(`student_aa_full:${sid}`);
+          invalidateCache(`student_qa:${sid}`);
+          invalidateCache(`student_qa_full:${sid}`);
+          invalidateCache(`student_ps:${sid}`);
+          invalidateCache(`student_ps_full:${sid}`);
+        }
+        preload.bumpReload();
         setReloadKey((k) => k + 1);
       }, 600);
     };
-    const channel = supabase.channel('learning_content_realtime');
+    const channel = supabase.channel(`learning_content_realtime_${user.id || 'all'}_${Date.now()}`);
     // Admin content (edits are rare) — watched unfiltered.
     ['live_sessions', 'course_lessons', 'course_topics', 'assessments', 'quizzes', 'projects', 'coding_questions', 'milestones_data', 'recordings']
       .forEach((table) => channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump));

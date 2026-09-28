@@ -14,6 +14,7 @@ import {
   fetchStudentAttendanceStats,
   invalidateAttendanceCache
 } from '@/lib/api';
+import { invalidateCache } from './queryCache';
 import { supabase } from './supabase';
 
 const initialUser: ExtendedUser = {
@@ -158,7 +159,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const newCourseProgress: Record<string, number> = { ...(profile?.course_progress || {}) };
           const progressPairs = await Promise.all(
             effectiveCourses.map(async (cid): Promise<[string, number]> => {
-              try { return [cid, await computeCourseProgress(student.id, cid)]; }
+              try { return [cid, await computeCourseProgress(student.id, cid, student.registration_id)]; }
               catch { return [cid, newCourseProgress[cid] ?? 0]; }
             })
           );
@@ -430,19 +431,55 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
       );
 
+      const invalidateCourseworkCache = (sid?: string) => {
+        if (!sid) return;
+        invalidateCache(`student_lp:${sid}`);
+        invalidateCache(`student_lp_set:${sid}`);
+        invalidateCache(`student_aa:${sid}`);
+        invalidateCache(`student_aa_full:${sid}`);
+        invalidateCache(`student_qa:${sid}`);
+        invalidateCache(`student_qa_full:${sid}`);
+        invalidateCache(`student_ps:${sid}`);
+        invalidateCache(`student_ps_full:${sid}`);
+      };
+
       // 5. Coursework completions & lesson progress
       userChannel
         .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts' }, (payload) => {
-          if (!payload.new || (payload.new as any).student_id === userRef.current?.id) bumpProgress();
+          const sid = userRef.current?.id;
+          const regId = userRef.current?.registrationId;
+          const targetId = (payload.new as any)?.student_id || (payload.old as any)?.student_id;
+          if (!targetId || targetId === sid || targetId === regId) {
+            invalidateCourseworkCache(sid);
+            bumpProgress();
+          }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, (payload) => {
-          if (!payload.new || (payload.new as any).user_id === userRef.current?.id) bumpProgress();
+          const sid = userRef.current?.id;
+          const regId = userRef.current?.registrationId;
+          const targetId = (payload.new as any)?.user_id || (payload.old as any)?.user_id;
+          if (!targetId || targetId === sid || targetId === regId) {
+            invalidateCourseworkCache(sid);
+            bumpProgress();
+          }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions' }, (payload) => {
-          if (!payload.new || (payload.new as any).student_id === userRef.current?.id) bumpProgress();
+          const sid = userRef.current?.id;
+          const regId = userRef.current?.registrationId;
+          const targetId = (payload.new as any)?.student_id || (payload.old as any)?.student_id;
+          if (!targetId || targetId === sid || targetId === regId) {
+            invalidateCourseworkCache(sid);
+            bumpProgress();
+          }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress' }, (payload) => {
-          if (!payload.new || (payload.new as any).student_id === userRef.current?.id) bumpProgress();
+          const sid = userRef.current?.id;
+          const regId = userRef.current?.registrationId;
+          const targetId = (payload.new as any)?.student_id || (payload.old as any)?.student_id;
+          if (!targetId || targetId === sid || targetId === regId) {
+            invalidateCourseworkCache(sid);
+            bumpProgress();
+          }
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, (payload) => {
           const newRow = payload.new as any;
@@ -472,6 +509,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       // 6. Window focus & visibility change: instant resync when user returns from DB editor / another tab
       const onSyncCheck = () => {
         if (document.visibilityState === 'visible') {
+          invalidateCourseworkCache(userRef.current?.id);
           invalidateAttendanceCache();
           refetchUser();
         }

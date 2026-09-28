@@ -1689,6 +1689,7 @@ export async function markLessonComplete(userId: string, lessonId: string, cours
       { onConflict: 'id' }
     );
     invalidateCache(`student_lp:${userId}`);
+    invalidateCache(`student_lp_set:${userId}`);
   } catch (e) {
     console.warn('markLessonComplete skipped:', e);
   }
@@ -1715,7 +1716,7 @@ export async function fetchCompletedLessons(userId: string): Promise<Set<string>
  * (assessment + quiz + coding practice + project) counts as ONE unit; a lesson is "done" when the student
  * marks it complete (lesson_progress), coursework when attempted/submitted. Pure read — does not write.
  */
-export async function computeCourseProgress(userId: string, courseId: string): Promise<number> {
+export async function computeCourseProgress(userId: string, courseId: string, registrationId?: string): Promise<number> {
   try {
     const [lRes, aRes, qRes, cRes, pRes] = await Promise.all([
       cachedQuery(`course_items_lessons:${courseId}`, () => supabase.from('course_lessons').select('id').eq('course_id', courseId), 60000),
@@ -1734,11 +1735,24 @@ export async function computeCourseProgress(userId: string, courseId: string): P
     const total = lessonIds.size + assessIds.size + quizIds.size + practiceIds.size;
     if (total === 0) return 0;
     // Student coursework attempt caches (15s TTL; shared across all enrolled courses evaluated in parallel)
+    const userIds = Array.from(new Set([userId, registrationId].filter(Boolean) as string[]));
     const [lp, aa, qa, ps] = await Promise.all([
-      cachedQuery(`student_lp:${userId}`, () => supabase.from('lesson_progress').select('lesson_id, completed').eq('student_id', userId), 15000),
-      cachedQuery(`student_aa:${userId}`, () => supabase.from('assessment_attempts').select('assignment_id, score, status').eq('student_id', userId), 15000),
-      cachedQuery(`student_qa:${userId}`, () => supabase.from('quiz_attempts').select('quiz_id, score, status').eq('user_id', userId), 15000),
-      cachedQuery(`student_ps:${userId}`, () => supabase.from('practice_submissions').select('problem_id').eq('student_id', userId), 15000),
+      cachedQuery(`student_lp:${userId}`, () => {
+        const q = supabase.from('lesson_progress').select('lesson_id, completed');
+        return userIds.length > 1 ? q.in('student_id', userIds) : q.eq('student_id', userId);
+      }, 15000),
+      cachedQuery(`student_aa:${userId}`, () => {
+        const q = supabase.from('assessment_attempts').select('assignment_id, score, status');
+        return userIds.length > 1 ? q.in('student_id', userIds) : q.eq('student_id', userId);
+      }, 15000),
+      cachedQuery(`student_qa:${userId}`, () => {
+        const q = supabase.from('quiz_attempts').select('quiz_id, score, status');
+        return userIds.length > 1 ? q.in('user_id', userIds) : q.eq('user_id', userId);
+      }, 15000),
+      cachedQuery(`student_ps:${userId}`, () => {
+        const q = supabase.from('practice_submissions').select('problem_id');
+        return userIds.length > 1 ? q.in('student_id', userIds) : q.eq('student_id', userId);
+      }, 15000),
     ]);
 
     // Academic integrity: only coursework PASSED (score >= 70% or status 'passed' / 'Passed') counts towards course progress.
