@@ -217,133 +217,74 @@ export function TopNav() {
             "right-[-5rem] sm:right-auto sm:left-1/2 sm:-translate-x-1/2",
             attendanceOpen ? "pointer-events-auto" : "pointer-events-none"
           )}>
-            {/* Inner Premium Corporate Card (Smooth scale & opacity transition) */}
+            {/* Inner Minimal & Compact Card (Smooth scale & opacity transition) */}
             <div className={cn(
-              "w-[calc(100vw-2rem)] max-w-[21.5rem] sm:max-w-[23rem] bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(15,23,42,0.22),0_0_0_1px_rgba(15,23,42,0.06)] p-4 sm:p-5 transition-[opacity,transform] duration-200 ease-out origin-top",
+              "w-[calc(100vw-2rem)] max-w-[19rem] sm:max-w-[20rem] bg-white rounded-2xl shadow-[0_20px_50px_-12px_rgba(15,23,42,0.18),0_0_0_1px_rgba(15,23,42,0.06)] p-3.5 transition-[opacity,transform] duration-150 ease-out origin-top",
               attendanceOpen
                 ? "opacity-100 scale-100 translate-y-0"
-                : "opacity-0 scale-95 -translate-y-2"
+                : "opacity-0 scale-95 -translate-y-1"
             )}>
-              {/* Header: Title + Corporate Badge + Close Button */}
-              <div className="flex items-center justify-between pb-3.5 border-b border-slate-100">
-                <div className="flex items-center gap-2.5">
-                  <div className={cn(
-                    "w-9 h-9 rounded-2xl flex items-center justify-center font-black text-xs shadow-xs",
-                    totalSessions === 0
-                      ? "bg-slate-100 text-slate-700 border border-slate-200/80"
-                      : attendancePct >= 85
-                      ? "bg-emerald-500 text-white shadow-emerald-500/20"
-                      : attendancePct >= 75
-                      ? "bg-amber-500 text-white shadow-amber-500/20"
-                      : "bg-rose-500 text-white shadow-rose-500/20"
-                  )}>
-                    {totalSessions === 0 ? '--' : `${attendancePct}%`}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <h4 className="text-xs font-black text-slate-900 tracking-tight">Attendance Record</h4>
-                      <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-purple-50 text-[#7c3aed] border border-purple-200/60">
-                        Official
-                      </span>
-                    </div>
-                    <p className="text-[10px] font-medium text-slate-500 flex items-center gap-1 mt-0.5">
-                      <ShieldCheck className="w-3 h-3 text-emerald-600 inline" /> Mentor Verified Live Logs
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1.5">
+              {/* Header: Clean & Minimal */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-slate-800">Attendance</span>
                   <span className={cn(
-                    "text-[10px] font-extrabold px-2 py-0.5 rounded-full border",
+                    "text-[10px] font-black px-2 py-0.5 rounded-full",
                     totalSessions === 0
-                      ? "bg-slate-50 text-slate-600 border-slate-200"
+                      ? "bg-slate-100 text-slate-600"
                       : attendancePct >= 85
-                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      ? "bg-emerald-50 text-emerald-700 border border-emerald-200/60"
                       : attendancePct >= 75
-                      ? "bg-amber-50 text-amber-700 border-amber-200"
-                      : "bg-rose-50 text-rose-700 border-rose-200"
+                      ? "bg-amber-50 text-amber-700 border border-amber-200/60"
+                      : "bg-rose-50 text-rose-700 border border-rose-200/60"
                   )}>
-                    {totalSessions === 0 ? 'No Classes' : attendancePct >= 85 ? 'Eligible' : attendancePct >= 75 ? 'Warning' : 'Low'}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setAttendanceOpen(false)}
-                    className="w-7 h-7 rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
-                    title="Close"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Corporate Segmented Stat Strip */}
-              <div className="grid grid-cols-3 divide-x divide-slate-200/70 bg-slate-50/90 border border-slate-200/70 rounded-2xl p-2.5 my-3 text-center shadow-2xs">
-                <div className="px-1">
-                  <span className="block text-[9px] font-extrabold text-slate-400 tracking-wider uppercase">Present</span>
-                  <span className="text-sm font-black text-emerald-600">{presentCount}</span>
-                </div>
-                <div className="px-1">
-                  <span className="block text-[9px] font-extrabold text-slate-400 tracking-wider uppercase">Absent</span>
-                  <span className="text-sm font-black text-rose-500">{absentCount}</span>
-                </div>
-                <div className="px-1">
-                  <span className="block text-[9px] font-extrabold text-slate-400 tracking-wider uppercase">Total Held</span>
-                  <span className="text-sm font-black text-slate-800">{totalSessions}</span>
-                </div>
-              </div>
-
-              {/* Placement Threshold Progress Bar */}
-              <div className="mb-3 px-0.5">
-                <div className="flex items-center justify-between text-[10px] font-bold mb-1">
-                  <span className="text-slate-500">Placement Target: 85%</span>
-                  <span className={cn(
-                    totalSessions === 0 ? "text-slate-400" : attendancePct >= 85 ? "text-emerald-600" : "text-amber-600"
-                  )}>
-                    {totalSessions === 0 ? "No Session Logs Yet" : attendancePct >= 85 ? "Qualified" : "Need Improvement"}
+                    {totalSessions === 0 ? 'No Classes' : `${attendancePct}%`}
                   </span>
                 </div>
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
-                  <div 
-                    className={cn(
-                      "h-full rounded-full transition-all duration-500",
-                      totalSessions === 0
-                        ? "bg-slate-300 w-0"
-                        : attendancePct >= 85
-                        ? "bg-emerald-500"
-                        : attendancePct >= 75
-                        ? "bg-amber-500"
-                        : "bg-rose-500"
-                    )}
-                    style={{ width: `${Math.min(100, attendancePct)}%` }}
-                  />
+
+                <button
+                  type="button"
+                  onClick={() => setAttendanceOpen(false)}
+                  className="w-6 h-6 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-600 flex items-center justify-center transition-colors cursor-pointer"
+                  title="Close"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+
+              {/* Compact 3-Column Metrics */}
+              <div className="grid grid-cols-3 bg-slate-50/90 rounded-xl p-1.5 my-2 text-center text-xs divide-x divide-slate-200/60 border border-slate-100">
+                <div>
+                  <span className="block text-[9px] font-semibold text-slate-400 uppercase">Present</span>
+                  <span className="font-extrabold text-emerald-600 text-xs">{presentCount}</span>
                 </div>
-                {totalSessions === 0 && (
-                  <p className="text-[10px] text-slate-400 mt-1 italic leading-tight">
-                    * Days without Present or Absent logs are considered No Class.
-                  </p>
-                )}
+                <div>
+                  <span className="block text-[9px] font-semibold text-slate-400 uppercase">Absent</span>
+                  <span className="font-extrabold text-rose-500 text-xs">{absentCount}</span>
+                </div>
+                <div>
+                  <span className="block text-[9px] font-semibold text-slate-400 uppercase">Total</span>
+                  <span className="font-extrabold text-slate-700 text-xs">{totalSessions}</span>
+                </div>
               </div>
 
               {/* Month Navigator Toolbar */}
-              <div className="flex items-center justify-between py-1.5 px-2 bg-slate-50/80 rounded-xl border border-slate-200/60 mb-2.5">
+              <div className="flex items-center justify-between py-1 px-0.5 mb-1">
                 <button
                   type="button"
                   onClick={handlePrevMonth}
-                  className="w-6 h-6 rounded-lg hover:bg-slate-200/80 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+                  className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
                   title="Previous Month"
                 >
                   <ChevronLeft className="w-3.5 h-3.5" />
                 </button>
-                <div className="flex items-center gap-1.5">
-                  <CalendarDays className="w-3.5 h-3.5 text-slate-500" />
-                  <span className="text-xs font-black text-slate-800 tracking-tight">
-                    {monthNames[calMonth]} {calYear}
-                  </span>
-                </div>
+                <span className="text-[11px] font-bold text-slate-700">
+                  {monthNames[calMonth]} {calYear}
+                </span>
                 <button
                   type="button"
                   onClick={handleNextMonth}
-                  className="w-6 h-6 rounded-lg hover:bg-slate-200/80 flex items-center justify-center text-slate-600 transition-colors cursor-pointer"
+                  className="w-5 h-5 rounded hover:bg-slate-100 flex items-center justify-center text-slate-500 transition-colors cursor-pointer"
                   title="Next Month"
                 >
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -351,15 +292,15 @@ export function TopNav() {
               </div>
 
               {/* Calendar Grid */}
-              <div className="grid grid-cols-7 gap-1 text-center mb-3">
+              <div className="grid grid-cols-7 gap-1 text-center mb-2">
                 {['Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa', 'Su'].map((day, idx) => (
-                  <span key={idx} className="text-[10px] font-extrabold text-slate-400 py-0.5 uppercase tracking-wider">
+                  <span key={idx} className="text-[9px] font-bold text-slate-400 py-0.5">
                     {day}
                   </span>
                 ))}
 
                 {Array.from({ length: calendarStartOffset }).map((_, offset) => (
-                  <div key={`offset-${offset}`} className="w-7 h-7 sm:w-8 sm:h-8" />
+                  <div key={`offset-${offset}`} className="w-6 h-6 sm:w-7 sm:h-7" />
                 ))}
 
                 {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((d) => {
@@ -384,18 +325,18 @@ export function TopNav() {
                           ? `${dKey}: Present ${rec.remarks ? `(${rec.remarks})` : ''}`
                           : isAbsent
                           ? `${dKey}: Absent ${rec.remarks ? `(${rec.remarks})` : ''}`
-                          : `${dKey}: No Class (Holiday / Off-day)`
+                          : `${dKey}: No Class`
                       }
                       className={cn(
-                        "w-7 h-7 sm:w-8 sm:h-8 rounded-xl mx-auto flex items-center justify-center text-[11px] font-bold transition-all duration-150 cursor-pointer",
+                        "w-6 h-6 sm:w-7 sm:h-7 rounded-lg mx-auto flex items-center justify-center text-[10px] font-bold transition-all cursor-pointer",
                         isPresent
-                          ? "bg-gradient-to-br from-emerald-500 to-emerald-600 text-white font-black shadow-sm shadow-emerald-500/25 ring-2 ring-emerald-200 scale-105"
+                          ? "bg-emerald-500 text-white font-extrabold shadow-xs shadow-emerald-500/20"
                           : isAbsent
-                          ? "bg-gradient-to-br from-rose-500 to-rose-600 text-white font-black shadow-sm shadow-rose-500/25 ring-2 ring-rose-200 scale-105"
+                          ? "bg-rose-500 text-white font-extrabold shadow-xs shadow-rose-500/20"
                           : isToday
-                          ? "bg-purple-50 text-[#7c3aed] ring-1.5 ring-[#7c3aed] font-black"
-                          : "text-slate-700 hover:bg-slate-100",
-                        isSelected && !isPresent && !isAbsent && "ring-2 ring-indigo-500 bg-indigo-50 text-indigo-700 font-extrabold"
+                          ? "bg-purple-50 text-[#7c3aed] ring-1 ring-[#7c3aed] font-black"
+                          : "text-slate-600 hover:bg-slate-100",
+                        isSelected && !isPresent && !isAbsent && "ring-1.5 ring-indigo-500 bg-indigo-50 text-indigo-700"
                       )}
                     >
                       {d}
@@ -404,67 +345,37 @@ export function TopNav() {
                 })}
               </div>
 
-              {/* Selected Date or Latest Status Banner */}
-              <div className="p-2.5 rounded-2xl bg-slate-50/90 border border-slate-200/70 text-[11px] mb-3 min-h-[44px] flex items-center">
-                {selectedDateKey ? (
-                  selectedRecord ? (
-                    <div className="flex items-center justify-between w-full">
-                      <div className="min-w-0 pr-2">
-                        <span className="font-extrabold text-slate-800">{selectedDateKey}</span>
-                        {selectedRecord.remarks && (
-                          <p className="text-[10px] text-slate-500 italic truncate max-w-[150px]">"{selectedRecord.remarks}"</p>
-                        )}
-                      </div>
-                      <span className={cn(
-                        "text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0",
-                        (selectedRecord.status || '').toLowerCase() === 'present'
-                          ? "bg-emerald-100 text-emerald-800 border border-emerald-200/80"
-                          : "bg-rose-100 text-rose-800 border border-rose-200/80"
-                      )}>
-                        {selectedRecord.status}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-slate-500 text-[10px] text-center w-full font-medium">
-                      <span>{selectedDateKey} — No Class (Holiday, leave, or no live session)</span>
-                    </div>
-                  )
-                ) : latestRecord ? (
-                  <div className="flex items-center justify-between w-full">
-                    <div className="min-w-0 pr-2">
-                      <span className="text-[10px] font-bold text-slate-500 block">Latest session ({latestRecord.date}):</span>
-                      {latestRecord.remarks && (
-                        <p className="text-[10px] text-slate-600 italic truncate max-w-[150px]">"{latestRecord.remarks}"</p>
-                      )}
-                    </div>
+              {/* Compact Date Detail Preview (Only when a date is selected) */}
+              {selectedDateKey && (
+                <div className="py-1 px-2 rounded-lg bg-slate-50 border border-slate-100 text-[10px] mb-2 flex items-center justify-between">
+                  <span className="font-bold text-slate-700 truncate">{selectedDateKey}</span>
+                  {selectedRecord ? (
                     <span className={cn(
-                      "text-[9px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider shrink-0",
-                      (latestRecord.status || '').toLowerCase() === 'present'
-                        ? "bg-emerald-100 text-emerald-800 border border-emerald-200/80"
-                        : "bg-rose-100 text-rose-800 border border-rose-200/80"
+                      "font-black px-1.5 py-0.5 rounded text-[9px] uppercase",
+                      (selectedRecord.status || '').toLowerCase() === 'present'
+                        ? "bg-emerald-100 text-emerald-800"
+                        : "bg-rose-100 text-rose-800"
                     )}>
-                      {latestRecord.status}
+                      {selectedRecord.status}
                     </span>
-                  </div>
-                ) : (
-                  <div className="text-slate-500 text-[10px] text-center w-full font-medium py-0.5">
-                    No classes recorded yet. Only days marked Present or Absent count toward attendance.
-                  </div>
-                )}
-              </div>
+                  ) : (
+                    <span className="text-slate-400 font-medium">No Class</span>
+                  )}
+                </div>
+              )}
 
-              {/* Legend */}
-              <div className="flex items-center justify-center gap-5 pt-2 border-t border-slate-100 text-[10px] font-semibold text-slate-500">
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+              {/* Minimal Dot Legend */}
+              <div className="flex items-center justify-center gap-3.5 pt-1.5 border-t border-slate-100 text-[9px] font-medium text-slate-400">
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
                   <span>Present</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-rose-500 ring-2 ring-rose-200" />
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
                   <span>Absent</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-slate-300" />
+                <div className="flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300" />
                   <span>No Class</span>
                 </div>
               </div>
