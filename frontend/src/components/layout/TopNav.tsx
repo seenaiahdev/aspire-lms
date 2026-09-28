@@ -205,10 +205,8 @@ export function TopNav() {
                 attendancePct >= 85 ? "text-emerald-600" : attendancePct >= 75 ? "text-amber-600" : "text-rose-600"
               )} />
             )}
-            <span>{totalSessions === 0 ? 'No Class' : `${attendancePct}%`}</span>
-            {totalSessions > 0 && (
-              <span className="hidden md:inline font-semibold text-[10px] opacity-75">Att.</span>
-            )}
+            <span>{attendancePct}%</span>
+            <span className="hidden md:inline font-semibold text-[10px] opacity-75">Att.</span>
           </button>
 
           {/* Fixed-anchor positioning wrapper (zero horizontal shift or jumping from profile) */}
@@ -238,7 +236,7 @@ export function TopNav() {
                       ? "bg-amber-50 text-amber-700 border border-amber-200/60"
                       : "bg-rose-50 text-rose-700 border border-rose-200/60"
                   )}>
-                    {totalSessions === 0 ? 'No Classes' : `${attendancePct}%`}
+                    {attendancePct}%
                   </span>
                 </div>
 
