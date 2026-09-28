@@ -2,6 +2,12 @@ import { supabase } from './supabase';
 import { cachedQuery, invalidateCache } from './queryCache';
 
 /**
+ * Base URL for the backend API service when deployed as a separate server.
+ * Defaults to empty string (same domain / proxy), or e.g. 'https://api.aspirenext.com'
+ */
+export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/, '');
+
+/**
  * Clean phone number to compare suffixes (removes non-digits and takes last 10 digits)
  */
 function cleanPhoneSuffix(phone: string): string {

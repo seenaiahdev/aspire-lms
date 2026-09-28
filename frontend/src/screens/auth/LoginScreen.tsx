@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
 import { useNav } from '@/lib/nav';
-import { fetchStudentByPhone } from '@/lib/api';
+import { fetchStudentByPhone, API_BASE_URL } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
@@ -129,7 +129,7 @@ export function LoginScreen() {
     // Channel 2: Email OTP dispatch via backend
     const emailPromise = (async (): Promise<boolean> => {
       try {
-        const resp = await fetch('/api/send-otp', {
+        const resp = await fetch(`${API_BASE_URL}/api/send-otp`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ phone: mobile }),
@@ -367,7 +367,7 @@ export function LoginScreen() {
       // 3. Serverless HMAC verification (for email OTP)
       if (otpTokenRef.current) {
         try {
-          const resp = await fetch('/api/verify-otp', {
+          const resp = await fetch(`${API_BASE_URL}/api/verify-otp`, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
             body: JSON.stringify({ token: otpTokenRef.current, code: enteredOtp }),
@@ -456,7 +456,7 @@ export function LoginScreen() {
     setError('');
 
     try {
-      const resp = await fetch('/api/verify-passkey', {
+      const resp = await fetch(`${API_BASE_URL}/api/verify-passkey`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
