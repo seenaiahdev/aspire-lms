@@ -42,6 +42,8 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 const MAX_STORED = 100;
 const listKey = (sid: string) => `aspire_notifications_${sid}`;
 const unlockSeenKey = (sid: string) => `aspire_seen_unlocks_${sid}`;
+// IDs of notifications explicitly read by the user — persist read status across sessions.
+const readKey = (sid: string) => `aspire_read_notifs_${sid}`;
 // IDs of notifications explicitly dismissed by the user — never restore these from DB on re-login.
 const dismissedKey = (sid: string) => `aspire_dismissed_notifs_${sid}`;
 
@@ -210,10 +212,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         if (raw) dismissedIds = new Set(JSON.parse(raw));
       } catch {}
 
+      // Load the set of IDs the user has already read
+      let readIds = new Set<string>();
+      try {
+        const rawRead = localStorage.getItem(readKey(sid));
+        if (rawRead) readIds = new Set(JSON.parse(rawRead));
+      } catch {}
+
       const byId = new Map<string, AppNotification>();
       [...dbRows, ...stored].forEach((n) => {
         if (n && n.id && !byId.has(n.id) && !dismissedIds.has(n.id)) {
-          byId.set(n.id, sanitizeNotification(n));
+          const isRead = n.read === true || readIds.has(n.id);
+          byId.set(n.id, { ...sanitizeNotification(n), read: isRead });
         }
       });
       // Course-level & milestone unlock purge: ensure students never see coursework notifications
@@ -312,15 +322,23 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const sid = user?.id;
     if (!sid || sid === 'guest') return;
     const ids = user?.unlockedLessonIds || [];
+    if (ids.length === 0) return; // Wait until unlocked lessons are loaded from UserContext!
+
     const key = unlockSeenKey(sid);
-    let seen: string[] = [];
     const raw = localStorage.getItem(key);
     if (raw === null) {
       // First run: baseline silently (don't back-fill notifications for already-open lessons).
       try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
       return;
     }
+    let seen: string[] = [];
     try { seen = JSON.parse(raw) || []; } catch { seen = []; }
+    if (seen.length === 0) {
+      // If previous baseline was empty, update it silently without spamming
+      try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
+      return;
+    }
+
     const seenSet = new Set(seen);
     const newly = ids.filter((id) => !seenSet.has(id));
     if (newly.length === 0) return;
@@ -734,20 +752,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const currentUnlockedRewardIds = unlockedRewards.map((r: any) => r.id);
 
         const prevUnlockedRaw = localStorage.getItem(rewardsKey);
-        if (prevUnlockedRaw === null) {
-          // Initialize baseline for already-unlocked rewards on very first visit
+        let prevUnlockedIds: string[] = [];
+        try { prevUnlockedIds = prevUnlockedRaw ? JSON.parse(prevUnlockedRaw) : []; } catch {}
+
+        if (prevUnlockedRaw === null || prevUnlockedIds.length === 0) {
+          // Initialize baseline silently on first visit/login without spamming toasts
           try { localStorage.setItem(rewardsKey, JSON.stringify(currentUnlockedRewardIds)); } catch {}
         } else {
-          let prevUnlockedIds: string[] = [];
-          try { prevUnlockedIds = JSON.parse(prevUnlockedRaw) || []; } catch {}
           const prevSet = new Set(prevUnlockedIds);
           const newlyUnlockedRewards = unlockedRewards.filter((r: any) => !prevSet.has(r.id));
 
           if (newlyUnlockedRewards.length > 0) {
             newlyUnlockedRewards.forEach((r: any) => {
-              // Use a STABLE, deterministic ID (no Date.now() / random) so that once
-              // this notification is read & deleted, addNotification's dedup check prevents
-              // it from ever reappearing on the next effect run.
               addNotification(
                 {
                   id: `notif-reward-unlock-${sid}-${r.id}`,
@@ -762,9 +778,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
               );
             });
           }
-
-          // Always synchronize stored baseline with the current unlocked set.
-          // When XP is reduced, stored baseline shrinks; when XP is increased again, it correctly fires!
           try { localStorage.setItem(rewardsKey, JSON.stringify(currentUnlockedRewardIds)); } catch {}
         }
 
@@ -778,18 +791,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const currentEarnedBadgeIds = earnedBadges.map((b: any) => b.id);
 
         const prevBadgesRaw = localStorage.getItem(badgesKey);
-        if (prevBadgesRaw === null) {
-          // Initialize baseline for already-earned badges on very first visit
+        let prevEarnedIds: string[] = [];
+        try { prevEarnedIds = prevBadgesRaw ? JSON.parse(prevBadgesRaw) : []; } catch {}
+
+        if (prevBadgesRaw === null || prevEarnedIds.length === 0) {
+          // Initialize baseline silently on first visit/login without spamming toasts
           try { localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds)); } catch {}
         } else {
-          let prevEarnedIds: string[] = [];
-          try { prevEarnedIds = JSON.parse(prevBadgesRaw) || []; } catch {}
           const prevBadgeSet = new Set(prevEarnedIds);
           const newlyEarnedBadges = earnedBadges.filter((b: any) => !prevBadgeSet.has(b.id));
 
           if (newlyEarnedBadges.length > 0) {
             newlyEarnedBadges.forEach((b: any) => {
-              // Stable deterministic ID — same badge can only generate one notification ever.
               addNotification(
                 {
                   id: `notif-badge-earned-${sid}-${b.id}`,
@@ -804,8 +817,6 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
               );
             });
           }
-
-          // Always synchronize stored baseline with current earned set
           try { localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds)); } catch {}
         }
       } catch (err) {
@@ -817,6 +828,20 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   }, [user?.id, user?.xp, user?.streak, user?.progress, user?.attendance, addNotification]);
 
   // ── Actions ──
+
+  /** Record IDs as read so their read status is permanently preserved across sessions */
+  const recordRead = useCallback((ids: string[]) => {
+    const sid = userRef.current?.id;
+    if (!sid || ids.length === 0) return;
+    try {
+      const key = readKey(sid);
+      const raw = localStorage.getItem(key);
+      let existing: string[] = [];
+      try { existing = raw ? JSON.parse(raw) : []; } catch {}
+      const updated = Array.from(new Set([...existing, ...ids]));
+      localStorage.setItem(key, JSON.stringify(updated));
+    } catch {}
+  }, []);
 
   /** Record an ID as dismissed so it is never restored from DB on next login. */
   const recordDismissed = useCallback((ids: string[]) => {
@@ -835,24 +860,29 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const markRead = useCallback((id: string) => {
     const sid = userRef.current?.id;
     setNotifications((prev) => {
-      const next = prev.filter((n) => n.id !== id);
+      const next = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
       if (sid) persistLocal(sid, next);
       return next;
     });
-    recordDismissed([id]);
-    deleteNotificationRow(id).catch(() => {});
-  }, [persistLocal, recordDismissed]);
+    recordRead([id]);
+    updateNotificationReadStatus(id, true).catch(() => {});
+  }, [persistLocal, recordRead]);
 
   const markAllRead = useCallback(() => {
     const sid = userRef.current?.id;
     const allIds = listRef.current.map((n) => n.id);
-    setNotifications([]);
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, read: true }));
+      if (sid) persistLocal(sid, next);
+      return next;
+    });
+    recordRead(allIds);
     if (sid) {
-      persistLocal(sid, []);
-      markAllNotificationsAsRead(sid).catch(() => {});
+      allIds.forEach((id) => {
+        updateNotificationReadStatus(id, true).catch(() => {});
+      });
     }
-    recordDismissed(allIds);
-  }, [persistLocal, recordDismissed]);
+  }, [persistLocal, recordRead]);
 
   const deleteNotification = useCallback((id: string) => {
     const sid = userRef.current?.id;
