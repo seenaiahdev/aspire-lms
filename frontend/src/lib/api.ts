@@ -121,7 +121,7 @@ export async function fetchCourses(batchCategory: string) {
     const targetBatchStr = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
     const { data, error } = await supabase
       .from('courses')
-      .select('id, title, description, thumbnail, target_batch, publish_status, instructor_name, instructor_avatar, duration, modules_count, total_lessons')
+      .select('*')
       .or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`);
 
     if (error) {
@@ -261,7 +261,7 @@ export async function fetchLiveSessions(batchCode: string) {
   return cachedQuery(`live_sessions:${batchCode}`, async () => {
     const { data, error } = await supabase
       .from('live_sessions')
-      .select('id, session_title, technology, date, time, status, meeting_link, batch_code, target_batch, instructor_name, description, duration')
+      .select('*')
       .or(liveSessionBatchFilter(batchCode))
       .order('date', { ascending: true })
       .order('time', { ascending: true });
@@ -283,7 +283,7 @@ export async function fetchAllLiveSessions(batchCode: string) {
   return cachedQuery(`all_live_sessions:${batchCode}`, async () => {
     const { data, error } = await supabase
       .from('live_sessions')
-      .select('id, session_title, technology, date, time, status, meeting_link, batch_code, target_batch, instructor_name, description, duration')
+      .select('*')
       .or(liveSessionBatchFilter(batchCode))
       .order('date', { ascending: false })
       .order('time', { ascending: false });
