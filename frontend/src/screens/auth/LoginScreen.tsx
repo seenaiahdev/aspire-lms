@@ -814,25 +814,22 @@ export function LoginScreen() {
                 </button>
               </form>
             ) : (
-              /* STEP 3: ADMIN ALPHANUMERIC PASSKEY VERIFICATION FORM */
-              <form onSubmit={handlePasskeySubmit} className="w-full flex flex-col items-center my-auto animate-fade-in">
+              /* STEP 3: MINIMAL WHATSAPP-STYLE DASHED PASSKEY VERIFICATION */
+              <form onSubmit={handlePasskeySubmit} className="w-full flex flex-col items-center my-auto animate-fade-in pt-2">
                 <div className="flex flex-col items-center text-center mb-4">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-gradient-to-r from-purple-100 to-indigo-100 text-purple-900 text-[11px] sm:text-xs font-bold mb-2 shadow-xs border border-purple-200/60">
-                    <KeyRound className="w-3.5 h-3.5 text-purple-600 animate-pulse" />
-                    <span>ADMIN PASSKEY ACCESS</span>
-                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping ml-0.5" />
+                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100/80 text-purple-800 text-[10px] font-bold mb-1.5">
+                    <KeyRound className="w-3 h-3 text-purple-600" />
+                    <span>PASSKEY</span>
                   </div>
-                  <h3 className="text-base sm:text-lg font-black text-slate-800 tracking-tight flex items-center gap-1.5">
-                    Enter One-Time Key
-                  </h3>
-                  <p className="text-xs text-slate-500 font-normal mt-1 max-w-[280px] sm:max-w-xs leading-relaxed">
-                    Enter the single-use alphanumeric key provided by your admin. It rotates immediately upon login.
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Enter 6-character key from admin
                   </p>
                 </div>
 
-                {/* 6 Alphanumeric Monospace Input Cells */}
-                <div className="flex gap-2 sm:gap-2.5 justify-center mb-3">
-                  {passkey.map((char, idx) => (
+                {/* WhatsApp-style Dashed Underline Structure (3 - 3) with Ctrl+V auto-paste */}
+                <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-2">
+                  {/* First 3 characters */}
+                  {passkey.slice(0, 3).map((char, idx) => (
                     <input
                       key={idx}
                       id={`passkey-input-${idx}`}
@@ -845,101 +842,94 @@ export function LoginScreen() {
                       onChange={(e) => handlePasskeyChange(idx, e.target.value)}
                       onKeyDown={(e) => handlePasskeyKeyDown(idx, e)}
                       onPaste={handlePasskeyPaste}
-                      className={`w-9 h-12 sm:w-11 sm:h-13 bg-white rounded-xl border-2 text-center font-mono font-bold text-lg sm:text-xl text-slate-800 outline-none shadow-xs transition-all duration-200 ${
+                      className={`w-8 sm:w-10 h-10 sm:h-12 bg-transparent border-b-2 text-center font-mono font-bold text-lg sm:text-xl text-slate-800 outline-none transition-colors duration-150 ${
                         error
-                          ? 'border-red-500 bg-red-50/20 focus:ring-2 focus:ring-red-500/30'
+                          ? 'border-red-500 text-red-600'
                           : char
-                          ? 'border-purple-600 bg-purple-50/20 ring-1 ring-purple-500/20'
-                          : 'border-slate-300/90 focus:border-purple-600 focus:ring-2 focus:ring-purple-500/30'
+                          ? 'border-purple-600'
+                          : 'border-slate-300 focus:border-purple-600'
                       }`}
                     />
                   ))}
+
+                  {/* Minimal Separator Dash */}
+                  <span className="text-slate-300 font-bold text-sm sm:text-base select-none px-0.5">
+                    —
+                  </span>
+
+                  {/* Last 3 characters */}
+                  {passkey.slice(3, 6).map((char, i) => {
+                    const idx = i + 3;
+                    return (
+                      <input
+                        key={idx}
+                        id={`passkey-input-${idx}`}
+                        type={showPasskey ? 'text' : 'password'}
+                        maxLength={1}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck="false"
+                        value={char}
+                        onChange={(e) => handlePasskeyChange(idx, e.target.value)}
+                        onKeyDown={(e) => handlePasskeyKeyDown(idx, e)}
+                        onPaste={handlePasskeyPaste}
+                        className={`w-8 sm:w-10 h-10 sm:h-12 bg-transparent border-b-2 text-center font-mono font-bold text-lg sm:text-xl text-slate-800 outline-none transition-colors duration-150 ${
+                          error
+                            ? 'border-red-500 text-red-600'
+                            : char
+                            ? 'border-purple-600'
+                            : 'border-slate-300 focus:border-purple-600'
+                        }`}
+                      />
+                    );
+                  })}
                 </div>
 
-                {/* Controls Bar: Paste Key + Show/Hide + Case Sensitivity Indicator */}
-                <div className="flex items-center justify-between w-full px-1 mb-4 text-[11px]">
+                {/* Minimal Eye Toggle */}
+                <div className="flex items-center justify-end w-full px-2 mb-3">
                   <button
                     type="button"
-                    onClick={handlePasteFromClipboard}
-                    className="inline-flex items-center gap-1 font-semibold text-purple-700 hover:text-purple-800 transition-colors bg-purple-50/80 hover:bg-purple-100/80 px-2.5 py-1 rounded-lg border border-purple-200/50"
+                    onClick={() => setShowPasskey(!showPasskey)}
+                    className="text-slate-400 hover:text-slate-600 transition-colors p-1"
+                    title={showPasskey ? 'Hide passkey' : 'Show passkey'}
                   >
-                    {pasteFeedback ? (
-                      <>
-                        <Check className="w-3 h-3 text-emerald-600" />
-                        <span className="text-emerald-700 font-bold">Pasted!</span>
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-3 h-3" />
-                        <span>Paste Key</span>
-                      </>
-                    )}
+                    {showPasskey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
-
-                  <div className="flex items-center gap-2">
-                    <span className="text-slate-400 font-medium text-[10px] hidden sm:inline">
-                      Case-sensitive (A-Z, a-z, 0-9)
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => setShowPasskey(!showPasskey)}
-                      className="p-1 rounded-lg text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-                      title={showPasskey ? 'Hide passkey' : 'Show passkey'}
-                    >
-                      {showPasskey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                    </button>
-                  </div>
                 </div>
 
-                {/* Error Message */}
+                {/* Small & Minimal Error Message */}
                 {error && (
-                  <p className="w-full text-left text-xs font-semibold text-red-600 mb-4 pl-1 flex items-center gap-1.5 animate-fade-in">
-                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                    {error}
+                  <p className="w-full text-center text-[11px] font-semibold text-red-600 mb-3 flex items-center justify-center gap-1 animate-fade-in">
+                    <AlertCircle className="w-3 h-3 shrink-0" />
+                    <span>{error}</span>
                   </p>
                 )}
 
-                {/* Submit button / In-place Indicator Loader */}
-                {isSubmitting ? (
-                  <div 
-                    className="w-full h-[52px] sm:h-[56px] rounded-xl flex items-center justify-center gap-3 px-4 shadow-lg animate-fade-in text-white select-none cursor-wait"
-                    style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
-                  >
-                    <span className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white border-r-white animate-spin shrink-0 shadow-[0_0_8px_rgba(255,255,255,0.8)]" />
-                    <span className="tracking-widest font-bold text-xs sm:text-sm uppercase text-white drop-shadow-sm flex items-center gap-1.5">
-                      <span>VERIFYING PASSKEY</span>
-                      <span className="inline-flex">
-                        <span className="animate-bounce">.</span>
-                        <span className="animate-bounce delay-100">.</span>
-                        <span className="animate-bounce delay-200">.</span>
-                      </span>
-                    </span>
-                  </div>
-                ) : (
-                  <button
-                    type="submit"
-                    className="w-full text-white font-bold text-xs sm:text-sm py-3.5 sm:py-4 rounded-xl uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-[0_10px_25px_-5px_rgba(117,64,255,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(117,64,255,0.55)] group"
-                    style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
-                  >
-                    <KeyRound className="w-4 h-4" />
-                    <span>UNLOCK DASHBOARD</span>
-                    <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
-                  </button>
-                )}
+                {/* Minimal Action Button */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full text-white font-bold text-xs sm:text-sm py-3.5 sm:py-4 rounded-xl uppercase tracking-widest flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-300 shadow-[0_10px_25px_-5px_rgba(117,64,255,0.4)] hover:shadow-[0_15px_30px_-5px_rgba(117,64,255,0.55)] group disabled:opacity-70"
+                  style={{ background: 'linear-gradient(135deg, #47269f 0%, #7540ff 100%)' }}
+                >
+                  {isSubmitting ? (
+                    <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                  ) : (
+                    <>
+                      <span>CONTINUE</span>
+                      <ArrowRight className="w-4 h-4 transition-transform duration-200 group-hover:translate-x-1" />
+                    </>
+                  )}
+                </button>
 
-                {/* Bottom Assistance & Back Actions */}
-                <div className="flex flex-col items-center gap-1 mt-4">
-                  <p className="text-[11px] text-slate-400 font-medium text-center">
-                    This key auto-rotates immediately upon verification.
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => { setStep('otp'); setError(''); }}
-                    className="text-xs font-semibold text-primary-700 hover:underline mt-1"
-                  >
-                    Back to OTP Verification
-                  </button>
-                </div>
+                {/* Minimal Back Action */}
+                <button
+                  type="button"
+                  onClick={() => { setStep('otp'); setError(''); }}
+                  className="text-[11px] font-medium text-slate-400 hover:text-primary-700 hover:underline mt-3"
+                >
+                  Back
+                </button>
               </form>
             )}
 

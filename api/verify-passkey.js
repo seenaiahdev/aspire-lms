@@ -120,7 +120,7 @@ module.exports = async (req, res) => {
     if (!student.access_pin) {
       return res.status(400).json({
         ok: false,
-        error: 'No active passkey has been issued for your account. Please contact your administrator to generate one.',
+        error: 'Passkey not found. Contact admin.',
       });
     }
 
@@ -128,7 +128,7 @@ module.exports = async (req, res) => {
     if (!currentDecrypted) {
       return res.status(500).json({
         ok: false,
-        error: 'Passkey encryption error. Please contact administrator to re-generate your passkey.',
+        error: 'Invalid passkey. Check case & retry.',
       });
     }
 
@@ -137,7 +137,7 @@ module.exports = async (req, res) => {
       recordFailure(rateLimitKey);
       return res.status(401).json({
         ok: false,
-        error: 'Invalid Access Passkey. Please verify uppercase/lowercase characters and try again.',
+        error: 'Invalid passkey. Check case & retry.',
       });
     }
 

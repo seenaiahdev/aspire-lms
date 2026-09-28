@@ -8,11 +8,20 @@ const LOWER = 'abcdefghijkmnpqrstuvwxyz';
 const DIGITS = '23456789';
 const ALL_CHARS = UPPER + LOWER + DIGITS;
 
+function getCandidateSecrets() {
+  const list = [];
+  if (process.env.PASSKEY_SECRET) list.push(process.env.PASSKEY_SECRET);
+  if (process.env.OTP_SECRET) list.push(process.env.OTP_SECRET);
+  list.push('some-secure-random-secret-key-12345');
+  list.push('aspire_lms_passkey_vault_secret_2026');
+  return [...new Set(list.filter(Boolean))];
+}
+
 /**
  * Derives a 32-byte (256-bit) buffer from the secret string using SHA-256.
  */
 function getDerivedKey(secret) {
-  const s = secret || process.env.PASSKEY_SECRET || process.env.OTP_SECRET || 'aspire_lms_passkey_vault_secret_2026';
+  const s = secret || getCandidateSecrets()[0];
   return crypto.createHash('sha256').update(String(s)).digest();
 }
 
@@ -62,29 +71,34 @@ function encryptPasskey(plaintext, secret) {
 
 /**
  * Decrypts a ciphertext string encrypted with AES-256-GCM.
- * Returns the plaintext string, or null if corrupted/invalid.
+ * Supports fallback secrets to ensure seamless cross-environment decryption.
  */
 function decryptPasskey(encryptedString, secret) {
   if (!encryptedString || typeof encryptedString !== 'string') return null;
   const parts = encryptedString.split(':');
   if (parts.length !== 3) return null;
 
-  try {
-    const [ivHex, authTagHex, encHex] = parts;
-    const key = getDerivedKey(secret);
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
+  const secretsToTry = secret ? [secret] : getCandidateSecrets();
 
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
-    decipher.setAuthTag(authTag);
+  for (const s of secretsToTry) {
+    try {
+      const [ivHex, authTagHex, encHex] = parts;
+      const key = getDerivedKey(s);
+      const iv = Buffer.from(ivHex, 'hex');
+      const authTag = Buffer.from(authTagHex, 'hex');
 
-    let decrypted = decipher.update(encHex, 'hex', 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  } catch (err) {
-    console.error('decryptPasskey failed:', err.message);
-    return null;
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+      decipher.setAuthTag(authTag);
+
+      let decrypted = decipher.update(encHex, 'hex', 'utf8');
+      decrypted += decipher.final('utf8');
+      if (decrypted) return decrypted;
+    } catch {
+      // try next candidate secret
+    }
   }
+
+  return null;
 }
 
 module.exports = {

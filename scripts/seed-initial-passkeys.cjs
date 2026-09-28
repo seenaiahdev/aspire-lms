@@ -20,6 +20,11 @@ try {
 
 const urlMatch = envContent.match(/(?:VITE_)?SUPABASE_URL\s*=\s*(.*)/);
 const keyMatch = envContent.match(/(?:VITE_)?SUPABASE_ANON_KEY\s*=\s*(.*)/);
+const otpMatch = envContent.match(/OTP_SECRET\s*=\s*(.*)/);
+const passkeyMatch = envContent.match(/PASSKEY_SECRET\s*=\s*(.*)/);
+
+if (otpMatch) process.env.OTP_SECRET = otpMatch[1].trim();
+if (passkeyMatch) process.env.PASSKEY_SECRET = passkeyMatch[1].trim();
 
 const SUPABASE_URL = urlMatch ? urlMatch[1].trim() : 'https://maahwymvereyofrhrytx.supabase.co';
 const SUPABASE_KEY = keyMatch ? keyMatch[1].trim() : '';
