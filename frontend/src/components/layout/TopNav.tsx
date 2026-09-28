@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Menu, Bell, LogOut, Flame, Zap, User, Settings, ChevronDown } from 'lucide-react';
+import { Menu, Bell, LogOut, Flame, Zap, User, Settings, ChevronDown, CheckCircle2, AlertCircle, ShieldCheck } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
 import { useNotifications } from '@/lib/NotificationsContext';
@@ -10,8 +10,10 @@ export function TopNav() {
   const { user: currentUser } = useUser();
   const { setSidebarOpen, navigate, logout, route, notificationsOpen, setNotificationsOpen } = useNav();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [attendanceOpen, setAttendanceOpen] = useState(false);
   const { unreadCount: unread } = useNotifications();
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const attendanceRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown on click outside (but not when clicking on tour overlay/tooltips)
   useEffect(() => {
@@ -23,6 +25,9 @@ export function TopNav() {
       }
       if (dropdownRef.current && !dropdownRef.current.contains(target)) {
         setProfileOpen(false);
+      }
+      if (attendanceRef.current && !attendanceRef.current.contains(target)) {
+        setAttendanceOpen(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -70,6 +75,13 @@ export function TopNav() {
     settings: 'Settings',
   };
 
+  const attendancePct = currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : 100);
+  const attStats = currentUser.attendanceStats;
+  const totalSessions = attStats ? attStats.totalSessions : (currentUser.attendance ? 1 : 0);
+  const presentCount = attStats ? attStats.presentCount : (attendancePct >= 85 ? totalSessions : 0);
+  const absentCount = attStats ? attStats.absentCount : Math.max(0, totalSessions - presentCount);
+  const latestRecord = attStats?.latestRecord;
+
   return (
     <header className="sticky top-0 z-40 h-16 bg-white border-b border-slate-200/90 text-slate-900 flex items-center justify-between px-4 lg:px-6 font-sans">
       <div className="flex items-center gap-3">
@@ -107,6 +119,124 @@ export function TopNav() {
         >
           <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#7c3aed] fill-[#7c3aed]" />
           <span>{currentUser.xp || 0} <span className="hidden sm:inline">XP</span></span>
+        </div>
+
+        {/* 🎯 MENTOR-VERIFIED ATTENDANCE BADGE */}
+        <div className="relative" ref={attendanceRef}>
+          <button 
+            id="tour-attendance"
+            onClick={() => setAttendanceOpen(!attendanceOpen)}
+            title={`Attendance: ${attendancePct}% (Mentor Verified)`}
+            className={cn(
+              "flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-xl border text-xs font-extrabold shadow-sm transition-all cursor-pointer active:scale-95",
+              attendancePct >= 85
+                ? "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                : attendancePct >= 75
+                ? "bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100"
+                : "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
+            )}
+          >
+            <CheckCircle2 className={cn(
+              "w-3.5 h-3.5 sm:w-4 sm:h-4 shrink-0",
+              attendancePct >= 85 ? "text-emerald-600" : attendancePct >= 75 ? "text-amber-600" : "text-rose-600"
+            )} />
+            <span>{attendancePct}%</span>
+            <span className="hidden md:inline font-semibold text-[10px] opacity-75">Att.</span>
+          </button>
+
+          {/* Interactive Popover Menu */}
+          <div className={cn(
+            "absolute right-0 sm:right-auto sm:left-1/2 sm:-translate-x-1/2 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-4 z-[10001] transition-all duration-200 origin-top",
+            attendanceOpen ? "opacity-100 scale-100 pointer-events-auto animate-scale-in" : "opacity-0 scale-95 pointer-events-none"
+          )}>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <div className={cn(
+                  "w-8 h-8 rounded-xl flex items-center justify-center font-black text-xs",
+                  attendancePct >= 85 ? "bg-emerald-100 text-emerald-700" : attendancePct >= 75 ? "bg-amber-100 text-amber-700" : "bg-rose-100 text-rose-700"
+                )}>
+                  {attendancePct}%
+                </div>
+                <div>
+                  <h4 className="text-xs font-extrabold text-slate-900 leading-tight">Live Class Attendance</h4>
+                  <span className="text-[10px] font-semibold text-slate-500">Verified by Mentors</span>
+                </div>
+              </div>
+              <span className={cn(
+                "text-[10px] font-extrabold px-2 py-0.5 rounded-full border",
+                attendancePct >= 85
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : attendancePct >= 75
+                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                  : "bg-rose-50 text-rose-700 border-rose-200"
+              )}>
+                {attendancePct >= 85 ? 'Eligible' : attendancePct >= 75 ? 'Warning' : 'Low'}
+              </span>
+            </div>
+
+            {/* Metric Breakdown */}
+            <div className="grid grid-cols-3 gap-2 my-3 text-center">
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="block text-[10px] font-bold text-slate-500">Present</span>
+                <span className="text-xs font-black text-emerald-600">{presentCount}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="block text-[10px] font-bold text-slate-500">Absent</span>
+                <span className="text-xs font-black text-rose-600">{absentCount}</span>
+              </div>
+              <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                <span className="block text-[10px] font-bold text-slate-500">Total</span>
+                <span className="text-xs font-black text-slate-700">{totalSessions}</span>
+              </div>
+            </div>
+
+            {/* Placement requirement status */}
+            <div className={cn(
+              "p-2.5 rounded-xl text-[11px] font-medium mb-3 flex items-start gap-2",
+              attendancePct >= 85 ? "bg-emerald-50/80 text-emerald-900" : "bg-amber-50/90 text-amber-900"
+            )}>
+              {attendancePct >= 85 ? (
+                <>
+                  <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>You meet the <strong>85% attendance criteria</strong> required for placement opportunities & certificates.</span>
+                </>
+              ) : (
+                <>
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>Aspire requires <strong>85% attendance</strong> for placements. Attend upcoming sessions to raise your score.</span>
+                </>
+              )}
+            </div>
+
+            {/* Latest verification note */}
+            {latestRecord && (
+              <div className="text-[10px] text-slate-500 pb-3 mb-3 border-b border-slate-100 flex items-center justify-between">
+                <span>Latest: <strong>{latestRecord.date}</strong></span>
+                <span className={cn(
+                  "font-bold uppercase tracking-wider",
+                  latestRecord.status?.toLowerCase() === 'present' ? "text-emerald-600" : "text-rose-600"
+                )}>
+                  {latestRecord.status} {latestRecord.remarks ? `• ${latestRecord.remarks}` : ''}
+                </span>
+              </div>
+            )}
+
+            {/* Direct navigation buttons */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => { setAttendanceOpen(false); navigate('live'); }}
+                className="flex-1 py-1.5 px-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] text-[11px] font-bold transition-colors text-center cursor-pointer"
+              >
+                Live Classes
+              </button>
+              <button
+                onClick={() => { setAttendanceOpen(false); navigate('progress'); }}
+                className="flex-1 py-1.5 px-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold transition-colors text-center cursor-pointer"
+              >
+                View Progress
+              </button>
+            </div>
+          </div>
         </div>
 
         {/* Notifications Bell Button */}

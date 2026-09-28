@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
-import { User } from '@/types';
+import { User, AttendanceStats } from '@/types';
 import {
   fetchStudentByPhone,
   fetchBatchCategory,
@@ -10,7 +10,9 @@ import {
   computeCourseProgress,
   issueCertificateIfComplete,
   recalculateUserStreak,
-  isWeekdayBatchUser
+  isWeekdayBatchUser,
+  fetchStudentAttendanceStats,
+  invalidateAttendanceCache
 } from '@/lib/api';
 import { supabase } from './supabase';
 
@@ -46,6 +48,8 @@ interface ExtendedUser extends User {
   mobile?: string;
   gpa?: number;
   attendance?: number;
+  attendancePercentage?: number;
+  attendanceStats?: AttendanceStats;
   progress?: number;
   status?: string;
   registrationId?: string;
@@ -213,6 +217,21 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
           const realXp = Number(profile?.xp ?? (student as any)?.xp ?? 0);
 
+          let attendanceStats: AttendanceStats = {
+            percentage: 100,
+            presentCount: 0,
+            absentCount: 0,
+            totalSessions: 0,
+            records: [],
+          };
+          if (student.id && student.id !== 'guest') {
+            try {
+              attendanceStats = await fetchStudentAttendanceStats(student.id, resolvedBatch || student.batch);
+            } catch (attErr) {
+              console.warn('Attendance calculation skipped:', attErr);
+            }
+          }
+
           const updatedUser = {
             id: student.id,
             name: student.name,
@@ -239,7 +258,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
             batchCategory: resolvedCategory,
             mobile: loggedInMobile,
             gpa: realGpa,
-            attendance: realStreak,
+            attendance: attendanceStats.percentage,
+            attendancePercentage: attendanceStats.percentage,
+            attendanceStats: attendanceStats,
             progress: realProgress,
             status: student.status,
             registrationId: student.registration_id,
@@ -422,6 +443,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'lesson_progress' }, (payload) => {
           if (!payload.new || (payload.new as any).student_id === userRef.current?.id) bumpProgress();
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, (payload) => {
+          const newRow = payload.new as any;
+          const oldRow = payload.old as any;
+          const sid = userRef.current?.id;
+          const batch = userRef.current?.batchCode;
+          if (sid && (!newRow?.student_id || newRow.student_id === sid || oldRow?.student_id === sid || newRow?.batch_code === batch)) {
+            invalidateAttendanceCache(sid);
+            bumpProgress();
+          }
         });
 
       ['assessments', 'quizzes', 'coding_questions', 'projects'].forEach((table) => {

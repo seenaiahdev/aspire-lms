@@ -20,6 +20,26 @@ export interface User {
   socials: { label: string; value: string }[];
 }
 
+export interface AttendanceRecord {
+  id: string;
+  batch_code: string;
+  date: string;
+  student_id: string;
+  status: 'present' | 'absent' | 'late' | 'excused' | string;
+  remarks?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface AttendanceStats {
+  percentage: number;
+  presentCount: number;
+  absentCount: number;
+  totalSessions: number;
+  records: AttendanceRecord[];
+  latestRecord?: AttendanceRecord;
+}
+
 export interface Course {
   id: ID;
   title: string;

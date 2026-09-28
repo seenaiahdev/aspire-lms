@@ -36,6 +36,13 @@ export function ProgressScreen() {
     loadData();
   }, [currentUser?.id, currentUser?.enrolledCourses?.join(',')]);
 
+  const attendancePct = currentUser.attendancePercentage ?? (currentUser.attendance !== undefined ? currentUser.attendance : 100);
+  const attStats = currentUser.attendanceStats;
+  const totalSessions = attStats ? attStats.totalSessions : (currentUser.attendance ? 1 : 0);
+  const presentCount = attStats ? attStats.presentCount : (attendancePct >= 85 ? totalSessions : 0);
+  const absentCount = attStats ? attStats.absentCount : Math.max(0, totalSessions - presentCount);
+  const latestRecord = attStats?.latestRecord;
+
   return (
     <div className="space-y-6">
       <div>
@@ -94,12 +101,53 @@ export function ProgressScreen() {
           </CardBody>
         </Card>
 
-        {/* Monthly Attendance */}
+        {/* Live Class Attendance */}
         <Card>
           <CardBody>
-            <h3 className="font-bold text-ink-900 mb-1">Attendance Trend</h3>
-            <p className="text-xs text-ink-500 mb-6">Monthly attendance rate</p>
-            <div className="text-center py-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100 text-sm">Attendance data not available yet</div>
+            <div className="flex items-center justify-between mb-1">
+              <h3 className="font-bold text-ink-900">Live Class Attendance</h3>
+              <Badge variant={attendancePct >= 85 ? 'success' : attendancePct >= 75 ? 'warning' : 'danger'}>
+                {attendancePct}%
+              </Badge>
+            </div>
+            <p className="text-xs text-ink-500 mb-4">Mentor-verified live sessions attendance rate</p>
+            
+            <div className="space-y-4">
+              <div>
+                <div className="flex items-center justify-between text-xs mb-1.5 font-semibold text-slate-700">
+                  <span>Attendance Progress</span>
+                  <span>{presentCount} of {totalSessions} sessions attended</span>
+                </div>
+                <ProgressBar
+                  value={attendancePct}
+                  color={attendancePct >= 85 ? 'bg-success-500' : attendancePct >= 75 ? 'bg-warning-500' : 'bg-rose-500'}
+                />
+              </div>
+
+              <div className="grid grid-cols-3 gap-2 text-center pt-1">
+                <div className="p-2.5 rounded-xl bg-emerald-50/70 border border-emerald-100">
+                  <span className="text-[11px] font-bold text-emerald-700 block">Present</span>
+                  <span className="text-base font-black text-emerald-800">{presentCount}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-rose-50/70 border border-rose-100">
+                  <span className="text-[11px] font-bold text-rose-700 block">Absent</span>
+                  <span className="text-base font-black text-rose-800">{absentCount}</span>
+                </div>
+                <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                  <span className="text-[11px] font-bold text-slate-600 block">Conducted</span>
+                  <span className="text-base font-black text-slate-900">{totalSessions}</span>
+                </div>
+              </div>
+
+              {latestRecord && (
+                <div className="text-xs text-slate-600 bg-slate-50 p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                  <span>Latest session: <strong>{latestRecord.date}</strong></span>
+                  <span className={latestRecord.status?.toLowerCase() === 'present' ? 'font-bold text-emerald-600 uppercase' : 'font-bold text-rose-600 uppercase'}>
+                    {latestRecord.status} {latestRecord.remarks ? `(${latestRecord.remarks})` : ''}
+                  </span>
+                </div>
+              )}
+            </div>
           </CardBody>
         </Card>
 

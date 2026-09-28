@@ -1,5 +1,6 @@
 import { supabase } from './supabase';
 import { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
+import type { AttendanceRecord, AttendanceStats } from '../types';
 
 /**
  * Base URL for the backend API service when deployed as a separate server.
@@ -2339,5 +2340,113 @@ export async function deleteNotificationRow(id: string) {
   invalidateCacheByPrefix('notifications:');
   return data;
 }
+
+/**
+ * Invalidate student attendance cache.
+ */
+export function invalidateAttendanceCache(studentId?: string) {
+  if (studentId) {
+    invalidateCacheByPrefix(`attendance_stats:${studentId}`);
+  } else {
+    invalidateCacheByPrefix('attendance_stats:');
+  }
+}
+
+/**
+ * Fetches attendance records provided by instructors/mentors for a student.
+ * Computes:
+ * - percentage (out of 100%)
+ * - presentCount
+ * - absentCount
+ * - totalSessions (max of batch sessions and student records)
+ * - full list of records and latestRecord
+ */
+export async function fetchStudentAttendanceStats(
+  studentId: string,
+  batchCode?: string
+): Promise<AttendanceStats> {
+  if (!studentId || studentId === 'guest') {
+    return {
+      percentage: 100,
+      presentCount: 0,
+      absentCount: 0,
+      totalSessions: 0,
+      records: [],
+    };
+  }
+
+  const cacheKey = `attendance_stats:${studentId}:${batchCode || ''}`;
+  return cachedQuery(cacheKey, async () => {
+    try {
+      // 1. Fetch attendance records for this student
+      const { data: studentRecords, error: errStudent } = await supabase
+        .from('attendance_records')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('date', { ascending: false });
+
+      if (errStudent) {
+        console.warn('Error fetching student attendance records:', errStudent);
+      }
+
+      const records: AttendanceRecord[] = (studentRecords as AttendanceRecord[]) || [];
+
+      // 2. Fetch all attendance dates marked by mentors for this batch
+      let totalBatchDates = 0;
+      if (batchCode) {
+        const { data: batchRecords, error: errBatch } = await supabase
+          .from('attendance_records')
+          .select('date')
+          .eq('batch_code', batchCode);
+
+        if (!errBatch && batchRecords) {
+          const uniqueDates = new Set(batchRecords.map((r: any) => r.date));
+          totalBatchDates = uniqueDates.size;
+        }
+      }
+
+      // Calculate counts
+      const presentCount = records.filter((r) => {
+        const s = (r.status || '').toLowerCase().trim();
+        return s === 'present' || s === 'attended' || s === 'late';
+      }).length;
+
+      const absentCount = records.filter((r) => {
+        const s = (r.status || '').toLowerCase().trim();
+        return s === 'absent';
+      }).length;
+
+      // The denominator is the total sessions conducted for this batch/student
+      const totalSessions = Math.max(totalBatchDates, records.length);
+
+      // Percentage out of 100%
+      let percentage = 100;
+      if (totalSessions > 0) {
+        percentage = Math.min(100, Math.max(0, Math.round((presentCount / totalSessions) * 100)));
+      }
+
+      const latestRecord = records.length > 0 ? records[0] : undefined;
+
+      return {
+        percentage,
+        presentCount,
+        absentCount,
+        totalSessions,
+        records,
+        latestRecord,
+      };
+    } catch (err) {
+      console.error('Failed to compute attendance stats:', err);
+      return {
+        percentage: 100,
+        presentCount: 0,
+        absentCount: 0,
+        totalSessions: 0,
+        records: [],
+      };
+    }
+  });
+}
+
 
 
