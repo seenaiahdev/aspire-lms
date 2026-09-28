@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle, KeyRound, Copy, Check, Eye, EyeOff } from 'lucide-react';
+import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
@@ -28,8 +28,6 @@ export function LoginScreen() {
   const [step, setStep] = useState<'mobile' | 'otp' | 'passkey'>('mobile');
   const [otp, setOtp] = useState<string[]>(() => new Array(OTP_LENGTH).fill(''));
   const [passkey, setPasskey] = useState<string[]>(() => new Array(PASSKEY_LENGTH).fill(''));
-  const [showPasskey, setShowPasskey] = useState(true);
-  const [pasteFeedback, setPasteFeedback] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedOtp, setGeneratedOtp] = useState('');            // demo fallback code only
@@ -446,27 +444,6 @@ export function LoginScreen() {
     }
   };
 
-  const handlePasteFromClipboard = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      const clean = text.replace(/[^A-Za-z0-9]/g, '').slice(0, PASSKEY_LENGTH);
-      if (clean.length > 0) {
-        const newKey = new Array(PASSKEY_LENGTH).fill('');
-        for (let i = 0; i < clean.length; i++) {
-          newKey[i] = clean[i];
-        }
-        setPasskey(newKey);
-        if (error) setError('');
-        setPasteFeedback(true);
-        setTimeout(() => setPasteFeedback(false), 2000);
-        const focusIndex = Math.min(clean.length - 1, PASSKEY_LENGTH - 1);
-        document.getElementById(`passkey-input-${focusIndex}`)?.focus();
-      }
-    } catch (err) {
-      console.warn('Clipboard read failed:', err);
-    }
-  };
-
   const handlePasskeySubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const enteredPasskey = passkey.join('');
@@ -816,24 +793,23 @@ export function LoginScreen() {
             ) : (
               /* STEP 3: MINIMAL WHATSAPP-STYLE DASHED PASSKEY VERIFICATION */
               <form onSubmit={handlePasskeySubmit} className="w-full flex flex-col items-center my-auto animate-fade-in pt-2">
-                <div className="flex flex-col items-center text-center mb-4">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-purple-100/80 text-purple-800 text-[10px] font-bold mb-1.5">
-                    <KeyRound className="w-3 h-3 text-purple-600" />
-                    <span>PASSKEY</span>
-                  </div>
+                <div className="flex flex-col items-center text-center mb-5">
+                  <span className="text-xs sm:text-sm font-bold text-slate-700 uppercase tracking-widest mb-1">
+                    Passkey
+                  </span>
                   <p className="text-[11px] text-slate-400 font-medium">
                     Enter 6-character key from admin
                   </p>
                 </div>
 
                 {/* WhatsApp-style Dashed Underline Structure (3 - 3) with Ctrl+V auto-paste */}
-                <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-2">
+                <div className="flex items-center justify-center gap-1.5 sm:gap-2 mb-5">
                   {/* First 3 characters */}
                   {passkey.slice(0, 3).map((char, idx) => (
                     <input
                       key={idx}
                       id={`passkey-input-${idx}`}
-                      type={showPasskey ? 'text' : 'password'}
+                      type="text"
                       maxLength={1}
                       autoCapitalize="none"
                       autoCorrect="off"
@@ -864,7 +840,7 @@ export function LoginScreen() {
                       <input
                         key={idx}
                         id={`passkey-input-${idx}`}
-                        type={showPasskey ? 'text' : 'password'}
+                        type="text"
                         maxLength={1}
                         autoCapitalize="none"
                         autoCorrect="off"
@@ -883,18 +859,6 @@ export function LoginScreen() {
                       />
                     );
                   })}
-                </div>
-
-                {/* Minimal Eye Toggle */}
-                <div className="flex items-center justify-end w-full px-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowPasskey(!showPasskey)}
-                    className="text-slate-400 hover:text-slate-600 transition-colors p-1"
-                    title={showPasskey ? 'Hide passkey' : 'Show passkey'}
-                  >
-                    {showPasskey ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                  </button>
                 </div>
 
                 {/* Small & Minimal Error Message */}
