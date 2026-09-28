@@ -31,20 +31,22 @@ function checkRate(suffix, ip) {
 }
 
 module.exports = async (req, res) => {
-  const SUPABASE_URL = process.env.SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
-  const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || '';
+  if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
+
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
+  const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM';
   const GMAIL_USER = (process.env.GMAIL_USER || '').trim();
   const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
-  const OTP_SECRET = process.env.OTP_SECRET || 'some-secure-random-secret-key-12345';
+  const OTP_SECRET = process.env.OTP_SECRET || 'aspire_lms_otp_hmac_secret_key_2026';
   const TTL_MS = 5 * 60 * 1000;
 
   try {
     if (!GMAIL_USER || !GMAIL_APP_PASSWORD) {
       console.warn('send-otp: GMAIL credentials not set');
-      return res.status(503).json({ error: 'email_not_configured' });
+      return res.status(503).json({ error: 'email_not_configured', hint: 'Configure GMAIL_USER and GMAIL_APP_PASSWORD in environment variables' });
     }
 
-    const body = req.body || {};
+    const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const suffix = cleanSuffix(body.phone);
     if (suffix.length < 10) return res.status(400).json({ error: 'invalid_phone' });
 
@@ -108,18 +110,77 @@ module.exports = async (req, res) => {
       auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
     });
 
+    const html = `
+<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; font-size: 14px; color: #222222; line-height: 1.6;">
+  <p style="margin: 0 0 16px 0;">Hi,</p>
+  <p style="margin: 0 0 16px 0;">${code} is your AspireNext verification OTP. Please do not share it with anyone.</p>
+  <p style="margin: 0;">Team AspireNext</p>
+</div>`;
+
+    const text = `Hi,
+
+${code} is your AspireNext verification OTP. Please do not share it with anyone.
+
+Team AspireNext`;
+
     await transporter.sendMail({
-      from: `"AspireNext" <${GMAIL_USER}>`,
+      from: `AspireNext <${GMAIL_USER}>`,
       to: email,
-      subject: `${code} is your Aspire verification code`,
-      text: `Hi,\n\n${code} is your Aspire verification OTP. Please do not share it.\n\nTeam AspireNext`,
+      subject: `Login OTP from AspireNext`,
+      text,
+      html,
     });
 
-    const [u, d] = email.split('@');
-    const masked = `${u.slice(0, 2)}***@${d}`;
-    return res.status(200).json({ ok: true, token, emailHint: masked });
+    // Optional: Fast2SMS dispatch
+    if (process.env.FAST2SMS_API_KEY) {
+      try {
+        await fetch('https://www.fast2sms.com/dev/bulkV2', {
+          method: 'POST',
+          headers: {
+            'authorization': process.env.FAST2SMS_API_KEY.trim(),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            route: 'otp',
+            variables_values: code,
+            numbers: suffix
+          })
+        });
+      } catch (smsErr) {
+        console.warn('send-otp: Fast2SMS dispatch failed:', smsErr);
+      }
+    } else if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
+      try {
+        const twilioSid = process.env.TWILIO_ACCOUNT_SID.trim();
+        const twilioAuth = process.env.TWILIO_AUTH_TOKEN.trim();
+        const authHeader = Buffer.from(`${twilioSid}:${twilioAuth}`).toString('base64');
+        const form = new URLSearchParams();
+        form.append('To', `+91${suffix}`);
+        form.append('From', process.env.TWILIO_PHONE_NUMBER.trim());
+        form.append('Body', `Hi, ${code} is your AspireNext verification OTP. Please do not share it with anyone.`);
+        await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilioSid}/Messages.json`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${authHeader}`,
+            'Content-Type': 'application/x-www-form-urlencoded'
+          },
+          body: form.toString()
+        });
+      } catch (twilioErr) {
+        console.warn('send-otp: Twilio dispatch failed:', twilioErr);
+      }
+    }
+
+    const emailHint = email.replace(/^(.).*(@.*)$/, (_, a, b) => `${a}****${b}`);
+    return res.status(200).json({ ok: true, token, emailHint });
   } catch (err) {
     console.error('send-otp error:', err);
-    return res.status(500).json({ error: 'failed_to_send_code' });
+    const isAuth = err?.code === 'EAUTH' || (err?.response && err?.response.includes('535'));
+    return res.status(500).json({
+      error: isAuth ? 'smtp_auth_failed' : 'send_failed',
+      message: isAuth
+        ? 'Gmail SMTP rejected credentials (535 BadCredentials). Check GMAIL_USER and generate a new 16-character App Password.'
+        : (err?.message || 'Failed to deliver verification code')
+    });
   }
 };

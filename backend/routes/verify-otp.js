@@ -1,19 +1,14 @@
-// Vercel serverless function: verifies the OTP the student typed.
-// Stateless — recomputes the HMAC of (code|email|expiry) and compares to the token from send-otp.
-// The code itself only ever exists in the email; the token can't be forged without OTP_SECRET.
+// Production Express handler: verify-otp
 const crypto = require('crypto');
 
 const OTP_SECRET = process.env.OTP_SECRET || 'aspire_lms_otp_hmac_secret_key_2026';
 
-// Best-effort per-token attempt limiting (in-memory, per warm instance). A 6-digit
-// code has 1M combinations; without a cap an attacker could brute-force it within the
-// 5-min window by reusing the same stateless token. Keyed by the token signature so it
-// survives across requests on the same instance. Use a shared store for hard guarantees.
 const MAX_ATTEMPTS = 5;
-const attemptsBySig = new Map(); // sig -> { count, expiry }
+const attemptsBySig = new Map();
 
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ ok: false, error: 'method_not_allowed' });
+
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const token = String(body.token || '');
@@ -26,7 +21,6 @@ module.exports = async (req, res) => {
     if (!email || !expiry) return res.status(200).json({ ok: false, reason: 'bad_token' });
     if (Date.now() > expiry) return res.status(200).json({ ok: false, reason: 'expired' });
 
-    // Throttle guesses against this token.
     const now = Date.now();
     const rec = attemptsBySig.get(sig);
     if (rec && rec.expiry > now && rec.count >= MAX_ATTEMPTS) {

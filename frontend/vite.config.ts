@@ -15,8 +15,11 @@ function apiDevServerPlugin(): Plugin {
         if (!req.url?.startsWith('/api/')) return next();
         const parsedUrl = new URL(req.url, 'http://localhost');
         const endpoint = parsedUrl.pathname.replace(/^\/api\//, '').split('?')[0];
-        const apiFile = path.resolve(fileURLToPath(new URL('.', import.meta.url)), `../api/${endpoint}.js`);
-
+        const baseDir = fileURLToPath(new URL('.', import.meta.url));
+        let apiFile = path.resolve(baseDir, `../backend/routes/${endpoint}.js`);
+        if (!fs.existsSync(apiFile)) {
+          apiFile = path.resolve(baseDir, `../api/${endpoint}.js`);
+        }
         if (!fs.existsSync(apiFile)) return next();
 
         let body = '';

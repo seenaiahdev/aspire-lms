@@ -1,4 +1,4 @@
-const { generatePasskey, encryptPasskey, decryptPasskey } = require('../api/passkey-crypto.js');
+const { generatePasskey, encryptPasskey, decryptPasskey } = require('../lib/passkey-crypto.js');
 
 console.log('Testing Passkey Generator and AES-256-GCM Encryption:\n');
 for (let i = 0; i < 5; i++) {

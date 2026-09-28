@@ -1,18 +1,11 @@
-// Vercel serverless function: verifies the Admin Alphanumeric Passkey entered by the student.
-// On successful verification, immediately rotates the key (generates a fresh 6-char alphanumeric key,
-// encrypts it with AES-256-GCM, and updates Supabase), preventing replay attacks or account sharing.
-
-const { decryptPasskey, encryptPasskey, generatePasskey } = require('./passkey-crypto');
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
-const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM';
+// Production Express handler: verify-passkey with single-use auto-rotation
+const { decryptPasskey, encryptPasskey, generatePasskey } = require('../lib/passkey-crypto');
 
 const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
 
-// In-memory rate limiting per student/phone
 const MAX_ATTEMPTS = 5;
-const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes lockout after 5 failures
-const attemptsByTarget = new Map(); // target -> { count, expiry }
+const LOCKOUT_MS = 15 * 60 * 1000;
+const attemptsByTarget = new Map();
 
 function checkRateLimit(key) {
   const now = Date.now();
@@ -21,7 +14,7 @@ function checkRateLimit(key) {
     const remainingMinutes = Math.ceil((rec.expiry - now) / 60000);
     return {
       allowed: false,
-      error: `Too many incorrect attempts. Please wait ${remainingMinutes} minute(s) or contact your administrator.`,
+      error: `Too many attempts. Wait ${remainingMinutes}m or contact admin.`,
     };
   }
   return { allowed: true };
@@ -42,19 +35,12 @@ function clearFailures(key) {
 }
 
 module.exports = async (req, res) => {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
   if (req.method !== 'POST') {
     return res.status(405).json({ ok: false, error: 'method_not_allowed' });
   }
+
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
+  const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM';
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
@@ -66,20 +52,18 @@ module.exports = async (req, res) => {
     const rateLimitKey = studentId || suffix || 'unknown';
 
     if (!candidatePasskey) {
-      return res.status(400).json({ ok: false, error: 'Please enter your Admin Passkey.' });
+      return res.status(400).json({ ok: false, error: 'Please enter your Passkey.' });
     }
 
     if (!studentId && suffix.length < 10) {
       return res.status(400).json({ ok: false, error: 'Student identification required.' });
     }
 
-    // Check rate limit
     const rateCheck = checkRateLimit(rateLimitKey);
     if (!rateCheck.allowed) {
       return res.status(429).json({ ok: false, error: rateCheck.error });
     }
 
-    // 1. Fetch student from Supabase
     let url = '';
     if (studentId) {
       url = `${SUPABASE_URL}/rest/v1/students?select=id,name,mobile_number,access_pin&id=eq.${encodeURIComponent(studentId)}&limit=1`;
@@ -97,11 +81,11 @@ module.exports = async (req, res) => {
     if (!fetchResp.ok) {
       const errText = await fetchResp.text();
       let errJson;
-      try { errJson = JSON.parse(errText); } catch { /* ignore */ }
+      try { errJson = JSON.parse(errText); } catch {}
       if (errJson && errJson.code === '42703') {
         return res.status(500).json({
           ok: false,
-          error: 'Database column access_pin not found. Please execute the migration in Supabase SQL editor.',
+          error: 'Database column access_pin not found. Execute migration first.',
         });
       }
       return res.status(500).json({ ok: false, error: 'Database lookup failed.' });
@@ -116,7 +100,6 @@ module.exports = async (req, res) => {
       return res.status(404).json({ ok: false, error: 'Student record not found.' });
     }
 
-    // 2. Validate current stored passkey
     if (!student.access_pin) {
       return res.status(400).json({
         ok: false,
@@ -132,7 +115,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Strict case-sensitive match
     if (candidatePasskey !== currentDecrypted) {
       recordFailure(rateLimitKey);
       return res.status(401).json({
@@ -141,16 +123,13 @@ module.exports = async (req, res) => {
       });
     }
 
-    // 3. Passkey MATCHED! Clear failures
     clearFailures(rateLimitKey);
 
-    // 4. ROTATE PASSKEY IMMEDIATELY:
-    // Generate fresh 6-char alphanumeric key (guaranteed upper, lower, digit)
+    // ROTATE PASSKEY IMMEDIATELY
     const freshPlaintext = generatePasskey(6);
     const freshEncrypted = encryptPasskey(freshPlaintext);
 
-    // Update in Supabase
-    const patchResp = await fetch(`${SUPABASE_URL}/rest/v1/students?id=eq.${encodeURIComponent(student.id)}`, {
+    await fetch(`${SUPABASE_URL}/rest/v1/students?id=eq.${encodeURIComponent(student.id)}`, {
       method: 'PATCH',
       headers: {
         apikey: SUPABASE_ANON,
@@ -164,13 +143,9 @@ module.exports = async (req, res) => {
       }),
     });
 
-    if (!patchResp.ok) {
-      console.warn('Failed to rotate passkey in database, but candidate was valid.');
-    }
-
     return res.status(200).json({
       ok: true,
-      message: 'Passkey verified successfully. Access granted.',
+      message: 'Passkey verified successfully.',
       student: {
         id: student.id,
         name: student.name,
@@ -178,6 +153,6 @@ module.exports = async (req, res) => {
     });
   } catch (err) {
     console.error('verify-passkey error:', err);
-    return res.status(500).json({ ok: false, error: 'Internal server error verifying passkey.' });
+    return res.status(500).json({ ok: false, error: 'Internal server error.' });
   }
 };

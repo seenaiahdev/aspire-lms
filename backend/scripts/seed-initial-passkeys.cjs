@@ -1,21 +1,25 @@
 /**
  * Seed / Initialize Alphanumeric Passkeys for Existing Students
- * Run via: node scripts/seed-initial-passkeys.cjs
+ * Run via: node backend/scripts/seed-initial-passkeys.cjs
  */
 const fs = require('fs');
 const path = require('path');
-const { generatePasskey, encryptPasskey, decryptPasskey } = require('../api/passkey-crypto.js');
+const { generatePasskey, encryptPasskey, decryptPasskey } = require('../lib/passkey-crypto.js');
 
-// Load env
+// Load env from possible locations
 let envContent = '';
-try {
-  envContent = fs.readFileSync(path.join(__dirname, '../.env'), 'utf8');
-} catch {
+const candidateEnvPaths = [
+  path.join(__dirname, '../.env'),
+  path.join(__dirname, '../../.env'),
+  path.join(__dirname, '../../frontend/.env'),
+];
+
+for (const p of candidateEnvPaths) {
   try {
-    envContent = fs.readFileSync(path.join(__dirname, '../frontend/.env'), 'utf8');
-  } catch {
-    // env fallback
-  }
+    if (fs.existsSync(p)) {
+      envContent += '\n' + fs.readFileSync(p, 'utf8');
+    }
+  } catch {}
 }
 
 const urlMatch = envContent.match(/(?:VITE_)?SUPABASE_URL\s*=\s*(.*)/);
@@ -26,8 +30,8 @@ const passkeyMatch = envContent.match(/PASSKEY_SECRET\s*=\s*(.*)/);
 if (otpMatch) process.env.OTP_SECRET = otpMatch[1].trim();
 if (passkeyMatch) process.env.PASSKEY_SECRET = passkeyMatch[1].trim();
 
-const SUPABASE_URL = urlMatch ? urlMatch[1].trim() : 'https://maahwymvereyofrhrytx.supabase.co';
-const SUPABASE_KEY = keyMatch ? keyMatch[1].trim() : '';
+const SUPABASE_URL = urlMatch ? urlMatch[1].trim() : (process.env.SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co');
+const SUPABASE_KEY = keyMatch ? keyMatch[1].trim() : (process.env.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM');
 
 async function run() {
   console.log('Connecting to Supabase at:', SUPABASE_URL);

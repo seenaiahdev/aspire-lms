@@ -1,29 +1,18 @@
-// Vercel serverless function: Admin helper endpoint to retrieve or re-generate
-// a student's active alphanumeric passkey in decrypted format.
-
-const { decryptPasskey, encryptPasskey, generatePasskey } = require('./passkey-crypto');
-
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
-const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM';
+// Production Express handler: get-passkey for Admin
+const { decryptPasskey, encryptPasskey, generatePasskey } = require('../lib/passkey-crypto');
 
 const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
 
 module.exports = async (req, res) => {
-  res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
+  const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM';
 
   try {
     const query = req.query || {};
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
     const studentId = String(query.studentId || body.studentId || '').trim();
     const phone = String(query.phone || body.phone || '').trim();
-    const action = String(query.action || body.action || 'get').trim(); // 'get' | 'regenerate'
+    const action = String(query.action || body.action || 'get').trim();
 
     const suffix = cleanSuffix(phone);
     if (!studentId && suffix.length < 10) {
@@ -45,8 +34,7 @@ module.exports = async (req, res) => {
     });
 
     if (!fetchResp.ok) {
-      const errText = await fetchResp.text();
-      return res.status(500).json({ ok: false, error: 'Failed to query student database.', details: errText });
+      return res.status(500).json({ ok: false, error: 'Database query failed' });
     }
 
     const rows = await fetchResp.json();
@@ -63,7 +51,6 @@ module.exports = async (req, res) => {
       activePasskey = decryptPasskey(student.access_pin);
     }
 
-    // If no passkey exists or admin requested regeneration, generate fresh key
     if (!activePasskey || action === 'regenerate') {
       activePasskey = generatePasskey(6);
       const enc = encryptPasskey(activePasskey);
