@@ -1,5 +1,5 @@
 import { supabase } from './supabase';
-import { cachedQuery, invalidateCache } from './queryCache';
+import { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
 
 /**
  * Base URL for the backend API service when deployed as a separate server.
@@ -21,56 +21,60 @@ export async function fetchStudentByPhone(phone: string) {
   const searchSuffix = cleanPhoneSuffix(phone);
   if (!searchSuffix) return null;
 
-  const pickExact = (rows: any[]) =>
-    rows.find((s: any) => s?.mobile_number && cleanPhoneSuffix(s.mobile_number) === searchSuffix) || rows[0] || null;
+  return cachedQuery(`student_phone:${searchSuffix}`, async () => {
+    const pickExact = (rows: any[]) =>
+      rows.find((s: any) => s?.mobile_number && cleanPhoneSuffix(s.mobile_number) === searchSuffix) || rows[0] || null;
 
-  // SECURITY (preferred): the get_student_by_phone SECURITY DEFINER RPC returns ONLY the single matching
-  // row, so once the 20260905000000_lock_students_pii migration is applied (which also revokes anon SELECT
-  // on `students`), the PII table can't be dumped with the public anon key.
-  const { data, error } = await supabase.rpc('get_student_by_phone', { suffix: searchSuffix });
+    // SECURITY (preferred): the get_student_by_phone SECURITY DEFINER RPC returns ONLY the single matching
+    // row, so once the 20260905000000_lock_students_pii migration is applied (which also revokes anon SELECT
+    // on `students`), the PII table can't be dumped with the public anon key.
+    const { data, error } = await supabase.rpc('get_student_by_phone', { suffix: searchSuffix });
 
-  if (!error) {
-    return pickExact(Array.isArray(data) ? data : data ? [data] : []);
-  }
+    if (!error) {
+      return pickExact(Array.isArray(data) ? data : data ? [data] : []);
+    }
 
-  // Migration not applied yet (RPC missing → PGRST202) — fall back to the direct suffix lookup so LOGIN
-  // KEEPS WORKING. This path stops working (by design) only after the migration revokes anon SELECT, at
-  // which point the RPC above succeeds instead. Any error other than "function not found" is re-thrown.
-  const fnMissing = error.code === 'PGRST202' || /Could not find the function|schema cache/i.test(error.message || '');
-  if (!fnMissing) {
-    console.error('Error fetching student by phone (RPC):', error);
-    throw error;
-  }
-  console.warn('get_student_by_phone RPC not found — using direct lookup (apply 20260905000000_lock_students_pii to enable the secure path).');
+    // Migration not applied yet (RPC missing → PGRST202) — fall back to the direct suffix lookup so LOGIN
+    // KEEPS WORKING. This path stops working (by design) only after the migration revokes anon SELECT, at
+    // which point the RPC above succeeds instead. Any error other than "function not found" is re-thrown.
+    const fnMissing = error.code === 'PGRST202' || /Could not find the function|schema cache/i.test(error.message || '');
+    if (!fnMissing) {
+      console.error('Error fetching student by phone (RPC):', error);
+      throw error;
+    }
+    console.warn('get_student_by_phone RPC not found — using direct lookup (apply 20260905000000_lock_students_pii to enable the secure path).');
 
-  const { data: rows, error: err2 } = await supabase
-    .from('students')
-    .select('*')
-    .ilike('mobile_number', `%${searchSuffix}`)
-    .limit(5);
-  if (err2) {
-    console.error('Error fetching student by phone (fallback):', err2);
-    throw err2;
-  }
-  return pickExact(rows || []);
+    const { data: rows, error: err2 } = await supabase
+      .from('students')
+      .select('*')
+      .ilike('mobile_number', `%${searchSuffix}`)
+      .limit(5);
+    if (err2) {
+      console.error('Error fetching student by phone (fallback):', err2);
+      throw err2;
+    }
+    return pickExact(rows || []);
+  }, 15_000); // 15 seconds
 }
 
 /**
  * Resolves a cohort batch category (e.g. 'Weekday' or 'Weekend') by batch code.
  */
 export async function fetchBatchCategory(batchCode: string): Promise<'Weekday' | 'Weekend' | null> {
-  const { data, error } = await supabase
-    .from('batches')
-    .select('category')
-    .eq('code', batchCode)
-    .maybeSingle();
+  return cachedQuery(`batch_category:${batchCode}`, async () => {
+    const { data, error } = await supabase
+      .from('batches')
+      .select('category')
+      .eq('code', batchCode)
+      .maybeSingle();
 
-  if (error) {
-    console.error('Error fetching batch category:', error);
-    throw error;
-  }
+    if (error) {
+      console.error('Error fetching batch category:', error);
+      throw error;
+    }
 
-  return (data?.category as 'Weekday' | 'Weekend') || null;
+    return (data?.category as 'Weekday' | 'Weekend') || null;
+  }, 300_000); // 5 minutes — batch categories rarely change
 }
 
 /**
@@ -79,49 +83,53 @@ export async function fetchBatchCategory(batchCode: string): Promise<'Weekday' |
  */
 export async function fetchBatchStudentCount(batchCode?: string): Promise<number> {
   if (!batchCode) return 1;
-  try {
-    const { count, error } = await supabase
-      .from('students')
-      .select('id', { count: 'exact', head: true })
-      .eq('batch', batchCode);
+  return cachedQuery(`batch_count:${batchCode}`, async () => {
+    try {
+      const { count, error } = await supabase
+        .from('students')
+        .select('id', { count: 'exact', head: true })
+        .eq('batch', batchCode);
 
-    if (!error && typeof count === 'number' && count > 0) {
-      return count;
+      if (!error && typeof count === 'number' && count > 0) {
+        return count;
+      }
+
+      const { data: bData } = await supabase
+        .from('batches')
+        .select('student_count')
+        .eq('code', batchCode)
+        .maybeSingle();
+
+      if (bData?.student_count && bData.student_count > 0) {
+        return bData.student_count;
+      }
+
+      return typeof count === 'number' && count > 0 ? count : 1;
+    } catch (err) {
+      console.warn('Failed to fetch batch student count:', err);
+      return 1;
     }
-
-    const { data: bData } = await supabase
-      .from('batches')
-      .select('student_count')
-      .eq('code', batchCode)
-      .maybeSingle();
-
-    if (bData?.student_count && bData.student_count > 0) {
-      return bData.student_count;
-    }
-
-    return typeof count === 'number' && count > 0 ? count : 1;
-  } catch (err) {
-    console.warn('Failed to fetch batch student count:', err);
-    return 1;
-  }
+  }, 300_000); // 5 minutes
 }
 
 /**
  * Fetches course tracks filtered by the user's batch category.
  */
 export async function fetchCourses(batchCategory: string) {
-  const targetBatchStr = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
-  const { data, error } = await supabase
-    .from('courses')
-    .select('*')
-    .or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`);
+  return cachedQuery(`courses_by_batch:${batchCategory}`, async () => {
+    const targetBatchStr = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
+    const { data, error } = await supabase
+      .from('courses')
+      .select('id, title, description, thumbnail, target_batch, publish_status, instructor_name, instructor_avatar, duration, modules_count, total_lessons')
+      .or(`target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`);
 
-  if (error) {
-    console.error('Error fetching courses:', error);
-    throw error;
-  }
+    if (error) {
+      console.error('Error fetching courses:', error);
+      throw error;
+    }
 
-  return data || [];
+    return data || [];
+  }, 60_000); // 60 seconds
 }
 
 /**
@@ -145,64 +153,68 @@ export function courseTargetsBatch(target: any, batchCode: string, category?: st
  * Fetches the milestones (stages & modules syllabus) for a given batch category.
  */
 export async function fetchMilestones(batchCategory: string) {
-  const { data, error } = await supabase
-    .from('milestones_data')
-    .select('*')
-    .eq('id', 'batch_data')
-    .maybeSingle();
+  return cachedQuery(`milestones:${batchCategory}`, async () => {
+    const { data, error } = await supabase
+      .from('milestones_data')
+      .select('*')
+      .eq('id', 'batch_data')
+      .maybeSingle();
 
-  if (error) {
-    console.error('Error fetching milestones:', error);
-    throw error;
-  }
+    if (error) {
+      console.error('Error fetching milestones:', error);
+      throw error;
+    }
 
-  if (!data) return { overview: {}, stages: [] };
+    if (!data) return { overview: {}, stages: [] };
 
-  const batchKey = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
-  const batchData = data.overview?.batchData?.[batchKey];
+    const batchKey = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
+    const batchData = data.overview?.batchData?.[batchKey];
 
-  return {
-    overview: batchData?.overview || data.overview || {},
-    stages: batchData?.stages || []
-  };
+    return {
+      overview: batchData?.overview || data.overview || {},
+      stages: batchData?.stages || []
+    };
+  }, 60_000); // 60 seconds
 }
 
 /**
  * Fetches jobs for the placement board, filtered by cohort category.
  */
 export async function fetchJobs(batchCategory: string, batchCode: string = '') {
-  const targetBatchStr = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
-  let orQuery = `target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`;
-  if (batchCode) {
-    orQuery += `,target_batch.eq.${batchCode}`;
-  }
+  return cachedQuery(`jobs:${batchCategory}:${batchCode}`, async () => {
+    const targetBatchStr = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
+    let orQuery = `target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`;
+    if (batchCode) {
+      orQuery += `,target_batch.eq.${batchCode}`;
+    }
 
-  const { data, error } = await supabase
-    .from('jobs')
-    .select('*')
-    .or(orQuery);
+    const { data, error } = await supabase
+      .from('jobs')
+      .select('id, company, job_title, location, job_type, salary, posted_date, logo, description, publish_status, skills, is_locked')
+      .or(orQuery);
 
-  if (error) {
-    console.error('Error fetching jobs:', error);
-    throw error;
-  }
+    if (error) {
+      console.error('Error fetching jobs:', error);
+      throw error;
+    }
 
-  if (!data) return [];
+    if (!data) return [];
 
-  return data.map((item: any) => ({
-    id: item.id,
-    company: item.company || 'TCS',
-    role: item.job_title || 'Software Engineer',
-    location: item.location || 'Remote',
-    type: item.job_type || 'Full-Time',
-    salary: item.salary || 'LPA',
-    posted: item.posted_date || 'Recent',
-    logo: item.logo || '',
-    description: item.description || 'Job details...',
-    status: item.publish_status === 'Closed' ? 'closed' : 'open',
-    skills: item.skills || ['Python', 'Django', 'SQL'],
-    isLocked: item.is_locked ?? false
-  }));
+    return data.map((item: any) => ({
+      id: item.id,
+      company: item.company || 'TCS',
+      role: item.job_title || 'Software Engineer',
+      location: item.location || 'Remote',
+      type: item.job_type || 'Full-Time',
+      salary: item.salary || 'LPA',
+      posted: item.posted_date || 'Recent',
+      logo: item.logo || '',
+      description: item.description || 'Job details...',
+      status: item.publish_status === 'Closed' ? 'closed' : 'open',
+      skills: item.skills || ['Python', 'Django', 'SQL'],
+      isLocked: item.is_locked ?? false
+    }));
+  }, 60_000); // 60 seconds
 }
 
 /**
@@ -245,19 +257,21 @@ function liveSessionBatchFilter(batchCode: string): string {
  * "Upcoming"), so we do not filter by status here.
  */
 export async function fetchLiveSessions(batchCode: string) {
-  const { data, error } = await supabase
-    .from('live_sessions')
-    .select('*')
-    .or(liveSessionBatchFilter(batchCode))
-    .order('date', { ascending: true })
-    .order('time', { ascending: true });
+  return cachedQuery(`live_sessions:${batchCode}`, async () => {
+    const { data, error } = await supabase
+      .from('live_sessions')
+      .select('id, session_title, technology, date, time, status, meeting_link, batch_code, target_batch, instructor_name, description, duration')
+      .or(liveSessionBatchFilter(batchCode))
+      .order('date', { ascending: true })
+      .order('time', { ascending: true });
 
-  if (error) {
-    console.error('Error fetching live sessions:', error);
-    throw error;
-  }
+    if (error) {
+      console.error('Error fetching live sessions:', error);
+      throw error;
+    }
 
-  return data || [];
+    return data || [];
+  }, 30_000); // 30 seconds
 }
 
 /**
@@ -265,19 +279,21 @@ export async function fetchLiveSessions(batchCode: string) {
  * specific batch (matched via batch_code or target_batch).
  */
 export async function fetchAllLiveSessions(batchCode: string) {
-  const { data, error } = await supabase
-    .from('live_sessions')
-    .select('*')
-    .or(liveSessionBatchFilter(batchCode))
-    .order('date', { ascending: false })
-    .order('time', { ascending: false });
+  return cachedQuery(`all_live_sessions:${batchCode}`, async () => {
+    const { data, error } = await supabase
+      .from('live_sessions')
+      .select('id, session_title, technology, date, time, status, meeting_link, batch_code, target_batch, instructor_name, description, duration')
+      .or(liveSessionBatchFilter(batchCode))
+      .order('date', { ascending: false })
+      .order('time', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching all live sessions:', error);
-    throw error;
-  }
+    if (error) {
+      console.error('Error fetching all live sessions:', error);
+      throw error;
+    }
 
-  return data || [];
+    return data || [];
+  }, 30_000); // 30 seconds
 }
 
 /**
@@ -286,37 +302,39 @@ export async function fetchAllLiveSessions(batchCode: string) {
  * live_sessions). Rows are mapped to the daily-schedule shape the Dashboard expects.
  */
 export async function fetchDailySchedules(dateStr: string, batchCode: string) {
-  const { data, error } = await supabase
-    .from('live_sessions')
-    .select('*')
-    .eq('date', dateStr)
-    .or(liveSessionBatchFilter(batchCode))
-    .order('time', { ascending: true });
+  return cachedQuery(`daily_schedules:${dateStr}:${batchCode}`, async () => {
+    const { data, error } = await supabase
+      .from('live_sessions')
+      .select('*')
+      .eq('date', dateStr)
+      .or(liveSessionBatchFilter(batchCode))
+      .order('time', { ascending: true });
 
-  if (error) {
-    console.warn('Error fetching daily schedules from live_sessions:', error.message);
-    return [];
-  }
+    if (error) {
+      console.warn('Error fetching daily schedules from live_sessions:', error.message);
+      return [];
+    }
 
-  return (data || []).map((s: any) => {
-    let meta: any = null;
-    try { meta = JSON.parse(s.description); } catch { /* description may be plain text */ }
-    return {
-      id: s.id,
-      date: s.date,
-      batch_code: s.batch_code,
-      title: s.session_title,
-      subtopic: (meta && meta.subtopicName) || s.technology || '',
-      topic: (meta && meta.moduleName) || s.technology || '',
-      time: s.time,
-      description:
-        (meta && meta.text) ||
-        (meta && meta.moduleName) ||
-        (typeof s.description === 'string' && !meta ? s.description : '') ||
-        'Live class session',
-      status: String(s.status || 'upcoming').toLowerCase(),
-    };
-  });
+    return (data || []).map((s: any) => {
+      let meta: any = null;
+      try { meta = JSON.parse(s.description); } catch { /* description may be plain text */ }
+      return {
+        id: s.id,
+        date: s.date,
+        batch_code: s.batch_code,
+        title: s.session_title,
+        subtopic: (meta && meta.subtopicName) || s.technology || '',
+        topic: (meta && meta.moduleName) || s.technology || '',
+        time: s.time,
+        description:
+          (meta && meta.text) ||
+          (meta && meta.moduleName) ||
+          (typeof s.description === 'string' && !meta ? s.description : '') ||
+          'Live class session',
+        status: String(s.status || 'upcoming').toLowerCase(),
+      };
+    });
+  }, 30_000); // 30 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -353,18 +371,21 @@ export interface StudentProfileRow {
  * Returns null if no profile row exists yet for this student.
  */
 export async function fetchStudentProfile(studentId: string): Promise<StudentProfileRow | null> {
-  const { data, error } = await supabase
-    .from('student_profiles')
-    .select('*')
-    .eq('student_id', studentId)
-    .maybeSingle();
+  if (!studentId || studentId === 'guest') return null;
+  return cachedQuery(`student_profile:${studentId}`, async () => {
+    const { data, error } = await supabase
+      .from('student_profiles')
+      .select('*')
+      .eq('student_id', studentId)
+      .maybeSingle();
 
-  if (error) {
-    console.error('Error fetching student profile:', error);
-    return null;
-  }
+    if (error) {
+      console.error('Error fetching student profile:', error);
+      return null;
+    }
 
-  return data as StudentProfileRow | null;
+    return data as StudentProfileRow | null;
+  }, 30_000); // 30 seconds
 }
 
 /**
@@ -389,6 +410,7 @@ export async function upsertStudentProfile(
     throw error;
   }
 
+  invalidateCache(`student_profile:${studentId}`);
   return data as StudentProfileRow;
 }
 
@@ -469,94 +491,97 @@ export async function fetchCoursesByIds(courseIds: string[]) {
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchAssignments(batchCode: string, batchCategory?: string, courseId?: string, enrolledCourses?: string[]) {
-  try {
-    const { data, error } = await supabase
-      .from('assessments')
-      .select('*')
-      .order('created_at', { ascending: false });
+  const cacheKey = `assignments:${batchCode}:${batchCategory || ''}:${courseId || ''}:${(enrolledCourses || []).sort().join(',')}`;
+  return cachedQuery(cacheKey, async () => {
+    try {
+      const { data, error } = await supabase
+        .from('assessments')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('assessments table not available:', error.message);
+      if (error) {
+        console.warn('assessments table not available:', error.message);
+        return [];
+      }
+
+      if (!data) return [];
+
+      const norm = (s: any) => String(s ?? '').trim().toLowerCase();
+      const wantBatch = norm(batchCode);
+      const wantCat = norm(batchCategory);
+      const validCourses = new Set([
+        ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
+        courseId
+      ].filter(Boolean));
+
+      const filtered = data.filter((item: any) => {
+        const pub = norm(item.publish_status);
+        if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
+
+        // 1. Strict Course Check: If assessment specifies course_id, it MUST belong to the student's enrolled courses
+        if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+          return false;
+        }
+
+        // 2. Batch targeting check
+        const tb = norm(item.target_batch);
+        if (tb) {
+          const batchMatches =
+            tb.includes('all batches') ||
+            tb === 'all' ||
+            tb === 'all batch' ||
+            (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) ||
+            (wantCat && (tb.includes(wantCat) || (wantCat === 'weekend' && (tb.includes('weekend') || tb.includes('s1') || tb.includes('s2'))) || (wantCat === 'weekday' && (tb.includes('weekday') || tb.includes('w1') || tb.includes('w2'))))) ||
+            // Cohort-level match: if both belong to the same cohort prefix (e.g. A26) for the student's enrolled course
+            (wantBatch.length >= 3 && tb.includes(wantBatch.slice(0, 3)));
+          if (!batchMatches) return false;
+        }
+
+        return true;
+      });
+
+      return filtered.map((item: any) => {
+        // Assessments are taken entirely as MCQs — a code-based question is shown as a code
+        // snippet inside the MCQ (options to pick the correct answer), never a separate IDE.
+        const type = 'mcq' as 'coding' | 'mcq';
+        return {
+          id: item.id,
+          slug: item.id,
+          type: type,
+          title: item.title,
+          category: item.course_name || 'General',
+          difficulty: 'Intermediate' as const,
+          // Admin stores the XP reward in the `total_marks` field.
+          xp: item.total_marks ?? 100,
+          timeEstimate: `${item.duration_minutes || 45} mins`,
+          description: item.topic_name ? `Topic: ${item.topic_name.split('||').pop()}` : 'Assessment test',
+          status: 'pending' as 'pending' | 'completed',
+          attemptsCount: 0,
+          passedCount: 0,
+          failedCount: 0,
+          bestScorePercentage: 0,
+          attemptHistory: [],
+          topic_id: item.topic_id,
+          dueDate: item.due_date,
+          mcqQuestions: (item.mcqs || []).map((q: any, index: number) => ({
+            id: index,
+            question: q.question,
+            codeSnippet: q.codeSnippet || '',
+            options: q.options || [],
+            correctIndex: q.correctIndex || 0,
+            explanation: q.explanation || 'Refer to classroom notes.'
+          })),
+          codingProblem: item.coding_questions && item.coding_questions[0] ? {
+            instructions: item.coding_questions[0].description || item.coding_questions[0].instructions || '',
+            starterCode: item.coding_questions[0].starterCode || 'def solution():\n    pass',
+            testCases: item.coding_questions[0].testCases || []
+          } : undefined
+        };
+      });
+    } catch {
       return [];
     }
-
-    if (!data) return [];
-
-    const norm = (s: any) => String(s ?? '').trim().toLowerCase();
-    const wantBatch = norm(batchCode);
-    const wantCat = norm(batchCategory);
-    const validCourses = new Set([
-      ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
-      courseId
-    ].filter(Boolean));
-
-    const filtered = data.filter((item: any) => {
-      const pub = norm(item.publish_status);
-      if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
-
-      // 1. Strict Course Check: If assessment specifies course_id, it MUST belong to the student's enrolled courses
-      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
-        return false;
-      }
-
-      // 2. Batch targeting check
-      const tb = norm(item.target_batch);
-      if (tb) {
-        const batchMatches =
-          tb.includes('all batches') ||
-          tb === 'all' ||
-          tb === 'all batch' ||
-          (wantBatch && tb.split(',').map((s) => s.trim()).includes(wantBatch)) ||
-          (wantCat && (tb.includes(wantCat) || (wantCat === 'weekend' && (tb.includes('weekend') || tb.includes('s1') || tb.includes('s2'))) || (wantCat === 'weekday' && (tb.includes('weekday') || tb.includes('w1') || tb.includes('w2'))))) ||
-          // Cohort-level match: if both belong to the same cohort prefix (e.g. A26) for the student's enrolled course
-          (wantBatch.length >= 3 && tb.includes(wantBatch.slice(0, 3)));
-        if (!batchMatches) return false;
-      }
-
-      return true;
-    });
-
-    return filtered.map((item: any) => {
-      // Assessments are taken entirely as MCQs — a code-based question is shown as a code
-      // snippet inside the MCQ (options to pick the correct answer), never a separate IDE.
-      const type = 'mcq' as 'coding' | 'mcq';
-      return {
-        id: item.id,
-        slug: item.id,
-        type: type,
-        title: item.title,
-        category: item.course_name || 'General',
-        difficulty: 'Intermediate' as const,
-        // Admin stores the XP reward in the `total_marks` field.
-        xp: item.total_marks ?? 100,
-        timeEstimate: `${item.duration_minutes || 45} mins`,
-        description: item.topic_name ? `Topic: ${item.topic_name.split('||').pop()}` : 'Assessment test',
-        status: 'pending' as 'pending' | 'completed',
-        attemptsCount: 0,
-        passedCount: 0,
-        failedCount: 0,
-        bestScorePercentage: 0,
-        attemptHistory: [],
-        topic_id: item.topic_id,
-        dueDate: item.due_date,
-        mcqQuestions: (item.mcqs || []).map((q: any, index: number) => ({
-          id: index,
-          question: q.question,
-          codeSnippet: q.codeSnippet || '',
-          options: q.options || [],
-          correctIndex: q.correctIndex || 0,
-          explanation: q.explanation || 'Refer to classroom notes.'
-        })),
-        codingProblem: item.coding_questions && item.coding_questions[0] ? {
-          instructions: item.coding_questions[0].description || item.coding_questions[0].instructions || '',
-          starterCode: item.coding_questions[0].starterCode || 'def solution():\n    pass',
-          testCases: item.coding_questions[0].testCases || []
-        } : undefined
-      };
-    });
-  } catch {
-    return [];
-  }
+  }, 30_000); // 30 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -564,40 +589,46 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchQuizzes(courseIds: string[]) {
-  try {
-    if (!courseIds || courseIds.length === 0) return [];
-    const { data, error } = await supabase
-      .from('quizzes')
-      .select('*')
-      .in('course_id', courseIds)
-      .order('created_at', { ascending: false });
+  if (!courseIds || courseIds.length === 0) return [];
+  const sortedIds = [...courseIds].sort().join(',');
+  return cachedQuery(`quizzes:${sortedIds}`, async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quizzes')
+        .select('*')
+        .in('course_id', courseIds)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('quizzes table not available:', error.message);
+      if (error) {
+        console.warn('quizzes table not available:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  }, 45_000); // 45 seconds
 }
 
 export async function fetchQuizAttempts(userId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('quiz_attempts')
-      .select('*')
-      .eq('user_id', userId)
-      .order('attempted_at', { ascending: false });
+  if (!userId || userId === 'guest') return [];
+  return cachedQuery(`student_qa_full:${userId}`, async () => {
+    try {
+      const { data, error } = await supabase
+        .from('quiz_attempts')
+        .select('*')
+        .eq('user_id', userId)
+        .order('attempted_at', { ascending: false });
 
-    if (error) {
-      console.warn('quiz_attempts table not available:', error.message);
+      if (error) {
+        console.warn('quiz_attempts table not available:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  }, 15_000); // 15 seconds
 }
 
 export async function submitQuizAttempt(
@@ -654,6 +685,7 @@ export async function submitQuizAttempt(
     }
 
     invalidateCache(`student_qa:${userId}`);
+    invalidateCache(`student_qa_full:${userId}`);
     invalidateCache(`student_profile:${userId}`);
 
     return savedRow;
@@ -673,38 +705,41 @@ export async function fetchProjects(
   courseId?: string,
   enrolledCourses?: string[]
 ) {
-  try {
-    let query = supabase.from('projects').select('*');
-    if (courseId) {
-      query = query.eq('course_id', courseId);
-    } else if (enrolledCourses && enrolledCourses.length > 0) {
-      query = query.in('course_id', enrolledCourses);
-    }
+  const cacheKey = `projects:${batchCode}:${batchCategory || ''}:${courseId || ''}:${(enrolledCourses || []).sort().join(',')}`;
+  return cachedQuery(cacheKey, async () => {
+    try {
+      let query = supabase.from('projects').select('*');
+      if (courseId) {
+        query = query.eq('course_id', courseId);
+      } else if (enrolledCourses && enrolledCourses.length > 0) {
+        query = query.in('course_id', enrolledCourses);
+      }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+      const { data, error } = await query.order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('projects table not available:', error.message);
+      if (error) {
+        console.warn('projects table not available:', error.message);
+        return [];
+      }
+
+      const validCourses = new Set((enrolledCourses || []).filter(Boolean));
+      if (courseId) validCourses.add(courseId);
+
+      return (data || []).filter((item: any) => {
+        // Course isolation
+        if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+          return false;
+        }
+        // Target batch check
+        if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
+          return false;
+        }
+        return true;
+      });
+    } catch {
       return [];
     }
-
-    const validCourses = new Set((enrolledCourses || []).filter(Boolean));
-    if (courseId) validCourses.add(courseId);
-
-    return (data || []).filter((item: any) => {
-      // Course isolation
-      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
-        return false;
-      }
-      // Target batch check
-      if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
-        return false;
-      }
-      return true;
-    });
-  } catch {
-    return [];
-  }
+  }, 45_000); // 45 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -945,21 +980,24 @@ export function evaluateBadgeCriteria(
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchCertificates(studentId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('certificates')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('created_at', { ascending: false });
+  if (!studentId || studentId === 'guest') return [];
+  return cachedQuery(`certificates:${studentId}`, async () => {
+    try {
+      const { data, error } = await supabase
+        .from('certificates')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('certificates table not available:', error.message);
+      if (error) {
+        console.warn('certificates table not available:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  }, 60_000); // 60 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1006,21 +1044,24 @@ function normalizeNotification(row: any) {
 }
 
 export async function fetchNotifications(studentId: string) {
-  try {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('student_id', studentId)
-      .order('created_at', { ascending: false });
+  if (!studentId || studentId === 'guest') return [];
+  return cachedQuery(`notifications:${studentId}`, async () => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('student_id', studentId)
+        .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('notifications table not available:', error.message);
+      if (error) {
+        console.warn('notifications table not available:', error.message);
+        return [];
+      }
+      return (data || []).map(normalizeNotification);
+    } catch {
       return [];
     }
-    return (data || []).map(normalizeNotification);
-  } catch {
-    return [];
-  }
+  }, 15_000); // 15 seconds
 }
 
 /**
@@ -1053,6 +1094,7 @@ export async function persistNotification(n: {
       console.debug('persistNotification skipped:', error.message);
       return false;
     }
+    invalidateCache(`notifications:${n.studentId}`);
     return true;
   } catch {
     return false;
@@ -1083,44 +1125,38 @@ export async function fetchPracticeProblems(
   batchCategory?: string,
   enrolledCourses?: string[]
 ) {
-  try {
-    let query = supabase.from('coding_questions').select('*').order('created_at', { ascending: true });
-    if (courseId) query = query.eq('course_id', courseId);
+  const cacheKey = `practice_problems:${courseId || ''}:${batchCode || ''}:${batchCategory || ''}:${(enrolledCourses || []).sort().join(',')}`;
+  return cachedQuery(cacheKey, async () => {
+    try {
+      let query = supabase.from('coding_questions').select('*').order('created_at', { ascending: true });
+      if (courseId) query = query.eq('course_id', courseId);
 
-    const { data, error } = await query;
+      const { data, error } = await query;
 
-    if (error) {
-      console.warn('coding_questions table not available:', error.message);
+      if (error) {
+        console.warn('coding_questions table not available:', error.message);
+        return [];
+      }
+      if (!data) return [];
+
+      const validCourses = new Set([
+        ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
+        courseId
+      ].filter(Boolean));
+
+      const filtered = data.filter((item: any) => {
+        // 1. Strict Course Check: If question specifies course_id, it MUST belong to the student's enrolled courses.
+        if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+          return false;
+        }
+        return true;
+      });
+
+      return filtered;
+    } catch {
       return [];
     }
-    if (!data) return [];
-
-    const validCourses = new Set([
-      ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
-      courseId
-    ].filter(Boolean));
-
-    const filtered = data.filter((item: any) => {
-      // 1. Strict Course Check: If question specifies course_id, it MUST belong to the student's enrolled courses.
-      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
-        return false;
-      }
-
-      // 2. Batch targeting: target_batch is used by the admin as a hint for when to create the problem,
-      // NOT as a hard visibility gate. The actual unlock gate is milestone_locks (checked in PracticeScreen
-      // via isUnlocked(inner_topic_id)). Accept items whose target_batch is explicitly "all"/"all batches",
-      // OR whose batch code/category matches, OR if no target_batch is set.
-      // If the item HAS a target_batch that clearly targets a DIFFERENT batch category (e.g. "Weekend Batch"
-      // for a Weekday student), still show it — the milestone unlock is the real gate.
-      // This prevents admins from accidentally hiding valid problems by mis-setting target_batch.
-
-      return true;
-    });
-
-    return filtered;
-  } catch {
-    return [];
-  }
+  }, 60_000); // 60 seconds
 }
 
 
@@ -1129,20 +1165,22 @@ export async function fetchPracticeProblems(
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchRewards() {
-  try {
-    const { data, error } = await supabase
-      .from('rewards')
-      .select('*')
-      .order('created_at', { ascending: true });
+  return cachedQuery('rewards', async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rewards')
+        .select('*')
+        .order('created_at', { ascending: true });
 
-    if (error) {
-      console.warn('rewards table not available:', error.message);
+      if (error) {
+        console.warn('rewards table not available:', error.message);
+        return [];
+      }
+      return data || [];
+    } catch {
       return [];
     }
-    return data || [];
-  } catch {
-    return [];
-  }
+  }, 60_000); // 60 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1150,26 +1188,28 @@ export async function fetchRewards() {
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchLeaderboard() {
-  try {
-    // SECURITY (preferred): the get_leaderboard RPC returns a non-PII projection (no email). Once the
-    // 20260905000000_lock_students_pii migration is applied it is the only path (anon SELECT revoked).
-    const { data, error } = await supabase.rpc('get_leaderboard', { row_limit: 20 });
-    if (!error) return data || [];
+  return cachedQuery('leaderboard', async () => {
+    try {
+      // SECURITY (preferred): the get_leaderboard RPC returns a non-PII projection (no email). Once the
+      // 20260905000000_lock_students_pii migration is applied it is the only path (anon SELECT revoked).
+      const { data, error } = await supabase.rpc('get_leaderboard', { row_limit: 20 });
+      if (!error) return data || [];
 
-    // Migration not applied yet → fall back to a direct read (still without email).
-    const fnMissing = error.code === 'PGRST202' || /Could not find the function|schema cache/i.test(error.message || '');
-    if (!fnMissing) {
-      console.warn('Error fetching leaderboard:', error.message);
+      // Migration not applied yet → fall back to a direct read (still without email).
+      const fnMissing = error.code === 'PGRST202' || /Could not find the function|schema cache/i.test(error.message || '');
+      if (!fnMissing) {
+        console.warn('Error fetching leaderboard:', error.message);
+        return [];
+      }
+      const { data: rows } = await supabase
+        .from('students')
+        .select('id, name, avatar, batch')
+        .limit(20);
+      return rows || [];
+    } catch {
       return [];
     }
-    const { data: rows } = await supabase
-      .from('students')
-      .select('id, name, avatar, batch')
-      .limit(20);
-    return rows || [];
-  } catch {
-    return [];
-  }
+  }, 30_000); // 30 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1177,153 +1217,159 @@ export async function fetchLeaderboard() {
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchRecordingById(sessionId: string) {
-  try {
-    let row: any = null;
-    const { data: recData } = await supabase
-      .from('recordings')
-      .select('*')
-      .eq('id', sessionId)
-      .maybeSingle();
-
-    if (recData) {
-      row = recData;
-    } else {
-      const { data: liveData, error: liveError } = await supabase
-        .from('live_sessions')
+  if (!sessionId) return null;
+  return cachedQuery(`recording:${sessionId}`, async () => {
+    try {
+      let row: any = null;
+      const { data: recData } = await supabase
+        .from('recordings')
         .select('*')
         .eq('id', sessionId)
         .maybeSingle();
 
-      if (liveError) {
-        console.warn('Error fetching live session recording:', liveError.message);
-      }
-      row = liveData;
-    }
+      if (recData) {
+        row = recData;
+      } else {
+        const { data: liveData, error: liveError } = await supabase
+          .from('live_sessions')
+          .select('*')
+          .eq('id', sessionId)
+          .maybeSingle();
 
-    if (!row) {
+        if (liveError) {
+          console.warn('Error fetching live session recording:', liveError.message);
+        }
+        row = liveData;
+      }
+
+      if (!row) {
+        return null;
+      }
+
+      const instructorName = typeof row.instructor === 'object' && row.instructor
+        ? (row.instructor.name || 'Lead Trainer')
+        : (row.instructor || 'Lead Trainer');
+
+      return {
+        ...row,
+        title: row.session_title || row.title || row.concept_name || 'Live Masterclass Recording',
+        course: row.technology || row.course || 'Masterclass',
+        instructor: {
+          name: instructorName,
+          title: 'Senior Technical Trainer',
+          avatar: row.instructor_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructorName)}&background=7c3aed&color=fff`
+        },
+        thumbnail: row.thumbnail_url || row.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=60',
+        duration: row.duration || '1h 30m',
+        scheduledAt: row.date ? `${row.date}${row.time ? ` · ${row.time}` : ''}` : (row.time || 'Completed'),
+        participants: row.participants || 42,
+        video_url: row.video_url || row.meeting_link || null
+      };
+    } catch {
       return null;
     }
-
-    const instructorName = typeof row.instructor === 'object' && row.instructor
-      ? (row.instructor.name || 'Lead Trainer')
-      : (row.instructor || 'Lead Trainer');
-
-    return {
-      ...row,
-      title: row.session_title || row.title || row.concept_name || 'Live Masterclass Recording',
-      course: row.technology || row.course || 'Masterclass',
-      instructor: {
-        name: instructorName,
-        title: 'Senior Technical Trainer',
-        avatar: row.instructor_avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(instructorName)}&background=7c3aed&color=fff`
-      },
-      thumbnail: row.thumbnail_url || row.thumbnail || 'https://images.unsplash.com/photo-1516321318423-f06f85e504b3?w=800&auto=format&fit=crop&q=60',
-      duration: row.duration || '1h 30m',
-      scheduledAt: row.date ? `${row.date}${row.time ? ` · ${row.time}` : ''}` : (row.time || 'Completed'),
-      participants: row.participants || 42,
-      video_url: row.video_url || row.meeting_link || null
-    };
-  } catch {
-    return null;
-  }
+  }, 60_000); // 60 seconds
 }
 
 export async function fetchRecordings(batchCode?: string, batchCategory?: string, enrolledCourses?: string[]) {
-  try {
-    const isWeekend = batchCategory === 'Weekend' || (batchCode && (batchCode.toLowerCase().includes('s') || batchCode.toLowerCase().includes('weekend')));
-    const targetBatchStr = isWeekend ? 'Weekend Batch' : 'Weekday Batch';
-    const b = batchCode || '';
-    const userEnrolled = enrolledCourses || [];
+  const cacheKey = `recordings:${batchCode || ''}:${batchCategory || ''}:${(enrolledCourses || []).sort().join(',')}`;
+  return cachedQuery(cacheKey, async () => {
+    try {
+      const isWeekend = batchCategory === 'Weekend' || (batchCode && (batchCode.toLowerCase().includes('s') || batchCode.toLowerCase().includes('weekend')));
+      const targetBatchStr = isWeekend ? 'Weekend Batch' : 'Weekday Batch';
+      const b = batchCode || '';
+      const userEnrolled = enrolledCourses || [];
 
-    // 1. Fetch published recordings from recordings table
-    let recQuery = supabase.from('recordings').select('*');
-    const { data: recData, error: recError } = await recQuery.order('created_at', { ascending: false });
+      // 1. Fetch published recordings from recordings table
+      let recQuery = supabase.from('recordings').select('*');
+      const { data: recData, error: recError } = await recQuery.order('created_at', { ascending: false });
 
-    let filteredRecData: any[] = [];
-    if (!recError && recData && recData.length > 0) {
-      filteredRecData = recData.filter((r: any) => {
-        // Exclude drafts / hidden
-        const pub = String(r.publish_status || '').toLowerCase();
-        if (pub === 'draft' || pub === 'hidden') return false;
+      let filteredRecData: any[] = [];
+      if (!recError && recData && recData.length > 0) {
+        filteredRecData = recData.filter((r: any) => {
+          // Exclude drafts / hidden
+          const pub = String(r.publish_status || '').toLowerCase();
+          if (pub === 'draft' || pub === 'hidden') return false;
 
-        // Parse instructions or metadata
-        let rCourseId = r.course_id || '';
-        let rModuleId = r.module_id || r.lesson_id || '';
-        if (r.instructions) {
-          try {
-            const parsed = typeof r.instructions === 'string' ? JSON.parse(r.instructions) : r.instructions;
-            if (parsed?.courseId) rCourseId = parsed.courseId;
-            if (parsed?.moduleId) rModuleId = parsed.moduleId;
-            if (parsed?.lessonId) rModuleId = parsed.lessonId;
-          } catch {}
-        }
-        if (!rCourseId && r.description) {
-          try {
-            const parsed = typeof r.description === 'string' ? JSON.parse(r.description) : r.description;
-            if (parsed?.courseId) rCourseId = parsed.courseId;
-            if (parsed?.moduleId && !rModuleId) rModuleId = parsed.moduleId;
-            if (parsed?.lessonId && !rModuleId) rModuleId = parsed.lessonId;
-          } catch {}
-        }
+          // Parse instructions or metadata
+          let rCourseId = r.course_id || '';
+          let rModuleId = r.module_id || r.lesson_id || '';
+          if (r.instructions) {
+            try {
+              const parsed = typeof r.instructions === 'string' ? JSON.parse(r.instructions) : r.instructions;
+              if (parsed?.courseId) rCourseId = parsed.courseId;
+              if (parsed?.moduleId) rModuleId = parsed.moduleId;
+              if (parsed?.lessonId) rModuleId = parsed.lessonId;
+            } catch {}
+          }
+          if (!rCourseId && r.description) {
+            try {
+              const parsed = typeof r.description === 'string' ? JSON.parse(r.description) : r.description;
+              if (parsed?.courseId) rCourseId = parsed.courseId;
+              if (parsed?.moduleId && !rModuleId) rModuleId = parsed.moduleId;
+              if (parsed?.lessonId && !rModuleId) rModuleId = parsed.lessonId;
+            } catch {}
+          }
 
-        // Attach resolved IDs onto the record
-        if (rCourseId && !r.course_id) r.course_id = rCourseId;
-        if (rModuleId && !r.module_id) r.module_id = rModuleId;
+          // Attach resolved IDs onto the record
+          if (rCourseId && !r.course_id) r.course_id = rCourseId;
+          if (rModuleId && !r.module_id) r.module_id = rModuleId;
 
-        // 1. If target_batch is specified and not 'all', strictly check if it matches student's batch
-        const tb = (r.target_batch || '').toLowerCase();
-        const hasExplicitBatch = tb && !tb.includes('all') && tb !== 'all batches';
-        if (hasExplicitBatch) {
-          const matchesBatch = (b && tb.includes(b.toLowerCase())) || (targetBatchStr && tb.includes(targetBatchStr.toLowerCase()));
-          if (!matchesBatch) return false;
-        }
+          // 1. If target_batch is specified and not 'all', strictly check if it matches student's batch
+          const tb = (r.target_batch || '').toLowerCase();
+          const hasExplicitBatch = tb && !tb.includes('all') && tb !== 'all batches';
+          if (hasExplicitBatch) {
+            const matchesBatch = (b && tb.includes(b.toLowerCase())) || (targetBatchStr && tb.includes(targetBatchStr.toLowerCase()));
+            if (!matchesBatch) return false;
+          }
 
-        // 2. Course-level match: if student is enrolled in the course, check enrollment
-        if (rCourseId && userEnrolled.length > 0) {
-          return userEnrolled.includes(rCourseId);
-        }
+          // 2. Course-level match: if student is enrolled in the course, check enrollment
+          if (rCourseId && userEnrolled.length > 0) {
+            return userEnrolled.includes(rCourseId);
+          }
 
-        // 3. Batch match fallback
-        if (tb.includes('all batches') || tb === 'all' || !tb) return true;
-        if (b && tb.includes(b.toLowerCase())) return true;
-        if (targetBatchStr && tb.includes(targetBatchStr.toLowerCase())) return true;
+          // 3. Batch match fallback
+          if (tb.includes('all batches') || tb === 'all' || !tb) return true;
+          if (b && tb.includes(b.toLowerCase())) return true;
+          if (targetBatchStr && tb.includes(targetBatchStr.toLowerCase())) return true;
 
-        // If user has no enrolledCourses filter specified, allow default
-        if (userEnrolled.length === 0) return true;
+          // If user has no enrolledCourses filter specified, allow default
+          if (userEnrolled.length === 0) return true;
 
-        return false;
-      });
-    }
-
-    // 2. Also check completed live_sessions for live classes that have ended
-    let liveQuery = supabase
-      .from('live_sessions')
-      .select('*')
-      .eq('status', 'completed');
-
-    if (b) {
-      liveQuery = liveQuery.or(liveSessionBatchFilter(b));
-    }
-
-    const { data: liveData, error: liveError } = await liveQuery.order('date', { ascending: false });
-
-    if (liveError) {
-      console.warn('Error fetching recordings from live_sessions:', liveError.message);
-      return filteredRecData;
-    }
-
-    const recIds = new Set(filteredRecData.map((r: any) => r.id));
-    const combined = [...filteredRecData];
-    for (const item of (liveData || [])) {
-      if (!recIds.has(item.id)) {
-        combined.push(item);
+          return false;
+        });
       }
-    }
 
-    return combined;
-  } catch {
-    return [];
-  }
+      // 2. Also check completed live_sessions for live classes that have ended
+      let liveQuery = supabase
+        .from('live_sessions')
+        .select('*')
+        .eq('status', 'completed');
+
+      if (b) {
+        liveQuery = liveQuery.or(liveSessionBatchFilter(b));
+      }
+
+      const { data: liveData, error: liveError } = await liveQuery.order('date', { ascending: false });
+
+      if (liveError) {
+        console.warn('Error fetching recordings from live_sessions:', liveError.message);
+        return filteredRecData;
+      }
+
+      const recIds = new Set(filteredRecData.map((r: any) => r.id));
+      const combined = [...filteredRecData];
+      for (const item of (liveData || [])) {
+        if (!recIds.has(item.id)) {
+          combined.push(item);
+        }
+      }
+
+      return combined;
+    } catch {
+      return [];
+    }
+  }, 60_000); // 60 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1649,15 +1695,18 @@ export async function markLessonComplete(userId: string, lessonId: string, cours
 
 /** Returns the set of lesson ids this student has marked complete. */
 export async function fetchCompletedLessons(userId: string): Promise<Set<string>> {
-  try {
-    const { data } = await supabase
-      .from('lesson_progress')
-      .select('lesson_id, completed')
-      .eq('student_id', userId);
-    return new Set((data || []).filter((r: any) => r.completed).map((r: any) => r.lesson_id));
-  } catch {
-    return new Set();
-  }
+  if (!userId || userId === 'guest') return new Set();
+  return cachedQuery(`student_lp_set:${userId}`, async () => {
+    try {
+      const { data } = await supabase
+        .from('lesson_progress')
+        .select('lesson_id, completed')
+        .eq('student_id', userId);
+      return new Set((data || []).filter((r: any) => r.completed).map((r: any) => r.lesson_id));
+    } catch {
+      return new Set();
+    }
+  }, 15_000); // 15 seconds
 }
 
 /**
@@ -1735,6 +1784,7 @@ export async function issueCertificateIfComplete(userId: string, courseId: strin
       },
       { onConflict: 'id', ignoreDuplicates: true }
     );
+    invalidateCache(`certificates:${userId}`);
   } catch (e) {
     // Expected until the anon INSERT policy on certificates is applied.
     console.debug('issueCertificateIfComplete skipped:', e);
@@ -1795,6 +1845,9 @@ export async function submitPracticeProblem(
     } catch (e) {
       console.warn('Failed to update practice submission:', e);
     }
+    invalidateCache(`student_ps:${userId}`);
+    invalidateCache(`student_ps_full:${userId}`);
+    invalidateCache(`student_profile:${userId}`);
     return priorRow;
   }
 
@@ -1816,23 +1869,27 @@ export async function submitPracticeProblem(
   }
 
   invalidateCache(`student_ps:${userId}`);
+  invalidateCache(`student_ps_full:${userId}`);
   invalidateCache(`student_profile:${userId}`);
 
   return data;
 }
 
 export async function fetchUserSubmissions(userId: string) {
-  const { data, error } = await supabase
-    .from('practice_submissions')
-    .select('*')
-    .eq('student_id', userId)
-    .order('submitted_at', { ascending: false });
+  if (!userId || userId === 'guest') return [];
+  return cachedQuery(`student_ps_full:${userId}`, async () => {
+    const { data, error } = await supabase
+      .from('practice_submissions')
+      .select('*')
+      .eq('student_id', userId)
+      .order('submitted_at', { ascending: false });
 
-  if (error) {
-    console.warn('practice_submissions table not available:', error.message);
-    return [];
-  }
-  return data || [];
+    if (error) {
+      console.warn('practice_submissions table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  }, 15_000); // 15 seconds
 }
 
 /**
@@ -1850,6 +1907,7 @@ export async function deletePracticeSubmission(studentId: string, problemId: str
 
     if (error) throw error;
     invalidateCache(`student_ps:${studentId}`);
+    invalidateCache(`student_ps_full:${studentId}`);
     invalidateCache(`student_profile:${studentId}`);
   } catch (err) {
     console.error('Failed to delete practice submission:', err);
@@ -1871,6 +1929,7 @@ export async function rejectPracticeSubmission(studentId: string, problemId: str
 
     if (error) throw error;
     invalidateCache(`student_ps:${studentId}`);
+    invalidateCache(`student_ps_full:${studentId}`);
     invalidateCache(`student_profile:${studentId}`);
   } catch (err) {
     console.error('Failed to reject practice submission:', err);
@@ -1924,6 +1983,9 @@ export async function submitAssignmentAttempt(
     } catch (e) {
       console.warn('Failed to bump assessment attempt_count:', e);
     }
+    invalidateCache(`student_aa:${userId}`);
+    invalidateCache(`student_aa_full:${userId}`);
+    invalidateCache(`student_profile:${userId}`);
     return priorRow;
   }
 
@@ -1977,21 +2039,28 @@ export async function submitAssignmentAttempt(
     console.warn('Failed to increment XP / recalculate streak after assessment attempt:', xpErr);
   }
 
+  invalidateCache(`student_aa:${userId}`);
+  invalidateCache(`student_aa_full:${userId}`);
+  invalidateCache(`student_profile:${userId}`);
+
   return data;
 }
 
 export async function fetchAssignmentAttempts(userId: string) {
-  const { data, error } = await supabase
-    .from('assessment_attempts')
-    .select('*')
-    .eq('student_id', userId)
-    .order('submitted_at', { ascending: false });
+  if (!userId || userId === 'guest') return [];
+  return cachedQuery(`student_aa_full:${userId}`, async () => {
+    const { data, error } = await supabase
+      .from('assessment_attempts')
+      .select('*')
+      .eq('student_id', userId)
+      .order('submitted_at', { ascending: false });
 
-  if (error) {
-    console.warn('assessment_attempts table not available:', error.message);
-    return [];
-  }
-  return data || [];
+    if (error) {
+      console.warn('assessment_attempts table not available:', error.message);
+      return [];
+    }
+    return data || [];
+  }, 15_000); // 15 seconds
 }
 
 /**
@@ -2007,6 +2076,8 @@ export async function deleteAssessmentAttempt(studentId: string, assignmentId: s
       .eq('assignment_id', assignmentId);
 
     if (error) throw error;
+    invalidateCache(`student_aa:${studentId}`);
+    invalidateCache(`student_aa_full:${studentId}`);
     invalidateCache(`student_profile:${studentId}`);
   } catch (err) {
     console.error('Failed to delete assessment attempt:', err);
@@ -2028,6 +2099,7 @@ export async function deleteQuizAttempt(userId: string, quizId: string) {
 
     if (error) throw error;
     invalidateCache(`student_qa:${userId}`);
+    invalidateCache(`student_qa_full:${userId}`);
     invalidateCache(`student_profile:${userId}`);
   } catch (err) {
     console.error('Failed to delete quiz attempt:', err);
@@ -2063,20 +2135,24 @@ export async function submitRewardClaim(claim: {
     console.error('Error submitting reward claim:', error);
     throw error;
   }
+  invalidateCache(`reward_claims:${claim.student_id}`);
   return data;
 }
 
 export async function fetchRewardClaims(studentId: string) {
-  const { data, error } = await supabase
-    .from('reward_claims')
-    .select('*')
-    .eq('student_id', studentId);
+  if (!studentId || studentId === 'guest') return [];
+  return cachedQuery(`reward_claims:${studentId}`, async () => {
+    const { data, error } = await supabase
+      .from('reward_claims')
+      .select('*')
+      .eq('student_id', studentId);
 
-  if (error) {
-    console.error('Error fetching reward claims:', error);
-    return [];
-  }
-  return data || [];
+    if (error) {
+      console.error('Error fetching reward claims:', error);
+      return [];
+    }
+    return data || [];
+  }, 30_000); // 30 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2111,20 +2187,24 @@ export async function submitJobApplication(application: {
     console.error('Error submitting job application:', error);
     throw error;
   }
+  invalidateCache(`job_applications:${application.student_id}`);
   return data;
 }
 
 export async function fetchJobApplications(studentId: string) {
-  const { data, error } = await supabase
-    .from('job_applications')
-    .select('*')
-    .eq('student_id', studentId);
+  if (!studentId || studentId === 'guest') return [];
+  return cachedQuery(`job_applications:${studentId}`, async () => {
+    const { data, error } = await supabase
+      .from('job_applications')
+      .select('*')
+      .eq('student_id', studentId);
 
-  if (error) {
-    console.error('Error fetching job applications:', error);
-    return [];
-  }
-  return data || [];
+    if (error) {
+      console.error('Error fetching job applications:', error);
+      return [];
+    }
+    return data || [];
+  }, 30_000); // 30 seconds
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -2132,26 +2212,29 @@ export async function fetchJobApplications(studentId: string) {
 // ════════════════════════════════════════════════════════════════
 
 export async function fetchPersonalTasks(studentId: string) {
-  const { data, error } = await supabase
-    .from('personal_tasks')
-    .select('*')
-    .eq('student_id', studentId);
+  if (!studentId || studentId === 'guest') return [];
+  return cachedQuery(`personal_tasks:${studentId}`, async () => {
+    const { data, error } = await supabase
+      .from('personal_tasks')
+      .select('*')
+      .eq('student_id', studentId);
 
-  if (error) {
-    console.error('Error fetching personal tasks:', error);
-    return [];
-  }
+    if (error) {
+      console.error('Error fetching personal tasks:', error);
+      return [];
+    }
 
-  return (data || []).map((row: any) => ({
-    id: row.id,
-    student_id: row.student_id,
-    title: row.title,
-    type: row.type,
-    date: row.date,
-    dateKey: row.date_key,
-    time: row.time,
-    completed: row.completed
-  }));
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      student_id: row.student_id,
+      title: row.title,
+      type: row.type,
+      date: row.date,
+      dateKey: row.date_key,
+      time: row.time,
+      completed: row.completed
+    }));
+  }, 15_000); // 15 seconds
 }
 
 export async function submitPersonalTask(task: {
@@ -2183,6 +2266,7 @@ export async function submitPersonalTask(task: {
     console.error('Error submitting personal task:', error);
     throw error;
   }
+  invalidateCache(`personal_tasks:${task.student_id}`);
   return data;
 }
 
@@ -2196,6 +2280,7 @@ export async function updatePersonalTaskCompletion(taskId: string, completed: bo
     console.error('Error updating personal task completion:', error);
     throw error;
   }
+  invalidateCacheByPrefix('personal_tasks:');
   return data;
 }
 
@@ -2209,6 +2294,7 @@ export async function deletePersonalTask(taskId: string) {
     console.error('Error deleting personal task:', error);
     throw error;
   }
+  invalidateCacheByPrefix('personal_tasks:');
   return data;
 }
 
@@ -2222,6 +2308,7 @@ export async function updateNotificationReadStatus(id: string, read: boolean) {
     console.error('Error updating notification read status:', error);
     throw error;
   }
+  invalidateCacheByPrefix('notifications:');
   return data;
 }
 
@@ -2235,6 +2322,7 @@ export async function markAllNotificationsAsRead(studentId: string) {
     console.error('Error marking all notifications as read:', error);
     throw error;
   }
+  invalidateCache(`notifications:${studentId}`);
   return data;
 }
 
@@ -2248,6 +2336,7 @@ export async function deleteNotificationRow(id: string) {
     console.error('Error deleting notification row:', error);
     throw error;
   }
+  invalidateCacheByPrefix('notifications:');
   return data;
 }
 
