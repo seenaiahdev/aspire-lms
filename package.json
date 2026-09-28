@@ -8,5 +8,8 @@
     "dev:backend": "npm run dev --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
     "start:backend": "npm start --prefix backend"
+  },
+  "dependencies": {
+    "nodemailer": "^6.9.14"
   }
 }
