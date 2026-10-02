@@ -34,6 +34,7 @@ interface NotificationsContextType {
   markRead: (id: string) => void;
   markAllRead: () => void;
   deleteNotification: (id: string) => void;
+  clearAllNotifications: () => void;
   addNotification: (n: AppNotification, opts?: { showToast?: boolean; persistDb?: boolean }) => void;
 }
 
@@ -895,10 +896,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     deleteNotificationRow(id).catch(() => {});
   }, [persistLocal, recordDismissed]);
 
+  const clearAllNotifications = useCallback(() => {
+    const sid = userRef.current?.id;
+    const allIds = notifications.map((n) => n.id);
+    setNotifications([]);
+    if (sid) persistLocal(sid, []);
+    recordDismissed(allIds);
+    allIds.forEach((id) => deleteNotificationRow(id).catch(() => {}));
+  }, [notifications, persistLocal, recordDismissed]);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
 
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, deleteNotification, addNotification }}>
+    <NotificationsContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, deleteNotification, clearAllNotifications, addNotification }}>
       {children}
       {toast && createPortal(<NotificationToast n={toast} onClose={() => setToast(null)} />, document.body)}
     </NotificationsContext.Provider>

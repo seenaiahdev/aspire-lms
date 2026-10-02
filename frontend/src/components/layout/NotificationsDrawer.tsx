@@ -1,10 +1,10 @@
-import { Bell, X, CheckCheck, Clock, Loader2 } from 'lucide-react';
+import { Bell, X, CheckCheck, Clock, Loader2, Trash2 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useNotifications, getNotificationIconConfig } from '@/lib/NotificationsContext';
 
 export function NotificationsDrawer() {
   const { notificationsOpen, setNotificationsOpen } = useNav();
-  const { notifications: notificationsList, unreadCount, markRead, markAllRead } = useNotifications();
+  const { notifications: notificationsList, unreadCount, markRead, markAllRead, deleteNotification, clearAllNotifications } = useNotifications();
   const loading = false;
 
   if (!notificationsOpen) return null;
@@ -37,7 +37,7 @@ export function NotificationsDrawer() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             {unreadCount > 0 && (
               <button
                 onClick={markAllAsRead}
@@ -45,6 +45,16 @@ export function NotificationsDrawer() {
                 className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white border border-white/25 flex items-center justify-center transition-all active:scale-95"
               >
                 <CheckCheck className="w-4 h-4 text-white" />
+              </button>
+            )}
+
+            {notificationsList.length > 0 && (
+              <button
+                onClick={() => clearAllNotifications()}
+                title="Clear all notifications"
+                className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white border border-white/25 flex items-center justify-center transition-all active:scale-95"
+              >
+                <Trash2 className="w-4 h-4 text-white" />
               </button>
             )}
 
@@ -57,14 +67,30 @@ export function NotificationsDrawer() {
           </div>
         </div>
 
+        {/* Quick Clear Bar when all are read */}
+        {notificationsList.length > 0 && unreadCount === 0 && (
+          <div className="px-4 py-2 bg-slate-50 border-b border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>All notifications read</span>
+            <button
+              onClick={() => clearAllNotifications()}
+              className="text-primary-600 hover:text-primary-700 font-bold transition-colors cursor-pointer"
+            >
+              Clear all
+            </button>
+          </div>
+        )}
+
         {/* Notifications List */}
         <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
           {loading ? (
             <div className="flex justify-center p-8"><Loader2 className="w-6 h-6 text-primary-500 animate-spin" /></div>
           ) : notificationsList.length === 0 ? (
             <div className="py-12 text-center text-slate-400 space-y-2">
-              <Bell className="w-8 h-8 mx-auto stroke-[1.5]" />
-              <p className="text-xs font-semibold">No notifications right now</p>
+              <div className="w-12 h-12 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto text-slate-400">
+                <Bell className="w-6 h-6 stroke-[1.5]" />
+              </div>
+              <p className="text-xs font-bold text-slate-600">All caught up!</p>
+              <p className="text-[11px] text-slate-400">No notifications right now</p>
             </div>
           ) : (
             notificationsList.map((item) => {
@@ -74,34 +100,45 @@ export function NotificationsDrawer() {
                 <div
                   key={item.id}
                   onClick={() => toggleRead(item.id)}
-                  className={`p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer relative group ${
+                  className={`p-3.5 rounded-2xl border transition-all duration-200 cursor-pointer relative group flex items-start gap-3 ${
                     isUnread
                       ? 'bg-primary-50/70 border-primary-200/80 shadow-xs'
                       : 'bg-white border-slate-200/70 hover:bg-slate-50'
                   }`}
                 >
-                  {isUnread && (
-                    <span className="absolute top-3 right-3 w-2.5 h-2.5 rounded-full bg-primary-600 ring-2 ring-white" />
-                  )}
+                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${bg}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
 
-                  <div className="flex items-start gap-3">
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 shadow-2xs ${bg}`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-
-                    <div className="flex-1 min-w-0 pr-4">
+                  <div className="flex-1 min-w-0 pr-1">
+                    <div className="flex items-center gap-1.5">
                       <h4 className={`text-xs font-bold leading-snug ${isUnread ? 'text-slate-900' : 'text-slate-700'}`}>
                         {item.title}
                       </h4>
-                      <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
-                        {item.message}
-                      </p>
-                      <p className="text-[10px] font-semibold text-slate-400 mt-2 flex items-center gap-1">
-                        <Clock className="w-3 h-3" />
-                        {item.timestamp || item.time || 'Just now'}
-                      </p>
+                      {isUnread && (
+                        <span className="w-2 h-2 rounded-full bg-primary-600 ring-2 ring-white shrink-0" />
+                      )}
                     </div>
+                    <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                      {item.message}
+                    </p>
+                    <p className="text-[10px] font-semibold text-slate-400 mt-2 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {item.timestamp || item.time || 'Just now'}
+                    </p>
                   </div>
+
+                  {/* Individual Dismiss / Remove button */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      deleteNotification(item.id);
+                    }}
+                    title="Remove notification"
+                    className="w-6 h-6 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 flex items-center justify-center transition-colors shrink-0 -mt-0.5 -mr-1"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               );
             })

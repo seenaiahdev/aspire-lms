@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
-  Gift, Sparkles, Lock, Unlock, CheckCircle2, Award, ShoppingBag, ArrowRight, Package, Truck, X, ShieldCheck, Loader2
+  Gift, Sparkles, Lock, Unlock, CheckCircle2, Award, ShoppingBag, ArrowRight, Package, Truck, X, ShieldCheck, Loader2, Crown, Trophy, Star
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Toast } from '@/components/ui/Toast';
@@ -17,6 +17,7 @@ import { rewardsSteps } from '@/lib/tourSteps';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 import aspireBackpackImg from '@/assests/media_1786109472875.jpg';
 import { BadgesPanel } from '@/components/BadgesPanel';
+import { RewardsHeroBanner } from '@/components/RewardsHeroBanner';
 
 export interface SwagReward {
   id: string;
@@ -214,47 +215,36 @@ export function RewardsScreen() {
         <Toast message={toastMessage} onClose={() => setToastMessage(null)} position="top-right" />
       )}
 
-      {/* Header Banner */}
-      <div id="tour-rewards-header" className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 sm:p-7 rounded-[2rem] bg-white border border-slate-200/90 shadow-xs">
-        <div>
-          <span className="inline-block px-3 py-1 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider mb-2">
-            STUDENT MERCHANDISE & SWAG STORE
-          </span>
-          <h2 className="font-extrabold text-2xl sm:text-3xl text-slate-900 tracking-tight">
-            AspireNext Rewards & Merchandise
-          </h2>
-          <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-            Earn XP points by solving coding practice problems, completing quizzes, and finishing course modules to unlock official branded merchandise.
-          </p>
+      {/* ════════ REWARDS HERO BANNER ════════ */}
+      <RewardsHeroBanner />
+
+      {/* ════════ TAB BAR & XP BALANCE ════════ */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 w-fit">
+          {[
+            { id: 'rewards' as const, label: 'Rewards', icon: ShoppingBag },
+            { id: 'badges' as const, label: 'Badges', icon: Award },
+          ].map((t) => {
+            const isActive = tab === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setTab(t.id)}
+                className={cn(
+                  'px-4 sm:px-5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all',
+                  isActive ? 'bg-white text-[#7c3aed] shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                )}
+              >
+                <t.icon className="w-4 h-4" /> {t.label}
+              </button>
+            );
+          })}
         </div>
 
-        <div id="tour-rewards-balance" className="flex items-center gap-3 shrink-0">
-          <div className="px-4 py-2.5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white font-black text-xs shadow-md flex items-center">
-            <span>{userXp} Total Student XP</span>
-          </div>
+        <div id="tour-rewards-balance" className="flex items-center gap-2.5 px-4 py-2.5 rounded-2xl bg-white border border-slate-200 shadow-2xs w-fit">
+          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="text-xs font-black text-[#6d28d9]">{userXp} Total Student XP</span>
         </div>
-      </div>
-
-      {/* ════════ TAB BAR: MERCHANDISE / BADGES ════════ */}
-      <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl border border-slate-200 w-fit">
-        {[
-          { id: 'rewards' as const, label: 'Rewards', icon: ShoppingBag },
-          { id: 'badges' as const, label: 'Badges', icon: Award },
-        ].map((t) => {
-          const isActive = tab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
-              className={cn(
-                'px-4 sm:px-5 py-2 rounded-xl text-xs font-extrabold flex items-center gap-2 transition-all',
-                isActive ? 'bg-white text-[#7c3aed] shadow-sm' : 'text-slate-500 hover:text-slate-700'
-              )}
-            >
-              <t.icon className="w-4 h-4" /> {t.label}
-            </button>
-          );
-        })}
       </div>
 
       {/* ════════ BADGES TAB ════════ */}
