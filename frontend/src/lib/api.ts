@@ -873,7 +873,7 @@ export function evaluateBadgeCriteria(
   if (criteria.includes('streak')) {
     const match = criteria.match(/\d+/);
     const requiredStreak = match ? parseInt(match[0], 10) : 10;
-    const currentStreak = Math.max(Number(user?.streak || 0), Number(user?.attendance || 0));
+    const currentStreak = Number(user?.streak ?? 0);
     return currentStreak >= requiredStreak;
   }
 
@@ -957,11 +957,10 @@ export function evaluateBadgeCriteria(
   if (criteria.includes('attendance') || criteria.includes('attend')) {
     const match = criteria.match(/\d+/);
     const requiredAttendance = match ? parseInt(match[0], 10) : 75;
-    let attendanceVal = Number(user?.attendance || 0);
-    // If attendance was stored as a streak number (<= 10), use their course completion rate
-    if (attendanceVal <= 10) {
-      attendanceVal = Math.max(attendanceVal, Number(user?.progress || 0));
+    if (user?.attendanceStats && user.attendanceStats.totalSessions === 0) {
+      return false;
     }
+    const attendanceVal = Number(user?.attendancePercentage ?? user?.attendanceStats?.percentage ?? user?.attendance ?? 0);
     return attendanceVal >= requiredAttendance;
   }
 

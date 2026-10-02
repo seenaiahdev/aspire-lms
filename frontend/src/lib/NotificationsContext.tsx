@@ -820,6 +820,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           }
           try { localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds)); } catch {}
         }
+
+        // Clean up any stale/phantom badge notifications for badges that are not actually earned
+        const earnedBadgeIdSet = new Set(currentEarnedBadgeIds);
+        setNotifications((prev) => {
+          const filtered = prev.filter((n) => {
+            if (n.id.startsWith(`notif-badge-earned-${sid}-`)) {
+              const badgeId = n.id.replace(`notif-badge-earned-${sid}-`, '');
+              return earnedBadgeIdSet.has(badgeId);
+            }
+            return true;
+          });
+          return filtered.length !== prev.length ? filtered : prev;
+        });
       } catch (err) {
         console.error('Error evaluating rewards/badges unlock notifications:', err);
       }
