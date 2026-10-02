@@ -110,14 +110,13 @@ function loadStored(sid: string): AppNotification[] {
 export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user, refetchUser } = useUser();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
-  const [toast, setToast] = useState<AppNotification | null>(null);
+  const [toasts, setToasts] = useState<AppNotification[]>([]);
 
   // Keep the latest user + notifications in refs so realtime handlers stay stable.
   const userRef = useRef(user);
   userRef.current = user;
   const listRef = useRef<AppNotification[]>(notifications);
   listRef.current = notifications;
-  const toastTimer = useRef<any>(null);
 
   const persistLocal = useCallback((sid: string, list: AppNotification[]) => {
     try {
@@ -145,13 +144,18 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const existing = listRef.current;
       if (existing.some((x) => x.id === n.id)) return; // dedupe
       const next = [n, ...existing].slice(0, MAX_STORED);
-      setNotifications(next);
+      listRef.current = next;
+      setNotifications((prev) => {
+        if (prev.some((x) => x.id === n.id)) return prev;
+        return [n, ...prev].slice(0, MAX_STORED);
+      });
       persistLocal(sid, next);
 
       if (opts.showToast) {
-        setToast(n);
-        if (toastTimer.current) clearTimeout(toastTimer.current);
-        toastTimer.current = setTimeout(() => setToast(null), 6000);
+        setToasts((prev) => [...prev.filter((t) => t.id !== n.id), n].slice(-3));
+        setTimeout(() => {
+          setToasts((prev) => prev.filter((t) => t.id !== n.id));
+        }, 6000);
       }
       if (opts.persistDb) {
         persistNotification({ id: n.id, studentId: sid, title: n.title, content: n.content || n.message });
@@ -752,35 +756,46 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         });
         const currentUnlockedRewardIds = unlockedRewards.map((r: any) => r.id);
 
-        const prevUnlockedRaw = localStorage.getItem(rewardsKey);
-        let prevUnlockedIds: string[] = [];
-        try { prevUnlockedIds = prevUnlockedRaw ? JSON.parse(prevUnlockedRaw) : []; } catch {}
+        let dismissedIds = new Set<string>();
+        try {
+          const raw = localStorage.getItem(dismissedKey(sid));
+          if (raw) dismissedIds = new Set(JSON.parse(raw));
+        } catch {}
 
-        if (prevUnlockedRaw === null || prevUnlockedIds.length === 0) {
-          // Initialize baseline silently on first visit/login without spamming toasts
-          try { localStorage.setItem(rewardsKey, JSON.stringify(currentUnlockedRewardIds)); } catch {}
-        } else {
-          const prevSet = new Set(prevUnlockedIds);
-          const newlyUnlockedRewards = unlockedRewards.filter((r: any) => !prevSet.has(r.id));
+        const toastedRewardsKey = `aspire_toasted_rewards_${sid}`;
+        const prevToastedRewardsRaw = localStorage.getItem(toastedRewardsKey);
+        let toastedRewardIds = new Set<string>();
+        try {
+          if (prevToastedRewardsRaw) toastedRewardIds = new Set(JSON.parse(prevToastedRewardsRaw));
+        } catch {}
 
-          if (newlyUnlockedRewards.length > 0) {
-            newlyUnlockedRewards.forEach((r: any) => {
-              addNotification(
-                {
-                  id: `notif-reward-unlock-${sid}-${r.id}`,
-                  student_id: sid,
-                  type: 'achievement',
-                  title: 'Reward Unlocked',
-                  message: `"${r.reward_title || r.name || 'A reward'}" is now available to claim in Rewards.`,
-                  read: false,
-                  created_at: new Date().toISOString(),
-                },
-                { showToast: true, persistDb: true }
-              );
-            });
+        unlockedRewards.forEach((r: any) => {
+          const notifId = `notif-reward-unlock-${sid}-${r.id}`;
+          if (dismissedIds.has(notifId)) return;
+          const shouldToast = !toastedRewardIds.has(r.id);
+
+          addNotification(
+            {
+              id: notifId,
+              student_id: sid,
+              type: 'achievement',
+              title: 'Reward Unlocked',
+              message: `"${r.reward_title || r.name || 'A reward'}" is now available to claim in Rewards.`,
+              read: false,
+              created_at: new Date().toISOString(),
+            },
+            { showToast: shouldToast, persistDb: true }
+          );
+
+          if (shouldToast) {
+            toastedRewardIds.add(r.id);
           }
-          try { localStorage.setItem(rewardsKey, JSON.stringify(currentUnlockedRewardIds)); } catch {}
-        }
+        });
+
+        try {
+          localStorage.setItem(toastedRewardsKey, JSON.stringify(Array.from(toastedRewardIds)));
+          localStorage.setItem(rewardsKey, JSON.stringify(currentUnlockedRewardIds));
+        } catch {}
 
         // 2. BADGES EARNED CHECK
         const earnedBadges = (badgesData || []).filter((b: any) =>
@@ -791,35 +806,35 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         );
         const currentEarnedBadgeIds = earnedBadges.map((b: any) => b.id);
 
-        const prevBadgesRaw = localStorage.getItem(badgesKey);
-        let prevEarnedIds: string[] = [];
-        try { prevEarnedIds = prevBadgesRaw ? JSON.parse(prevBadgesRaw) : []; } catch {}
+        const toastedBadgesKey = `aspire_toasted_badges_${sid}`;
+        const prevToastedBadgesRaw = localStorage.getItem(toastedBadgesKey);
+        let toastedBadgeIds = new Set<string>();
+        try {
+          if (prevToastedBadgesRaw) toastedBadgeIds = new Set(JSON.parse(prevToastedBadgesRaw));
+        } catch {}
 
-        if (prevBadgesRaw === null || prevEarnedIds.length === 0) {
-          // Initialize baseline silently on first visit/login without spamming toasts
-          try { localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds)); } catch {}
-        } else {
-          const prevBadgeSet = new Set(prevEarnedIds);
-          const newlyEarnedBadges = earnedBadges.filter((b: any) => !prevBadgeSet.has(b.id));
+        earnedBadges.forEach((b: any) => {
+          const notifId = `notif-badge-earned-${sid}-${b.id}`;
+          if (dismissedIds.has(notifId)) return;
+          const shouldToast = !toastedBadgeIds.has(b.id);
 
-          if (newlyEarnedBadges.length > 0) {
-            newlyEarnedBadges.forEach((b: any) => {
-              addNotification(
-                {
-                  id: `notif-badge-earned-${sid}-${b.id}`,
-                  student_id: sid,
-                  type: 'achievement',
-                  title: 'Badge Earned',
-                  message: `You have earned the "${b.name || 'new'}" badge.`,
-                  read: false,
-                  created_at: new Date().toISOString(),
-                },
-                { showToast: true, persistDb: true }
-              );
-            });
+          addNotification(
+            {
+              id: notifId,
+              student_id: sid,
+              type: 'achievement',
+              title: 'Badge Earned',
+              message: `You have earned the "${b.name || 'new'}" badge.`,
+              read: false,
+              created_at: new Date().toISOString(),
+            },
+            { showToast: shouldToast, persistDb: true }
+          );
+
+          if (shouldToast) {
+            toastedBadgeIds.add(b.id);
           }
-          try { localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds)); } catch {}
-        }
+        });
 
         // Clean up any stale/phantom badge notifications for badges that are not actually earned
         const earnedBadgeIdSet = new Set(currentEarnedBadgeIds);
@@ -831,8 +846,17 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             }
             return true;
           });
+          listRef.current = filtered;
           return filtered.length !== prev.length ? filtered : prev;
         });
+
+        // Keep toastedBadges in sync with currently earned badges
+        const updatedToastedBadges = Array.from(toastedBadgeIds).filter((id) => earnedBadgeIdSet.has(id));
+
+        try {
+          localStorage.setItem(toastedBadgesKey, JSON.stringify(updatedToastedBadges));
+          localStorage.setItem(badgesKey, JSON.stringify(currentEarnedBadgeIds));
+        } catch {}
       } catch (err) {
         console.error('Error evaluating rewards/badges unlock notifications:', err);
       }
@@ -923,7 +947,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   return (
     <NotificationsContext.Provider value={{ notifications, unreadCount, markRead, markAllRead, deleteNotification, clearAllNotifications, addNotification }}>
       {children}
-      {toast && createPortal(<NotificationToast n={toast} onClose={() => setToast(null)} />, document.body)}
+      {toasts.length > 0 &&
+        createPortal(
+          <div className="fixed top-20 right-4 z-[100000] flex flex-col gap-2.5 w-80 max-w-[90vw] pointer-events-none">
+            {toasts.map((t) => (
+              <NotificationToast
+                key={t.id}
+                n={t}
+                onClose={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
+              />
+            ))}
+          </div>,
+          document.body
+        )}
     </NotificationsContext.Provider>
   );
 }
@@ -1040,7 +1076,7 @@ export function getNotificationIconConfig(n: { type?: string; title?: string; me
 function NotificationToast({ n, onClose }: { n: AppNotification; onClose: () => void }) {
   const { Icon, toastBg } = getNotificationIconConfig(n);
   return (
-    <div className="fixed top-20 right-4 z-[100000] w-80 max-w-[90vw] animate-slide-left">
+    <div className="pointer-events-auto w-full animate-slide-left">
       <div className="flex items-start gap-3 p-4 rounded-2xl bg-white border border-slate-200 shadow-[0_12px_40px_-8px_rgba(0,0,0,0.25)]">
         <div className={`w-9 h-9 rounded-xl ${toastBg} text-white flex items-center justify-center shrink-0 shadow-sm`}>
           <Icon className="w-4 h-4" />
@@ -1049,7 +1085,7 @@ function NotificationToast({ n, onClose }: { n: AppNotification; onClose: () => 
           <p className="font-extrabold text-sm text-slate-900 leading-snug">{n.title}</p>
           <p className="text-xs text-slate-500 mt-0.5 leading-relaxed line-clamp-2">{n.message}</p>
         </div>
-        <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors shrink-0">
+        <button onClick={onClose} className="text-slate-300 hover:text-slate-600 transition-colors shrink-0 cursor-pointer">
           <X className="w-4 h-4" />
         </button>
       </div>
