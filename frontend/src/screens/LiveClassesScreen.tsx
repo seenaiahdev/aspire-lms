@@ -387,50 +387,9 @@ export function LiveClassesScreen() {
     }, 4000);
   };
 
-  const handleWatchRecording = async (cls: any) => {
+  const handleWatchRecording = (cls: any) => {
     const defaultCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
-
-    // 1. If it's a dedicated recording from recordings table or has video_url, navigate to recording player
-    if (cls.isRecording || String(cls.id).startsWith('rec-') || cls.video_url) {
-      navigate('recording', { id: cls.id });
-      return;
-    }
-
-    // 2. If the session already carries a lessonId from admin metadata, navigate directly
-    if (cls.lessonId) {
-      navigate('lesson', {
-        id: cls.courseId || defaultCourseId,
-        lesson: cls.lessonId
-      });
-      return;
-    }
-
-    // 3. Try to find a matching lesson by title in the DB
-    try {
-      const cleanTitle = (cls.title || '').trim();
-      // Use only the first segment before any comma — commas break PostgREST .or() parser
-      const firstWords = cleanTitle.split(',')[0].split('&')[0].trim();
-
-      if (firstWords) {
-        const { data: matchedLessons } = await supabase
-          .from('course_lessons')
-          .select('id, title, course_id')
-          .ilike('title', `%${firstWords}%`)
-          .limit(1);
-
-        if (matchedLessons && matchedLessons.length > 0) {
-          navigate('lesson', {
-            id: matchedLessons[0].course_id || cls.courseId || defaultCourseId,
-            lesson: matchedLessons[0].id
-          });
-          return;
-        }
-      }
-    } catch (err) {
-      console.error('Error finding matching course lesson for recording:', err);
-    }
-
-    // 4. Fallback: open the course details screen instead of a broken recording player
+    // Always navigate to the course's modules/classes tab
     navigate('course', { id: cls.courseId || defaultCourseId });
   };
 

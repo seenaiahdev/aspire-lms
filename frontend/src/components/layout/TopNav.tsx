@@ -53,7 +53,6 @@ export function TopNav() {
     lesson: 'Lesson Player',
     live: 'Live Classes',
     classroom: 'Live Classroom',
-    recording: 'Recorded Masterclass',
     milestones: 'Milestones Roadmap',
     assignments: 'Daily Assessment',
     'daily-assessment': 'Daily Assessment',
