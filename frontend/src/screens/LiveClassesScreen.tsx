@@ -387,10 +387,41 @@ export function LiveClassesScreen() {
     }, 4000);
   };
 
-  const handleWatchRecording = (cls: any) => {
+  const handleWatchRecording = async (cls: any) => {
     const defaultCourseId = user.enrolledCourses?.[0] || 'crs-1786624019154-w';
-    // Always navigate to the course's modules/classes tab
-    navigate('course', { id: cls.courseId || defaultCourseId });
+    const courseId = cls.courseId || defaultCourseId;
+
+    // 1. If the recording already carries a direct lessonId, open that lesson immediately
+    if (cls.lessonId) {
+      navigate('lesson', { id: courseId, lesson: cls.lessonId });
+      return;
+    }
+
+    // 2. Try to find the matching lesson by title in course_lessons
+    try {
+      const cleanTitle = (cls.title || '').trim().split(',')[0].split('&')[0].trim();
+      if (cleanTitle) {
+        const { data: matchedLessons } = await supabase
+          .from('course_lessons')
+          .select('id, course_id')
+          .ilike('title', `%${cleanTitle}%`)
+          .limit(1);
+
+        if (matchedLessons && matchedLessons.length > 0) {
+          const matched = matchedLessons[0];
+          navigate('lesson', {
+            id: matched.course_id || courseId,
+            lesson: matched.id
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Error finding lesson for recording:', err);
+    }
+
+    // 3. Fallback: open the course screen (modules tab shown by default)
+    navigate('course', { id: courseId });
   };
 
   const filtered = useMemo(() => {
