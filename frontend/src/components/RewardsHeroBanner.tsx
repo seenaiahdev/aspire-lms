@@ -9,7 +9,7 @@ export const RewardsHeroBanner: React.FC<RewardsHeroBannerProps> = ({ onStartPre
   return (
     <div
       id="tour-rewards-header"
-      className="relative w-full overflow-hidden rounded-[24px] sm:rounded-[28px] border border-purple-100/70 shadow-[0_12px_36px_rgba(40,30,90,0.05)]"
+      className="relative w-full overflow-hidden rounded-[24px] sm:rounded-[28px] border border-purple-200 shadow-sm"
       style={{
         background: 'linear-gradient(110deg, #FFFFFF 0%, #FAF9FF 45%, #F3F0FF 100%)',
       }}

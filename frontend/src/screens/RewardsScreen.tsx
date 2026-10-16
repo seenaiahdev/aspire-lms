@@ -257,7 +257,7 @@ export function RewardsScreen() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         
         {/* Unlocked */}
-        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+        <Card className="p-4 bg-white border border-slate-200 shadow-2xs rounded-2xl flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
             <Gift className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
@@ -268,7 +268,7 @@ export function RewardsScreen() {
         </Card>
 
         {/* Locked */}
-        <Card className="p-4 bg-white border border-slate-200/90 shadow-2xs rounded-2xl flex items-center gap-3.5">
+        <Card className="p-4 bg-white border border-slate-200 shadow-2xs rounded-2xl flex items-center gap-3.5">
           <div className="w-11 h-11 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center shrink-0 border border-purple-100">
             <Lock className="w-5.5 h-5.5 text-[#7c3aed]" />
           </div>
@@ -296,7 +296,7 @@ export function RewardsScreen() {
             <Card
               key={reward.id}
               id={index === 0 ? 'tour-rewards-card-0' : undefined}
-              className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200/90 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]"
+              className="relative overflow-hidden rounded-[2rem] bg-white border border-slate-200 shadow-sm transition-all duration-300 flex flex-col justify-between group min-h-[380px]"
             >
               
               <div 
