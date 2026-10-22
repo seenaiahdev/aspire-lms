@@ -442,11 +442,34 @@ export function LessonScreen() {
   }, [dbCourse, dbSyllabus, user.progress, courseIdToFetch]);
 
   const allLessons = course.stages?.flatMap((s: any) => s.modules).flatMap((m: any) => m.lessons) || [];
-  const currentIdx = allLessons.findIndex((l: any) => l.id === params.lesson);
+  const targetLessonId = params.lesson ? String(params.lesson).trim() : '';
+  const currentIdx = allLessons.findIndex((l: any) => {
+    if (!targetLessonId) return false;
+    if (String(l.id).trim() === targetLessonId) return true;
+    if (courseDataLists.resolver) {
+      if (courseDataLists.resolver.resolveLessonId(l.id) === targetLessonId) return true;
+      if (courseDataLists.resolver.resolveLessonId(targetLessonId) === l.id) return true;
+    }
+    if (l.title && targetLessonId.toLowerCase() === String(l.title).toLowerCase().trim()) return true;
+    return false;
+  });
   const safeCurrentIdx = currentIdx !== -1 ? currentIdx : 0;
   const currentLesson = allLessons[safeCurrentIdx];
   const prevLesson = safeCurrentIdx > 0 ? allLessons[safeCurrentIdx - 1] : null;
   const nextLesson = safeCurrentIdx < allLessons.length - 1 ? allLessons[safeCurrentIdx + 1] : null;
+
+  // Auto-expand the sidebar module containing the current lesson
+  useEffect(() => {
+    if (!currentLesson?.id || !course.stages) return;
+    for (const stage of course.stages) {
+      for (const mod of stage.modules || []) {
+        if ((mod.lessons || []).some((l: any) => l.id === currentLesson.id)) {
+          setOpenModuleId(mod.id);
+          return;
+        }
+      }
+    }
+  }, [currentLesson?.id, course.stages]);
 
   const lessonDone = !!currentLesson && completedLessonIds.has(currentLesson.id);
 

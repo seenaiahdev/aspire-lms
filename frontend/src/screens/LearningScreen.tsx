@@ -414,6 +414,7 @@ export function LearningScreen() {
                     title: sub.title,
                     description: sub.description || '',
                     duration: sub.durationHours || sub.duration || '5h',
+                    courseId: courseId,
                     lessons: moduleLessons.map((l: any, idx: number) => {
                       const dbPractices = codingQuestions
                         ? codingQuestions.filter((cq: any) => resolver.resolveLessonId(cq.inner_topic_id) === l.id)
@@ -995,7 +996,7 @@ export function LearningScreen() {
                                   tabIndex={isModLocked ? -1 : 0}
                                   onClick={() => { 
                                     if(!isModLocked) {
-                                      setSelectedTopicDrawer(mod);
+                                      setSelectedTopicDrawer({ ...mod, courseId: mod.courseId || activeCourse?.id || user.enrolledCourses?.[0] });
                                       // Lessons start CLOSED in the drawer — the student picks one.
                                       setActiveAccordion(null);
                                     }
@@ -1003,7 +1004,7 @@ export function LearningScreen() {
                                   onKeyDown={(e) => {
                                     if (!isModLocked && (e.key === 'Enter' || e.key === ' ')) {
                                       e.preventDefault();
-                                      setSelectedTopicDrawer(mod);
+                                      setSelectedTopicDrawer({ ...mod, courseId: mod.courseId || activeCourse?.id || user.enrolledCourses?.[0] });
                                       setActiveAccordion(null);
                                     }
                                   }}
@@ -1535,7 +1536,8 @@ export function LearningScreen() {
                               <div 
                                 onClick={() => {
                                   setSelectedTopicDrawer(null);
-                                  navigate('lesson', { id: user.enrolledCourses?.[0] || '', lesson: lesson.id });
+                                  const targetCourseId = mod.courseId || activeCourse?.id || user.enrolledCourses?.[0] || '';
+                                  navigate('lesson', { id: targetCourseId, lesson: lesson.id });
                                 }}
                                 className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition-all flex items-center justify-between gap-3 cursor-pointer group/item active:scale-[0.99]"
                               >

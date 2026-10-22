@@ -1243,9 +1243,9 @@ export function ProjectsScreen() {
           <Tabs
             variant="pills"
             tabs={[
-              { id: 'assigned', label: `Assigned (${assignedCount})` },
-              { id: 'submitted', label: `Submitted (${submittedCount})` },
-              { id: 'feedback', label: `Mentor Feedback (${feedbackCount})` },
+              { id: 'assigned', label: 'Assigned' },
+              { id: 'submitted', label: 'Submitted' },
+              { id: 'feedback', label: 'Mentor Feedback' },
             ]}
             active={subTab}
             onChange={(val) => handleSubTabChange(val as any)}
