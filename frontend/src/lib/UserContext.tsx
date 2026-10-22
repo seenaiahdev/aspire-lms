@@ -209,7 +209,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           if (locks) {
             const now = new Date();
             unlockedLessonIds = locks
-              .filter((l: any) => !l.is_locked || (l.unlock_datetime && new Date(l.unlock_datetime) <= now))
+              .filter((l: any) => !l.is_locked && (!l.unlock_datetime || new Date(l.unlock_datetime) <= now))
               .map((l: any) => l.lesson_id);
           }
 

@@ -325,11 +325,17 @@ export function PracticeScreen() {
       // While unlock resolver is initializing, don't drop cached problems to 0!
       if (!resolverReady) return true;
 
-      // Check if released to the student's batch or unlocked by lesson milestones
-      const isReleased = !p.target_batch || p.target_batch === 'all' || p.target_batch === 'all batches' || courseTargetsBatch(p.target_batch, batchCode, batchCategory);
+      // 1. If question is linked to a course module/lesson, it MUST be unlocked in milestones for this student's batch
       const isUnlockedQuestion = isUnlocked(p.inner_topic_id) || isEntityUnlocked(p);
+      if (p.inner_topic_id || p.topic_id || p.lesson_id) {
+        if (!isUnlockedQuestion) return false;
+      } else {
+        // 2. Standalone problem not attached to a syllabus lesson: must target the student's batch
+        const targetsBatch = !p.target_batch || p.target_batch === 'all' || p.target_batch === 'all batches' || courseTargetsBatch(p.target_batch, batchCode, batchCategory);
+        if (!targetsBatch) return false;
+      }
 
-      return isReleased || isUnlockedQuestion;
+      return true;
     });
   }, [problems, difficulty, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, isUnlocked, isEntityUnlocked]);
 
