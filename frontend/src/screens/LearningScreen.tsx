@@ -117,6 +117,35 @@ export interface LearningItem {
   actionText: string;
   targetRoute?: string;
 }
+
+export function getCourseCategory(course: any): 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin' {
+  const catStr = (course?.category || '').toLowerCase().trim();
+  const titleStr = (course?.title || '').toLowerCase().trim();
+  const checkStr = catStr || titleStr;
+
+  if (checkStr.includes('soft') || checkStr.includes('communication')) {
+    return 'soft_skills';
+  } else if (checkStr.includes('aptitude') || checkStr.includes('reasoning')) {
+    return 'aptitude';
+  } else if (checkStr.includes('resume')) {
+    return 'resume';
+  } else if (checkStr.includes('portfolio') || checkStr.includes('capstone')) {
+    return 'portfolio';
+  } else if (checkStr.includes('linkedin') || checkStr.includes('networking')) {
+    return 'linkedin';
+  }
+  return 'courses';
+}
+
+export const CATEGORY_ORDER: Record<string, number> = {
+  courses: 1,
+  soft_skills: 2,
+  aptitude: 3,
+  resume: 4,
+  portfolio: 5,
+  linkedin: 6,
+};
+
 export function LearningScreen() {
   const { navigate, route, params } = useNav();
   const { user } = useUser();
@@ -216,19 +245,35 @@ export function LearningScreen() {
     }
   }, [params?.id, params?.courseId]);
 
+  const sortedCourses = useMemo(() => {
+    if (!dbCourses || dbCourses.length === 0) return [];
+    const enrolledMap = new Map((user.enrolledCourses || []).map((id: string, idx: number) => [id, idx]));
+
+    return [...dbCourses].sort((a, b) => {
+      const catA = getCourseCategory(a);
+      const catB = getCourseCategory(b);
+      const orderA = CATEGORY_ORDER[catA] || 99;
+      const orderB = CATEGORY_ORDER[catB] || 99;
+      if (orderA !== orderB) {
+        return orderA - orderB;
+      }
+      const idxA = enrolledMap.has(a.id) ? (enrolledMap.get(a.id) as number) : 999;
+      const idxB = enrolledMap.has(b.id) ? (enrolledMap.get(b.id) as number) : 999;
+      if (idxA !== idxB) {
+        return idxA - idxB;
+      }
+      return (a.title || '').localeCompare(b.title || '');
+    });
+  }, [dbCourses, user.enrolledCourses]);
+
   const activeCourse = useMemo(() => {
-    if (!dbCourses || dbCourses.length === 0) return null;
+    if (!sortedCourses || sortedCourses.length === 0) return null;
     if (selectedCourseId) {
-      const found = dbCourses.find(c => c.id === selectedCourseId);
+      const found = sortedCourses.find(c => c.id === selectedCourseId);
       if (found) return found;
     }
-    const firstEnrolled = user.enrolledCourses?.[0];
-    if (firstEnrolled) {
-      const found = dbCourses.find(c => c.id === firstEnrolled);
-      if (found) return found;
-    }
-    return dbCourses[0];
-  }, [dbCourses, selectedCourseId, user.enrolledCourses]);
+    return sortedCourses[0];
+  }, [sortedCourses, selectedCourseId]);
 
   const dbSyllabus = useMemo(() => {
     if (!activeCourse) return null;
@@ -797,9 +842,9 @@ export function LearningScreen() {
           ) : (
             <>
               {/* Course Switcher Pills if enrolled in multiple courses */}
-              {dbCourses.length > 1 && (
+              {sortedCourses.length > 1 && (
                 <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                  {dbCourses.map((c) => (
+                  {sortedCourses.map((c) => (
                     <button
                       key={c.id}
                       onClick={() => setSelectedCourseId(c.id)}
