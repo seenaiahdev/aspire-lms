@@ -68,6 +68,12 @@ export function PracticeScreen() {
   });
   const [problems, setProblems] = useState<any[]>(() => {
     try {
+      const currentUserId = user?.id || 'guest';
+      const localCachedUnlocked = localStorage.getItem(`aspire_practice_unlocked_cache_${currentUserId}`);
+      if (localCachedUnlocked) {
+        const parsed = JSON.parse(localCachedUnlocked);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
       const cached = localStorage.getItem('aspire_practice_problems_cache');
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -78,9 +84,10 @@ export function PracticeScreen() {
   });
   const [loading, setLoading] = useState(() => {
     try {
-      const cached = localStorage.getItem('aspire_practice_problems_cache');
-      if (cached) {
-        const parsed = JSON.parse(cached);
+      const currentUserId = user?.id || 'guest';
+      const localCachedUnlocked = localStorage.getItem(`aspire_practice_unlocked_cache_${currentUserId}`);
+      if (localCachedUnlocked) {
+        const parsed = JSON.parse(localCachedUnlocked);
         if (Array.isArray(parsed) && parsed.length > 0) return false;
       }
     } catch {}
@@ -318,12 +325,9 @@ export function PracticeScreen() {
     const batchCode = user?.batchCode || (user as any)?.batch || '';
     const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
 
-    return problems.filter((p) => {
+    const result = problems.filter((p) => {
       const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
       if (!matchesDifficulty || p.solved) return false;
-
-      // While unlock resolver is initializing, don't drop cached problems to 0!
-      if (!resolverReady) return true;
 
       // 1. If question is linked to a course module/lesson, it MUST be unlocked in milestones for this student's batch
       const isUnlockedQuestion = isUnlocked(p.inner_topic_id) || isEntityUnlocked(p);
@@ -337,7 +341,17 @@ export function PracticeScreen() {
 
       return true;
     });
-  }, [problems, difficulty, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, isUnlocked, isEntityUnlocked]);
+
+    // Save verified unlocked problems to cache memory for instant display on future reloads
+    if (resolverReady && result.length > 0 && difficulty === 'all') {
+      try {
+        const currentUserId = user?.id || 'guest';
+        localStorage.setItem(`aspire_practice_unlocked_cache_${currentUserId}`, JSON.stringify(result));
+      } catch {}
+    }
+
+    return result;
+  }, [problems, difficulty, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, isUnlocked, isEntityUnlocked, user?.id]);
 
   const solved = useMemo(() => {
     return Math.max(submissions.length, problems.filter((p) => p.solved).length);
@@ -418,7 +432,7 @@ export function PracticeScreen() {
             ))}
           </div>
 
-          {loading ? (
+          {(loading && filtered.length === 0) || (!resolverReady && filtered.length === 0) ? (
             <Card>
               <CardBody className="text-center py-12">
                 <Loader2 className="w-10 h-10 text-[#7c3aed] animate-spin mx-auto mb-4" />

@@ -41,11 +41,157 @@ export interface LessonResolver {
   getCoverTopics: (lessonId: string) => CoverTopic[];
 }
 
+export interface CachedBridgeData {
+  bIds: string[];
+  aIdToBId: Record<string, string>;
+  titleToBId: Record<string, string>;
+  compositeToBId: Record<string, string>;
+  bIdToCoverTopics: Record<string, CoverTopic[]>;
+  timestamp?: number;
+}
+
 const norm = (s: any): string =>
   String(s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
 
 const compositeKey = (moduleTitle: any, lessonTitle: any): string =>
   `${norm(moduleTitle)}::${norm(lessonTitle)}`;
+
+const BRIDGE_CACHE_KEY = 'aspire_lesson_bridge_cache';
+
+function getBridgeStorageKey(courseIds: string[], batchCode: string): string {
+  const ids = (courseIds || []).filter(Boolean).slice().sort();
+  return `${ids.join(',')}|${batchCode || ''}`;
+}
+
+export function createResolverFromData(data: CachedBridgeData): LessonResolver {
+  const bIds = new Set(data.bIds || []);
+  const aIdToBId = new Map(Object.entries(data.aIdToBId || {}));
+  const titleToBId = new Map(Object.entries(data.titleToBId || {}));
+  const bIdToCoverTopics = new Map(Object.entries(data.bIdToCoverTopics || {}));
+
+  const resolveLessonId = (rawId: string): string => {
+    if (!rawId) return rawId;
+    if (bIds.has(rawId)) return rawId;
+    return aIdToBId.get(rawId) || rawId;
+  };
+
+  const resolveEntityLessonId = (entity: any): string => {
+    if (!entity) return '';
+    try {
+      const desc = JSON.parse(entity.description || '{}');
+      if (desc.moduleName) {
+        const bId = titleToBId.get(norm(desc.moduleName));
+        if (bId) return bId;
+      }
+      if (desc.lessonTitle) {
+        const bId = titleToBId.get(norm(desc.lessonTitle));
+        if (bId) return bId;
+      }
+      if (desc.lessonId) {
+        const id = resolveLessonId(String(desc.lessonId).trim());
+        if (id) return id;
+      }
+    } catch {}
+    if (entity.lesson_title) {
+      const bId = titleToBId.get(norm(entity.lesson_title));
+      if (bId) return bId;
+    }
+    if (entity.topic_name) {
+      const t = String(entity.topic_name).split('||').pop() || '';
+      const bId = titleToBId.get(norm(t));
+      if (bId) return bId;
+    }
+    if (entity.topic_id) {
+      const parts = String(entity.topic_id).split('||');
+      if (parts[2]) {
+        const id = resolveLessonId(String(parts[2]).trim());
+        if (id) return id;
+      }
+    }
+    if (entity.inner_topic_id) {
+      const id = resolveLessonId(String(entity.inner_topic_id).trim());
+      if (id) return id;
+    }
+    if (entity.lesson_id) {
+      const id = resolveLessonId(String(entity.lesson_id).trim());
+      if (id) return id;
+    }
+    return '';
+  };
+
+  return {
+    resolveLessonId,
+    resolveEntityLessonId,
+    getCoverTopics: (lessonId: string) => bIdToCoverTopics.get(lessonId) || [],
+  };
+}
+
+export function loadResolverFromCache(courseIds: string[], batchCode: string): LessonResolver | null {
+  try {
+    let ids = (courseIds || []).filter(Boolean).slice().sort();
+    let batch = batchCode || '';
+    if (ids.length === 0) {
+      const cachedUserStr = localStorage.getItem('aspire_cached_user');
+      if (cachedUserStr) {
+        const u = JSON.parse(cachedUserStr);
+        if (Array.isArray(u.enrolledCourses) && u.enrolledCourses.length > 0) {
+          ids = u.enrolledCourses.filter(Boolean).slice().sort();
+        }
+        if (!batch && u.batchCode) {
+          batch = u.batchCode;
+        }
+      }
+    }
+    const raw = localStorage.getItem(BRIDGE_CACHE_KEY);
+    if (!raw) {
+      const legacyKey = `aspire_bridge_${ids.join(',')}_${batch}`;
+      const legacyRaw = localStorage.getItem(legacyKey);
+      if (!legacyRaw) return null;
+      const legData = JSON.parse(legacyRaw);
+      return createResolverFromData({
+        bIds: legData.bIds || [],
+        aIdToBId: legData.aIdToBId || {},
+        titleToBId: legData.titleToBId || {},
+        compositeToBId: {},
+        bIdToCoverTopics: legData.coverTopics || legData.bIdToCoverTopics || {},
+      });
+    }
+    const parsed = JSON.parse(raw);
+    const key = getBridgeStorageKey(ids, batch);
+    const data: CachedBridgeData | null = parsed[key] || (parsed.bIds ? parsed : null);
+    if (!data || !Array.isArray(data.bIds) || data.bIds.length === 0) return null;
+    return createResolverFromData(data);
+  } catch (err) {
+    return null;
+  }
+}
+
+export function saveResolverToCache(courseIds: string[], batchCode: string, data: CachedBridgeData): void {
+  try {
+    const key = getBridgeStorageKey(courseIds, batchCode);
+    let store: Record<string, any> = {};
+    try {
+      const raw = localStorage.getItem(BRIDGE_CACHE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && !parsed.bIds) {
+          store = parsed;
+        }
+      }
+    } catch {}
+    store[key] = data;
+    Object.assign(store, data);
+    localStorage.setItem(BRIDGE_CACHE_KEY, JSON.stringify(store));
+
+    const legacyKey = `aspire_bridge_${courseIds.slice().sort().join(',')}_${batchCode}`;
+    localStorage.setItem(legacyKey, JSON.stringify(data));
+  } catch (err) {
+    console.warn('Failed to save lesson bridge cache:', err);
+  }
+}
+
+/** Retrieve synchronous cached resolver from localStorage if available (alias of loadResolverFromCache). */
+export const getCachedResolver = loadResolverFromCache;
 
 // Session cache: one build per set of course ids.
 const cache = new Map<string, Promise<LessonResolver>>();
@@ -262,62 +408,21 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
       bIdToCoverTopics.set(bId, existing);
     }
 
-    const resolveEntityLessonId = (entity: any): string => {
-      if (!entity) return '';
-      // 1. Check description moduleName / lessonTitle (matches LearningScreen projLessonTitle)
-      try {
-        const desc = JSON.parse(entity.description || '{}');
-        if (desc.moduleName) {
-          const bId = titleToBId.get(norm(desc.moduleName));
-          if (bId) return bId;
-        }
-        if (desc.lessonTitle) {
-          const bId = titleToBId.get(norm(desc.lessonTitle));
-          if (bId) return bId;
-        }
-        if (desc.lessonId) {
-          const id = resolveLessonId(String(desc.lessonId).trim());
-          if (id) return id;
-        }
-      } catch {}
-      // 2. Check direct topic_name or lesson_title
-      if (entity.lesson_title) {
-        const bId = titleToBId.get(norm(entity.lesson_title));
-        if (bId) return bId;
-      }
-      if (entity.topic_name) {
-        const t = String(entity.topic_name).split('||').pop() || '';
-        const bId = titleToBId.get(norm(t));
-        if (bId) return bId;
-      }
-      // 3. Check topic_id (e.g. course||module||lesson_id)
-      if (entity.topic_id) {
-        const parts = String(entity.topic_id).split('||');
-        if (parts[2]) {
-          const id = resolveLessonId(String(parts[2]).trim());
-          if (id) return id;
-        }
-      }
-      // 4. Check inner_topic_id
-      if (entity.inner_topic_id) {
-        const id = resolveLessonId(String(entity.inner_topic_id).trim());
-        if (id) return id;
-      }
-      // 5. Check lesson_id
-      if (entity.lesson_id) {
-        const id = resolveLessonId(String(entity.lesson_id).trim());
-        if (id) return id;
-      }
-      return '';
+    const cacheData: CachedBridgeData = {
+      bIds: Array.from(bIds),
+      aIdToBId: Object.fromEntries(aIdToBId.entries()),
+      titleToBId: Object.fromEntries(titleToBId.entries()),
+      compositeToBId: Object.fromEntries(compositeToBId.entries()),
+      bIdToCoverTopics: Object.fromEntries(bIdToCoverTopics.entries()),
+      timestamp: Date.now(),
     };
+    saveResolverToCache(courseIds, batchCode, cacheData);
 
-    return {
-      resolveLessonId,
-      resolveEntityLessonId,
-      getCoverTopics: (lessonId: string) => bIdToCoverTopics.get(lessonId) || [],
-    };
+    return createResolverFromData(cacheData);
   } catch (err) {
-    console.warn('Failed to build lesson link resolver, using identity:', err);
+    console.warn('Failed to build lesson link resolver, using cached or identity:', err);
+    const cached = loadResolverFromCache(courseIds, batchCode);
+    if (cached) return cached;
     return identityResolver;
   }
 }
@@ -325,6 +430,9 @@ async function buildResolver(courseIds: string[], batchCode: string): Promise<Le
 /** Clear the resolver cache so the next getLessonResolver() rebuilds from fresh admin data. */
 export function clearLessonResolverCache(): void {
   cache.clear();
+  try {
+    localStorage.removeItem(BRIDGE_CACHE_KEY);
+  } catch {}
 }
 
 /** Get (and cache) a resolver for the given enrolled course ids + student batch. */
@@ -363,12 +471,18 @@ export function rawLessonLink(entity: any): string {
  */
 export function useUnlockResolver() {
   const { user } = useUser();
-  const [resolver, setResolver] = useState<LessonResolver | null>(null);
+  const [resolver, setResolver] = useState<LessonResolver | null>(() => {
+    return getCachedResolver(user?.enrolledCourses || [], user?.batchCode || '');
+  });
 
   const courseKey = (user?.enrolledCourses || []).join(',');
   const batchCode = user?.batchCode || '';
   useEffect(() => {
     let alive = true;
+    if (!resolver) {
+      const cached = getCachedResolver(user?.enrolledCourses || [], batchCode);
+      if (cached && alive) setResolver(cached);
+    }
     getLessonResolver(user?.enrolledCourses || [], batchCode).then((r) => {
       if (alive) setResolver(r);
     });
