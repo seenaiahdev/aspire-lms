@@ -241,10 +241,16 @@ export function parseProjectDetails(p: any) {
 
 export function ProjectsScreen() {
   const { user } = useUser();
-  const { isUnlocked, isEntityUnlocked } = useUnlockResolver();
+  const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { params, navigate } = useNav();
   const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone'>('mini');
-  const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>('assigned');
+  const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>(() => {
+    try {
+      const saved = localStorage.getItem('aspire_projects_subtab');
+      if (saved === 'assigned' || saved === 'submitted' || saved === 'feedback') return saved;
+    } catch {}
+    return 'assigned';
+  });
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
 
@@ -605,7 +611,11 @@ export function ProjectsScreen() {
   const effectiveProjects = useMemo(() => {
     return projectsState
       // Only surface projects belonging to lessons that are unlocked in Milestones for this student.
-      .filter((p: any) => isEntityUnlocked(p))
+      // While unlock resolver is still initializing, don't drop all cached projects to 0!
+      .filter((p: any) => {
+        if (!resolverReady) return true;
+        return isEntityUnlocked(p);
+      })
       .map((p: any) => {
         const details = parseProjectDetails(p);
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
@@ -633,7 +643,7 @@ export function ProjectsScreen() {
           skills: details?.skills || []
         };
       });
-  }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked]);
+  }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked, resolverReady]);
 
   useEffect(() => {
     localStorage.setItem('projectDriveLinks', JSON.stringify(driveLinks));
@@ -661,10 +671,21 @@ export function ProjectsScreen() {
   const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted').length;
   const feedbackCount = categoryProjects.filter((p: any) => p.status === 'feedback').length;
 
-  // If the active tab was 'submitted' but the project submission was deleted, switch back to 'assigned'
+  const handleSubTabChange = (t: 'assigned' | 'submitted' | 'feedback') => {
+    setSubTab(t);
+    try {
+      localStorage.setItem('aspire_projects_subtab', t);
+    } catch {}
+  };
+
+  // Automatically switch tab if current tab is empty but another has projects (e.g. all auto-submitted)
   useEffect(() => {
-    if (subTab === 'submitted' && submittedCount === 0 && assignedCount > 0) {
+    if (subTab === 'assigned' && assignedCount === 0 && submittedCount > 0) {
+      setSubTab('submitted');
+      try { localStorage.setItem('aspire_projects_subtab', 'submitted'); } catch {}
+    } else if (subTab === 'submitted' && submittedCount === 0 && assignedCount > 0) {
       setSubTab('assigned');
+      try { localStorage.setItem('aspire_projects_subtab', 'assigned'); } catch {}
     }
   }, [subTab, submittedCount, assignedCount]);
 
@@ -1227,7 +1248,7 @@ export function ProjectsScreen() {
               { id: 'feedback', label: `Mentor Feedback (${feedbackCount})` },
             ]}
             active={subTab}
-            onChange={(val) => setSubTab(val as any)}
+            onChange={(val) => handleSubTabChange(val as any)}
           />
           <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 shrink-0">
             <button onClick={() => setView('card')} title="Card view"
