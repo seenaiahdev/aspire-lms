@@ -708,39 +708,36 @@ export async function fetchProjects(
 ) {
   const cacheKey = `projects:${batchCode}:${batchCategory || ''}:${courseId || ''}:${(enrolledCourses || []).sort().join(',')}`;
   return cachedQuery(cacheKey, async () => {
-    try {
-      let query = supabase.from('projects').select('*');
-      if (courseId) {
-        query = query.eq('course_id', courseId);
-      } else if (enrolledCourses && enrolledCourses.length > 0) {
-        query = query.in('course_id', enrolledCourses);
-      }
-
-      const { data, error } = await query.order('created_at', { ascending: false });
-
-      if (error) {
-        console.warn('projects table not available:', error.message);
-        return [];
-      }
-
-      const validCourses = new Set((enrolledCourses || []).filter(Boolean));
-      if (courseId) validCourses.add(courseId);
-
-      return (data || []).filter((item: any) => {
-        // Course isolation
-        if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
-          return false;
-        }
-        // Target batch check
-        if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
-          return false;
-        }
-        return true;
-      });
-    } catch {
-      return [];
+    let query = supabase.from('projects').select('*');
+    if (courseId) {
+      query = query.eq('course_id', courseId);
+    } else if (enrolledCourses && enrolledCourses.length > 0) {
+      query = query.in('course_id', enrolledCourses);
     }
-  }, 45_000); // 45 seconds
+
+    const { data, error } = await query.order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('projects table not available:', error.message);
+      // Throw so cachedQuery does NOT cache this failed result
+      throw new Error(`projects fetch failed: ${error.message}`);
+    }
+
+    const validCourses = new Set((enrolledCourses || []).filter(Boolean));
+    if (courseId) validCourses.add(courseId);
+
+    return (data || []).filter((item: any) => {
+      // Course isolation
+      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+        return false;
+      }
+      // Target batch check
+      if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
+        return false;
+      }
+      return true;
+    });
+  }, 300_000); // 5 minutes — projects data changes infrequently
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1572,15 +1569,26 @@ export async function recalculateUserStreak(
       .order('attempted_at', { ascending: false })
       .limit(100);
 
+    // Lesson/recording completions also count toward the streak
+    const { data: lessonData, error: lessonError } = await supabase
+      .from('lesson_progress')
+      .select('updated_at')
+      .eq('student_id', userId)
+      .eq('completed', true)
+      .gte('updated_at', cutoffDate)
+      .order('updated_at', { ascending: false })
+      .limit(100);
+
     if (practiceError) console.error('Error fetching practice submissions for streak:', practiceError);
     if (assessmentError) console.error('Error fetching assessment attempts for streak:', assessmentError);
     if (quizError) console.error('Error fetching quiz attempts for streak:', quizError);
+    if (lessonError) console.error('Error fetching lesson progress for streak:', lessonError);
 
     const allDates = new Set<string>();
 
     const addLocalDates = (items: any[]) => {
       (items || []).forEach(item => {
-        const dateVal = item.submitted_at || item.attempted_at || item.completed_at || item.created_at;
+        const dateVal = item.submitted_at || item.attempted_at || item.completed_at || item.updated_at || item.created_at;
         if (dateVal) {
           const d = new Date(dateVal);
           const yyyy = d.getFullYear();
@@ -1594,6 +1602,7 @@ export async function recalculateUserStreak(
     addLocalDates(practiceData || []);
     addLocalDates(assessmentData || []);
     addLocalDates(quizData || []);
+    addLocalDates(lessonData || []);
 
     const getLocalDateString = (d: Date) => {
       const yyyy = d.getFullYear();
@@ -1674,7 +1683,7 @@ export async function recalculateUserStreak(
 }
 
 /** Mark a lesson (video) as completed for a student — idempotent upsert on a deterministic id. */
-export async function markLessonComplete(userId: string, lessonId: string, courseId?: string): Promise<void> {
+export async function markLessonComplete(userId: string, lessonId: string, courseId?: string): Promise<{ streak?: number }> {
   try {
     await supabase.from('lesson_progress').upsert(
       {
@@ -1689,9 +1698,18 @@ export async function markLessonComplete(userId: string, lessonId: string, cours
     );
     invalidateCache(`student_lp:${userId}`);
     invalidateCache(`student_lp_set:${userId}`);
+
+    // Recalculate streak so lesson/recording completions count toward it
+    try {
+      const newStreak = await recalculateUserStreak(userId);
+      return { streak: newStreak };
+    } catch (streakErr) {
+      console.warn('Streak recalculation after lesson complete skipped:', streakErr);
+    }
   } catch (e) {
     console.warn('markLessonComplete skipped:', e);
   }
+  return {};
 }
 
 /** Returns the set of lesson ids this student has marked complete. */

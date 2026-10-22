@@ -108,7 +108,7 @@ function SidebarModuleAccordion({ mod, course, currentLesson, completedLessonIds
 
 export function LessonScreen() {
   const { navigate, params } = useNav();
-  const { user } = useUser();
+  const { user, updateUser } = useUser();
   const [tab, setTab] = useState(() => {
     return localStorage.getItem('aspire_lesson_tab') || 'notes';
   });
@@ -471,7 +471,10 @@ export function LessonScreen() {
     setMarkingComplete(true);
     setCompletedLessonIds((prev) => new Set(prev).add(currentLesson.id)); // optimistic
     try {
-      await markLessonComplete(user.id, currentLesson.id, courseIdToFetch);
+      const res = await markLessonComplete(user.id, currentLesson.id, courseIdToFetch);
+      if (res?.streak !== undefined) {
+        updateUser({ streak: res.streak });
+      }
     } catch { /* stays optimistic; realtime will reconcile */ }
     setMarkingComplete(false);
   };

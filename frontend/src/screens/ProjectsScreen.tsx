@@ -266,24 +266,68 @@ export function ProjectsScreen() {
     }
   });
 
-  const [projectsState, setProjectsState] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [projectsState, setProjectsState] = useState<any[]>(() => {
+    // Initialise from localStorage cache for instant display while fresh data loads
+    try {
+      const cached = localStorage.getItem('aspire_projects_cache') || localStorage.getItem('projectsState');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [isLoading, setIsLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('aspire_projects_cache') || localStorage.getItem('projectsState');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
 
   const [toastVisible, setToastVisible] = useState(false);
 
   // Fetch projects and submissions from Supabase
-  const loadProjectsAndSubmissions = useCallback(async (showLoading: boolean = true) => {
-    if (showLoading) setIsLoading(true);
+  const loadProjectsAndSubmissions = useCallback(async (showLoading: boolean = true, retryCount: number = 0) => {
+    if (showLoading && projectsState.length === 0) setIsLoading(true);
     try {
-      const courseId = user?.enrolledCourses?.[0];
+      const batchCode = user?.batchCode || (user as any)?.batch || 'A26W1';
+      const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
+      const enrolledCourses = user?.enrolledCourses && user.enrolledCourses.length > 0
+        ? user.enrolledCourses
+        : ['crs-1786624019154-w'];
+      const courseId = enrolledCourses[0];
+      const studentId = user?.id && user.id !== 'guest' ? user.id : undefined;
+
       const [projectsData, submissionsData] = await Promise.all([
-        user?.batchCode
-          ? fetchProjects(user.batchCode, user.batchCategory, courseId, user?.enrolledCourses)
-          : Promise.resolve([]),
-        user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([]),
+        fetchProjects(batchCode, batchCategory, courseId, enrolledCourses),
+        studentId ? fetchUserSubmissions(studentId) : Promise.resolve([]),
       ]);
 
-      setProjectsState(projectsData || []);
+      const projects = projectsData || [];
+      if (projects.length > 0) {
+        setProjectsState(projects);
+        try {
+          localStorage.setItem('aspire_projects_cache', JSON.stringify(projects));
+          localStorage.setItem('projectsState', JSON.stringify(projects));
+        } catch {}
+      } else {
+        // If query returned 0 items, preserve cached data rather than showing an empty screen
+        setProjectsState((prev) => {
+          if (prev.length > 0) return prev;
+          try {
+            const cached = localStorage.getItem('aspire_projects_cache') || localStorage.getItem('projectsState');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+          } catch {}
+          return [];
+        });
+      }
 
       // Database is the single source of truth: construct links strictly from fresh submissions
       const freshLinks: Record<string, string> = {};
@@ -299,17 +343,31 @@ export function ProjectsScreen() {
       } catch {}
     } catch (err) {
       console.error('Error loading projects/submissions:', err);
-    } finally {
-      if (showLoading) setIsLoading(false);
-    }
-  }, [user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses]);
 
-  useEffect(() => {
-    if (user?.batchCode || user?.id) {
-      loadProjectsAndSubmissions(true);
-    } else {
+      // On failure, use localStorage fallback if state is empty
+      setProjectsState((prev) => {
+        if (prev.length > 0) return prev;
+        try {
+          const cached = localStorage.getItem('aspire_projects_cache') || localStorage.getItem('projectsState');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+        } catch {}
+        return [];
+      });
+
+      // Auto-retry on network hiccup recovery
+      if (retryCount < 2) {
+        setTimeout(() => loadProjectsAndSubmissions(false, retryCount + 1), 2500);
+      }
+    } finally {
       setIsLoading(false);
     }
+  }, [user?.id, user?.batchCode, (user as any)?.batch, user?.batchCategory, user?.enrolledCourses, projectsState.length]);
+
+  useEffect(() => {
+    loadProjectsAndSubmissions(projectsState.length === 0);
   }, [loadProjectsAndSubmissions, user?.batchCode, user?.id]);
 
   // Real-time Supabase subscription for projects table (catches admin creates, edits, and deletes)
@@ -583,7 +641,10 @@ export function ProjectsScreen() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('projectsState', JSON.stringify(projectsState));
+      if (projectsState && projectsState.length > 0) {
+        localStorage.setItem('aspire_projects_cache', JSON.stringify(projectsState));
+        localStorage.setItem('projectsState', JSON.stringify(projectsState));
+      }
     } catch {}
   }, [projectsState]);
 

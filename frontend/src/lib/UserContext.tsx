@@ -374,7 +374,9 @@ export function UserProvider({ children }: { children: ReactNode }) {
           if (sid && (targetId === sid || targetId === regId)) {
             const curr = userRef.current;
             const nextXp = newRow.xp !== undefined ? Number(newRow.xp) : curr?.xp;
-            const nextStreak = newRow.streak !== undefined ? Number(newRow.streak) : curr?.streak;
+            const nextStreak = newRow.streak !== undefined 
+              ? Number(newRow.streak) 
+              : (newRow.attendance !== undefined ? Number(newRow.attendance) : curr?.streak);
             const nextAttendance = newRow.attendance !== undefined ? Number(newRow.attendance) : curr?.attendance;
             const nextProgress = newRow.progress !== undefined ? Number(newRow.progress) : curr?.progress;
             const nextGpa = newRow.gpa !== undefined ? Number(newRow.gpa) : curr?.gpa;
@@ -382,7 +384,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             const hasChanged = curr && (
               (newRow.xp !== undefined && nextXp !== curr.xp) ||
               (newRow.attendance !== undefined && nextAttendance !== curr.attendance) ||
-              (newRow.streak !== undefined && nextStreak !== curr.streak) ||
+              (nextStreak !== curr.streak) ||
               (newRow.progress !== undefined && nextProgress !== curr.progress) ||
               (newRow.gpa !== undefined && nextGpa !== curr.gpa)
             );
