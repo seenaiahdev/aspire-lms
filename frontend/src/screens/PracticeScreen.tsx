@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
-import { fetchPracticeProblems, fetchUserSubmissions } from '@/lib/api';
+import { fetchPracticeProblems, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 
@@ -32,9 +32,23 @@ interface Submission {
 
 export function PracticeScreen() {
   const { user } = useUser();
-  const { isUnlocked } = useUnlockResolver();
+  const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { navigate, params } = useNav();
-  const [tab, setTab] = useState(() => params.tab || 'problems');
+  const [tab, setTab] = useState(() => {
+    if (params.tab) return params.tab;
+    try {
+      const saved = localStorage.getItem('aspire_practice_tab');
+      if (saved === 'problems' || saved === 'history') return saved;
+    } catch {}
+    return 'problems';
+  });
+
+  const handleTabChange = (t: string) => {
+    setTab(t);
+    try {
+      localStorage.setItem('aspire_practice_tab', t);
+    } catch {}
+  };
 
   useEffect(() => {
     if (params.tab) {
@@ -42,9 +56,36 @@ export function PracticeScreen() {
     }
   }, [params.tab]);
   const [difficulty, setDifficulty] = useState('all');
-  const [submissions, setSubmissions] = useState<Submission[]>([]);
-  const [problems, setProblems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [submissions, setSubmissions] = useState<Submission[]>(() => {
+    try {
+      const cached = localStorage.getItem('aspire_practice_submissions_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [problems, setProblems] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('aspire_practice_problems_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('aspire_practice_problems_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
   const [lockedToast, setLockedToast] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'list'>(() => {
     try {
@@ -61,16 +102,22 @@ export function PracticeScreen() {
     } catch {}
   };
 
-  const loadData = useCallback(async (showSpinner = true) => {
-    if (showSpinner) setLoading(true);
+  const loadData = useCallback(async (showSpinner = true, retryCount = 0) => {
+    if (showSpinner && problems.length === 0) setLoading(true);
     try {
-      const courseId = user?.enrolledCourses?.[0];
+      const batchCode = user?.batchCode || (user as any)?.batch || '';
+      const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
+      const enrolledCourses = user?.enrolledCourses && user.enrolledCourses.length > 0
+        ? user.enrolledCourses
+        : ['crs-1786624019154-w'];
+      const courseId = enrolledCourses[0];
+      const studentId = user?.id && user.id !== 'guest' ? user.id : undefined;
       
       let submissionsError: any = null;
       const [dbProblems, submissionsResult] = await Promise.all([
-        fetchPracticeProblems(courseId, user?.batchCode, user?.batchCategory, user?.enrolledCourses),
-        user?.id 
-          ? fetchUserSubmissions(user.id).catch(err => {
+        fetchPracticeProblems(courseId, batchCode, batchCategory, enrolledCourses),
+        studentId 
+          ? fetchUserSubmissions(studentId).catch(err => {
               submissionsError = err;
               return null;
             })
@@ -80,7 +127,7 @@ export function PracticeScreen() {
       let dbSubmissions: Submission[] = [];
       let fetchedFromDb = false;
       
-      if (user?.id) {
+      if (studentId) {
         if (submissionsError) {
           console.warn('Failed to fetch submissions from Supabase, relying on localStorage:', submissionsError);
         } else {
@@ -145,24 +192,77 @@ export function PracticeScreen() {
         new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
 
-      setSubmissions(mergedSubmissions);
-
-      const updatedProblems = (dbProblems || []).map((p: any) => {
-        const hasSubmission = mergedSubmissions.some(s => s.problemId === p.id);
-        return hasSubmission ? { ...p, solved: true } : p;
+      // Deduplicate submissions by problemId (latest first)
+      const seenSubIds = new Set<string>();
+      const uniqueSubmissions = mergedSubmissions.filter((sub) => {
+        if (seenSubIds.has(sub.problemId)) return false;
+        seenSubIds.add(sub.problemId);
+        return true;
       });
 
-      setProblems(updatedProblems);
+      setSubmissions(uniqueSubmissions);
+      try {
+        localStorage.setItem('aspire_practice_submissions_cache', JSON.stringify(uniqueSubmissions));
+      } catch {}
+
+      if (dbProblems && dbProblems.length > 0) {
+        const updatedProblems = dbProblems.map((p: any) => {
+          const hasSubmission = uniqueSubmissions.some(s => s.problemId === p.id);
+          const diff = p.difficulty || 'Easy';
+          const defaultPoints = diff === 'Hard' ? 50 : diff === 'Medium' ? 30 : 20;
+          const defaultRate = diff === 'Hard' ? 68 : diff === 'Medium' ? 79 : 92;
+          return {
+            ...p,
+            points: p.points || defaultPoints,
+            successRate: p.success_rate || p.successRate || defaultRate,
+            solved: hasSubmission,
+          };
+        });
+
+        setProblems(updatedProblems);
+        try {
+          localStorage.setItem('aspire_practice_problems_cache', JSON.stringify(updatedProblems));
+        } catch {}
+      } else {
+        // If query returned 0 items, preserve cached data rather than showing an empty screen
+        setProblems((prev) => {
+          if (prev.length > 0) return prev;
+          try {
+            const cached = localStorage.getItem('aspire_practice_problems_cache');
+            if (cached) {
+              const parsed = JSON.parse(cached);
+              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+            }
+          } catch {}
+          return [];
+        });
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Error loading practice problems:', err);
+      // On failure, use cached problems if state is empty
+      setProblems((prev) => {
+        if (prev.length > 0) return prev;
+        try {
+          const cached = localStorage.getItem('aspire_practice_problems_cache');
+          if (cached) {
+            const parsed = JSON.parse(cached);
+            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+          }
+        } catch {}
+        return [];
+      });
+
+      if (retryCount < 2) {
+        setTimeout(() => loadData(false, retryCount + 1), 2500);
+      }
     } finally {
       setLoading(false);
     }
-  }, [user?.id, user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(',')]);
+  }, [user?.id, user?.batchCode, (user as any)?.batch, user?.batchCategory, (user?.enrolledCourses || []).join(','), problems.length]);
 
   useEffect(() => {
-    loadData(true);
-  }, [loadData]);
+    loadData(problems.length === 0);
+  }, [loadData, user?.batchCode, user?.id]);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -192,6 +292,18 @@ export function PracticeScreen() {
           table: 'coding_questions'
         },
         () => {
+          invalidateCacheByPrefix('practice_problems');
+          loadData(false);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'milestone_locks'
+        },
+        () => {
           loadData(false);
         }
       )
@@ -202,11 +314,28 @@ export function PracticeScreen() {
     };
   }, [user?.id, user?.mobile, loadData]);
 
-  const filtered = problems.filter(p => {
-    const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
-    return matchesDifficulty && isUnlocked(p.inner_topic_id) && !p.solved;
-  });
-  const solved = problems.filter(p => p.solved).length;
+  const filtered = useMemo(() => {
+    const batchCode = user?.batchCode || (user as any)?.batch || '';
+    const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
+
+    return problems.filter((p) => {
+      const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
+      if (!matchesDifficulty || p.solved) return false;
+
+      // While unlock resolver is initializing, don't drop cached problems to 0!
+      if (!resolverReady) return true;
+
+      // Check if released to the student's batch or unlocked by lesson milestones
+      const isReleased = !p.target_batch || p.target_batch === 'all' || p.target_batch === 'all batches' || courseTargetsBatch(p.target_batch, batchCode, batchCategory);
+      const isUnlockedQuestion = isUnlocked(p.inner_topic_id) || isEntityUnlocked(p);
+
+      return isReleased || isUnlockedQuestion;
+    });
+  }, [problems, difficulty, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, isUnlocked, isEntityUnlocked]);
+
+  const solved = useMemo(() => {
+    return Math.max(submissions.length, problems.filter((p) => p.solved).length);
+  }, [submissions.length, problems]);
 
   // Render windowing: show 10 problems, reveal 10 more on scroll (reset when the difficulty changes).
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
@@ -235,7 +364,7 @@ export function PracticeScreen() {
             { id: 'history', label: solved > 0 ? `Completed & Submitted (${solved})` : 'Completed & Submitted' },
           ]}
           active={tab}
-          onChange={setTab}
+          onChange={handleTabChange}
         />
         <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200 self-end sm:self-auto shrink-0">
           <button

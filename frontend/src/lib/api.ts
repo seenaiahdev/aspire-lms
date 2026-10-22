@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+export { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
 import { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
 import type { AttendanceRecord, AttendanceStats } from '../types';
 
@@ -1122,38 +1123,47 @@ export async function fetchPracticeProblems(
   batchCategory?: string,
   enrolledCourses?: string[]
 ) {
-  const cacheKey = `practice_problems:${courseId || ''}:${batchCode || ''}:${batchCategory || ''}:${(enrolledCourses || []).sort().join(',')}`;
+  const validCourseList = Array.from(new Set([
+    ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
+    courseId
+  ].filter(Boolean) as string[]));
+
+  const cacheKey = `practice_problems:${courseId || ''}:${batchCode || ''}:${batchCategory || ''}:${validCourseList.slice().sort().join(',')}`;
   return cachedQuery(cacheKey, async () => {
     try {
       let query = supabase.from('coding_questions').select('*').order('created_at', { ascending: true });
-      if (courseId) query = query.eq('course_id', courseId);
+
+      // If a single specific course is targeted without broader enrolled list, query that course.
+      // Otherwise query all valid enrolled courses so questions aren't lost if user.enrolledCourses[0] is an auxiliary course.
+      if (courseId && (!enrolledCourses || enrolledCourses.length <= 1)) {
+        query = query.eq('course_id', courseId);
+      } else if (validCourseList.length > 0) {
+        query = query.in('course_id', validCourseList);
+      }
 
       const { data, error } = await query;
 
       if (error) {
-        console.warn('coding_questions table not available:', error.message);
-        return [];
+        console.warn('coding_questions table error:', error.message);
+        throw new Error(`coding_questions fetch failed: ${error.message}`);
       }
       if (!data) return [];
 
-      const validCourses = new Set([
-        ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
-        courseId
-      ].filter(Boolean));
-
+      const courseSet = new Set(validCourseList);
       const filtered = data.filter((item: any) => {
-        // 1. Strict Course Check: If question specifies course_id, it MUST belong to the student's enrolled courses.
-        if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+        // Strict Course Check: If question specifies course_id, it MUST belong to the student's enrolled courses.
+        if (item.course_id && courseSet.size > 0 && !courseSet.has(item.course_id)) {
           return false;
         }
         return true;
       });
 
       return filtered;
-    } catch {
-      return [];
+    } catch (err) {
+      console.warn('Failed to fetch practice problems:', err);
+      throw err;
     }
-  }, 60_000); // 60 seconds
+  }, 120_000); // 2 minutes
 }
 
 

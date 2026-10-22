@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2, Check } from 'lucide-react';
-import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions } from '@/lib/api';
+import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions, courseTargetsBatch } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
@@ -301,7 +301,10 @@ export function ScheduleScreen() {
       const unlockedAssessments = assessmentsData.filter((t: any) => isEntityUnlocked(t));
       const unlockedQuizzes = quizzesData.filter((q: any) => isEntityUnlocked(q));
       const unlockedProjects = projectsData.filter((p: any) => isEntityUnlocked(p));
-      const unlockedCoding = codingData.filter((p: any) => isEntityUnlocked(p));
+      const unlockedCoding = codingData.filter((p: any) => {
+        const isReleased = !p.target_batch || p.target_batch === 'all' || p.target_batch === 'all batches' || courseTargetsBatch(p.target_batch, user.batchCode || '', user.batchCategory);
+        return isReleased || isEntityUnlocked(p);
+      });
 
       const manualCompletedEvents = new Set<string>();
       try {

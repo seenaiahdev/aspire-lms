@@ -116,24 +116,48 @@ const ConfettiBurst = () => {
 
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
-import { fetchAssignments, submitAssignmentAttempt, fetchAssignmentAttempts } from '@/lib/api';
+import { fetchAssignments, submitAssignmentAttempt, fetchAssignmentAttempts, courseTargetsBatch } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
 
 export function AssignmentsScreen() {
   const { user } = useUser();
-  const { isUnlocked } = useUnlockResolver();
+  const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { navigate, params, route } = useNav();
-  const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>(() => {
+    try {
+      const cached = localStorage.getItem('aspire_assignments_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [loading, setLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('aspire_assignments_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
 
-  const loadData = useCallback(async (showSpinner = true) => {
-      if (user?.batchCode) {
-        if (showSpinner) setLoading(true);
+  const loadData = useCallback(async (showSpinner = true, retryCount = 0) => {
+      const batchCode = user?.batchCode || (user as any)?.batch || '';
+      const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
+      const enrolledCourses = user?.enrolledCourses && user.enrolledCourses.length > 0
+        ? user.enrolledCourses
+        : ['crs-1786624019154-w'];
+      const courseId = enrolledCourses[0];
+
+      if (batchCode || enrolledCourses.length > 0) {
+        if (showSpinner && courseAssignments.length === 0) setLoading(true);
         try {
-          const courseId = user?.enrolledCourses?.[0];
           const [data, attempts] = await Promise.all([
-            fetchAssignments(user.batchCode, user.batchCategory, courseId, user?.enrolledCourses),
+            fetchAssignments(batchCode, batchCategory, courseId, enrolledCourses),
             user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([])
           ]);
           
@@ -187,19 +211,49 @@ export function AssignmentsScreen() {
             };
           });
 
-          setCourseAssignments(mappedTasks);
+          if (mappedTasks.length > 0) {
+            setCourseAssignments(mappedTasks);
+            try {
+              localStorage.setItem('aspire_assignments_cache', JSON.stringify(mappedTasks));
+            } catch {}
+          } else {
+            setCourseAssignments((prev) => {
+              if (prev.length > 0) return prev;
+              try {
+                const cached = localStorage.getItem('aspire_assignments_cache');
+                if (cached) {
+                  const parsed = JSON.parse(cached);
+                  if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+                }
+              } catch {}
+              return [];
+            });
+          }
         } catch (error) {
           console.error("Failed to fetch assignments:", error);
-          setCourseAssignments([]);
+          setCourseAssignments((prev) => {
+            if (prev.length > 0) return prev;
+            try {
+              const cached = localStorage.getItem('aspire_assignments_cache');
+              if (cached) {
+                const parsed = JSON.parse(cached);
+                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+              }
+            } catch {}
+            return [];
+          });
+          if (retryCount < 2) {
+            setTimeout(() => loadData(false, retryCount + 1), 2500);
+          }
         } finally {
           if (showSpinner) setLoading(false);
         }
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(','), user?.id]);
+  }, [user?.batchCode, (user as any)?.batch, user?.batchCategory, (user?.enrolledCourses || []).join(','), user?.id, courseAssignments.length]);
 
   // Initial load
-  useEffect(() => { loadData(true); }, [loadData]);
+  useEffect(() => { loadData(courseAssignments.length === 0); }, [loadData]);
 
   // Real-time: refresh when this student's attempts change or assessments table updates
   useEffect(() => {
@@ -266,9 +320,13 @@ export function AssignmentsScreen() {
 
   // Filter Tasks
   const filteredTasks = courseAssignments.filter((t: any) => {
-    const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
-    // Bridge Scheme A (l_git_1) -> Scheme B (lesson-…) so unlocked lessons surface their assessments.
-    if (!isUnlocked(lessonId)) return false;
+    // While unlock resolver is initializing, retain cached tasks to avoid flashing 0!
+    if (resolverReady) {
+      const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
+      const isReleased = !t.target_batch || t.target_batch === 'all' || t.target_batch === 'all batches' || courseTargetsBatch(t.target_batch, user?.batchCode, user?.batchCategory);
+      const isTaskUnlocked = isUnlocked(lessonId) || isEntityUnlocked(t);
+      if (!isReleased && !isTaskUnlocked) return false;
+    }
 
     if (filterTab === 'pending') return t.status === 'pending';
     if (filterTab === 'completed') return t.status === 'completed';
