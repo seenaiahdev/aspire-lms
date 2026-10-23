@@ -209,7 +209,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
           if (locks) {
             const now = new Date();
             unlockedLessonIds = locks
-              .filter((l: any) => !l.is_locked && (!l.unlock_datetime || new Date(l.unlock_datetime) <= now))
+              .filter((l: any) => l.unlock_datetime ? new Date(l.unlock_datetime) <= now : !l.is_locked)
               .map((l: any) => l.lesson_id);
           }
 
@@ -519,9 +519,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
       window.addEventListener('focus', onSyncCheck);
       document.addEventListener('visibilitychange', onSyncCheck);
 
+      // 7. Periodic timer to evaluate maturing scheduled milestone unlocks (every 30s)
+      const scheduleInterval = setInterval(() => {
+        refetchUser();
+      }, 30000);
+
       return () => {
         supabase.removeChannel(userChannel);
         if (progressTimer) clearTimeout(progressTimer);
+        clearInterval(scheduleInterval);
         window.removeEventListener('focus', onSyncCheck);
         document.removeEventListener('visibilitychange', onSyncCheck);
       };

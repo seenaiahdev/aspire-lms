@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
 import { fetchPracticeProblems, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
@@ -30,10 +30,26 @@ interface Submission {
   projectUrl?: string;
 }
 
+const getPracticeCacheKey = (studentId?: string) => {
+  let uid = studentId && studentId !== 'guest' ? studentId : '';
+  if (!uid) {
+    try {
+      const cached = localStorage.getItem('aspire_cached_user');
+      if (cached) {
+        const u = JSON.parse(cached);
+        if (u?.id && u.id !== 'guest') uid = u.id;
+      }
+    } catch {}
+  }
+  return `aspire_practice_unlocked_cache_${uid || 'default'}`;
+};
+
 export function PracticeScreen() {
   const { user } = useUser();
   const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { navigate, params } = useNav();
+  const cacheKey = useMemo(() => getPracticeCacheKey(user?.id), [user?.id]);
+
   const [tab, setTab] = useState(() => {
     if (params.tab) return params.tab;
     try {
@@ -68,13 +84,10 @@ export function PracticeScreen() {
   });
   const [problems, setProblems] = useState<any[]>(() => {
     try {
-      const currentUserId = user?.id || 'guest';
-      const localCachedUnlocked = localStorage.getItem(`aspire_practice_unlocked_cache_${currentUserId}`);
-      if (localCachedUnlocked) {
-        const parsed = JSON.parse(localCachedUnlocked);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-      }
-      const cached = localStorage.getItem('aspire_practice_problems_cache');
+      // Clear out legacy unfiltered cache to prevent flashing raw questions
+      localStorage.removeItem('aspire_practice_problems_cache');
+      const key = getPracticeCacheKey(user?.id);
+      const cached = localStorage.getItem(key);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -84,15 +97,36 @@ export function PracticeScreen() {
   });
   const [loading, setLoading] = useState(() => {
     try {
-      const currentUserId = user?.id || 'guest';
-      const localCachedUnlocked = localStorage.getItem(`aspire_practice_unlocked_cache_${currentUserId}`);
-      if (localCachedUnlocked) {
-        const parsed = JSON.parse(localCachedUnlocked);
+      const key = getPracticeCacheKey(user?.id);
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return false;
       }
     } catch {}
     return true;
   });
+
+  const hasCachedProblems = useMemo(() => {
+    try {
+      const key = getPracticeCacheKey(user?.id);
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return Array.isArray(parsed) && parsed.length > 0;
+      }
+    } catch {}
+    return false;
+  }, [user?.id]);
+
+  // Keep loading = true (show spinner) while data or resolver is not ready and no cache exists
+  const isScreenLoading = (loading || !resolverReady) && !hasCachedProblems;
+
+  const problemsLengthRef = useRef(problems.length);
+  useEffect(() => {
+    problemsLengthRef.current = problems.length;
+  }, [problems.length]);
+
   const [lockedToast, setLockedToast] = useState(false);
   const [viewMode, setViewMode] = useState<'card' | 'list'>(() => {
     try {
@@ -227,37 +261,15 @@ export function PracticeScreen() {
         });
 
         setProblems(updatedProblems);
-        try {
-          localStorage.setItem('aspire_practice_problems_cache', JSON.stringify(updatedProblems));
-        } catch {}
+
       } else {
-        // If query returned 0 items, preserve cached data rather than showing an empty screen
-        setProblems((prev) => {
-          if (prev.length > 0) return prev;
-          try {
-            const cached = localStorage.getItem('aspire_practice_problems_cache');
-            if (cached) {
-              const parsed = JSON.parse(cached);
-              if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-            }
-          } catch {}
-          return [];
-        });
+// If query returned 0 items, preserve existing state rather than clearing
+setProblems((prev) => prev);
       }
     } catch (err) {
       console.error('Error loading practice problems:', err);
-      // On failure, use cached problems if state is empty
-      setProblems((prev) => {
-        if (prev.length > 0) return prev;
-        try {
-          const cached = localStorage.getItem('aspire_practice_problems_cache');
-          if (cached) {
-            const parsed = JSON.parse(cached);
-            if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-          }
-        } catch {}
-        return [];
-      });
+// On failure, preserve existing state
+setProblems((prev) => prev);
 
       if (retryCount < 2) {
         setTimeout(() => loadData(false, retryCount + 1), 2500);
@@ -321,8 +333,16 @@ export function PracticeScreen() {
     };
   }, [user?.id, user?.mobile, loadData]);
 
-  const filtered = useMemo(() => {
-    const batchCode = user?.batchCode || (user as any)?.batch || '';
+const filtered = useMemo(() => {
+  // If unlock resolver is still resolving but we already have verified problems in cache, show them immediately
+  if (!resolverReady && hasCachedProblems) {
+    return problems.filter((p) => {
+      const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
+      return matchesDifficulty && !p.solved;
+    });
+  }
+
+  const batchCode = user?.batchCode || (user as any)?.batch || '';
     const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
 
     const result = problems.filter((p) => {
@@ -342,13 +362,12 @@ export function PracticeScreen() {
       return true;
     });
 
-    // Save verified unlocked problems to cache memory for instant display on future reloads
-    if (resolverReady && result.length > 0 && difficulty === 'all') {
-      try {
-        const currentUserId = user?.id || 'guest';
-        localStorage.setItem(`aspire_practice_unlocked_cache_${currentUserId}`, JSON.stringify(result));
-      } catch {}
-    }
+// Save verified unlocked problems to cache memory for instant display on future reloads
+if (resolverReady && difficulty === 'all') {
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(result));
+  } catch {}
+}
 
     return result;
   }, [problems, difficulty, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, isUnlocked, isEntityUnlocked, user?.id]);
