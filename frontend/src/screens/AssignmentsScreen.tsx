@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   FileText, Clock, Upload, CheckCircle2, AlertCircle, Star, Paperclip, ArrowRight, X,
   HelpCircle, Code2, Trophy, ArrowLeft, CheckCircle, XCircle, Play, Sparkles, Terminal, Copy, RefreshCw, Check, Compass, RotateCcw, Eye, Lock, LayoutGrid, List, ChevronRight
