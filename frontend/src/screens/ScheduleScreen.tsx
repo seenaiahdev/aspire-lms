@@ -388,7 +388,8 @@ export function ScheduleScreen() {
       });
 
       unlockedCoding.forEach((p: any) => {
-        const rawDate = p.created_date || p.dueDate || '';
+        const rawDate = p.dueDate || p.due_date || '';
+        if (!rawDate) return;
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
         const isCompleted = submittedProblemIds.has(p.id) || p.solved || manualCompletedEvents.has(p.id);
         extra.push({
@@ -583,27 +584,8 @@ export function ScheduleScreen() {
   const isSelectedToday = selectedDateKey === todayKey;
 
   const itemsForSelectedDate = useMemo(() => {
-    return itemsWithDateKey.filter((item) => {
-      // 1. If viewing another calendar date (user clicked a specific day in the calendar)
-      if (!isSelectedToday) {
-        return item.dateKey === selectedDateKey;
-      }
-
-      // 2. When viewing Today (default agenda):
-      // A. All uncompleted items (coursework, assignments, quizzes, projects, tasks) MUST appear
-      // so the student can clearly see and complete their pending work!
-      if (!item.completed) {
-        return true;
-      }
-
-      // B. Completed items: show if scheduled for today
-      if (item.dateKey === todayKey) {
-        return true;
-      }
-
-      return false;
-    });
-  }, [itemsWithDateKey, isSelectedToday, selectedDateKey, todayKey]);
+    return itemsWithDateKey.filter((item) => item.dateKey === selectedDateKey);
+  }, [itemsWithDateKey, selectedDateKey]);
 
   const activeTasks = itemsForSelectedDate.filter((item) => !item.completed);
   const completedTasks = itemsForSelectedDate.filter((item) => item.completed);
