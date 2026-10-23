@@ -546,8 +546,15 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
         // Assessments are taken entirely as MCQs — a code-based question is shown as a code
         // snippet inside the MCQ (options to pick the correct answer), never a separate IDE.
         const type = 'mcq' as 'coding' | 'mcq';
+        const lessonId = item.topic_id ? String(item.topic_id).split('||')[2] : (item.lesson_id || '');
         return {
+          ...item,
           id: item.id,
+          lesson_id: lessonId,
+          inner_topic_id: lessonId,
+          target_batch: item.target_batch,
+          course_id: item.course_id,
+          topic_name: item.topic_name,
           slug: item.id,
           type: type,
           title: item.title,

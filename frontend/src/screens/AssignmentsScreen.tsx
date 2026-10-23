@@ -116,17 +116,36 @@ const ConfettiBurst = () => {
 
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
-import { fetchAssignments, submitAssignmentAttempt, fetchAssignmentAttempts, courseTargetsBatch } from '@/lib/api';
+import { fetchAssignments, submitAssignmentAttempt, fetchAssignmentAttempts, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { Loader2 } from 'lucide-react';
+
+const getAssessCacheKey = (studentId?: string) => {
+  let uid = studentId && studentId !== 'guest' ? studentId : '';
+  if (!uid) {
+    try {
+      const cached = localStorage.getItem('aspire_cached_user');
+      if (cached) {
+        const u = JSON.parse(cached);
+        if (u?.id && u.id !== 'guest') uid = u.id;
+      }
+    } catch {}
+  }
+  return `aspire_unlocked_assignments_cache_${uid || 'default'}`;
+};
 
 export function AssignmentsScreen() {
   const { user } = useUser();
   const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { navigate, params, route } = useNav();
+  const cacheKey = useMemo(() => getAssessCacheKey(user?.id), [user?.id]);
+
   const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>(() => {
     try {
-      const cached = localStorage.getItem('aspire_assignments_cache');
+      // Clear out legacy unfiltered cache to prevent flashing locked assessments
+      localStorage.removeItem('aspire_assignments_cache');
+      const key = getAssessCacheKey(user?.id);
+      const cached = localStorage.getItem(key);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return parsed;
@@ -136,7 +155,8 @@ export function AssignmentsScreen() {
   });
   const [loading, setLoading] = useState(() => {
     try {
-      const cached = localStorage.getItem('aspire_assignments_cache');
+      const key = getAssessCacheKey(user?.id);
+      const cached = localStorage.getItem(key);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) return false;
@@ -144,6 +164,21 @@ export function AssignmentsScreen() {
     } catch {}
     return true;
   });
+
+  const hasCachedAssessments = useMemo(() => {
+    try {
+      const key = getAssessCacheKey(user?.id);
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        return Array.isArray(parsed) && parsed.length > 0;
+      }
+    } catch {}
+    return false;
+  }, [user?.id]);
+
+  // Keep loading = true (show spinner) while data or resolver is not ready and no cache exists
+  const isScreenLoading = (loading || !resolverReady) && !hasCachedAssessments;
 
   const loadData = useCallback(async (showSpinner = true, retryCount = 0) => {
       const batchCode = user?.batchCode || (user as any)?.batch || '';
@@ -213,35 +248,12 @@ export function AssignmentsScreen() {
 
           if (mappedTasks.length > 0) {
             setCourseAssignments(mappedTasks);
-            try {
-              localStorage.setItem('aspire_assignments_cache', JSON.stringify(mappedTasks));
-            } catch {}
           } else {
-            setCourseAssignments((prev) => {
-              if (prev.length > 0) return prev;
-              try {
-                const cached = localStorage.getItem('aspire_assignments_cache');
-                if (cached) {
-                  const parsed = JSON.parse(cached);
-                  if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-                }
-              } catch {}
-              return [];
-            });
+            setCourseAssignments((prev) => prev);
           }
         } catch (error) {
           console.error("Failed to fetch assignments:", error);
-          setCourseAssignments((prev) => {
-            if (prev.length > 0) return prev;
-            try {
-              const cached = localStorage.getItem('aspire_assignments_cache');
-              if (cached) {
-                const parsed = JSON.parse(cached);
-                if (Array.isArray(parsed) && parsed.length > 0) return parsed;
-              }
-            } catch {}
-            return [];
-          });
+          setCourseAssignments((prev) => prev);
           if (retryCount < 2) {
             setTimeout(() => loadData(false, retryCount + 1), 2500);
           }
@@ -255,7 +267,7 @@ export function AssignmentsScreen() {
   // Initial load
   useEffect(() => { loadData(courseAssignments.length === 0); }, [loadData]);
 
-  // Real-time: refresh when this student's attempts change or assessments table updates
+  // Real-time: refresh when this student's attempts change, assessments table updates, or admin milestone locks change
   useEffect(() => {
     if (!user?.id) return;
     const attemptsCh = supabase
@@ -268,7 +280,18 @@ export function AssignmentsScreen() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'assessments' },
-        () => loadData(false)
+        () => {
+          invalidateCacheByPrefix('assignments');
+          loadData(false);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'milestone_locks' },
+        () => {
+          invalidateCacheByPrefix('assignments');
+          loadData(false);
+        }
       )
       .subscribe();
     return () => {
@@ -318,20 +341,50 @@ export function AssignmentsScreen() {
     }
   }, [params?.id, courseAssignments, activeTask]);
 
-  // Filter Tasks
-  const filteredTasks = courseAssignments.filter((t: any) => {
-    // While unlock resolver is initializing, retain cached tasks to avoid flashing 0!
-    if (resolverReady) {
-      const lessonId = t.topic_id ? t.topic_id.split('||')[2] : '';
-      const isReleased = !t.target_batch || t.target_batch === 'all' || t.target_batch === 'all batches' || courseTargetsBatch(t.target_batch, user?.batchCode, user?.batchCategory);
-      const isTaskUnlocked = isUnlocked(lessonId) || isEntityUnlocked(t);
-      if (!isReleased && !isTaskUnlocked) return false;
+  // Verified unlocked tasks for this student's batch
+  const unlockedTasks = useMemo(() => {
+    // While unlock resolver is initializing, retain verified cached tasks to avoid flashing 0!
+    if (!resolverReady && hasCachedAssessments) {
+      return courseAssignments;
     }
 
-    if (filterTab === 'pending') return t.status === 'pending';
-    if (filterTab === 'completed') return t.status === 'completed';
-    return true;
-  });
+    const batchCode = user?.batchCode || (user as any)?.batch || '';
+    const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
+
+    const list = courseAssignments.filter((t: any) => {
+      // 1. Batch targeting check: must target the student's batch
+      const targetsBatch = !t.target_batch || t.target_batch === 'all' || t.target_batch === 'all batches' || courseTargetsBatch(t.target_batch, batchCode, batchCategory);
+      if (!targetsBatch) return false;
+
+      // 2. Strict Milestone Lesson Unlock check:
+      // Daily assessments are tied to syllabus lessons. They MUST only be shown if their lesson is unlocked in milestones!
+      const lessonId = t.topic_id ? String(t.topic_id).split('||')[2] : (t.lesson_id || '');
+      const isTaskUnlocked = (lessonId && isUnlocked(lessonId)) || isEntityUnlocked(t);
+      if (lessonId || t.topic_id || t.inner_topic_id) {
+        if (!isTaskUnlocked) return false;
+      }
+
+      return true;
+    });
+
+    // Save verified unlocked daily assessments to cache for instant display on future reloads
+    if (resolverReady) {
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify(list));
+      } catch {}
+    }
+
+    return list;
+  }, [courseAssignments, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, hasCachedAssessments, isUnlocked, isEntityUnlocked, cacheKey]);
+
+  // Filter Tasks by pending / completed tab
+  const filteredTasks = useMemo(() => {
+    return unlockedTasks.filter((t: any) => {
+      if (filterTab === 'pending') return t.status === 'pending';
+      if (filterTab === 'completed') return t.status === 'completed';
+      return true;
+    });
+  }, [unlockedTasks, filterTab]);
 
   // Card vs. list ("rectangle") view + render windowing (10, +10 on scroll; reset on tab change).
   const [assessView, setAssessView] = useState<'card' | 'list'>(() =>
@@ -1277,7 +1330,7 @@ export function AssignmentsScreen() {
           </div>
 
           {/* Tasks List Cards */}
-          {loading ? (
+          {isScreenLoading ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
               <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
               <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Daily Assessments...</h3>
