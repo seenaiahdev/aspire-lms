@@ -7,11 +7,46 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 
+function loadLocalEnv() {
+  const baseDir = fileURLToPath(new URL('.', import.meta.url));
+  const envPaths = [
+    path.resolve(baseDir, '.env'),
+    path.resolve(baseDir, '../.env'),
+    path.resolve(baseDir, '../backend/.env'),
+  ];
+  for (const envPath of envPaths) {
+    if (fs.existsSync(envPath)) {
+      try {
+        const text = fs.readFileSync(envPath, 'utf8');
+        for (const line of text.split('\n')) {
+          const trimmed = line.trim();
+          if (trimmed && !trimmed.startsWith('#') && trimmed.includes('=')) {
+            const eqIdx = trimmed.indexOf('=');
+            const k = trimmed.slice(0, eqIdx).trim();
+            const v = trimmed.slice(eqIdx + 1).trim();
+            if (k && !process.env[k]) {
+              process.env[k] = v;
+            }
+          }
+        }
+      } catch {}
+    }
+  }
+  if (!process.env.SUPABASE_URL && process.env.VITE_SUPABASE_URL) {
+    process.env.SUPABASE_URL = process.env.VITE_SUPABASE_URL;
+  }
+  if (!process.env.SUPABASE_ANON_KEY && process.env.VITE_SUPABASE_ANON_KEY) {
+    process.env.SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_ANON_KEY;
+  }
+}
+
 function apiDevServerPlugin(): Plugin {
   return {
     name: 'api-dev-server',
     configureServer(server) {
+      loadLocalEnv();
       server.middlewares.use(async (req, res, next) => {
+        loadLocalEnv();
         if (!req.url?.startsWith('/api/')) return next();
         const parsedUrl = new URL(req.url, 'http://localhost');
         const endpoint = parsedUrl.pathname.replace(/^\/api\//, '').split('?')[0];

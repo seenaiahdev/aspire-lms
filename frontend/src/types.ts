@@ -69,8 +69,9 @@ export interface Instructor {
   title: string;
   avatar: string;
   rating: number;
-  students: number;
-  courses: number;
+  students?: number;
+  courses?: number;
+  experience?: string;
   bio: string;
 }
 

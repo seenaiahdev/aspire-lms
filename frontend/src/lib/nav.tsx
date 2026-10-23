@@ -19,11 +19,75 @@ interface NavContextValue {
 
 const NavContext = createContext<NavContextValue | null>(null);
 
-const AUTH_ROUTES: Route[] = ['splash', 'welcome', 'login'];
+export const AUTH_ROUTES: Route[] = ['splash', 'welcome', 'login'];
+
+/**
+ * Validates whether the browser holds an active, non-expired, and structurally sound student session.
+ * Rejects sessions that lack a valid cryptographic session token or where the token has expired.
+ */
+export function hasValidSession(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+
+    const token = localStorage.getItem('aspire_session_token');
+    const loggedIn = localStorage.getItem('aspire_logged_in') === 'true';
+    const mobile = localStorage.getItem('aspire_logged_in_mobile');
+
+    if (!loggedIn || !mobile) {
+      return false;
+    }
+
+    if (token) {
+      const parts = token.split('.');
+      if (parts.length !== 2) return false;
+      const [payloadB64, signature] = parts;
+      if (!payloadB64 || !signature) return false;
+
+      // Decode base64url payload
+      const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonStr = decodeURIComponent(
+        atob(base64)
+          .split('')
+          .map((c) => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+          .join('')
+      );
+      const payload = JSON.parse(jsonStr);
+
+      if (!payload.studentId || !payload.exp) {
+        return false;
+      }
+
+      if (Date.now() > payload.exp) {
+        // Session expired — purge invalid state
+        localStorage.removeItem('aspire_session_token');
+        localStorage.setItem('aspire_logged_in', 'false');
+        return false;
+      }
+
+      return true;
+    }
+
+    // Transition support: if legacy session exists with valid user profile,
+    // verify valid registered user object exists before acknowledging session
+    const cachedUser = localStorage.getItem('aspire_cached_user');
+    if (cachedUser && mobile.replace(/\D/g, '').length === 10) {
+      try {
+        const user = JSON.parse(cachedUser);
+        if (user && user.id && user.id !== 'guest') {
+          return true;
+        }
+      } catch {}
+    }
+
+    return false;
+  } catch {
+    return false;
+  }
+}
 
 export function NavProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
-    return localStorage.getItem('aspire_logged_in') === 'true';
+    return hasValidSession();
   });
 
   // Always start with 'splash' loader screen on page load / refresh

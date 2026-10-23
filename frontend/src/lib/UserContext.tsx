@@ -15,6 +15,7 @@ import {
   invalidateAttendanceCache
 } from '@/lib/api';
 import { invalidateCache } from './queryCache';
+import { hasValidSession } from '@/lib/nav';
 import { supabase } from './supabase';
 
 const initialUser: ExtendedUser = {
@@ -72,6 +73,9 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<ExtendedUser>(() => {
+    if (!hasValidSession()) {
+      return initialUser;
+    }
     const cached = localStorage.getItem('aspire_cached_user');
     if (cached) {
       try {
@@ -83,13 +87,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return initialUser;
   });
   const [loading, setLoading] = useState(() => {
+    if (!hasValidSession()) return false;
     const cached = localStorage.getItem('aspire_cached_user');
     return !cached;
   });
 
   const refetchUser = useCallback(async () => {
     const loggedInMobile = localStorage.getItem('aspire_logged_in_mobile');
-    const isLoggedIn = localStorage.getItem('aspire_logged_in') === 'true';
+    const isLoggedIn = hasValidSession();
 
     if (isLoggedIn && loggedInMobile) {
       const cached = localStorage.getItem('aspire_cached_user');

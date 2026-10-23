@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2, Check } from 'lucide-react';
-import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions, courseTargetsBatch } from '@/lib/api';
+import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
@@ -206,64 +206,65 @@ export function ScheduleScreen() {
     return s;
   });
 
-  useEffect(() => {
-    async function loadPersonalTasks() {
-      const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
-      let cachedTasks: any[] = [];
-      try {
-        const raw = localStorage.getItem(storageKey);
-        if (raw) {
-          cachedTasks = JSON.parse(raw);
-          if (Array.isArray(cachedTasks)) {
-            setLocalTasks(cachedTasks);
-            setCompletedTaskIds((prev) => {
-              const next = new Set(prev);
-              cachedTasks.forEach((t: any) => {
-                if (t.completed) next.add(String(t.id));
-              });
-              return next;
-            });
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse cached personal tasks:', e);
-      }
-
-      if (!user?.id) return;
-      try {
-        const tasks = await fetchPersonalTasks(user.id);
-        if (Array.isArray(tasks) && tasks.length > 0) {
-          const cachedMap = new Map(cachedTasks.map((t: any) => [String(t.id), t]));
-          const mergedTasks = tasks.map((dbTask: any) => {
-            const cached = cachedMap.get(String(dbTask.id));
-            if (cached && cached.completed) {
-              return { ...dbTask, completed: true };
-            }
-            return dbTask;
-          });
-          const dbIds = new Set(tasks.map((t: any) => String(t.id)));
-          const combined = [
-            ...mergedTasks,
-            ...cachedTasks.filter((t: any) => !dbIds.has(String(t.id)))
-          ];
-          setLocalTasks(combined);
+  const loadPersonalTasks = useCallback(async () => {
+    const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
+    let cachedTasks: any[] = [];
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (raw) {
+        cachedTasks = JSON.parse(raw);
+        if (Array.isArray(cachedTasks)) {
+          setLocalTasks(cachedTasks);
           setCompletedTaskIds((prev) => {
             const next = new Set(prev);
-            combined.forEach((t: any) => {
+            cachedTasks.forEach((t: any) => {
               if (t.completed) next.add(String(t.id));
             });
             return next;
           });
-          try {
-            localStorage.setItem(storageKey, JSON.stringify(combined));
-          } catch {}
         }
-      } catch (err) {
-        console.warn("Error loading personal tasks from Supabase (using local cache):", err);
       }
+    } catch (e) {
+      console.warn('Failed to parse cached personal tasks:', e);
     }
-    loadPersonalTasks();
+
+    if (!user?.id) return;
+    try {
+      const tasks = await fetchPersonalTasks(user.id);
+      if (Array.isArray(tasks) && tasks.length > 0) {
+        const cachedMap = new Map(cachedTasks.map((t: any) => [String(t.id), t]));
+        const mergedTasks = tasks.map((dbTask: any) => {
+          const cached = cachedMap.get(String(dbTask.id));
+          if (cached && cached.completed) {
+            return { ...dbTask, completed: true };
+          }
+          return dbTask;
+        });
+        const dbIds = new Set(tasks.map((t: any) => String(t.id)));
+        const combined = [
+          ...mergedTasks,
+          ...cachedTasks.filter((t: any) => !dbIds.has(String(t.id)))
+        ];
+        setLocalTasks(combined);
+        setCompletedTaskIds((prev) => {
+          const next = new Set(prev);
+          combined.forEach((t: any) => {
+            if (t.completed) next.add(String(t.id));
+          });
+          return next;
+        });
+        try {
+          localStorage.setItem(storageKey, JSON.stringify(combined));
+        } catch {}
+      }
+    } catch (err) {
+      console.warn("Error loading personal tasks from Supabase (using local cache):", err);
+    }
   }, [user?.id]);
+
+  useEffect(() => {
+    loadPersonalTasks();
+  }, [loadPersonalTasks]);
 
   const loadUnlockedExtraEvents = useCallback(async () => {
     if (!user) return;
@@ -298,13 +299,28 @@ export function ScheduleScreen() {
         (userSubmissions || []).map((s: any) => s.problem_id).filter(Boolean)
       );
 
-      const unlockedAssessments = assessmentsData.filter((t: any) => isEntityUnlocked(t));
-      const unlockedQuizzes = quizzesData.filter((q: any) => isEntityUnlocked(q));
-      const unlockedProjects = projectsData.filter((p: any) => isEntityUnlocked(p));
-      const unlockedCoding = codingData.filter((p: any) => {
-        const isReleased = !p.target_batch || p.target_batch === 'all' || p.target_batch === 'all batches' || courseTargetsBatch(p.target_batch, user.batchCode || '', user.batchCategory);
-        return isReleased || isEntityUnlocked(p);
+      const unlockedAssessments = assessmentsData.filter((t: any) => {
+        const lessonId = t.topic_id ? String(t.topic_id).split('||')[2] : (t.lesson_id || '');
+        return (lessonId && isUnlocked(lessonId)) || isEntityUnlocked(t);
       });
+      const unlockedQuizzes = quizzesData.filter((q: any) => {
+        return (q.inner_topic_id && isUnlocked(q.inner_topic_id)) || isEntityUnlocked(q);
+      });
+      const unlockedProjects = projectsData.filter((p: any) => {
+        return (p.inner_topic_id && isUnlocked(p.inner_topic_id)) || isEntityUnlocked(p);
+      });
+      const unlockedCoding = codingData.filter((p: any) => {
+        if (p.inner_topic_id || p.topic_id || p.lesson_id) {
+          return (p.inner_topic_id && isUnlocked(p.inner_topic_id)) || isEntityUnlocked(p);
+        }
+        return !p.target_batch || p.target_batch === 'all' || p.target_batch === 'all batches' || courseTargetsBatch(p.target_batch, user.batchCode || '', user.batchCategory);
+      });
+
+      let projectDriveLinks: Record<string, string> = {};
+      try {
+        const raw = localStorage.getItem('projectDriveLinks');
+        if (raw) projectDriveLinks = JSON.parse(raw);
+      } catch {}
 
       const manualCompletedEvents = new Set<string>();
       try {
@@ -355,7 +371,8 @@ export function ScheduleScreen() {
       unlockedProjects.forEach((proj: any) => {
         const rawDate = proj.due_date || proj.dueDate || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
-        const isCompleted = submittedProblemIds.has(proj.id) || proj.status === 'submitted' || proj.status === 'feedback' || manualCompletedEvents.has(proj.id);
+        const hasDriveLink = Boolean(projectDriveLinks[proj.id]);
+        const isCompleted = hasDriveLink || submittedProblemIds.has(proj.id) || proj.status === 'submitted' || proj.status === 'feedback' || manualCompletedEvents.has(proj.id);
         extra.push({
           id: proj.id,
           title: proj.title,
@@ -392,94 +409,120 @@ export function ScheduleScreen() {
     } catch (err) {
       console.error("Error loading extra events:", err);
     }
-  }, [user, isEntityUnlocked, today]);
+  }, [user, isUnlocked, isEntityUnlocked, today]);
 
   useEffect(() => {
     loadUnlockedExtraEvents();
   }, [loadUnlockedExtraEvents, user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.join(','), user?.unlockedLessonIds?.join(','), unlockReady]);
 
-  // Realtime listener for completed tasks & milestone unlocks
+  const loadTasks = useCallback(async () => {
+    if (!user?.batchCode) return;
+    setIsLoading(true);
+    try {
+      const year = calendarDate.getFullYear();
+      const monthNum = calendarDate.getMonth();
+      const b = user?.batchCode || '';
+      const batchFilter = b
+        ? `batch_code.eq.${b},target_batch.ilike.%${b}%,target_batch.ilike.%all batches%`
+        : 'target_batch.ilike.%all batches%';
+
+      const { data, error } = await supabase
+        .from('live_sessions')
+        .select('*')
+        .or(batchFilter)
+        .not('date', 'is', null);
+
+      if (data) {
+        const manualCompletedEvents = new Set<string>();
+        try {
+          const raw = localStorage.getItem(user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest');
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) list.forEach((id: string) => manualCompletedEvents.add(id));
+          }
+        } catch {}
+
+        const currentMonthPrefix = `${year}-${String(monthNum + 1).padStart(2, '0')}`;
+        const formatted = data
+          .map((row: any) => {
+            const dKey = parseScheduleItemDate({ date: row.date }, today);
+            return {
+              id: row.id,
+              title: row.session_title || row.title || row.program_name || 'Class Session',
+              type: 'class',
+              date: formatTaskDateLabel(dKey, today),
+              dateKey: dKey,
+              time: row.time || 'Live',
+              course: row.technology || row.program_name || 'Live Class',
+              completed: row.status === 'completed' || manualCompletedEvents.has(row.id)
+            };
+          })
+          .filter((item: any) => item.dateKey.startsWith(currentMonthPrefix));
+        setApiTasks(formatted);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [calendarDate, user?.batchCode, today]);
+
+  useEffect(() => {
+    loadTasks();
+  }, [loadTasks]);
+
+// Comprehensive Realtime listener: syncs coursework, tasks, locks, & sessions in real time
   useEffect(() => {
     if (!user?.id) return;
+
+    const refreshAll = () => {
+      invalidateCacheByPrefix('assignments');
+      invalidateCacheByPrefix('quizzes');
+      invalidateCacheByPrefix('projects');
+      invalidateCacheByPrefix('practice_problems');
+      invalidateCacheByPrefix('personal_tasks');
+      if (user?.id) {
+        invalidateCacheByPrefix(`student_aa:${user.id}`);
+        invalidateCacheByPrefix(`student_qa:${user.id}`);
+        invalidateCacheByPrefix(`student_ps:${user.id}`);
+        invalidateCacheByPrefix(`personal_tasks:${user.id}`);
+      }
+      loadUnlockedExtraEvents();
+      loadPersonalTasks();
+      loadTasks();
+    };
+
     const channel = supabase
       .channel('schedule-screen-realtime-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, () => {
-        loadUnlockedExtraEvents();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `user_id=eq.${user.id}` }, () => {
-        loadUnlockedExtraEvents();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, () => {
-        loadUnlockedExtraEvents();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'milestone_locks' }, () => {
-        loadUnlockedExtraEvents();
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'milestone_locks' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_tasks' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'coding_questions' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, refreshAll)
       .subscribe();
+
+    const onFocusSync = () => {
+      if (document.visibilityState === 'visible') {
+        refreshAll();
+      }
+    };
+    window.addEventListener('focus', onFocusSync);
+    document.addEventListener('visibilitychange', onFocusSync);
+
+    const intervalTimer = setInterval(refreshAll, 30000);
 
     return () => {
       supabase.removeChannel(channel);
+      window.removeEventListener('focus', onFocusSync);
+      document.removeEventListener('visibilitychange', onFocusSync);
+      clearInterval(intervalTimer);
     };
-  }, [user?.id, loadUnlockedExtraEvents]);
-
-  useEffect(() => {
-    const loadTasks = async () => {
-      if (!user?.batchCode) return;
-      setIsLoading(true);
-      try {
-        const year = calendarDate.getFullYear();
-        const monthNum = calendarDate.getMonth();
-        const startOfMonth = `${year}-${String(monthNum + 1).padStart(2, '0')}-01`;
-        const lastDay = new Date(year, monthNum + 1, 0).getDate();
-        const endOfMonth = `${year}-${String(monthNum + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
-
-        const b = user?.batchCode || '';
-        const batchFilter = b
-          ? `batch_code.eq.${b},target_batch.ilike.%${b}%,target_batch.ilike.%all batches%`
-          : 'target_batch.ilike.%all batches%';
-
-        const { data, error } = await supabase
-          .from('live_sessions')
-          .select('*')
-          .or(batchFilter)
-          .not('date', 'is', null);
-
-        if (data) {
-          const manualCompletedEvents = new Set<string>();
-          try {
-            const raw = localStorage.getItem(user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest');
-            if (raw) {
-              const list = JSON.parse(raw);
-              if (Array.isArray(list)) list.forEach((id: string) => manualCompletedEvents.add(id));
-            }
-          } catch {}
-
-          const currentMonthPrefix = `${year}-${String(monthNum + 1).padStart(2, '0')}`;
-          const formatted = data
-            .map((row: any) => {
-              const dKey = parseScheduleItemDate({ date: row.date }, today);
-              return {
-                id: row.id,
-                title: row.session_title || row.title || row.program_name || 'Class Session',
-                type: 'class',
-                date: formatTaskDateLabel(dKey, today),
-                dateKey: dKey,
-                time: row.time || 'Live',
-                course: row.technology || row.program_name || 'Live Class',
-                completed: row.status === 'completed' || manualCompletedEvents.has(row.id)
-              };
-            })
-            .filter((item: any) => item.dateKey.startsWith(currentMonthPrefix));
-          setApiTasks(formatted);
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    loadTasks();
-  }, [calendarDate, user?.batchCode]);
+  }, [user?.id, loadUnlockedExtraEvents, loadPersonalTasks, loadTasks]);
 
   // Personal/user-added tasks are placed at the very top, sorted newest first
   const sortedLocalTasks = [...localTasks].sort((a, b) => {
@@ -539,29 +582,28 @@ export function ScheduleScreen() {
   const todayKey = getDateKey(today);
   const isSelectedToday = selectedDateKey === todayKey;
 
-  const itemsForSelectedDate = itemsWithDateKey.filter((item) => {
-    // 1. If viewing another calendar date, show exact items for that date
-    if (!isSelectedToday) {
-      return item.dateKey === selectedDateKey;
-    }
-
-    // 2. When viewing Today:
-    // - Show items explicitly scheduled for today
-    if (item.dateKey === todayKey) return true;
-
-    // - For coursework items (assignments, quizzes, projects, practice):
-    //   Show active coursework whose due date is upcoming / active (dueDate >= todayKey)
-    //   Hide coursework whose due date has already passed / ended (dueDate < todayKey)
-    if (item.isCoursework) {
-      const isPastDueDate = item.dateKey && item.dateKey < todayKey;
-      if (isPastDueDate) {
-        return false;
+  const itemsForSelectedDate = useMemo(() => {
+    return itemsWithDateKey.filter((item) => {
+      // 1. If viewing another calendar date (user clicked a specific day in the calendar)
+      if (!isSelectedToday) {
+        return item.dateKey === selectedDateKey;
       }
-      return true;
-    }
 
-    return false;
-  });
+      // 2. When viewing Today (default agenda):
+      // A. All uncompleted items (coursework, assignments, quizzes, projects, tasks) MUST appear
+      // so the student can clearly see and complete their pending work!
+      if (!item.completed) {
+        return true;
+      }
+
+      // B. Completed items: show if scheduled for today
+      if (item.dateKey === todayKey) {
+        return true;
+      }
+
+      return false;
+    });
+  }, [itemsWithDateKey, isSelectedToday, selectedDateKey, todayKey]);
 
   const activeTasks = itemsForSelectedDate.filter((item) => !item.completed);
   const completedTasks = itemsForSelectedDate.filter((item) => item.completed);

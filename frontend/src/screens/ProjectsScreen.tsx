@@ -678,16 +678,7 @@ export function ProjectsScreen() {
     } catch {}
   };
 
-  // Automatically switch tab if current tab is empty but another has projects (e.g. all auto-submitted)
-  useEffect(() => {
-    if (subTab === 'assigned' && assignedCount === 0 && submittedCount > 0) {
-      setSubTab('submitted');
-      try { localStorage.setItem('aspire_projects_subtab', 'submitted'); } catch {}
-    } else if (subTab === 'submitted' && submittedCount === 0 && assignedCount > 0) {
-      setSubTab('assigned');
-      try { localStorage.setItem('aspire_projects_subtab', 'assigned'); } catch {}
-    }
-  }, [subTab, submittedCount, assignedCount]);
+
 
   // Card vs. list ("rectangle") view + render windowing (show 10, +10 on scroll).
   const [viewMode, setViewMode] = useState<'card' | 'list'>(() =>
@@ -1243,9 +1234,9 @@ export function ProjectsScreen() {
           <Tabs
             variant="pills"
             tabs={[
-              { id: 'assigned', label: 'Assigned' },
-              { id: 'submitted', label: 'Submitted' },
-              { id: 'feedback', label: 'Mentor Feedback' },
+              { id: 'assigned', label: 'Assigned', badge: assignedCount },
+              { id: 'submitted', label: 'Submitted', badge: submittedCount },
+              { id: 'feedback', label: 'Mentor Feedback', badge: feedbackCount },
             ]}
             active={subTab}
             onChange={(val) => handleSubTabChange(val as any)}
@@ -1269,10 +1260,24 @@ export function ProjectsScreen() {
           </div>
         ) : filtered.length === 0 ? (
           <div>
-            <Card className="p-12 text-center bg-white border border-slate-200 rounded-[2rem]">
-              <FolderGit2 className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-              <h3 className="font-extrabold text-slate-800 text-base">No Projects Found</h3>
-              <p className="text-xs text-slate-500 mt-1">There are no {subTab} projects in this category currently.</p>
+            <Card className="p-12 text-center bg-white border border-slate-200/90 rounded-[2rem] shadow-xs">
+              <div className="w-16 h-16 rounded-2xl bg-purple-50 flex items-center justify-center mx-auto mb-4 border border-purple-100">
+                <FolderGit2 className="w-8 h-8 text-[#7c3aed]" />
+              </div>
+              <h3 className="font-extrabold text-slate-800 text-lg">
+                {subTab === 'assigned'
+                  ? 'No Assigned Projects'
+                  : subTab === 'submitted'
+                  ? 'No Submitted Projects'
+                  : 'No Mentor Feedback Yet'}
+              </h3>
+              <p className="text-sm font-medium text-slate-500 mt-1 max-w-sm mx-auto">
+                {subTab === 'assigned'
+                  ? 'You currently have no pending assigned projects in this category.'
+                  : subTab === 'submitted'
+                  ? 'You have not submitted any projects in this category yet.'
+                  : 'No mentor feedback has been recorded for your submissions yet.'}
+              </p>
             </Card>
           </div>
         ) : viewMode === 'list' ? (

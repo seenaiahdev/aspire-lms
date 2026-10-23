@@ -506,10 +506,6 @@ export function CourseScreen() {
 
           <div className="flex flex-wrap items-center gap-4 sm:gap-6 text-xs sm:text-sm font-semibold text-purple-100 pt-2 border-t border-white/20">
             <span className="flex items-center gap-1.5">
-              <Users className="w-4 h-4" />
-              <span>{course.students >= 1000 ? `${(course.students / 1000).toFixed(1)}k` : course.students} {course.students === 1 ? 'student' : 'students'}</span>
-            </span>
-            <span className="flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
               <span>{course.duration}</span>
             </span>
@@ -669,22 +665,14 @@ export function CourseScreen() {
                   <p className="text-xs font-semibold text-slate-500">{course.instructor.title}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-2 text-center p-3 rounded-2xl bg-slate-50 border border-slate-100">
+              <div className="grid grid-cols-2 gap-2 text-center p-3 rounded-2xl bg-slate-50 border border-slate-100">
                 <div>
                   <p className="flex items-center justify-center gap-1 text-sm font-black text-slate-900"><Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />{course.instructor.rating}</p>
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Rating</p>
                 </div>
                 <div>
-                  <p className="text-sm font-black text-slate-900">
-                    {course.instructor.students >= 1000 
-                      ? `${(course.instructor.students / 1000).toFixed(1)}k` 
-                      : course.instructor.students}
-                  </p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Students</p>
-                </div>
-                <div>
-                  <p className="text-sm font-black text-slate-900">{course.instructor.courses}</p>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Courses</p>
+                  <p className="text-sm font-black text-slate-900">10+ Years</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">Experience</p>
                 </div>
               </div>
               <p className="text-xs font-medium text-slate-500 leading-relaxed">{course.instructor.bio}</p>

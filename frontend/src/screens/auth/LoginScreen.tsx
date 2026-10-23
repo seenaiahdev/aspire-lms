@@ -469,6 +469,9 @@ export function LoginScreen() {
       const data = await resp.json().catch(() => ({ ok: false, error: 'Verification response failed' }));
 
       if (resp.ok && data.ok) {
+        if (data.token) {
+          localStorage.setItem('aspire_session_token', data.token);
+        }
         completeLogin();
       } else {
         setIsSubmitting(false);

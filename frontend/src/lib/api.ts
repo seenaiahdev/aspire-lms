@@ -12,7 +12,7 @@ export const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/+$/,
 /**
  * Clean phone number to compare suffixes (removes non-digits and takes last 10 digits)
  */
-function cleanPhoneSuffix(phone: string): string {
+export function cleanPhoneSuffix(phone: string): string {
   return phone.replace(/\D/g, '').slice(-10);
 }
 
@@ -683,10 +683,11 @@ export async function submitQuizAttempt(
       savedRow = noAns;
     }
 
-    // Award 10 XP only if passed (score >= 70%) to maintain sustainable reward gamification
+    // Authoritative calibrated reward: 10 XP only if passed (score >= 70%) to maintain sustainable reward gamification
+    const AUTHORITATIVE_QUIZ_XP = 10;
     if (isPassed) {
       try {
-        await incrementUserXP(userId, 10);
+        await incrementUserXP(userId, AUTHORITATIVE_QUIZ_XP);
         await recalculateUserStreak(userId);
       } catch (xpErr) {
         console.warn('Failed to increment XP for passed quiz:', xpErr);
@@ -1390,91 +1391,118 @@ export async function fetchRecordings(batchCode?: string, batchCategory?: string
 // NEW SOLUTIONS & ATTEMPTS INTERACTION
 // ════════════════════════════════════════════════════════════════
 
-export async function incrementUserXP(userId: string, amount: number) {
-  if (!userId || userId === 'guest' || !amount || amount <= 0) return;
+export async function incrementUserXP(
+  userId: string,
+  amount: number
+): Promise<{ success: boolean; newXp?: number; error?: string }> {
+  if (!userId || userId === 'guest' || !amount || amount <= 0) {
+    return { success: false, error: 'invalid_parameters' };
+  }
 
-  // 1. Preferred: Atomic database increment via SECURITY DEFINER RPC
-  // Prevents concurrency race conditions / lost updates
+  // 1. Primary: Atomic database increment via SECURITY DEFINER RPC
   try {
     const { data: newXp, error: rpcError } = await supabase.rpc('increment_student_xp', {
       p_student_id: userId,
-      p_amount: amount,
+      p_amount: Math.round(amount),
     });
+
     if (!rpcError) {
       invalidateCache(`student_profile:${userId}`);
-      return;
+      return { success: true, newXp: Number(newXp) };
     }
-  } catch {
-    // Fall back to read-modify-write if migration has not been applied yet
+    console.warn('XP RPC increment failed, trying fallback:', rpcError.code || 'rpc_error');
+  } catch (err: any) {
+    console.warn('XP RPC increment exception, trying fallback:', err?.code || 'rpc_exception');
   }
 
-  // 2. Fallback: Read-modify-write
-  const { data: profile, error: fetchError } = await supabase
-    .from('student_profiles')
-    .select('xp')
-    .eq('student_id', userId)
-    .single();
+  // 2. Fallback: Read-modify-write to preserve existing XP progression reliability
+  try {
+    const { data: profile, error: fetchError } = await supabase
+      .from('student_profiles')
+      .select('xp')
+      .eq('student_id', userId)
+      .single();
 
-  if (fetchError && fetchError.code !== 'PGRST116') {
-    console.error('Error fetching student profile for XP increment:', fetchError);
-    return;
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error fetching student profile for XP increment:', fetchError);
+      return { success: false, error: fetchError.message };
+    }
+
+    const currentXp = profile?.xp ?? 0;
+    const newXp = currentXp + Math.round(amount);
+
+    const { error: updateError } = await supabase
+      .from('student_profiles')
+      .update({ xp: newXp })
+      .eq('student_id', userId);
+
+    if (updateError) {
+      console.error('Error updating student profile XP:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    invalidateCache(`student_profile:${userId}`);
+    return { success: true, newXp };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'fallback_failed' };
   }
-
-  const currentXp = profile?.xp ?? 0;
-  const newXp = currentXp + amount;
-
-  const { error: updateError } = await supabase
-    .from('student_profiles')
-    .update({ xp: newXp })
-    .eq('student_id', userId);
-
-  if (updateError) {
-    console.error('Error updating student profile XP:', updateError);
-  }
-  invalidateCache(`student_profile:${userId}`);
 }
 
-export async function decrementUserXP(userId: string, amount: number) {
-  if (!userId || userId === 'guest' || !amount || amount <= 0) return;
+export async function decrementUserXP(
+  userId: string,
+  amount: number
+): Promise<{ success: boolean; error?: string }> {
+  if (!userId || userId === 'guest' || !amount || amount <= 0) {
+    return { success: false, error: 'invalid_parameters' };
+  }
 
-  // 1. Preferred: Atomic database decrement via SECURITY DEFINER RPC
+  // 1. Primary: Atomic database decrement via SECURITY DEFINER RPC
   try {
     const { error: rpcError } = await supabase.rpc('decrement_student_xp', {
       p_student_id: userId,
-      p_amount: amount,
+      p_amount: Math.round(amount),
     });
+
     if (!rpcError) {
       invalidateCache(`student_profile:${userId}`);
-      return;
+      return { success: true };
     }
-  } catch {
-    // Fall back to read-modify-write if migration has not been applied yet
+    console.warn('XP RPC decrement failed, trying fallback:', rpcError.code || 'rpc_error');
+  } catch (err: any) {
+    console.warn('XP RPC decrement exception, trying fallback:', err?.code || 'rpc_exception');
   }
 
   // 2. Fallback: Read-modify-write with 0 lower bound
-  const { data: profile, error: fetchError } = await supabase
-    .from('student_profiles')
-    .select('xp')
-    .eq('student_id', userId)
-    .single();
+  try {
+    const { data: profile, error: fetchError } = await supabase
+      .from('student_profiles')
+      .select('xp')
+      .eq('student_id', userId)
+      .single();
 
-  if (fetchError && fetchError.code !== 'PGRST116') {
-    console.error('Error fetching student profile for XP decrement:', fetchError);
-    return;
+    if (fetchError && fetchError.code !== 'PGRST116') {
+      console.error('Error fetching student profile for XP decrement:', fetchError);
+      return { success: false, error: fetchError.message };
+    }
+
+    const currentXp = profile?.xp ?? 0;
+    const newXp = Math.max(0, currentXp - Math.round(amount));
+
+    const { error: updateError } = await supabase
+      .from('student_profiles')
+      .update({ xp: newXp })
+      .eq('student_id', userId);
+
+    if (updateError) {
+      console.error('Error updating student profile XP:', updateError);
+      return { success: false, error: updateError.message };
+    }
+
+    invalidateCache(`student_profile:${userId}`);
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message || 'fallback_failed' };
   }
-
-  const currentXp = profile?.xp ?? 0;
-  const newXp = Math.max(0, currentXp - amount);
-
-  const { error: updateError } = await supabase
-    .from('student_profiles')
-    .update({ xp: newXp })
-    .eq('student_id', userId);
-
-  if (updateError) {
-    console.error('Error updating student profile XP on decrement:', updateError);
-  }
-  invalidateCache(`student_profile:${userId}`);
 }
 
 /**
@@ -1909,9 +1937,10 @@ export async function submitPracticeProblem(
     throw error;
   }
 
+  // Authoritative calibrated reward for practice problem: 25 XP (client-supplied rewardXp ignored)
+  const AUTHORITATIVE_PRACTICE_XP = 25;
   try {
-    const xpToAward = rewardXp ?? 25;
-    await incrementUserXP(userId, xpToAward);
+    await incrementUserXP(userId, AUTHORITATIVE_PRACTICE_XP);
     await recalculateUserStreak(userId);
   } catch (xpErr) {
     console.warn('Failed to increment XP / recalculate streak after solving problem:', xpErr);
@@ -2077,11 +2106,14 @@ export async function submitAssignmentAttempt(
 
   // XP earned = only if PASSED (score >= 70%), first attempt only.
   // Failed attempts (score < 70) earn 0 XP. Base reward calibrated to 25 XP to protect rewards liability.
+  // Authoritative calibrated max reward: 25 XP (client-supplied rewardXp ignored)
+  const AUTHORITATIVE_ASSESSMENT_MAX_XP = 25;
   try {
     if (score >= 70) {
-      const reward = rewardXp ?? 25;
-      const pointsAwarded = Math.max(0, Math.round((score / 100) * reward));
-      await incrementUserXP(userId, pointsAwarded);
+      const pointsAwarded = Math.max(0, Math.min(AUTHORITATIVE_ASSESSMENT_MAX_XP, Math.round((score / 100) * AUTHORITATIVE_ASSESSMENT_MAX_XP)));
+      if (pointsAwarded > 0) {
+        await incrementUserXP(userId, pointsAwarded);
+      }
       await recalculateUserStreak(userId);
     }
   } catch (xpErr) {
@@ -2333,7 +2365,35 @@ export async function updatePersonalTaskCompletion(taskId: string, completed: bo
   return data;
 }
 
-export async function deletePersonalTask(taskId: string) {
+export async function deletePersonalTask(taskId: string): Promise<{ success: boolean; deleted?: boolean; error?: string }> {
+  if (!taskId) {
+    throw new Error('Task ID is required for deletion.');
+  }
+
+  // 1. Attempt authenticated backend endpoint if configured
+  const sessionToken = typeof window !== 'undefined' ? localStorage.getItem('aspire_session_token') : null;
+  if (sessionToken && API_BASE_URL) {
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/delete-personal-task`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${sessionToken}`,
+        },
+        body: JSON.stringify({ taskId }),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        invalidateCacheByPrefix('personal_tasks:');
+        return { success: true, deleted: data.deleted !== false };
+      }
+    } catch {
+      // Endpoint unavailable, fall through to client fallback
+    }
+  }
+
+  // 2. Safe fallback: direct Supabase client deletion to preserve existing functionality
   const { data, error } = await supabase
     .from('personal_tasks')
     .delete()
@@ -2343,8 +2403,9 @@ export async function deletePersonalTask(taskId: string) {
     console.error('Error deleting personal task:', error);
     throw error;
   }
+
   invalidateCacheByPrefix('personal_tasks:');
-  return data;
+  return { success: true, deleted: true };
 }
 
 export async function updateNotificationReadStatus(id: string, read: boolean) {

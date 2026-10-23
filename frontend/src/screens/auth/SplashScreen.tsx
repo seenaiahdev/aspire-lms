@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNav } from '@/lib/nav';
+import { useNav, hasValidSession } from '@/lib/nav';
 import aspireLogo from '@/assests/Aspire_logo.jpg';
 
 export function SplashScreen() {
@@ -7,7 +7,7 @@ export function SplashScreen() {
 
   useEffect(() => {
     const t = setTimeout(() => {
-      const loggedIn = localStorage.getItem('aspire_logged_in') === 'true';
+      const loggedIn = hasValidSession();
       const path = window.location.pathname.replace(/^\//, '').trim() as any;
 
       if (loggedIn) {
