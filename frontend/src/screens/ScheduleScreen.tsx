@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2, Check } from 'lucide-react';
-import { fetchDailySchedules, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
+import { fetchDailySchedules, extractBatchDueDate, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
@@ -369,7 +369,7 @@ export function ScheduleScreen() {
       });
 
       unlockedProjects.forEach((proj: any) => {
-        const rawDate = proj.due_date || proj.dueDate || '';
+        const rawDate = extractBatchDueDate(proj.due_date || proj.dueDate, user?.batchCode) || proj.due_date || proj.dueDate || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
         const hasDriveLink = Boolean(projectDriveLinks[proj.id]);
         const isCompleted = hasDriveLink || submittedProblemIds.has(proj.id) || proj.status === 'submitted' || proj.status === 'feedback' || manualCompletedEvents.has(proj.id);

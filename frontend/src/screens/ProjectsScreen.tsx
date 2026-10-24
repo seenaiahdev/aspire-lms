@@ -4,7 +4,7 @@ import {
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
   Upload, FolderOpen, Eye, Lock, LayoutGrid, List, ChevronRight,
 } from 'lucide-react';
-import { fetchProjects, submitPracticeProblem, fetchUserSubmissions } from '@/lib/api';
+import { fetchProjects, extractBatchDueDate, submitPracticeProblem, fetchUserSubmissions } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
@@ -130,7 +130,30 @@ function formatProjectDescription(description: string): string {
   return description;
 }
 
-export function parseProjectDetails(p: any) {
+export function formatDisplayDueDate(rawDueDate?: string | null): string {
+  if (!rawDueDate) return 'No deadline';
+  const str = String(rawDueDate).trim();
+  if (!str || str === 'null' || str === 'undefined') return 'No deadline';
+  if (str.startsWith('{') && str.endsWith('}')) return 'No deadline';
+
+  const clean = str.replace(/^(due|by)\s+/i, '').trim();
+  if (!clean || clean.toLowerCase() === 'no deadline') return 'No deadline';
+
+  const isoMatch = clean.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const year = parseInt(isoMatch[1], 10);
+    const month = parseInt(isoMatch[2], 10) - 1;
+    const day = parseInt(isoMatch[3], 10);
+    const dateObj = new Date(year, month, day);
+    if (!isNaN(dateObj.getTime())) {
+      return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+  }
+
+  return clean;
+}
+
+function parseProjectDetails(p: any, batchCode?: string) {
   if (!p) return null;
 
   let descObj: any = {};
@@ -158,7 +181,9 @@ export function parseProjectDetails(p: any) {
     (typeof p.description === 'string' && !p.description.trim().startsWith('{') ? p.description : '') ||
     (overview ? overview.split('. ')[0] + '.' : '');
 
-  const dueDate = p.due_date || descObj.due_date || descObj.dueDate || p.dueDate || '';
+  const rawDue = p.due_date || descObj.due_date || descObj.dueDate || p.dueDate || '';
+  const resolvedBatchDue = extractBatchDueDate(rawDue, batchCode);
+  const dueDate = resolvedBatchDue !== null ? (resolvedBatchDue || '') : (typeof rawDue === 'string' && !rawDue.trim().startsWith('{') ? rawDue : '');
 
   let rawReqs = p.requirements || descObj.requirements || [];
   if (typeof rawReqs === 'string') {
@@ -617,7 +642,7 @@ export function ProjectsScreen() {
         return isEntityUnlocked(p);
       })
       .map((p: any) => {
-        const details = parseProjectDetails(p);
+        const details = parseProjectDetails(p, user?.batchCode);
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
         const hasLink = Boolean(driveLinks[p.id]);
         const dueDate = details?.dueDate || p.due_date || p.dueDate || '';
@@ -701,7 +726,7 @@ export function ProjectsScreen() {
                    projectsState.find((p: any) => p.id === selectedProjectId);
       if (!rawP) return null;
 
-      const details = parseProjectDetails(rawP);
+      const details = parseProjectDetails(rawP, user?.batchCode);
       const projectType = (rawP.project_type || rawP.type || rawP.projectType || 'mini').toLowerCase();
       const hasLink = Boolean(driveLinks[rawP.id]);
       const dueDate = details?.dueDate || rawP.due_date || rawP.dueDate || '';
@@ -858,7 +883,7 @@ export function ProjectsScreen() {
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Due Date</p>
-                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{selectedProject.dueDate || 'No deadline'}</p>
+                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{formatDisplayDueDate(selectedProject.dueDate)}</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-white p-4">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
@@ -1056,7 +1081,7 @@ export function ProjectsScreen() {
                     </span>
                     {selectedProject.dueDate && (
                       <span className="text-slate-400 text-xs font-semibold">
-                        • Deadline Passed ({selectedProject.dueDate})
+                        • Deadline Passed ({formatDisplayDueDate(selectedProject.dueDate)})
                       </span>
                     )}
                   </div>
@@ -1306,7 +1331,7 @@ export function ProjectsScreen() {
                       )}
                     </div>
                     <p className="text-xs font-semibold text-slate-500 mt-0.5 line-clamp-1">
-                      {p.course}{p.dueDate ? ` • Due ${p.dueDate}` : ''}
+                      {p.course}{p.dueDate && p.dueDate !== 'No deadline' ? ` • Due ${formatDisplayDueDate(p.dueDate)}` : ''}
                     </p>
                   </div>
                 </div>
@@ -1394,7 +1419,7 @@ export function ProjectsScreen() {
                 <div className="flex items-center justify-between gap-3 pt-3 border-t border-slate-100 mt-auto">
                   <span className="text-xs font-bold text-slate-500 flex items-center gap-1.5">
                     <Clock className="w-4 h-4 text-slate-400" />
-                    {p.dueDate ? `Due ${p.dueDate}` : 'No deadline'}
+                    {p.dueDate && p.dueDate !== 'No deadline' ? `Due ${formatDisplayDueDate(p.dueDate)}` : 'No deadline'}
                   </span>
                   <div className="flex items-center gap-2">
                     {isLocked ? (

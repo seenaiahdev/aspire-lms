@@ -105,7 +105,9 @@ export function formatBatchDisplay(batchCode?: string, registrationId?: string):
  */
 export function isDueDatePassed(rawDueDate?: string): boolean {
   if (!rawDueDate) return false;
-  const clean = String(rawDueDate).replace(/^(due|by)\s+/i, '').trim();
+  const str = String(rawDueDate).trim();
+  if (str.startsWith('{')) return false;
+  const clean = str.replace(/^(due|by)\s+/i, '').trim();
   if (!clean || clean.toLowerCase() === 'no deadline') return false;
 
   const now = new Date();

@@ -709,6 +709,100 @@ export async function submitQuizAttempt(
 // PROJECTS
 // ════════════════════════════════════════════════════════════════
 
+/**
+ * Cached map between batch codes and batch IDs (e.g. 'A26W1' <-> 'batch-1788927757318')
+ */
+export async function getBatchesMap(): Promise<{ codeToId: Record<string, string>; idToCode: Record<string, string> }> {
+  return cachedQuery('batches_map', async () => {
+    try {
+      const { data, error } = await supabase.from('batches').select('id, code');
+      if (error || !data) return { codeToId: {}, idToCode: {} };
+      const codeToId: Record<string, string> = {};
+      const idToCode: Record<string, string> = {};
+      data.forEach((b: any) => {
+        if (b.id && b.code) {
+          const upper = String(b.code).trim().toUpperCase();
+          codeToId[upper] = b.id;
+          codeToId[String(b.code).trim()] = b.id;
+          idToCode[b.id] = b.code;
+        }
+      });
+      return { codeToId, idToCode };
+    } catch {
+      return { codeToId: {}, idToCode: {} };
+    }
+  }, 300_000); // 5 minutes cache
+}
+
+/**
+ * Extracts a batch-specific due date from a project's due_date column.
+ * Handles:
+ * 1. JSON dictionary of batch IDs / codes to dates:
+ *    {"batch-1788927757318": "2026-10-25", "batch-1789739462773": "2026-10-26", ...}
+ * 2. Plain date strings ("Aug 30", "2026-10-25", "Due Oct 25")
+ * 3. Fallbacks for "all", "ALL", "default"
+ */
+export function extractBatchDueDate(
+  rawDueDate: any,
+  batchCode?: string,
+  batchId?: string,
+  batchesMap?: { codeToId?: Record<string, string>; idToCode?: Record<string, string> }
+): string | null {
+  if (!rawDueDate) return null;
+
+  let parsed = rawDueDate;
+  if (typeof rawDueDate === 'string') {
+    const trimmed = rawDueDate.trim();
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        parsed = JSON.parse(trimmed);
+      } catch {
+        return trimmed;
+      }
+    } else {
+      return trimmed;
+    }
+  }
+
+  if (typeof parsed !== 'object' || parsed === null) {
+    return parsed ? String(parsed).trim() : null;
+  }
+
+  const code = (batchCode || '').trim();
+  const id = (batchId || (batchesMap?.codeToId && code ? batchesMap.codeToId[code.toUpperCase()] || batchesMap.codeToId[code] : '') || '').trim();
+
+  // 1. Direct match by batch ID (e.g. "batch-1788927757318")
+  if (id && parsed[id]) {
+    return String(parsed[id]).trim();
+  }
+
+  // 2. Direct match by batch code (e.g. "A26W1", "a26w1")
+  if (code) {
+    if (parsed[code]) return String(parsed[code]).trim();
+    if (parsed[code.toUpperCase()]) return String(parsed[code.toUpperCase()]).trim();
+    if (parsed[code.toLowerCase()]) return String(parsed[code.toLowerCase()]).trim();
+  }
+
+  // 3. Reverse map check: if key in parsed maps to student's batch code
+  if (batchesMap?.idToCode && code) {
+    const targetCodeUpper = code.toUpperCase();
+    for (const [key, val] of Object.entries(parsed)) {
+      if (!val) continue;
+      const mappedCode = batchesMap.idToCode[key];
+      if (mappedCode && mappedCode.toUpperCase() === targetCodeUpper) {
+        return String(val).trim();
+      }
+    }
+  }
+
+  // 4. Fallback to "all", "ALL", "default"
+  if (parsed.all) return String(parsed.all).trim();
+  if (parsed.ALL) return String(parsed.ALL).trim();
+  if (parsed.default) return String(parsed.default).trim();
+
+  return null;
+}
+
 export async function fetchProjects(
   batchCode: string,
   batchCategory?: string,
@@ -724,7 +818,10 @@ export async function fetchProjects(
       query = query.in('course_id', enrolledCourses);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const [{ data, error }, batchesMap] = await Promise.all([
+      query.order('created_at', { ascending: false }),
+      getBatchesMap()
+    ]);
 
     if (error) {
       console.warn('projects table not available:', error.message);
@@ -735,17 +832,27 @@ export async function fetchProjects(
     const validCourses = new Set((enrolledCourses || []).filter(Boolean));
     if (courseId) validCourses.add(courseId);
 
-    return (data || []).filter((item: any) => {
-      // Course isolation
-      if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
-        return false;
-      }
-      // Target batch check
-      if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
-        return false;
-      }
-      return true;
-    });
+    return (data || [])
+      .filter((item: any) => {
+        // Course isolation
+        if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
+          return false;
+        }
+        // Target batch check
+        if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
+          return false;
+        }
+        return true;
+      })
+      .map((item: any) => {
+        const resolved = extractBatchDueDate(item.due_date, batchCode, undefined, batchesMap);
+        return {
+          ...item,
+          due_date: resolved || '',
+          dueDate: resolved || '',
+          batch_due_dates: item.due_date,
+        };
+      });
   }, 300_000); // 5 minutes — projects data changes infrequently
 }
 
