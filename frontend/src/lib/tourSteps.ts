@@ -272,13 +272,6 @@ export const resourcesSteps: Step[] = [
     skipBeacon: true,
   },
   {
-    target: '#tour-resources-filters',
-    title: 'Resource Types',
-    content: 'Filter by PDF Guides, Notes, Cheat Sheets, Roadmaps, or Templates to find exactly what you need.',
-    placement: 'bottom',
-    skipBeacon: true,
-  },
-  {
     target: '#tour-resources-card-0',
     title: 'Resource Card',
     content: 'Each card shows the resource type, download count, and a one-click download button.',
@@ -302,13 +295,6 @@ export const scheduleSteps: Step[] = [
     target: '#tour-schedule-calendar',
     title: 'Calendar View',
     content: 'Navigate through months and click any date to see what\'s scheduled for that day.',
-    placement: 'bottom',
-    skipBeacon: true,
-  },
-  {
-    target: '#tour-schedule-filters',
-    title: 'Event Type Filters',
-    content: 'Filter by Live Classes, Assignments, Exams, Events, or Tasks to focus on what matters most.',
     placement: 'bottom',
     skipBeacon: true,
   },

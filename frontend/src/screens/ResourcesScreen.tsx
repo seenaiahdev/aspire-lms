@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 
 import { resourcesSteps } from '@/lib/tourSteps';
-import { FileText, Download, BookOpen, Map, FileCode, LayoutTemplate, Clock, CheckCircle, Lock, Loader2, ExternalLink } from 'lucide-react';
-import { fetchResources } from '@/lib/api';
+import { FileText, Download, BookOpen, Map as MapIcon, FileCode, LayoutTemplate, Clock, CheckCircle, Lock, Loader2, ExternalLink } from 'lucide-react';
+import { fetchResources, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { Card } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/SearchInput';
@@ -16,8 +16,9 @@ const typeIcons: Record<string, any> = {
   pdf: FileText,
   notes: BookOpen,
   cheatsheet: FileCode,
-  roadmap: Map,
+  roadmap: MapIcon,
   template: LayoutTemplate,
+  guide: FileText,
 };
 
 const typeColors: Record<string, { bg: string; text: string }> = {
@@ -26,6 +27,7 @@ const typeColors: Record<string, { bg: string; text: string }> = {
   cheatsheet: { bg: 'bg-indigo-50', text: 'text-indigo-500' },
   roadmap: { bg: 'bg-amber-50', text: 'text-amber-500' },
   template: { bg: 'bg-emerald-50', text: 'text-emerald-500' },
+  guide: { bg: 'bg-purple-50', text: 'text-purple-500' },
 };
 
 const typeLabels: Record<string, string> = {
@@ -35,12 +37,20 @@ const typeLabels: Record<string, string> = {
   cheatsheet: 'Cheat Sheets',
   roadmap: 'Roadmaps',
   template: 'Templates',
+  guide: 'Guides',
 };
+
+function formatTypeLabel(t: string): string {
+  if (typeLabels[t]) return typeLabels[t];
+  return t
+    .split(/[-_\s]+/)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+    .join(' ');
+}
 
 export function ResourcesScreen() {
   const { user } = useUser();
   const [search, setSearch] = useState('');
-  const [type, setType] = useState('all');
   const [resourcesList, setResourcesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lockedToast, setLockedToast] = useState(false);
@@ -61,6 +71,21 @@ export function ResourcesScreen() {
     load(true);
   }, [user?.id, user?.enrolledCourses?.[0]]);
 
+  // Realtime subscription: when resources are added or updated in Supabase, update immediately
+  useEffect(() => {
+    const channel = supabase
+      .channel('resources-screen-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'placement_resources' }, () => {
+        invalidateCacheByPrefix('resources');
+        fetchResources(user?.enrolledCourses?.[0]).then((data) => setResourcesList(data || []));
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.enrolledCourses?.[0]]);
+
   const handleDownload = (id: string, title: string, linkUrl?: string) => {
     if (linkUrl) {
       window.open(linkUrl, '_blank', 'noopener,noreferrer');
@@ -70,11 +95,13 @@ export function ResourcesScreen() {
   };
 
   const filtered = resourcesList.filter((r) => {
-    const ms =
-      r.title.toLowerCase().includes(search.toLowerCase()) ||
-      r.category.toLowerCase().includes(search.toLowerCase());
-    const mt = type === 'all' ? true : r.type === type;
-    return ms && mt;
+    const term = search.trim().toLowerCase();
+    if (!term) return true;
+    return (
+      (r.title && r.title.toLowerCase().includes(term)) ||
+      (r.category && r.category.toLowerCase().includes(term)) ||
+      (r.type && r.type.toLowerCase().includes(term))
+    );
   });
 
   return (
@@ -113,23 +140,6 @@ export function ResourcesScreen() {
         className="w-full sm:max-w-md"
       />
 
-      <div id="tour-resources-filters" className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
-        {['all', 'pdf', 'notes', 'cheatsheet', 'roadmap', 'template'].map((t) => (
-          <button
-            key={t}
-            onClick={() => setType(t)}
-            className={cn(
-              'px-4 py-2 rounded-xl text-xs font-extrabold transition-all shrink-0 capitalize',
-              type === t
-                ? 'bg-gradient-to-r from-primary-500 via-primary-600 to-primary-700 text-white shadow-md'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200/80 hover:text-slate-900'
-            )}
-          >
-            {typeLabels[t] || t}
-          </button>
-        ))}
-      </div>
-
       {loading ? (
         <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
           <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
@@ -146,66 +156,72 @@ export function ResourcesScreen() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((r, index) => {
-          const Icon = typeIcons[r.type] || FileText;
-          const color = typeColors[r.type] || typeColors.notes;
-          return (
-            <Card
-              key={r.id}
-              id={index === 0 ? 'tour-resources-card-0' : undefined}
-              onClick={() => handleDownload(r.id, r.title, r.link_url)}
-              className="p-5 group border border-slate-200/90 shadow-sm bg-white flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-slate-350 hover:shadow-md transition-all duration-300"
-            >
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <div
-                    className={cn(
-                       'w-12 h-12 rounded-2xl flex items-center justify-center border border-slate-100',
-                      color.bg
-                    )}
-                  >
-                    <Icon className={cn('w-6 h-6', color.text)} />
+            const Icon = typeIcons[r.type] || FileText;
+            const color = typeColors[r.type] || typeColors.notes;
+            return (
+              <Card
+                key={r.id}
+                id={index === 0 ? 'tour-resources-card-0' : undefined}
+                onClick={() => handleDownload(r.id, r.title, r.link_url)}
+                className="p-5 group border border-slate-200/90 shadow-sm bg-white flex flex-col justify-between relative overflow-hidden cursor-pointer hover:border-slate-350 hover:shadow-md transition-all duration-300"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div
+                      className={cn(
+                        'w-12 h-12 rounded-2xl flex items-center justify-center border border-slate-100',
+                        color.bg
+                      )}
+                    >
+                      <Icon className={cn('w-6 h-6', color.text)} />
+                    </div>
+                    <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider border border-slate-200/80">
+                      {r.category || formatTypeLabel(r.type)}
+                    </span>
                   </div>
-                  <span className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold uppercase tracking-wider border border-slate-200/80">
-                    {r.category}
-                  </span>
+
+                  <h3 className="font-extrabold text-slate-900 text-base sm:text-lg mb-1 line-clamp-1 group-hover:text-primary-600 transition-colors">
+                    {r.title}
+                  </h3>
+                  {r.snippet ? (
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-4 font-medium">
+                      {r.snippet}
+                    </p>
+                  ) : (
+                    <div className="h-4 mb-4" />
+                  )}
                 </div>
 
-                <h3 className="font-extrabold text-slate-900 text-base sm:text-lg mb-1 line-clamp-1">
-                  {r.title}
-                </h3>
-                <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-4">
-                  {r.type}
-                </span>
-              </div>
+                <div>
+                  <div className="flex items-center gap-3 text-xs font-semibold text-slate-400 mb-4 pt-3 border-t border-slate-100">
+                    {r.updatedAt && (
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        {r.updatedAt}
+                      </span>
+                    )}
+                    {r.size && (
+                      <span className="ml-auto text-slate-400 font-medium">
+                        {r.size}
+                      </span>
+                    )}
+                  </div>
 
-              <div>
-                <div className="flex items-center gap-4 text-xs font-semibold text-slate-500 mb-5 pt-4 border-t border-slate-100">
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    {r.updatedAt}
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <Download className="w-3.5 h-3.5 text-slate-400" />
-                    {r.downloads.toLocaleString()}
-                  </span>
-                  <span className="ml-auto text-slate-400">{r.size}</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDownload(r.id, r.title, r.link_url);
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-100 font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
+                  >
+                    {r.link_url ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
+                    <span>{r.link_url ? 'Open Resource' : 'Download'}</span>
+                  </button>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDownload(r.id, r.title, r.link_url);
-                  }}
-                  className="w-full py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-100 font-extrabold text-xs flex items-center justify-center gap-2 cursor-pointer transition-all active:scale-[0.98]"
-                >
-                  {r.link_url ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />}
-                  <span>{r.link_url ? 'Open Resource' : 'Download'}</span>
-                </button>
-              </div>
-            </Card>
-          );
-        })}
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>

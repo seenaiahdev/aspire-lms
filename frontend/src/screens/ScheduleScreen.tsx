@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2, Check } from 'lucide-react';
 import { fetchDailySchedules, extractBatchDueDate, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
-import { useUnlockResolver } from '@/lib/lessonLinkResolver';
+import { useUnlockResolver, getLessonResolver } from '@/lib/lessonLinkResolver';
 import { supabase } from '@/lib/supabase';
 import { Card, CardBody } from '@/components/ui/Card';
 import { cn } from '@/lib/utils';
@@ -170,7 +170,7 @@ function parseScheduleItemDate(item: { date?: string; dateKey?: string }, today:
 
 export function ScheduleScreen() {
   const { user } = useUser();
-  const { isUnlocked, isEntityUnlocked, ready: unlockReady } = useUnlockResolver();
+  const { isUnlocked, isEntityUnlocked, ready: unlockReady, resolver } = useUnlockResolver();
   const { navigate } = useNav();
   const today = useMemo(() => {
     const d = new Date();
@@ -270,7 +270,12 @@ export function ScheduleScreen() {
     if (!user) return;
     try {
       const courseId = user.enrolledCourses?.[0];
+      const batchList = Array.from(new Set([user.batchCode, 'ALL'].filter(Boolean) as string[]));
       
+      const courseIds = user.enrolledCourses || [];
+      const batchCode = user.batchCode || '';
+      const activeResolverPromise = resolver ? Promise.resolve(resolver) : getLessonResolver(courseIds, batchCode);
+
       const [
         assessmentsData,
         quizzesData,
@@ -278,7 +283,9 @@ export function ScheduleScreen() {
         codingData,
         assessmentAttempts,
         quizAttempts,
-        userSubmissions
+        userSubmissions,
+        locksResult,
+        activeResolver
       ] = await Promise.all([
         fetchAssignments(user.batchCode || '', user.batchCategory, courseId, user.enrolledCourses),
         fetchQuizzes(user.enrolledCourses || []),
@@ -286,8 +293,59 @@ export function ScheduleScreen() {
         fetchPracticeProblems(courseId, user.batchCode || '', user.batchCategory, user.enrolledCourses),
         user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([]),
         user?.id ? fetchQuizAttempts(user.id) : Promise.resolve([]),
-        user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([])
+        user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([]),
+        supabase.from('milestone_locks').select('lesson_id, is_locked, unlock_date, unlock_datetime, updated_at').in('batch_code', batchList),
+        activeResolverPromise
       ]);
+
+      const now = new Date();
+      const milestoneDateByLessonId = new Map<string, string>();
+      ((locksResult as any)?.data || []).forEach((l: any) => {
+        const isLessonUnlocked = l.unlock_datetime ? new Date(l.unlock_datetime) <= now : !l.is_locked;
+        if (isLessonUnlocked && l.lesson_id) {
+          let releaseDate = l.unlock_date;
+          if (!releaseDate && l.unlock_datetime) {
+            releaseDate = String(l.unlock_datetime).split('T')[0];
+          }
+          if (!releaseDate && l.updated_at) {
+            releaseDate = String(l.updated_at).split('T')[0];
+          }
+          if (releaseDate) {
+            const rawLessonId = String(l.lesson_id).trim();
+            milestoneDateByLessonId.set(rawLessonId, releaseDate);
+            if (activeResolver) {
+              const canonicalId = activeResolver.resolveLessonId(rawLessonId);
+              if (canonicalId) {
+                milestoneDateByLessonId.set(canonicalId, releaseDate);
+              }
+            }
+          }
+        }
+      });
+
+      const getEntityMilestoneDate = (entity: any): string | null => {
+        if (!entity) return null;
+        if (activeResolver) {
+          const canonicalId = activeResolver.resolveEntityLessonId(entity);
+          if (canonicalId && milestoneDateByLessonId.has(canonicalId)) {
+            return milestoneDateByLessonId.get(canonicalId)!;
+          }
+        }
+        const rawId = entity.inner_topic_id || (entity.topic_id ? String(entity.topic_id).split('||')[2] : '') || entity.lesson_id || '';
+        if (rawId) {
+          const trimmed = String(rawId).trim();
+          if (milestoneDateByLessonId.has(trimmed)) {
+            return milestoneDateByLessonId.get(trimmed)!;
+          }
+          if (activeResolver) {
+            const resolved = activeResolver.resolveLessonId(trimmed);
+            if (milestoneDateByLessonId.has(resolved)) {
+              return milestoneDateByLessonId.get(resolved)!;
+            }
+          }
+        }
+        return null;
+      };
 
       const completedAssessmentIds = new Set(
         (assessmentAttempts || []).map((a: any) => a.assignment_id || a.assessment_id).filter(Boolean)
@@ -333,8 +391,12 @@ export function ScheduleScreen() {
 
       const extra: any[] = [];
       unlockedAssessments.forEach((asmnt: any) => {
-        const rawDate = asmnt.dueDate || asmnt.due_date || '';
-        const dKey = parseScheduleItemDate({ date: rawDate }, today);
+        const milestoneDate = getEntityMilestoneDate(asmnt);
+        const rawDueDate = asmnt.dueDate || asmnt.due_date || '';
+        // Ignore stale placeholder due_date (2026-08-30). Milestone release date is the truth.
+        const isStaleDate = rawDueDate === '2026-08-30';
+        const effectiveDate = milestoneDate || (isStaleDate ? '' : rawDueDate) || getDateKey(today);
+        const dKey = parseScheduleItemDate({ date: effectiveDate }, today);
         const isCompleted = completedAssessmentIds.has(asmnt.id) || asmnt.status === 'completed' || manualCompletedEvents.has(asmnt.id);
         extra.push({
           id: asmnt.id,
@@ -343,7 +405,7 @@ export function ScheduleScreen() {
           date: formatTaskDateLabel(dKey, today),
           dateKey: dKey,
           time: asmnt.timeEstimate || '45 mins',
-          duration: formatDueLabel(rawDate, dKey, today),
+          duration: formatDueLabel(effectiveDate, dKey, today),
           course: asmnt.category || asmnt.course || 'Daily Assessment',
           completed: isCompleted,
           isCoursework: true
@@ -351,7 +413,8 @@ export function ScheduleScreen() {
       });
 
       unlockedQuizzes.forEach((quiz: any) => {
-        const rawDate = quiz.dueDate || quiz.due_date || '';
+        const milestoneDate = getEntityMilestoneDate(quiz);
+        const rawDate = quiz.dueDate || quiz.due_date || milestoneDate || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
         const isCompleted = completedQuizIds.has(quiz.id) || quiz.status === 'completed' || manualCompletedEvents.has(quiz.id);
         extra.push({
@@ -369,7 +432,9 @@ export function ScheduleScreen() {
       });
 
       unlockedProjects.forEach((proj: any) => {
-        const rawDate = extractBatchDueDate(proj.due_date || proj.dueDate, user?.batchCode) || proj.due_date || proj.dueDate || '';
+        const batchDueDate = extractBatchDueDate(proj.due_date || proj.dueDate, user?.batchCode);
+        const milestoneDate = getEntityMilestoneDate(proj);
+        const rawDate = batchDueDate || milestoneDate || proj.due_date || proj.dueDate || '';
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
         const hasDriveLink = Boolean(projectDriveLinks[proj.id]);
         const isCompleted = hasDriveLink || submittedProblemIds.has(proj.id) || proj.status === 'submitted' || proj.status === 'feedback' || manualCompletedEvents.has(proj.id);
@@ -388,8 +453,8 @@ export function ScheduleScreen() {
       });
 
       unlockedCoding.forEach((p: any) => {
-        const rawDate = p.dueDate || p.due_date || '';
-        if (!rawDate) return;
+        const milestoneDate = getEntityMilestoneDate(p);
+        const rawDate = p.dueDate || p.due_date || milestoneDate || getDateKey(today);
         const dKey = parseScheduleItemDate({ date: rawDate }, today);
         const isCompleted = submittedProblemIds.has(p.id) || p.solved || manualCompletedEvents.has(p.id);
         extra.push({
@@ -408,9 +473,9 @@ export function ScheduleScreen() {
 
       setUnlockedExtraEvents(extra);
     } catch (err) {
-      console.error("Error loading extra events:", err);
+      console.error('Error loading extra events:', err);
     }
-  }, [user, isUnlocked, isEntityUnlocked, today]);
+  }, [user, isUnlocked, isEntityUnlocked, today, resolver]);
 
   useEffect(() => {
     loadUnlockedExtraEvents();
@@ -472,56 +537,28 @@ export function ScheduleScreen() {
     loadTasks();
   }, [loadTasks]);
 
-// Comprehensive Realtime listener: syncs coursework, tasks, locks, & sessions in real time
+// Comprehensive Realtime listener: syncs coursework, tasks, locks, & sessions without re-fetch loops
   useEffect(() => {
     if (!user?.id) return;
 
     const refreshAll = () => {
-      invalidateCacheByPrefix('assignments');
-      invalidateCacheByPrefix('quizzes');
-      invalidateCacheByPrefix('projects');
-      invalidateCacheByPrefix('practice_problems');
-      invalidateCacheByPrefix('personal_tasks');
-      if (user?.id) {
-        invalidateCacheByPrefix(`student_aa:${user.id}`);
-        invalidateCacheByPrefix(`student_qa:${user.id}`);
-        invalidateCacheByPrefix(`student_ps:${user.id}`);
-        invalidateCacheByPrefix(`personal_tasks:${user.id}`);
-      }
       loadUnlockedExtraEvents();
       loadPersonalTasks();
       loadTasks();
     };
 
     const channel = supabase
-      .channel('schedule-screen-realtime-sync')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts' }, refreshAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts' }, refreshAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions' }, refreshAll)
+      .channel(`schedule-screen-realtime-${user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessment_attempts', filter: `student_id=eq.${user.id}` }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'quiz_attempts', filter: `student_id=eq.${user.id}` }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'practice_submissions', filter: `student_id=eq.${user.id}` }, refreshAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'milestone_locks' }, refreshAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_tasks' }, refreshAll)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'personal_tasks', filter: `student_id=eq.${user.id}` }, refreshAll)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, refreshAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'assessments' }, refreshAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'quizzes' }, refreshAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'coding_questions' }, refreshAll)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'projects' }, refreshAll)
       .subscribe();
-
-    const onFocusSync = () => {
-      if (document.visibilityState === 'visible') {
-        refreshAll();
-      }
-    };
-    window.addEventListener('focus', onFocusSync);
-    document.addEventListener('visibilitychange', onFocusSync);
-
-    const intervalTimer = setInterval(refreshAll, 30000);
 
     return () => {
       supabase.removeChannel(channel);
-      window.removeEventListener('focus', onFocusSync);
-      document.removeEventListener('visibilitychange', onFocusSync);
-      clearInterval(intervalTimer);
     };
   }, [user?.id, loadUnlockedExtraEvents, loadPersonalTasks, loadTasks]);
 
@@ -584,8 +621,18 @@ export function ScheduleScreen() {
   const isSelectedToday = selectedDateKey === todayKey;
 
   const itemsForSelectedDate = useMemo(() => {
-    return itemsWithDateKey.filter((item) => item.dateKey === selectedDateKey);
-  }, [itemsWithDateKey, selectedDateKey]);
+    return itemsWithDateKey.filter((item) => {
+      // 1. Items originally scheduled for this selected date
+      if (item.dateKey === selectedDateKey) return true;
+      // 2. Carry-over ONLY applies to dates up to Today (never into the future!)
+      if (selectedDateKey <= todayKey) {
+        if (item.type !== 'class' && item.dateKey && item.dateKey < selectedDateKey && !item.completed) {
+          return true;
+        }
+      }
+      return false;
+    });
+  }, [itemsWithDateKey, selectedDateKey, todayKey]);
 
   const activeTasks = itemsForSelectedDate.filter((item) => !item.completed);
   const completedTasks = itemsForSelectedDate.filter((item) => item.completed);
@@ -882,25 +929,7 @@ export function ScheduleScreen() {
             </CardBody>
           </Card>
 
-          <Card id="tour-schedule-filters" className="rounded-[2rem] border border-slate-200/70 shadow-sm overflow-hidden bg-white">
-            <CardBody className="p-5">
-              <p className="text-xs uppercase tracking-[0.22em] text-slate-400 font-extrabold">{isSelectedToday ? 'Today summary' : `${selectedDateLabel} summary`}</p>
-              <div className="mt-4 grid gap-3">
-                <div className="rounded-3xl bg-slate-50 p-4 border border-slate-100">
-                  <p className="text-sm font-semibold text-slate-900">Total tasks</p>
-                  <p className="mt-2 text-2xl font-extrabold text-slate-950">{itemsForSelectedDate.length}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-50 p-4 border border-slate-100">
-                  <p className="text-sm font-semibold text-slate-900">Remaining</p>
-                  <p className="mt-2 text-2xl font-extrabold text-amber-600">{activeTasks.length}</p>
-                </div>
-                <div className="rounded-3xl bg-slate-50 p-4 border border-slate-100">
-                  <p className="text-sm font-semibold text-slate-900">Completed</p>
-                  <p className="mt-2 text-2xl font-extrabold text-emerald-600">{completedTasks.length}</p>
-                </div>
-              </div>
-            </CardBody>
-          </Card>
+          {/* Today summary card removed per user request for a cleaner, non-fluctuating schedule view */}
         </aside>
 
         <main className="space-y-5">

@@ -875,20 +875,24 @@ export async function fetchResources(courseId?: string) {
       }
 
       return (data || []).map((item: any) => {
-        const typeLower = (item.type || '').toLowerCase();
+        const rawType = (item.type || '').trim();
+        const typeLower = rawType.toLowerCase();
         let finalType = 'notes';
         if (typeLower.includes('pdf')) finalType = 'pdf';
         else if (typeLower.includes('note')) finalType = 'notes';
         else if (typeLower.includes('cheat')) finalType = 'cheatsheet';
         else if (typeLower.includes('road')) finalType = 'roadmap';
         else if (typeLower.includes('temp')) finalType = 'template';
+        else if (typeLower.includes('guide')) finalType = 'guide';
+        else if (rawType) finalType = typeLower.replace(/\s+/g, '-');
 
         return {
           id: item.id,
           title: item.title || 'Untitled Resource',
           category: item.category || 'General',
           type: finalType,
-          updatedAt: item.created_at ? new Date(item.created_at).toLocaleDateString() : 'Recent',
+          snippet: item.snippet || '',
+          updatedAt: item.created_at ? new Date(item.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : 'Recent',
           downloads: 0,
           size: item.read_time || '5 min read',
           link_url: item.link_url || ''
