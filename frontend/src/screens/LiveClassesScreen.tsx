@@ -744,9 +744,11 @@ export function LiveClassesScreen() {
             </button>
           )}
         </div>
-      ) : viewMode === 'list' && tab === 'completed' ? (
-        /* ── COMPACT LIST VIEW FOR STRESS-FREE BROWSING ── */
-        <div className="space-y-3">
+      ) : (
+        <div>
+          {viewMode === 'list' && tab === 'completed' ? (
+            /* ── COMPACT LIST VIEW FOR STRESS-FREE BROWSING ── */
+            <div className="space-y-3">
           {displayList.map((cls) => (
             <div 
               key={cls.id} 
@@ -793,16 +795,10 @@ export function LiveClassesScreen() {
               </div>
             </div>
           ))}
-          {completedHasMore && (
-            <div ref={completedSentinelRef} className="flex justify-center py-4">
-              <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
-            </div>
-          )}
         </div>
-      ) : (
-        /* ── GRID CARD VIEW ── */
-        <div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          ) : (
+            /* ── GRID CARD VIEW ── */
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {displayList.map((cls, index) => {
             const isReminderSet = reminders[cls.id];
             return (
@@ -920,7 +916,9 @@ export function LiveClassesScreen() {
           );
         })}
       </div>
-        {tab === 'completed' && totalRecordingsPages > 1 && (
+          )}
+
+          {tab === 'completed' && totalRecordingsPages > 1 && (
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-slate-200/80 mt-6">
             <p className="text-xs font-semibold text-slate-500">
               Page <span className="font-bold text-slate-900">{safeRecordingsPage}</span> of <span className="font-bold text-slate-900">{totalRecordingsPages}</span>
