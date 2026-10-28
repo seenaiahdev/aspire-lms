@@ -14,17 +14,19 @@ import aspireLogo from '@/assests/Aspire_logo.jpg';
 import { supabase } from '@/lib/supabase';
 
 import { certificationsSteps } from '@/lib/tourSteps';
+import { getCourseCategory, CATEGORY_ORDER, CATEGORY_LABELS, type CourseCategoryKey } from '@/lib/courseCategories';
 
 export interface CourseCertificate {
   id: string;
   courseTitle: string;
+  category: CourseCategoryKey;
   categoryLabel: string;
   instructorName: string;
   instructorRole: string;
   progress: number; // 0 to 100
   issuedDate?: string;
   verifyId?: string;
-  certificateBg: string;
+  certificateBg?: string;
   certificateUrl?: string; // real hosted link, present only when admin has issued it
   issued?: boolean;        // true when a certificates row exists for this course
 }
@@ -74,6 +76,7 @@ export function CertificatesScreen() {
   const { navigate } = useNav();
   const { user } = useUser();
   const [certs, setCerts] = useState<CourseCertificate[]>([]);
+  const [activeTab, setActiveTab] = useState<string>('all');
   const [selectedCert, setSelectedCert] = useState<CourseCertificate | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -127,10 +130,14 @@ export function CertificatesScreen() {
           const isPython = (row?.title || course.title || '').toLowerCase().includes('python');
           const certBg = (course.thumbnail && (course.thumbnail !== '/python-full-stack.png' || isPython)) ? course.thumbnail : undefined;
 
+          const categoryKey = getCourseCategory(course);
+          const categoryLabel = CATEGORY_LABELS[categoryKey] || course.category || 'Professional';
+
           return {
             id: course.id,
             courseTitle: row?.title || course.title,
-            categoryLabel: course.category || 'Professional',
+            category: categoryKey,
+            categoryLabel,
             instructorName: course.instructor || 'Lead Instructor',
             instructorRole: 'Senior Instructor',
             // An issued certificate always shows as complete (100%) regardless of tracked progress.
@@ -141,6 +148,29 @@ export function CertificatesScreen() {
             certificateUrl: row?.certificate_url || undefined,
             issued,
           };
+        });
+
+        // 4. Enforce display order matching the My Learning page:
+        // 1. Courses (Primary track e.g. Python Full Stack)
+        // 2. Communication & Soft Skills
+        // 3. Aptitude & Reasoning
+        // 4. Resume
+        // 5. Portfolio
+        // 6. LinkedIn
+        const enrolledMap = new Map((user.enrolledCourses || []).map((id: string, idx: number) => [id, idx]));
+
+        mappedCerts.sort((a, b) => {
+          const orderA = CATEGORY_ORDER[a.category] || 99;
+          const orderB = CATEGORY_ORDER[b.category] || 99;
+          if (orderA !== orderB) {
+            return orderA - orderB;
+          }
+          const idxA = enrolledMap.has(a.id) ? (enrolledMap.get(a.id) as number) : 999;
+          const idxB = enrolledMap.has(b.id) ? (enrolledMap.get(b.id) as number) : 999;
+          if (idxA !== idxB) {
+            return idxA - idxB;
+          }
+          return (a.courseTitle || '').localeCompare(b.courseTitle || '');
         });
 
         setCerts(mappedCerts);
@@ -171,6 +201,7 @@ export function CertificatesScreen() {
   const unlockedCount = certs.filter(c => c.progress >= 100).length;
   const lockedCount = certs.filter(c => c.progress < 100).length;
   const avgProgress = certs.length > 0 ? Math.round(certs.reduce((acc, c) => acc + c.progress, 0) / certs.length) : 0;
+  const filteredCerts = certs.filter(c => activeTab === 'all' || c.category === activeTab);
 
   const handleDownload = (cert: CourseCertificate) => {
     // Open the real hosted certificate when the admin has issued one; otherwise the local placeholder.
@@ -236,14 +267,50 @@ export function CertificatesScreen() {
       </div>
 
 
+      {/* ════════ CATEGORY TABS (Matching My Learning) ════════ */}
+      {certs.length > 1 && (
+        <div id="tour-certs-filters" className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-slate-200/80">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'courses', label: 'Courses' },
+            { id: 'soft_skills', label: 'Communication & Soft Skills' },
+            { id: 'aptitude', label: 'Aptitude & Reasoning' },
+            { id: 'resume', label: 'Resume' },
+            { id: 'portfolio', label: 'Portfolio' },
+            { id: 'linkedin', label: 'LinkedIn' },
+          ].filter(tab => {
+            if (tab.id === 'all') return true;
+            return certs.some(item => item.category === tab.id);
+          }).map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={cn(
+                  "px-4 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all duration-200 cursor-pointer shadow-2xs border shrink-0",
+                  isActive
+                    ? "bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white border-transparent shadow-md scale-[1.02]"
+                    : "bg-white hover:bg-purple-50/50 text-slate-600 hover:text-[#7c3aed] border-slate-200 hover:border-purple-200"
+                )}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       {/* ════════ CERTIFICATE CARDS GRID ════════ */}
       {loading ? (
         <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
-      ) : certs.length === 0 ? (
-        <div className="text-center p-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">No certificates earned yet</div>
+      ) : filteredCerts.length === 0 ? (
+        <div className="text-center p-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">
+          {certs.length === 0 ? 'No certificates earned yet' : 'No certificates available in this category'}
+        </div>
       ) : (
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-        {certs.map((cert, index) => {
+        {filteredCerts.map((cert, index) => {
           const isUnlocked = cert.progress >= 100;
 
           return (
@@ -361,22 +428,18 @@ export function CertificatesScreen() {
                       {cert.courseTitle}
                     </h4>
 
-                    {cert.id === 'c1' && (
-                      <p className="text-xs font-semibold text-slate-300 leading-relaxed">
-                        Complete 100% course in My Learning to unlock certificate
-                      </p>
-                    )}
+                    <p className="text-xs font-semibold text-slate-300 leading-relaxed">
+                      Complete 100% in My Learning to unlock certificate
+                    </p>
                   </div>
 
-                  {cert.id === 'c1' && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setSelectedCert(cert); }}
-                      className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
-                    >
-                      <Lock className="w-4 h-4 text-purple-200" />
-                      <span>Preview Locked Certificate</span>
-                    </button>
-                  )}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedCert(cert); }}
+                    className="py-2.5 px-5 rounded-2xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white font-extrabold text-xs shadow-md transition-all active:scale-95 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Lock className="w-4 h-4 text-purple-200" />
+                    <span>Preview Certificate</span>
+                  </button>
 
                 </div>
               )}
