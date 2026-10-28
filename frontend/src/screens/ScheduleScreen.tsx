@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback, useMemo } from 'react';
-import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2, Check } from 'lucide-react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { CalendarDays, Clock, MapPin, ChevronLeft, ChevronRight, ChevronDown, Radio, FileText, Award, PartyPopper, PlusCircle, Calendar as CalendarIcon, FolderOpen, BookOpen, Trophy, Briefcase, Lock, X, Code2, Trash2, Check, RotateCcw, CheckCircle2 } from 'lucide-react';
 import { fetchDailySchedules, extractBatchDueDate, fetchAssignments, fetchQuizzes, fetchProjects, fetchPracticeProblems, fetchPersonalTasks, submitPersonalTask, updatePersonalTaskCompletion, deletePersonalTask, fetchAssignmentAttempts, fetchQuizAttempts, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver, getLessonResolver } from '@/lib/lessonLinkResolver';
@@ -634,8 +634,43 @@ export function ScheduleScreen() {
     });
   }, [itemsWithDateKey, selectedDateKey, todayKey]);
 
-  const activeTasks = itemsForSelectedDate.filter((item) => !item.completed);
-  const completedTasks = itemsForSelectedDate.filter((item) => item.completed);
+  // ════════ PAGINATION (10 Items Per Page) ════════
+  const ITEMS_PER_PAGE = 10;
+  const [currentPage, setCurrentPage] = useState<number>(1);
+
+  // Reset pagination to page 1 whenever selected date changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedDateKey]);
+
+  // ════════ 5-SECOND UNDO COMPLETION STATE ════════
+  interface UndoState {
+    taskId: string | number;
+    taskTitle: string;
+  }
+  const [undoState, setUndoState] = useState<UndoState | null>(null);
+  const undoTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    };
+  }, []);
+
+  const activeTasks = useMemo(() => itemsForSelectedDate.filter((item) => !item.completed), [itemsForSelectedDate]);
+  const completedTasks = useMemo(() => itemsForSelectedDate.filter((item) => item.completed), [itemsForSelectedDate]);
+  const totalTasks = itemsForSelectedDate.length;
+  const totalPages = Math.max(1, Math.ceil(totalTasks / ITEMS_PER_PAGE));
+  const safePage = Math.min(currentPage, totalPages);
+
+  const paginatedTasks = useMemo(() => {
+    const allOrdered = [...activeTasks, ...completedTasks];
+    const start = (safePage - 1) * ITEMS_PER_PAGE;
+    return allOrdered.slice(start, start + ITEMS_PER_PAGE);
+  }, [activeTasks, completedTasks, safePage]);
+
+  const pageActiveTasks = paginatedTasks.filter((item) => !item.completed);
+  const pageCompletedTasks = paginatedTasks.filter((item) => item.completed);
 
   const handleDateClick = (day: number) => {
     const clicked = new Date(currentYear, calendarDate.getMonth(), day);
@@ -644,7 +679,7 @@ export function ScheduleScreen() {
     setShowAddTask(false);
   };
 
-  const toggleTaskCompletion = async (id: string | number) => {
+  const toggleTaskCompletion = async (id: string | number, isUndoAction = false) => {
     const sId = String(id);
     const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
     const completedEventsKey = user?.id ? `aspire_completed_events_${user.id}` : 'aspire_completed_events_guest';
@@ -652,6 +687,29 @@ export function ScheduleScreen() {
     // Current state check
     const isCurrentlyCompleted = completedTaskIds.has(sId) || items.some((t) => String(t.id) === sId && t.completed);
     const nextCompleted = !isCurrentlyCompleted;
+
+    // 5-second undo prompt triggered on checking (marking as completed)
+    if (nextCompleted && !isUndoAction) {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+
+      const targetItem = itemsWithDateKey.find((t) => String(t.id) === sId);
+      const title = targetItem?.title || 'Task';
+
+      setUndoState({
+        taskId: id,
+        taskTitle: title,
+      });
+
+      undoTimerRef.current = setTimeout(() => {
+        setUndoState(null);
+      }, 5000);
+    } else if (!nextCompleted) {
+      // If manually unchecking or undoing, dismiss undo state if it was for this task
+      if (undoState && String(undoState.taskId) === sId) {
+        if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+        setUndoState(null);
+      }
+    }
 
     // 1. Immediately toggle in completedTaskIds Set & persistent localStorage
     setCompletedTaskIds((prev) => {
@@ -696,6 +754,14 @@ export function ScheduleScreen() {
         prev.map((item) => (String(item.id) === sId ? { ...item, completed: nextCompleted } : item))
       );
     }
+  };
+
+  const handleUndoCompletion = () => {
+    if (!undoState) return;
+    const targetId = undoState.taskId;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setUndoState(null);
+    toggleTaskCompletion(targetId, true);
   };
 
   const handleDeleteTask = async (id: string | number) => {
@@ -1169,22 +1235,19 @@ export function ScheduleScreen() {
                   <p className="text-xs uppercase tracking-[0.24em] text-slate-400">Tasks for {selectedDateLabel}</p>
                   <h2 className="mt-2 text-2xl font-bold text-slate-900">Daily agenda</h2>
                 </div>
-                <div className="rounded-3xl bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700">
-                  {itemsForSelectedDate.length} total
-                </div>
               </div>
 
               {isLoading ? (
                 <div className="flex justify-center py-12">
                   <div className="w-8 h-8 border-4 border-[#2563eb] border-t-transparent rounded-full animate-spin"></div>
                 </div>
-              ) : itemsForSelectedDate.length === 0 ? (
+              ) : totalTasks === 0 ? (
                 <div className="rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-500">
                   No plans yet. Add a quick task to start your schedule.
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {activeTasks.map((item) => {
+                  {pageActiveTasks.map((item) => {
                     const cfg = typeConfig[item.type] || typeConfig.class;
                     const Icon = cfg.icon;
                     return (
@@ -1246,15 +1309,15 @@ export function ScheduleScreen() {
                     );
                   })}
 
-                  {completedTasks.length > 0 && (
+                  {pageCompletedTasks.length > 0 && (
                     <div className="space-y-3 pt-3">
                       <div className="flex items-center gap-2 text-xs font-black text-slate-500 uppercase tracking-wider px-1">
                         <span>Completed</span>
                         <span className="bg-emerald-100 text-emerald-700 px-2.5 py-0.5 rounded-full text-[11px] font-bold">
-                          {completedTasks.length}
+                          {pageCompletedTasks.length}
                         </span>
                       </div>
-                      {completedTasks.map((item) => {
+                      {pageCompletedTasks.map((item) => {
                         const cfg = typeConfig[item.type] || typeConfig.class;
                         const Icon = cfg.icon;
                         return (
@@ -1317,12 +1380,104 @@ export function ScheduleScreen() {
                       })}
                     </div>
                   )}
+
+                  {/* ════════ PAGINATION CONTROLS (10 Per Page) ════════ */}
+                  {totalPages > 1 && (
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-200/80 mt-2">
+                      <p className="text-xs font-semibold text-slate-500">
+                        Page <span className="font-bold text-slate-900">{safePage}</span> of <span className="font-bold text-slate-900">{totalPages}</span>
+                      </p>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                          disabled={safePage === 1}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                          <span>Previous</span>
+                        </button>
+
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+                            <button
+                              key={page}
+                              type="button"
+                              onClick={() => setCurrentPage(page)}
+                              className={cn(
+                                "w-8 h-8 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center",
+                                safePage === page
+                                  ? "bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xs scale-105"
+                                  : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                              )}
+                            >
+                              {page}
+                            </button>
+                          ))}
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                          disabled={safePage === totalPages}
+                          className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+                        >
+                          <span>Next</span>
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </CardBody>
           </Card>
         </main>
       </div>
+
+      {/* ════════ 5-SECOND UNDO TOAST NOTIFICATION (BOTTOM-RIGHT CORNER) ════════ */}
+      {undoState && (
+        <div className="fixed bottom-6 right-6 z-[100] animate-slide-up max-w-sm sm:max-w-md w-[calc(100vw-3rem)] sm:w-auto pointer-events-auto">
+          <div className="flex items-center justify-between gap-3.5 px-4 py-3 bg-slate-900/95 backdrop-blur-xl text-white rounded-2xl border border-slate-700/80 shadow-2xl">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/40">
+                <CheckCircle2 className="w-4.5 h-4.5" />
+              </div>
+              <div className="min-w-0 pr-1">
+                <p className="text-xs font-bold text-slate-100 truncate max-w-[170px] sm:max-w-[230px]">
+                  {undoState.taskTitle}
+                </p>
+                <p className="text-[11px] text-emerald-400 font-semibold">
+                  Marked as completed
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleUndoCompletion}
+                className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-md transition-all active:scale-95 cursor-pointer"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Undo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+                  setUndoState(null);
+                }}
+                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Dismiss"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { liveClassesSteps } from '@/lib/tourSteps';
 import { 
-  Radio, Calendar, Users, Play, Pause, ArrowRight, ChevronRight, Clock, Video, MessageCircle, 
+  Radio, Calendar, Users, Play, Pause, ArrowRight, ChevronLeft, ChevronRight, Clock, Video, MessageCircle, 
   FileText, Hand, Users2, BarChart3, Download, Mic, MicOff, VideoOff, 
   Monitor, PhoneOff, Send, Volume2, Maximize2, HelpCircle, BellRing, CheckCircle2, X, Bell,
   SkipBack, SkipForward, Bookmark, CalendarX, Lock, Search, Filter, LayoutGrid, List, RotateCcw,
@@ -20,7 +20,6 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings } from '@/lib/api';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
-import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { supabase } from '@/lib/supabase';
 
 export function LiveClassesScreen() {
@@ -317,14 +316,10 @@ export function LiveClassesScreen() {
     localStorage.setItem('aspire_live_view_mode', mode);
   };
 
-  // ── Recordings (completed tab): render windowing ──
-  // Show 10 recordings, reveal 10 more on scroll. Deliberately windows the SAME `mappedSessions`
-  // the screen already fetches for the upcoming/live tabs, rather than issuing a second paginated
-  // query: `live_sessions` rows match the batch by batch_code OR target_batch, and "completed" is
-  // resolved from the session's END TIME (resolveLiveClassStatus), not the raw DB status — so a
-  // server-side `status = 'completed'` filter silently dropped past recordings.
-  const [completedVisible, setCompletedVisible] = useState(PAGE_SIZE);
-  useEffect(() => { setCompletedVisible(PAGE_SIZE); }, [tab, searchQuery, selectedTech, dateFilter, customDate]);
+  // ── Recordings (completed tab): pagination (10 per page) ──
+  const RECORDINGS_PER_PAGE = 10;
+  const [recordingsPage, setRecordingsPage] = useState<number>(1);
+  useEffect(() => { setRecordingsPage(1); }, [tab, searchQuery, selectedTech, dateFilter, customDate]);
 
   const hasActiveFilters = searchQuery.trim() !== '' || selectedTech !== 'all' || dateFilter !== 'all' || customDate !== '';
 
@@ -547,17 +542,17 @@ export function LiveClassesScreen() {
     });
   }, [mappedSessions, dbSessions, batchCode, user.batchCategory, tab, searchQuery, selectedTech, dateFilter, customDate, isUnlocked, resolver]);
 
-  const displayList = useMemo(() => {
-    if (tab === 'completed') return filtered.slice(0, completedVisible);   // windowed, 10 at a time
-    return tab === 'upcoming' ? filtered.slice(0, 2) : filtered;
-  }, [filtered, tab, completedVisible]);
+  const totalRecordings = filtered.length;
+  const totalRecordingsPages = Math.max(1, Math.ceil(totalRecordings / RECORDINGS_PER_PAGE));
+  const safeRecordingsPage = Math.min(recordingsPage, totalRecordingsPages);
 
-  const completedHasMore = tab === 'completed' && completedVisible < filtered.length;
-  const completedSentinelRef = useInfiniteScroll<HTMLDivElement>({
-    hasMore: completedHasMore,
-    loading: false,
-    onLoadMore: () => setCompletedVisible((v) => v + PAGE_SIZE),
-  });
+  const displayList = useMemo(() => {
+    if (tab === 'completed') {
+      const start = (safeRecordingsPage - 1) * RECORDINGS_PER_PAGE;
+      return filtered.slice(start, start + RECORDINGS_PER_PAGE);
+    }
+    return tab === 'upcoming' ? filtered.slice(0, 2) : filtered;
+  }, [filtered, tab, safeRecordingsPage]);
 
   useEffect(() => {
     if (params?.id && tab === 'completed') {
@@ -925,9 +920,60 @@ export function LiveClassesScreen() {
           );
         })}
       </div>
-        {completedHasMore && (
-          <div ref={completedSentinelRef} className="flex justify-center py-4">
-            <div className="w-6 h-6 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+        {tab === 'completed' && totalRecordingsPages > 1 && (
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-6 border-t border-slate-200/80 mt-6">
+            <p className="text-xs font-semibold text-slate-500">
+              Page <span className="font-bold text-slate-900">{safeRecordingsPage}</span> of <span className="font-bold text-slate-900">{totalRecordingsPages}</span>
+            </p>
+
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setRecordingsPage((p) => Math.max(1, p - 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                disabled={safeRecordingsPage === 1}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                <span>Previous</span>
+              </button>
+
+              <div className="flex items-center gap-1">
+                {Array.from({ length: totalRecordingsPages }, (_, i) => i + 1).map((page) => (
+                  <button
+                    key={page}
+                    type="button"
+                    onClick={() => {
+                      setRecordingsPage(page);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
+                    className={cn(
+                      "w-8 h-8 rounded-xl text-xs font-extrabold transition-all cursor-pointer flex items-center justify-center",
+                      safeRecordingsPage === page
+                        ? "bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xs scale-105"
+                        : "bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80"
+                    )}
+                  >
+                    {page}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setRecordingsPage((p) => Math.min(totalRecordingsPages, p + 1));
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                disabled={safeRecordingsPage === totalRecordingsPages}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:pointer-events-none transition-all flex items-center gap-1 cursor-pointer shadow-2xs"
+              >
+                <span>Next</span>
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
           </div>
         )}
         </div>
