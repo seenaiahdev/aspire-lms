@@ -1146,7 +1146,12 @@ function normalizeNotification(row: any) {
   let type = row.type;
   if (!type) {
     const id = String(row.id || '');
-    if (id.startsWith('notif-unlock')) type = 'live';
+    if (id.startsWith('notif-unlock-mod')) type = 'milestones';
+    else if (id.startsWith('notif-unlock')) type = 'course';
+    else if (id.startsWith('notif-assess') || id.startsWith('notif-quiz') || id.startsWith('notif-cq') || id.startsWith('notif-project')) type = 'assignment';
+    else if (id.startsWith('notif-live')) type = 'live';
+    else if (id.startsWith('notif-job') || id.startsWith('notif-plres')) type = 'placement';
+    else if (id.startsWith('notif-badge') || id.startsWith('notif-reward') || id.startsWith('notif-cert')) type = 'achievement';
     else type = 'system';
   }
   const time = relativeTime(row.created_at);
@@ -1160,8 +1165,11 @@ function normalizeNotification(row: any) {
   };
 }
 
-export async function fetchNotifications(studentId: string) {
+export async function fetchNotifications(studentId: string, opts?: { forceFresh?: boolean }) {
   if (!studentId || studentId === 'guest') return [];
+  if (opts?.forceFresh) {
+    invalidateCache(`notifications:${studentId}`);
+  }
   return cachedQuery(`notifications:${studentId}`, async () => {
     try {
       const { data, error } = await supabase
@@ -1191,6 +1199,7 @@ export async function persistNotification(n: {
   studentId: string;
   title: string;
   content?: string;
+  createdAt?: string;
 }) {
   try {
     const { error } = await supabase
@@ -1202,7 +1211,7 @@ export async function persistNotification(n: {
           title: n.title,
           content: n.content || '',
           read: false,
-          created_at: new Date().toISOString(),
+          created_at: n.createdAt || new Date().toISOString(),
         },
         { onConflict: 'id', ignoreDuplicates: true }
       );

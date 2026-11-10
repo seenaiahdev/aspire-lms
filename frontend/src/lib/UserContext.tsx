@@ -44,6 +44,20 @@ const initialUser: ExtendedUser = {
 };
 
 
+export interface MilestoneLockRecord {
+  id: string;
+  course_id?: string | null;
+  stage_id?: string | null;
+  module_id?: string | null;
+  lesson_id: string;
+  batch_code?: string | null;
+  is_locked: boolean;
+  unlock_datetime?: string | null;
+  updated_at?: string | null;
+  isUnlocked: boolean;
+  unlockedAtMs: number;
+}
+
 interface ExtendedUser extends User {
   batchCode?: string;
   batchCategory?: 'Weekday' | 'Weekend';
@@ -58,7 +72,116 @@ interface ExtendedUser extends User {
   enrolledCourses?: string[];
   courseProgress?: Record<string, number>;
   unlockedLessonIds?: string[];
+  milestoneLocks?: MilestoneLockRecord[];
+  locksLoaded?: boolean;
   notifPrefs?: { assignments: boolean; live: boolean; placement: boolean; weekly: boolean };
+}
+
+function buildBatchTargets(resolvedBatch?: string, studentBatch?: string, batchCategory?: string) {
+  const preferredBatches = Array.from(
+    new Set([resolvedBatch, studentBatch].map((b) => String(b || '').trim()).filter(Boolean))
+  );
+  const allTargets = Array.from(
+    new Set([
+      ...preferredBatches,
+      'ALL',
+      'All Batches',
+      batchCategory,
+      batchCategory ? `${batchCategory} Batch` : '',
+    ].map((b) => String(b || '').trim()).filter(Boolean))
+  );
+  return { preferredBatches, allTargets };
+}
+
+function locksSignature(records: MilestoneLockRecord[]): string {
+  return records
+    .map((r) => `${r.id}:${r.lesson_id}:${r.module_id || ''}:${r.isUnlocked ? 1 : 0}:${r.unlockedAtMs}`)
+    .sort()
+    .join('|');
+}
+
+async function fetchResolvedMilestoneLocks(
+  allTargets: string[],
+  preferredBatches: string[]
+): Promise<{
+  unlockedLessonIds: string[];
+  milestoneLocks: MilestoneLockRecord[];
+  nextScheduledUnlockMs: number | null;
+}> {
+  if (allTargets.length === 0) {
+    return { unlockedLessonIds: [], milestoneLocks: [], nextScheduledUnlockMs: null };
+  }
+
+  const { data: locks, error } = await supabase
+    .from('milestone_locks')
+    .select('id, course_id, stage_id, module_id, lesson_id, batch_code, is_locked, unlock_datetime, updated_at')
+    .in('batch_code', allTargets);
+
+  if (error || !locks) {
+    throw error || new Error('Failed to fetch milestone locks');
+  }
+
+  const preferredSet = new Set(preferredBatches.map((b) => b.toLowerCase()));
+  const deduped = new Map<string, any>();
+
+  for (const row of locks) {
+    const key = row.lesson_id ? `lesson:${row.lesson_id}` : (row.module_id ? `mod:${row.module_id}` : `row:${row.id}`);
+    const existing = deduped.get(key);
+    if (!existing) {
+      deduped.set(key, row);
+      continue;
+    }
+    const rowIsPreferred = preferredSet.has(String(row.batch_code || '').trim().toLowerCase());
+    const existingIsPreferred = preferredSet.has(String(existing.batch_code || '').trim().toLowerCase());
+    if (rowIsPreferred && !existingIsPreferred) {
+      deduped.set(key, row);
+    } else if (rowIsPreferred === existingIsPreferred) {
+      const rowUpd = row.updated_at ? Date.parse(row.updated_at) || 0 : 0;
+      const exUpd = existing.updated_at ? Date.parse(existing.updated_at) || 0 : 0;
+      if (rowUpd > exUpd) {
+        deduped.set(key, row);
+      }
+    }
+  }
+
+  const nowMs = Date.now();
+  let nextScheduledUnlockMs: number | null = null;
+
+  const milestoneLocks: MilestoneLockRecord[] = Array.from(deduped.values()).map((l: any) => {
+    const unlockDtMs = l.unlock_datetime ? Date.parse(l.unlock_datetime) : NaN;
+    const hasValidDt = !Number.isNaN(unlockDtMs);
+    const isUnlocked = hasValidDt ? unlockDtMs <= nowMs : !l.is_locked;
+    const updatedAtMs = l.updated_at ? Date.parse(l.updated_at) : NaN;
+    const unlockedAtMs = isUnlocked
+      ? Math.max(hasValidDt ? unlockDtMs : 0, !Number.isNaN(updatedAtMs) ? updatedAtMs : 0)
+      : 0;
+
+    if (!isUnlocked && hasValidDt && unlockDtMs > nowMs) {
+      if (nextScheduledUnlockMs === null || unlockDtMs < nextScheduledUnlockMs) {
+        nextScheduledUnlockMs = unlockDtMs;
+      }
+    }
+
+    return {
+      id: l.id,
+      course_id: l.course_id,
+      stage_id: l.stage_id,
+      module_id: l.module_id,
+      lesson_id: l.lesson_id,
+      batch_code: l.batch_code,
+      is_locked: Boolean(l.is_locked),
+      unlock_datetime: l.unlock_datetime,
+      updated_at: l.updated_at,
+      isUnlocked,
+      unlockedAtMs,
+    };
+  });
+
+  const unlockedLessonIds = milestoneLocks
+    .filter((r) => r.isUnlocked && r.lesson_id)
+    .map((r) => r.lesson_id);
+
+  return { unlockedLessonIds, milestoneLocks, nextScheduledUnlockMs };
 }
 
 interface UserContextType {
@@ -79,7 +202,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const cached = localStorage.getItem('aspire_cached_user');
     if (cached) {
       try {
-        return JSON.parse(cached);
+        const parsed = JSON.parse(cached);
+        return { ...parsed, locksLoaded: false };
       } catch (e) {
         return initialUser;
       }
@@ -91,6 +215,26 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const cached = localStorage.getItem('aspire_cached_user');
     return !cached;
   });
+
+  const userRef = useRef(user);
+  userRef.current = user;
+  const scheduledUnlockTimerRef = useRef<any>(null);
+  const syncMilestoneLocksRef = useRef<() => Promise<void>>(async () => {});
+
+  const scheduleExactUnlockCheck = useCallback((nextUnlockMs: number | null) => {
+    if (scheduledUnlockTimerRef.current) {
+      clearTimeout(scheduledUnlockTimerRef.current);
+      scheduledUnlockTimerRef.current = null;
+    }
+    if (!nextUnlockMs) return;
+    const delay = nextUnlockMs - Date.now() + 300;
+    // Cap at 24h to stay well inside 32-bit setTimeout range
+    if (delay > 0 && delay <= 24 * 60 * 60 * 1000) {
+      scheduledUnlockTimerRef.current = setTimeout(() => {
+        syncMilestoneLocksRef.current();
+      }, delay);
+    }
+  }, []);
 
   const refetchUser = useCallback(async () => {
     const loggedInMobile = localStorage.getItem('aspire_logged_in_mobile');
@@ -205,17 +349,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const realGpa = profile?.gpa ?? 0.00;
 
           let unlockedLessonIds: string[] = [];
-          const batchList = Array.from(new Set([resolvedBatch, student.batch, 'ALL'].filter(Boolean) as string[]));
-          const { data: locks } = await supabase
-            .from('milestone_locks')
-            .select('lesson_id, is_locked, unlock_datetime')
-            .in('batch_code', batchList);
-          
-          if (locks) {
-            const now = new Date();
-            unlockedLessonIds = locks
-              .filter((l: any) => l.unlock_datetime ? new Date(l.unlock_datetime) <= now : !l.is_locked)
-              .map((l: any) => l.lesson_id);
+          let milestoneLocks: MilestoneLockRecord[] = [];
+          let locksLoaded = false;
+          try {
+            const { preferredBatches, allTargets } = buildBatchTargets(resolvedBatch, student.batch, resolvedCategory);
+            const resolvedLocks = await fetchResolvedMilestoneLocks(allTargets, preferredBatches);
+            unlockedLessonIds = resolvedLocks.unlockedLessonIds;
+            milestoneLocks = resolvedLocks.milestoneLocks;
+            locksLoaded = true;
+            scheduleExactUnlockCheck(resolvedLocks.nextScheduledUnlockMs);
+          } catch (lockErr) {
+            console.warn('Failed to fetch milestone locks:', lockErr);
           }
 
           // Newly-unlocked lessons are detected in NotificationsContext (which watches
@@ -273,6 +417,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
             enrolledCourses: stableEnrolledCourses,
             courseProgress: newCourseProgress,
             unlockedLessonIds: unlockedLessonIds,
+            milestoneLocks: milestoneLocks,
+            locksLoaded: locksLoaded,
             notifPrefs: {
               assignments: profile?.notif_assignments ?? true,
               live: profile?.notif_live ?? true,
@@ -282,7 +428,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
           };
 
           setUser(updatedUser);
-          localStorage.setItem('aspire_cached_user', JSON.stringify(updatedUser));
+          try {
+            const { locksLoaded: _omitLocksLoaded, ...cacheableUser } = updatedUser;
+            localStorage.setItem('aspire_cached_user', JSON.stringify(cacheableUser));
+          } catch {}
         }
       } catch (e) {
         console.error('Failed to load user from Supabase:', e);
@@ -296,16 +445,51 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
-  const userRef = useRef(user);
-  userRef.current = user;
+
+
+  const syncMilestoneLocks = useCallback(async () => {
+    const curr = userRef.current;
+    if (!curr || !curr.id || curr.id === 'guest' || !hasValidSession()) return;
+    try {
+      const { preferredBatches, allTargets } = buildBatchTargets(curr.batchCode, curr.batchCode, curr.batchCategory);
+      const { unlockedLessonIds, milestoneLocks, nextScheduledUnlockMs } = await fetchResolvedMilestoneLocks(allTargets, preferredBatches);
+      scheduleExactUnlockCheck(nextScheduledUnlockMs);
+
+      const prevSig = locksSignature(curr.milestoneLocks || []);
+      const nextSig = locksSignature(milestoneLocks);
+      if (!curr.locksLoaded || prevSig !== nextSig) {
+        setUser((prev) => {
+          if (!prev || prev.id !== curr.id) return prev;
+          const updated = {
+            ...prev,
+            unlockedLessonIds,
+            milestoneLocks,
+            locksLoaded: true,
+          };
+          try {
+            const { locksLoaded: _omit, ...cacheable } = updated;
+            localStorage.setItem('aspire_cached_user', JSON.stringify(cacheable));
+          } catch {}
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.warn('Lightweight milestone lock sync failed:', err);
+    }
+  }, [scheduleExactUnlockCheck]);
+
+  syncMilestoneLocksRef.current = syncMilestoneLocks;
 
   useEffect(() => {
     refetchUser();
+  }, [refetchUser]);
 
+  useEffect(() => {
+    const sid = user?.id;
     const loggedInMobile = localStorage.getItem('aspire_logged_in_mobile');
-    const isLoggedIn = localStorage.getItem('aspire_logged_in') === 'true';
+    const isLoggedIn = hasValidSession();
 
-    if (isLoggedIn && loggedInMobile) {
+    if (sid && sid !== 'guest' && isLoggedIn && loggedInMobile) {
       const cleanPhone = loggedInMobile.replace(/\D/g, '').slice(-10);
 
       // Shared debounced full refetch for cascading progress calculations
@@ -416,7 +600,15 @@ export function UserProvider({ children }: { children: ReactNode }) {
         }
       );
 
-      // 3. Milestone locks (listen to all changes so admin lock/unlock triggers immediate refetch)
+      let lockTimer: any = null;
+      const bumpLocks = () => {
+        if (lockTimer) clearTimeout(lockTimer);
+        lockTimer = setTimeout(() => {
+          syncMilestoneLocks();
+        }, 250);
+      };
+
+      // 3. Milestone locks (listen to all changes so admin lock/unlock triggers immediate sync)
       userChannel.on(
         'postgres_changes',
         {
@@ -425,9 +617,14 @@ export function UserProvider({ children }: { children: ReactNode }) {
           table: 'milestone_locks'
         },
         () => {
-          bumpProgress();
+          bumpLocks();
         }
       );
+
+      // 3b. New lessons/modules added to an unlocked curriculum also trigger lock sync
+      ['course_lessons', 'course_topics'].forEach((table) => {
+        userChannel.on('postgres_changes', { event: '*', schema: 'public', table }, bumpLocks);
+      });
 
       // 4. Courses
       userChannel.on(
@@ -518,26 +715,38 @@ export function UserProvider({ children }: { children: ReactNode }) {
         if (document.visibilityState === 'visible') {
           invalidateCourseworkCache(userRef.current?.id);
           invalidateAttendanceCache();
+          syncMilestoneLocks();
           refetchUser();
         }
       };
       window.addEventListener('focus', onSyncCheck);
       document.addEventListener('visibilitychange', onSyncCheck);
 
-      // 7. Periodic timer to evaluate maturing scheduled milestone unlocks (every 30s)
+      // 7a. Lightweight milestone lock poll every 10s (covers both scheduled unlocks and DBs without realtime on milestone_locks)
+      const lockPollInterval = setInterval(() => {
+        syncMilestoneLocks();
+      }, 10000);
+
+      // 7b. Periodic full resync (every 60s)
       const scheduleInterval = setInterval(() => {
         refetchUser();
-      }, 30000);
+      }, 60000);
 
       return () => {
         supabase.removeChannel(userChannel);
         if (progressTimer) clearTimeout(progressTimer);
+        if (lockTimer) clearTimeout(lockTimer);
+        if (scheduledUnlockTimerRef.current) {
+          clearTimeout(scheduledUnlockTimerRef.current);
+          scheduledUnlockTimerRef.current = null;
+        }
+        clearInterval(lockPollInterval);
         clearInterval(scheduleInterval);
         window.removeEventListener('focus', onSyncCheck);
         document.removeEventListener('visibilitychange', onSyncCheck);
       };
     }
-  }, [refetchUser]);
+  }, [refetchUser, syncMilestoneLocks, user?.id, user?.batchCode, user?.batchCategory]);
 
   const updateUser = (updates: Partial<ExtendedUser>) => {
     setUser((prevUser) => {

@@ -299,6 +299,8 @@ export function LoginScreen() {
           enrolledCourses: [],
           courseProgress: {},
           unlockedLessonIds: [],
+          milestoneLocks: [],
+          locksLoaded: false,
           notifPrefs: {
             assignments: true,
             live: true,

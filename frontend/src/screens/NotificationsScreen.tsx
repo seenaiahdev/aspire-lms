@@ -10,7 +10,7 @@ export function NotificationsScreen() {
   const { notifications: items, unreadCount: unread, markRead, markAllRead, deleteNotification } = useNotifications();
   const [tab, setTab] = useState('all');
 
-  const filtered = items.filter((n) => tab === 'all' ? true : tab === 'unread' ? !n.read : n.type === tab);
+  const filtered = items.filter((n) => tab === 'all' ? true : tab === 'unread' ? !n.read : tab === 'milestones' ? (n.type === 'milestones' || n.type === 'course') : n.type === tab);
 
   const handleDeleteNotification = (id: string) => deleteNotification(id);
 
@@ -29,6 +29,7 @@ export function NotificationsScreen() {
         tabs={[
           { id: 'all', label: 'All', badge: items.length },
           { id: 'unread', label: 'Unread', badge: unread },
+          { id: 'milestones', label: 'Milestones' },
           { id: 'assignment', label: 'Assignments' },
           { id: 'live', label: 'Live Classes' },
           { id: 'community', label: 'Community' },

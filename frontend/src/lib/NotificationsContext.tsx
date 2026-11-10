@@ -13,7 +13,7 @@ import {
   fetchQuizAttempts, fetchProjects,
   evaluateBadgeCriteria,
 } from './api';
-import { getLessonResolver, rawLessonLink } from './lessonLinkResolver';
+import { getLessonResolver, rawLessonLink, clearLessonResolverCache } from './lessonLinkResolver';
 
 export interface AppNotification {
   id: string;
@@ -43,6 +43,8 @@ const NotificationsContext = createContext<NotificationsContextType | undefined>
 const MAX_STORED = 100;
 const listKey = (sid: string) => `aspire_notifications_${sid}`;
 const unlockSeenKey = (sid: string) => `aspire_seen_unlocks_${sid}`;
+const moduleUnlockSeenKey = (sid: string) => `aspire_seen_module_unlocks_${sid}`;
+const RECENT_OFFLINE_UNLOCK_WINDOW_MS = 24 * 60 * 60 * 1000;
 // IDs of notifications explicitly read by the user — persist read status across sessions.
 const readKey = (sid: string) => `aspire_read_notifs_${sid}`;
 // IDs of notifications explicitly dismissed by the user — never restore these from DB on re-login.
@@ -111,6 +113,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const { user, refetchUser } = useUser();
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [toasts, setToasts] = useState<AppNotification[]>([]);
+  const [hydratedSid, setHydratedSid] = useState<string | null>(null);
 
   // Keep the latest user + notifications in refs so realtime handlers stay stable.
   const userRef = useRef(user);
@@ -131,6 +134,15 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (!sid || sid === 'guest') return;
 
       const n = sanitizeNotification(rawN);
+
+      // Respect user dismissals across sessions
+      try {
+        const rawDismissed = localStorage.getItem(dismissedKey(sid));
+        if (rawDismissed) {
+          const dismissedSet = new Set(JSON.parse(rawDismissed));
+          if (dismissedSet.has(n.id)) return;
+        }
+      } catch {}
 
       // Respect the student's Settings toggles (student_profiles.notif_*). 'system'/admin-pushed and
       // any unknown type are always allowed.
@@ -158,7 +170,13 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         }, 6000);
       }
       if (opts.persistDb) {
-        persistNotification({ id: n.id, studentId: sid, title: n.title, content: n.content || n.message });
+        persistNotification({
+          id: n.id,
+          studentId: sid,
+          title: n.title,
+          content: n.content || n.message,
+          createdAt: n.created_at,
+        });
       }
     },
     [persistLocal]
@@ -197,15 +215,19 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const sid = user?.id;
     if (!sid || sid === 'guest') {
+      listRef.current = [];
       setNotifications([]);
+      setHydratedSid(null);
       return;
     }
     let alive = true;
+    setHydratedSid(null);
+
     (async () => {
       const stored = loadStored(sid);
       let dbRows: AppNotification[] = [];
       try {
-        const fetched = (await fetchNotifications(sid)) as AppNotification[];
+        const fetched = (await fetchNotifications(sid, { forceFresh: true })) as AppNotification[];
         dbRows = (fetched || []).map(sanitizeNotification);
       } catch { /* table may be unavailable */ }
       if (!alive) return;
@@ -231,256 +253,535 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           byId.set(n.id, { ...sanitizeNotification(n), read: isRead });
         }
       });
-      // Course-level & milestone unlock purge: ensure students never see coursework notifications
-      // from other courses, non-matching batches, drafts, or currently LOCKED milestone lessons.
-      const enrolledSet = new Set(user?.enrolledCourses || []);
-      const unlockedSet = new Set(user?.unlockedLessonIds || []);
-      const studentBatch = user?.batchCode || '';
-      const studentCat = user?.batchCategory || '';
 
-      if (enrolledSet.size > 0) {
-        try {
-          const resolver = await getLessonResolver(Array.from(enrolledSet), studentBatch);
-          const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
-            supabase.from('assessments').select('id, course_id, target_batch, topic_id, topic_name, publish_status'),
-            supabase.from('coding_questions').select('id, course_id, target_batch, inner_topic_id, title'),
-            supabase.from('quizzes').select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, status, title'),
-            supabase.from('projects').select('id, course_id, target_batch, inner_topic_id, description, status, title')
-          ]);
+      const merged = Array.from(byId.values())
+        .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+        .slice(0, MAX_STORED);
 
-          const isItemAllowed = (item: any) => {
-            if (item.course_id && !enrolledSet.has(item.course_id)) return false;
-            if (item.target_batch && !targetsBatch(item.target_batch, studentBatch, item.target_batches, studentCat)) return false;
-            const pub = norm(item.publish_status || item.status);
-            if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
-            const rawId = rawLessonLink(item);
-            const targetLessonId = resolver.resolveEntityLessonId(item) || (rawId ? resolver.resolveLessonId(rawId) : '');
-            if (!targetLessonId && !rawId) return true; // standalone coursework
-            return (
-              (targetLessonId ? unlockedSet.has(targetLessonId) : false) ||
-              (rawId ? unlockedSet.has(rawId) : false)
-            );
-          };
-
-          if (assessRes.data) {
-            const forbiddenAssessIds = new Set(
-              assessRes.data.filter((a: any) => !isItemAllowed(a)).map((a: any) => a.id)
-            );
-            for (const [id] of byId.entries()) {
-              const match = id.match(/^notif-assess-(.+)$/);
-              if (match && forbiddenAssessIds.has(match[1])) {
-                byId.delete(id);
-              }
-            }
+      setNotifications((prev) => {
+        // Merge in case realtime events arrived while hydrating
+        const combined = new Map<string, AppNotification>();
+        [...prev.filter((x) => !x.student_id || x.student_id === sid), ...merged].forEach((item) => {
+          if (item && item.id && !combined.has(item.id) && !dismissedIds.has(item.id)) {
+            combined.set(item.id, item);
           }
-
-          if (cqRes.data) {
-            const forbiddenCqIds = new Set(
-              cqRes.data.filter((c: any) => !isItemAllowed(c)).map((c: any) => c.id)
-            );
-            for (const [id] of byId.entries()) {
-              const match = id.match(/^notif-cq-(.+)$/);
-              if (match && forbiddenCqIds.has(match[1])) {
-                byId.delete(id);
-              }
-            }
-          }
-
-          if (quizRes.data) {
-            const forbiddenQuizIds = new Set(
-              quizRes.data.filter((q: any) => !isItemAllowed(q)).map((q: any) => q.id)
-            );
-            for (const [id] of byId.entries()) {
-              const match = id.match(/^notif-quiz-(.+)$/);
-              if (match && forbiddenQuizIds.has(match[1])) {
-                byId.delete(id);
-              }
-            }
-          }
-
-          if (projRes.data) {
-            const forbiddenProjIds = new Set(
-              projRes.data.filter((p: any) => !isItemAllowed(p)).map((p: any) => p.id)
-            );
-            for (const [id] of byId.entries()) {
-              const match = id.match(/^notif-project-(.+)$/);
-              if (match && forbiddenProjIds.has(match[1])) {
-                byId.delete(id);
-              }
-            }
-          }
-        } catch {}
-      }
-
-      const merged = Array.from(byId.values()).sort(
-        (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
-      );
-      setNotifications(merged);
-      persistLocal(sid, merged);
+        });
+        const sorted = Array.from(combined.values())
+          .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
+          .slice(0, MAX_STORED);
+        listRef.current = sorted;
+        persistLocal(sid, sorted);
+        return sorted;
+      });
+      setHydratedSid(sid);
     })();
     return () => { alive = false; };
-  }, [user?.id, (user?.unlockedLessonIds || []).join(','), persistLocal]);
+  }, [user?.id, persistLocal]);
 
-  // ── 1. Lesson unlocks: react to unlockedLessonIds growing (covers realtime + time-based) ──
+  // ── 0b. Course-level & milestone unlock purge: ensure locked/unenrolled coursework notifications stay hidden ──
+  useEffect(() => {
+    const sid = user?.id;
+    if (!sid || sid === 'guest' || hydratedSid !== sid || !user?.locksLoaded) return;
+    const enrolled = user?.enrolledCourses || [];
+    if (enrolled.length === 0) return;
+
+    let alive = true;
+    (async () => {
+      try {
+        const enrolledSet = new Set(enrolled);
+        const unlockedSet = new Set(user?.unlockedLessonIds || []);
+        const studentBatch = user?.batchCode || '';
+        const studentCat = user?.batchCategory || '';
+        const resolver = await getLessonResolver(enrolled, studentBatch);
+        const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
+          supabase.from('assessments').select('id, course_id, target_batch, topic_id, topic_name, publish_status'),
+          supabase.from('coding_questions').select('id, course_id, target_batch, inner_topic_id, title'),
+          supabase.from('quizzes').select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, status, title'),
+          supabase.from('projects').select('id, course_id, target_batch, inner_topic_id, description, status, title')
+        ]);
+        if (!alive) return;
+
+        const isItemAllowed = (item: any) => {
+          if (item.course_id && !enrolledSet.has(item.course_id)) return false;
+          if (item.target_batch && !targetsBatch(item.target_batch, studentBatch, item.target_batches, studentCat)) return false;
+          const pub = norm(item.publish_status || item.status);
+          if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
+          const rawId = rawLessonLink(item);
+          const targetLessonId = resolver.resolveEntityLessonId(item) || (rawId ? resolver.resolveLessonId(rawId) : '');
+          if (!targetLessonId && !rawId) return true;
+          return (
+            (targetLessonId ? unlockedSet.has(targetLessonId) : false) ||
+            (rawId ? unlockedSet.has(rawId) : false)
+          );
+        };
+
+        const forbiddenAssess = new Set((assessRes.data || []).filter((a: any) => !isItemAllowed(a)).map((a: any) => a.id));
+        const forbiddenCq = new Set((cqRes.data || []).filter((c: any) => !isItemAllowed(c)).map((c: any) => c.id));
+        const forbiddenQuiz = new Set((quizRes.data || []).filter((q: any) => !isItemAllowed(q)).map((q: any) => q.id));
+        const forbiddenProj = new Set((projRes.data || []).filter((p: any) => !isItemAllowed(p)).map((p: any) => p.id));
+
+        const extractEntityId = (id: string, prefix: string) => {
+          if (!id.startsWith(prefix)) return null;
+          return id.slice(prefix.length).split('__')[0];
+        };
+
+        setNotifications((prev) => {
+          const filtered = prev.filter((n) => {
+            const aId = extractEntityId(n.id, 'notif-assess-');
+            if (aId && forbiddenAssess.has(aId)) return false;
+            const cId = extractEntityId(n.id, 'notif-cq-');
+            if (cId && forbiddenCq.has(cId)) return false;
+            const qId = extractEntityId(n.id, 'notif-quiz-');
+            if (qId && forbiddenQuiz.has(qId)) return false;
+            const pId = extractEntityId(n.id, 'notif-project-');
+            if (pId && forbiddenProj.has(pId)) return false;
+            return true;
+          });
+          if (filtered.length !== prev.length) {
+            listRef.current = filtered;
+            persistLocal(sid, filtered);
+            return filtered;
+          }
+          return prev;
+        });
+      } catch {}
+    })();
+
+    return () => { alive = false; };
+  }, [hydratedSid, user?.id, user?.locksLoaded, user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(','), (user?.unlockedLessonIds || []).join(','), persistLocal]);
+
+  // ── 1. Lesson & Module unlocks: react to milestoneLocks (covers realtime, scheduled, re-unlock & recent offline unlocks) ──
+  const locksSignatureKey = (user?.milestoneLocks || [])
+    .map((l) => `${l.id}:${l.isUnlocked ? 1 : 0}:${l.unlockedAtMs}`)
+    .sort()
+    .join('|');
 
   useEffect(() => {
     const sid = user?.id;
-    if (!sid || sid === 'guest') return;
-    const ids = user?.unlockedLessonIds || [];
-    if (ids.length === 0) return; // Wait until unlocked lessons are loaded from UserContext!
+    if (!sid || sid === 'guest' || hydratedSid !== sid || !user?.locksLoaded) return;
+
+    const locks = user?.milestoneLocks || [];
+    const unlockedLocks = locks.filter((l) => l.isUnlocked);
+    const currentUnlockedIds = Array.from(new Set(unlockedLocks.map((l) => l.lesson_id).filter(Boolean)));
+    const currentUnlockedIdSet = new Set(currentUnlockedIds);
 
     const key = unlockSeenKey(sid);
-    const raw = localStorage.getItem(key);
-    if (raw === null) {
-      // First run: baseline silently (don't back-fill notifications for already-open lessons).
-      try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
-      return;
-    }
-    let seen: string[] = [];
-    try { seen = JSON.parse(raw) || []; } catch { seen = []; }
-    if (seen.length === 0) {
-      // If previous baseline was empty, update it silently without spamming
-      try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
-      return;
-    }
+    const modKey = moduleUnlockSeenKey(sid);
+    const prevSeenLessonsRaw = localStorage.getItem(key);
+    const prevSeenModulesRaw = localStorage.getItem(modKey);
 
-    const seenSet = new Set(seen);
-    const newly = ids.filter((id) => !seenSet.has(id));
-    if (newly.length === 0) return;
+    let prevSeenLessons: string[] = [];
+    if (prevSeenLessonsRaw !== null) {
+      try { prevSeenLessons = JSON.parse(prevSeenLessonsRaw) || []; } catch { prevSeenLessons = []; }
+    }
+    const prevSeenLessonSet = new Set(prevSeenLessons);
+
+    let prevSeenModules: string[] = [];
+    if (prevSeenModulesRaw !== null) {
+      try { prevSeenModules = JSON.parse(prevSeenModulesRaw) || []; } catch { prevSeenModules = []; }
+    }
+    const prevSeenModuleSet = new Set(prevSeenModules);
+
+    let dismissedIds = new Set<string>();
+    try {
+      const rawDismissed = localStorage.getItem(dismissedKey(sid));
+      if (rawDismissed) dismissedIds = new Set(JSON.parse(rawDismissed));
+    } catch {}
+    const existingById = new Map(listRef.current.map((n) => [n.id, n]));
+
+    const isUnlockAlreadyCovered = (newId: string, legacyId: string, unlockedAtMs: number) => {
+      if (dismissedIds.has(newId) || existingById.has(newId)) return true;
+      const legacyExisting = existingById.get(legacyId);
+      if (legacyExisting) {
+        const createdMs = Date.parse(legacyExisting.created_at || '') || 0;
+        if (!unlockedAtMs || createdMs >= unlockedAtMs - 60_000) return true;
+      }
+      return false;
+    };
+
+    const nowMs = Date.now();
+    const newlyLessonLocks = unlockedLocks.filter((l) => {
+      if (!l.lesson_id) return false;
+      if (prevSeenLessonsRaw === null) {
+        // Fresh browser / cleared storage: only catch up unlocks from the last 24h not yet notified
+        if (!l.unlockedAtMs || l.unlockedAtMs > nowMs + 60_000) return false;
+        if (nowMs - l.unlockedAtMs > RECENT_OFFLINE_UNLOCK_WINDOW_MS) return false;
+        const stamp = l.unlockedAtMs ? `-${l.unlockedAtMs}` : '';
+        const newId = `notif-unlock-${l.lesson_id}-${sid}${stamp}`;
+        const legacyId = `notif-unlock-${l.lesson_id}-${sid}`;
+        return !isUnlockAlreadyCovered(newId, legacyId, l.unlockedAtMs);
+      }
+      return !prevSeenLessonSet.has(l.lesson_id);
+    });
+
+    // Also detect lock rows that explicitly target a module without a lesson_id (if ever used)
+    const directUnlockedModuleLocks = unlockedLocks.filter((l) => !l.lesson_id && l.module_id);
+
+    let cancelled = false;
 
     (async () => {
-      const titleById: Record<string, string> = {};
-      try {
-        const { data } = await supabase.from('course_lessons').select('id, title').in('id', newly);
-        (data || []).forEach((r: any) => { titleById[r.id] = r.title; });
-      } catch {}
-      newly.forEach((lessonId) => {
+      const enrolled = userRef.current?.enrolledCourses || [];
+      const enrolledSet = new Set(enrolled);
+      const studentBatch = userRef.current?.batchCode || '';
+      const studentCat = userRef.current?.batchCategory || '';
+
+      const enrolledLessonMap = new Map<string, { id: string; title: string; module_id: string; stage_id: string; course_id: string }>();
+      const moduleTitleMap = new Map<string, string>();
+      const moduleCourseMap = new Map<string, string>();
+      const courseTitleMap = new Map<string, string>();
+      const moduleLessonsMap = new Map<string, string[]>();
+
+      if (enrolled.length > 0) {
+        try {
+          const [lessonsRes, topicsRes, coursesRes, milestonesRes] = await Promise.all([
+            supabase.from('course_lessons').select('id, title, module_id, stage_id, course_id').in('course_id', enrolled),
+            supabase.from('course_topics').select('id, course_id, title, subtopics').in('course_id', enrolled),
+            supabase.from('courses').select('id, title').in('id', enrolled),
+            supabase.from('milestones_data').select('id, stages, overview'),
+          ]);
+
+          (coursesRes.data || []).forEach((c: any) => {
+            if (c?.id && c?.title) courseTitleMap.set(c.id, c.title);
+          });
+
+          (topicsRes.data || []).forEach((t: any) => {
+            (t?.subtopics || []).forEach((sub: any) => {
+              if (sub?.id) {
+                if (sub.title) moduleTitleMap.set(sub.id, sub.title);
+                if (t.course_id) moduleCourseMap.set(sub.id, t.course_id);
+              }
+            });
+          });
+
+          // Fallback module titles from milestones_data if any aren't in course_topics.subtopics
+          const collectMilestoneModTitles = (stages: any[]) => {
+            if (!Array.isArray(stages)) return;
+            for (const stg of stages) {
+              const mods = (stg?.subtopics?.length ? stg.subtopics : stg?.modules) || [];
+              for (const m of mods) {
+                if (m?.id && m?.title && !moduleTitleMap.has(m.id)) {
+                  moduleTitleMap.set(m.id, m.title);
+                }
+              }
+            }
+          };
+          (milestonesRes.data || []).forEach((row: any) => {
+            collectMilestoneModTitles(row?.stages);
+            const batchData = row?.overview?.batchData;
+            if (batchData && typeof batchData === 'object') {
+              Object.values(batchData).forEach((b: any) => collectMilestoneModTitles(b?.stages));
+            }
+          });
+
+          (lessonsRes.data || []).forEach((l: any) => {
+            enrolledLessonMap.set(l.id, l);
+            if (l.module_id) {
+              const list = moduleLessonsMap.get(l.module_id) || [];
+              list.push(l.id);
+              moduleLessonsMap.set(l.module_id, list);
+              if (l.course_id && !moduleCourseMap.has(l.module_id)) {
+                moduleCourseMap.set(l.module_id, l.course_id);
+              }
+            }
+          });
+        } catch (err) {
+          console.warn('Error loading course curriculum metadata for unlock notifications:', err);
+        }
+      }
+
+      if (cancelled) return;
+
+      // Determine all currently-unlocked modules in the student's enrolled courses
+      const currentUnlockedModuleSet = new Set<string>();
+      for (const [modId, lessonIdsInMod] of moduleLessonsMap.entries()) {
+        if (lessonIdsInMod.some((lid) => currentUnlockedIdSet.has(lid))) {
+          currentUnlockedModuleSet.add(modId);
+        }
+      }
+      directUnlockedModuleLocks.forEach((l) => {
+        if (l.module_id && (!l.course_id || enrolledSet.size === 0 || enrolledSet.has(l.course_id))) {
+          currentUnlockedModuleSet.add(l.module_id);
+        }
+      });
+      const currentUnlockedModuleIds = Array.from(currentUnlockedModuleSet);
+
+      // Filter newlyLessonLocks to lessons belonging to the student's enrolled courses
+      // (or matching lock.course_id if the lesson row isn't found yet, excluding known unenrolled courses)
+      const missingIds = newlyLessonLocks
+        .map((l) => l.lesson_id)
+        .filter((id) => id && !enrolledLessonMap.has(id));
+      const knownUnenrolledIds = new Set<string>();
+      if (missingIds.length > 0) {
+        try {
+          const { data: extraLessons } = await supabase
+            .from('course_lessons')
+            .select('id, title, module_id, stage_id, course_id')
+            .in('id', missingIds);
+          (extraLessons || []).forEach((l: any) => {
+            if (enrolledSet.size === 0 || enrolledSet.has(l.course_id)) {
+              enrolledLessonMap.set(l.id, l);
+            } else {
+              knownUnenrolledIds.add(l.id);
+            }
+          });
+        } catch {}
+      }
+
+      if (cancelled) return;
+
+      const eligibleLessonLocks = newlyLessonLocks.filter((l) => {
+        if (knownUnenrolledIds.has(l.lesson_id)) return false;
+        if (enrolledLessonMap.has(l.lesson_id)) return true;
+        if (enrolledSet.size === 0) return true;
+        return Boolean(l.course_id && enrolledSet.has(l.course_id));
+      });
+
+      // Determine newly unlocked modules:
+      // A module unlocks when >=1 of its lessons becomes unlocked while previously 0 were unlocked
+      // (or when a direct module lock unlocks).
+      const newlyUnlockedModuleIds: string[] = [];
+      for (const modId of currentUnlockedModuleIds) {
+        if (prevSeenModulesRaw !== null) {
+          if (!prevSeenModuleSet.has(modId)) {
+            newlyUnlockedModuleIds.push(modId);
+          }
+        } else if (prevSeenLessonsRaw !== null) {
+          // Seamless upgrade for existing users who already have lesson seen baseline:
+          // only notify modules that just got a newly unlocked lesson AND had 0 lessons unlocked before
+          const lessonIdsInMod = moduleLessonsMap.get(modId) || [];
+          const hadLessonBefore = lessonIdsInMod.some((lid) => prevSeenLessonSet.has(lid));
+          const hasNewlyUnlockedLesson = eligibleLessonLocks.some((l) => {
+            const meta = enrolledLessonMap.get(l.lesson_id);
+            return (meta?.module_id || l.module_id) === modId;
+          });
+          if (!hadLessonBefore && hasNewlyUnlockedLesson) {
+            newlyUnlockedModuleIds.push(modId);
+          }
+        } else {
+          // Fresh browser / cleared storage: notify module if its unlock is within 24h and not already in DB/dismissed
+          const modLocks = unlockedLocks.filter((l) => {
+            const meta = enrolledLessonMap.get(l.lesson_id);
+            return (meta?.module_id || l.module_id) === modId;
+          });
+          const validTimes = modLocks.map((l) => l.unlockedAtMs || 0).filter((t) => t > 0);
+          const earliestUnlockMs = validTimes.length > 0 ? Math.min(...validTimes) : 0;
+          const latestUnlockMs = validTimes.length > 0 ? Math.max(...validTimes) : 0;
+          const hasLessonMatch = eligibleLessonLocks.some((l) => {
+            const meta = enrolledLessonMap.get(l.lesson_id);
+            return (meta?.module_id || l.module_id) === modId;
+          });
+          if (hasLessonMatch && earliestUnlockMs > 0 && nowMs - earliestUnlockMs <= RECENT_OFFLINE_UNLOCK_WINDOW_MS) {
+            const stamp = latestUnlockMs ? `-${latestUnlockMs}` : '';
+            const newModId = `notif-unlock-mod-${modId}-${sid}${stamp}`;
+            const legacyModId = `notif-unlock-mod-${modId}-${sid}`;
+            if (!isUnlockAlreadyCovered(newModId, legacyModId, latestUnlockMs)) {
+              newlyUnlockedModuleIds.push(modId);
+            }
+          }
+        }
+      }
+
+      if (eligibleLessonLocks.length === 0 && newlyUnlockedModuleIds.length === 0) {
+        // Always keep seen sets synchronized so re-locks are cleanly evicted
+        try {
+          localStorage.setItem(key, JSON.stringify(currentUnlockedIds));
+          localStorage.setItem(modKey, JSON.stringify(currentUnlockedModuleIds));
+        } catch {}
+        return;
+      }
+
+      // Clear resolver cache so newly added lessons/coursework resolve cleanly
+      clearLessonResolverCache();
+
+      // 1) Notify each newly unlocked lesson
+      const newlyLessonIdList: string[] = [];
+      eligibleLessonLocks.forEach((lock) => {
+        const lessonId = lock.lesson_id;
+        newlyLessonIdList.push(lessonId);
+        const lessonMeta = enrolledLessonMap.get(lessonId);
+        const lessonTitle = lessonMeta?.title || '';
+        const modId = lessonMeta?.module_id || lock.module_id || '';
+        const modTitle = modId ? (moduleTitleMap.get(modId) || '') : '';
+        const stamp = lock.unlockedAtMs ? `-${lock.unlockedAtMs}` : '';
+        const createdIso = lock.unlockedAtMs
+          ? new Date(Math.min(Date.now(), lock.unlockedAtMs)).toISOString()
+          : new Date().toISOString();
+
         addNotification(
           {
-            id: `notif-unlock-${lessonId}-${sid}`,
+            id: `notif-unlock-${lessonId}-${sid}${stamp}`,
             student_id: sid,
             type: 'course',
             title: 'New lesson unlocked',
-            message: titleById[lessonId]
-              ? `"${titleById[lessonId]}" is now available.`
+            message: lessonTitle
+              ? `"${lessonTitle}"${modTitle ? ` in ${modTitle}` : ''} is now available.`
               : 'A new lesson is now available.',
             read: false,
-            created_at: new Date().toISOString(),
+            created_at: createdIso,
           },
           { showToast: true, persistDb: true }
         );
       });
 
-      // Also notify coursework attached to these newly unlocked lessons:
-      try {
-        const enrolled = userRef.current?.enrolledCourses || [];
-        const studentBatch = userRef.current?.batchCode || '';
-        const studentCat = userRef.current?.batchCategory || '';
-        const resolver = await getLessonResolver(enrolled, studentBatch);
-        const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
-          supabase.from('assessments').select('*').in('course_id', enrolled),
-          supabase.from('coding_questions').select('*').in('course_id', enrolled),
-          supabase.from('quizzes').select('*').in('course_id', enrolled),
-          supabase.from('projects').select('*').in('course_id', enrolled)
-        ]);
+      // 2) Also notify coursework attached to these newly unlocked lessons
+      if (enrolled.length > 0 && newlyLessonIdList.length > 0) {
+        try {
+          const resolver = await getLessonResolver(enrolled, studentBatch);
+          const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
+            supabase.from('assessments').select('*').in('course_id', enrolled),
+            supabase.from('coding_questions').select('*').in('course_id', enrolled),
+            supabase.from('quizzes').select('*').in('course_id', enrolled),
+            supabase.from('projects').select('*').in('course_id', enrolled),
+          ]);
+          if (cancelled) return;
 
-        (assessRes.data || []).forEach((a: any) => {
-          if (a.target_batch && !targetsBatch(a.target_batch, studentBatch, a.target_batches, studentCat)) return;
-          const pub = norm(a.publish_status || a.status);
-          if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
-          const rawId = rawLessonLink(a);
-          const targetLessonId = resolver.resolveEntityLessonId(a) || (rawId ? resolver.resolveLessonId(rawId) : '');
-          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
-            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
-            addNotification(
-              {
-                id: `notif-assess-${a.id}`,
-                student_id: sid,
-                type: 'assignment',
-                title: 'New assessment available',
-                message: `${a.title || 'Assessment'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
-                read: false,
-                created_at: new Date().toISOString()
-              },
-              { showToast: true, persistDb: true }
-            );
-          }
-        });
+          const hasCourseworkNotif = (prefix: string, entityId: string) =>
+            existingById.has(`${prefix}-${entityId}`) ||
+            existingById.has(`${prefix}-${entityId}__${sid}`) ||
+            dismissedIds.has(`${prefix}-${entityId}`) ||
+            dismissedIds.has(`${prefix}-${entityId}__${sid}`);
 
-        (cqRes.data || []).forEach((cq: any) => {
-          if (cq.target_batch && !targetsBatch(cq.target_batch, studentBatch, cq.target_batches, studentCat)) return;
-          const rawId = rawLessonLink(cq);
-          const targetLessonId = resolver.resolveEntityLessonId(cq) || (rawId ? resolver.resolveLessonId(rawId) : '');
-          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
-            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
-            addNotification(
-              {
-                id: `notif-cq-${cq.id}`,
-                student_id: sid,
-                type: 'assignment',
-                title: 'New practice problem available',
-                message: `${cq.title || 'Practice problem'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
-                read: false,
-                created_at: new Date().toISOString()
-              },
-              { showToast: true, persistDb: true }
-            );
-          }
-        });
+          (assessRes.data || []).forEach((a: any) => {
+            if (a.target_batch && !targetsBatch(a.target_batch, studentBatch, a.target_batches, studentCat)) return;
+            const pub = norm(a.publish_status || a.status);
+            if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+            const rawId = rawLessonLink(a);
+            const targetLessonId = resolver.resolveEntityLessonId(a) || (rawId ? resolver.resolveLessonId(rawId) : '');
+            if ((targetLessonId && newlyLessonIdList.includes(targetLessonId)) || (rawId && newlyLessonIdList.includes(rawId))) {
+              if (hasCourseworkNotif('notif-assess', a.id)) return;
+              const lTitle = enrolledLessonMap.get(targetLessonId)?.title || (rawId ? enrolledLessonMap.get(rawId)?.title : '') || '';
+              addNotification(
+                {
+                  id: `notif-assess-${a.id}__${sid}`,
+                  student_id: sid,
+                  type: 'assignment',
+                  title: 'New assessment available',
+                  message: `${a.title || 'Assessment'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                  read: false,
+                  created_at: new Date().toISOString(),
+                },
+                { showToast: true, persistDb: true }
+              );
+            }
+          });
 
-        (quizRes.data || []).forEach((q: any) => {
-          if (q.target_batch && !targetsBatch(q.target_batch, studentBatch, q.target_batches, studentCat)) return;
-          const pub = norm(q.publish_status || q.status);
-          if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
-          const rawId = rawLessonLink(q);
-          const targetLessonId = resolver.resolveEntityLessonId(q) || (rawId ? resolver.resolveLessonId(rawId) : '');
-          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
-            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
-            addNotification(
-              {
-                id: `notif-quiz-${q.id}`,
-                student_id: sid,
-                type: 'assignment',
-                title: 'New weekly quiz available',
-                message: `${q.title || 'Quiz'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
-                read: false,
-                created_at: new Date().toISOString()
-              },
-              { showToast: true, persistDb: true }
-            );
-          }
-        });
+          (cqRes.data || []).forEach((cq: any) => {
+            if (cq.target_batch && !targetsBatch(cq.target_batch, studentBatch, cq.target_batches, studentCat)) return;
+            const rawId = rawLessonLink(cq);
+            const targetLessonId = resolver.resolveEntityLessonId(cq) || (rawId ? resolver.resolveLessonId(rawId) : '');
+            if ((targetLessonId && newlyLessonIdList.includes(targetLessonId)) || (rawId && newlyLessonIdList.includes(rawId))) {
+              if (hasCourseworkNotif('notif-cq', cq.id)) return;
+              const lTitle = enrolledLessonMap.get(targetLessonId)?.title || (rawId ? enrolledLessonMap.get(rawId)?.title : '') || '';
+              addNotification(
+                {
+                  id: `notif-cq-${cq.id}__${sid}`,
+                  student_id: sid,
+                  type: 'assignment',
+                  title: 'New practice problem available',
+                  message: `${cq.title || 'Practice problem'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                  read: false,
+                  created_at: new Date().toISOString(),
+                },
+                { showToast: true, persistDb: true }
+              );
+            }
+          });
 
-        (projRes.data || []).forEach((p: any) => {
-          if (p.target_batch && !targetsBatch(p.target_batch, studentBatch, p.target_batches, studentCat)) return;
-          const pub = norm(p.publish_status || p.status);
-          if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
-          const rawId = rawLessonLink(p);
-          const targetLessonId = resolver.resolveEntityLessonId(p) || (rawId ? resolver.resolveLessonId(rawId) : '');
-          if ((targetLessonId && newly.includes(targetLessonId)) || (rawId && newly.includes(rawId))) {
-            const lTitle = titleById[targetLessonId] || (rawId ? titleById[rawId] : '') || '';
-            addNotification(
-              {
-                id: `notif-project-${p.id}`,
-                student_id: sid,
-                type: 'assignment',
-                title: 'New project assigned',
-                message: `${p.title || 'Project'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
-                read: false,
-                created_at: new Date().toISOString()
-              },
-              { showToast: true, persistDb: true }
-            );
-          }
-        });
-      } catch (err) {
-        console.warn('Error checking coursework for newly unlocked lessons:', err);
+          (quizRes.data || []).forEach((q: any) => {
+            if (q.target_batch && !targetsBatch(q.target_batch, studentBatch, q.target_batches, studentCat)) return;
+            const pub = norm(q.publish_status || q.status);
+            if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+            const rawId = rawLessonLink(q);
+            const targetLessonId = resolver.resolveEntityLessonId(q) || (rawId ? resolver.resolveLessonId(rawId) : '');
+            if ((targetLessonId && newlyLessonIdList.includes(targetLessonId)) || (rawId && newlyLessonIdList.includes(rawId))) {
+              if (hasCourseworkNotif('notif-quiz', q.id)) return;
+              const lTitle = enrolledLessonMap.get(targetLessonId)?.title || (rawId ? enrolledLessonMap.get(rawId)?.title : '') || '';
+              addNotification(
+                {
+                  id: `notif-quiz-${q.id}__${sid}`,
+                  student_id: sid,
+                  type: 'assignment',
+                  title: 'New weekly quiz available',
+                  message: `${q.title || 'Quiz'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                  read: false,
+                  created_at: new Date().toISOString(),
+                },
+                { showToast: true, persistDb: true }
+              );
+            }
+          });
+
+          (projRes.data || []).forEach((p: any) => {
+            if (p.target_batch && !targetsBatch(p.target_batch, studentBatch, p.target_batches, studentCat)) return;
+            const pub = norm(p.publish_status || p.status);
+            if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
+            const rawId = rawLessonLink(p);
+            const targetLessonId = resolver.resolveEntityLessonId(p) || (rawId ? resolver.resolveLessonId(rawId) : '');
+            if ((targetLessonId && newlyLessonIdList.includes(targetLessonId)) || (rawId && newlyLessonIdList.includes(rawId))) {
+              if (hasCourseworkNotif('notif-project', p.id)) return;
+              const lTitle = enrolledLessonMap.get(targetLessonId)?.title || (rawId ? enrolledLessonMap.get(rawId)?.title : '') || '';
+              addNotification(
+                {
+                  id: `notif-project-${p.id}__${sid}`,
+                  student_id: sid,
+                  type: 'assignment',
+                  title: 'New project assigned',
+                  message: `${p.title || 'Project'} is now available${lTitle ? ` for ${lTitle}` : ''}.`,
+                  read: false,
+                  created_at: new Date().toISOString(),
+                },
+                { showToast: true, persistDb: true }
+              );
+            }
+          });
+        } catch (err) {
+          console.warn('Error checking coursework for newly unlocked lessons:', err);
+        }
       }
 
-      try { localStorage.setItem(key, JSON.stringify(ids)); } catch {}
+      if (cancelled) return;
+
+      // 3) Notify each newly unlocked module LAST so it sits at the very top of the drawer & is always in the visible toast stack
+      newlyUnlockedModuleIds.forEach((modId) => {
+        const modTitle = moduleTitleMap.get(modId) || '';
+        const cId = moduleCourseMap.get(modId) || '';
+        const courseTitle = cId ? (courseTitleMap.get(cId) || '') : '';
+        const modLocks = unlockedLocks.filter((l) => {
+          const meta = enrolledLessonMap.get(l.lesson_id);
+          return (meta?.module_id || l.module_id) === modId;
+        });
+        const modUnlockedAtMs = Math.max(0, ...modLocks.map((l) => l.unlockedAtMs || 0));
+        const stamp = modUnlockedAtMs ? `-${modUnlockedAtMs}` : '';
+        const createdIso = modUnlockedAtMs
+          ? new Date(Math.min(Date.now(), modUnlockedAtMs)).toISOString()
+          : new Date().toISOString();
+
+        addNotification(
+          {
+            id: `notif-unlock-mod-${modId}-${sid}${stamp}`,
+            student_id: sid,
+            type: 'milestones',
+            title: 'New module unlocked',
+            message: modTitle
+              ? `"${modTitle}" module${courseTitle ? ` in ${courseTitle}` : ''} is now unlocked.`
+              : 'A new milestone module is now unlocked.',
+            read: false,
+            created_at: createdIso,
+          },
+          { showToast: true, persistDb: true }
+        );
+      });
+
+      // Persist updated seen baselines ONLY after notifications are emitted
+      try {
+        localStorage.setItem(key, JSON.stringify(currentUnlockedIds));
+        localStorage.setItem(modKey, JSON.stringify(currentUnlockedModuleIds));
+      } catch {}
     })();
+
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, (user?.unlockedLessonIds || []).join(',')]);
+  }, [hydratedSid, user?.id, user?.locksLoaded, locksSignatureKey, (user?.enrolledCourses || []).join(',')]);
 
   // ── 2. Realtime subscriptions for DB changes → popup ──
   useEffect(() => {
@@ -529,7 +830,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (!unlocked) return;
 
       addNotification(
-        { id: `notif-assess-${row.id}`, student_id: sid, type: 'assignment',
+        { id: `notif-assess-${row.id}__${sid}`, student_id: sid, type: 'assignment',
           title: 'New assessment posted', message: row.title || 'A new assessment is available.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
@@ -554,7 +855,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (!unlocked) return;
 
       addNotification(
-        { id: `notif-project-${row.id}`, student_id: sid, type: 'assignment',
+        { id: `notif-project-${row.id}__${sid}`, student_id: sid, type: 'assignment',
           title: 'New project assigned', message: row.title || 'A new project is available.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
@@ -620,7 +921,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (!unlocked) return;
 
       addNotification(
-        { id: `notif-quiz-${row.id}`, student_id: sid, type: 'assignment',
+        { id: `notif-quiz-${row.id}__${sid}`, student_id: sid, type: 'assignment',
           title: 'New quiz posted', message: row.title || 'A new quiz is available.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
@@ -643,7 +944,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (!unlocked) return;
 
       addNotification(
-        { id: `notif-cq-${row.id}`, student_id: sid, type: 'assignment',
+        { id: `notif-cq-${row.id}__${sid}`, student_id: sid, type: 'assignment',
           title: 'New practice problem available', message: row.title || 'A new coding problem is available in Practice Lab.',
           read: false, created_at: new Date().toISOString() },
         { showToast: true, persistDb: true }
