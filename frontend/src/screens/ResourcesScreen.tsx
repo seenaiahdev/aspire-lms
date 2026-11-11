@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 
 import { resourcesSteps } from '@/lib/tourSteps';
 import { FileText, Download, BookOpen, Map as MapIcon, FileCode, LayoutTemplate, Clock, CheckCircle, Lock, Loader2, ExternalLink } from 'lucide-react';
@@ -40,6 +40,14 @@ const typeLabels: Record<string, string> = {
   guide: 'Guides',
 };
 
+const STANDARD_FILTER_TABS = [
+  { id: 'pdf', label: 'PDF Guides' },
+  { id: 'notes', label: 'Notes' },
+  { id: 'cheatsheet', label: 'Cheat Sheets' },
+  { id: 'roadmap', label: 'Roadmaps' },
+  { id: 'template', label: 'Templates' },
+] as const;
+
 function formatTypeLabel(t: string): string {
   if (typeLabels[t]) return typeLabels[t];
   return t
@@ -48,9 +56,35 @@ function formatTypeLabel(t: string): string {
     .join(' ');
 }
 
+function getResourceFilterMeta(r: any): { id: string; label: string } {
+  const cat = String(r.category || '').trim();
+  const typ = String(r.type || '').trim();
+  const combined = `${cat} ${typ}`.toLowerCase();
+
+  if (combined.includes('pdf')) return { id: 'pdf', label: 'PDF Guides' };
+  if (combined.includes('cheat')) return { id: 'cheatsheet', label: 'Cheat Sheets' };
+  if (combined.includes('road')) return { id: 'roadmap', label: 'Roadmaps' };
+  if (combined.includes('temp')) return { id: 'template', label: 'Templates' };
+  if (combined.includes('note')) return { id: 'notes', label: 'Notes' };
+
+  if (cat && cat.toLowerCase() !== 'general') {
+    return {
+      id: `cat:${cat.toLowerCase().replace(/\s+/g, '-')}`,
+      label: cat,
+    };
+  }
+
+  const fallbackType = typ || 'notes';
+  return {
+    id: fallbackType.toLowerCase().replace(/\s+/g, '-'),
+    label: formatTypeLabel(fallbackType),
+  };
+}
+
 export function ResourcesScreen() {
   const { user } = useUser();
   const [search, setSearch] = useState('');
+  const [selectedType, setSelectedType] = useState('all');
   const [resourcesList, setResourcesList] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [lockedToast, setLockedToast] = useState(false);
@@ -94,7 +128,46 @@ export function ResourcesScreen() {
     }
   };
 
+  const availableFilterTabs = useMemo(() => {
+    if (resourcesList.length === 0) return [];
+
+    const presentIds = new Set<string>();
+    const extraTabsMap = new Map<string, string>();
+    const standardIdSet = new Set<string>(STANDARD_FILTER_TABS.map((t) => t.id));
+
+    resourcesList.forEach((r) => {
+      const meta = getResourceFilterMeta(r);
+      presentIds.add(meta.id);
+      if (!standardIdSet.has(meta.id) && !extraTabsMap.has(meta.id)) {
+        extraTabsMap.set(meta.id, meta.label);
+      }
+    });
+
+    const tabs: { id: string; label: string }[] = [{ id: 'all', label: 'All Types' }];
+
+    for (const st of STANDARD_FILTER_TABS) {
+      if (presentIds.has(st.id)) {
+        tabs.push({ id: st.id, label: st.label });
+      }
+    }
+
+    for (const [id, label] of extraTabsMap.entries()) {
+      tabs.push({ id, label });
+    }
+
+    return tabs;
+  }, [resourcesList]);
+
+  // Reset active filter to 'all' if the currently selected category no longer has any resources
+  useEffect(() => {
+    if (selectedType !== 'all' && !availableFilterTabs.some((t) => t.id === selectedType)) {
+      setSelectedType('all');
+    }
+  }, [selectedType, availableFilterTabs]);
+
   const filtered = resourcesList.filter((r) => {
+    const matchesType = selectedType === 'all' || getResourceFilterMeta(r).id === selectedType;
+    if (!matchesType) return false;
     const term = search.trim().toLowerCase();
     if (!term) return true;
     return (
@@ -131,6 +204,30 @@ export function ResourcesScreen() {
           Download cheat sheets, roadmaps, study notes, and templates directly to your device.
         </p>
       </div>
+
+      {/* Dynamic Top Filter Tabs — only visible when >= 1 resource exists for that option */}
+      {availableFilterTabs.length > 0 && (
+        <div id="tour-resources-filters" className="flex items-center gap-2 overflow-x-auto scrollbar-hide py-1">
+          {availableFilterTabs.map((t) => {
+            const isActive = selectedType === t.id;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setSelectedType(t.id)}
+                className={cn(
+                  'px-4 py-2 rounded-full text-xs font-extrabold whitespace-nowrap transition-all duration-200 cursor-pointer shrink-0',
+                  isActive
+                    ? 'bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-md'
+                    : 'bg-slate-100 text-slate-700 hover:bg-slate-200/80 hover:text-slate-900'
+                )}
+              >
+                {t.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <SearchInput
         id="tour-resources-search"
