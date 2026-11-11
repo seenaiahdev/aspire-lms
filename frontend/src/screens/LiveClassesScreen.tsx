@@ -721,14 +721,11 @@ export function LiveClassesScreen() {
           <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
             <Video className="w-8 h-8" />
           </div>
-          <div className="space-y-2">
-            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider">
-              <Sparkles className="w-3 h-3" /> Coming Soon
-            </span>
+          <div>
             <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
               Classroom Coming Soon
             </h3>
-            <p className="text-slate-500 text-xs sm:text-sm max-w-md font-medium">
+            <p className="text-slate-500 text-xs sm:text-sm max-w-md font-medium mt-1">
               Interactive classroom sessions and in-class collaboration tools are on the way. Stay tuned!
             </p>
           </div>
