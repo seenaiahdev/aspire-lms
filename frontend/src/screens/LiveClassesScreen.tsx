@@ -27,12 +27,15 @@ export function LiveClassesScreen() {
   const { isUnlocked, isEntityUnlocked, resolver } = useUnlockResolver();
   const [tab, setTab] = useState(() => {
     if (route === 'recordings' || params.tab === 'completed' || params.tab === 'recordings') return 'completed';
+    if (params.tab === 'classroom') return 'classroom';
     return params.tab || localStorage.getItem('aspire_live_tab') || 'upcoming';
   });
 
   useEffect(() => {
     if (route === 'recordings' || params.tab === 'completed' || params.tab === 'recordings') {
       setTab('completed');
+    } else if (params.tab === 'classroom') {
+      setTab('classroom');
     } else if (route === 'live' && (!params.tab || params.tab === 'upcoming')) {
       setTab('upcoming');
     }
@@ -353,8 +356,10 @@ export function LiveClassesScreen() {
     localStorage.setItem('aspire_live_tab', newTab);
     if (newTab === 'completed') {
       if (route !== 'recordings') navigate('recordings');
+    } else if (newTab === 'classroom') {
+      if (route !== 'live' || params.tab !== 'classroom') navigate('live', { tab: 'classroom' });
     } else {
-      if (route !== 'live') navigate('live');
+      if (route !== 'live' || params.tab) navigate('live');
     }
   };
 
@@ -586,6 +591,7 @@ export function LiveClassesScreen() {
           tabs={[
             { id: 'upcoming', label: 'Upcoming & Live' },
             { id: 'completed', label: 'Recordings' },
+            { id: 'classroom', label: 'Classroom' },
           ]}
           active={tab}
           onChange={handleTabChange}
@@ -710,7 +716,24 @@ export function LiveClassesScreen() {
       )}
 
       {/* ── RECORDINGS & SESSIONS LIST/GRID VIEW ── */}
-      {sessionsLoading ? (
+      {tab === 'classroom' ? (
+        <div className="py-16 px-6 bg-white border border-slate-200/90 rounded-[2rem] text-center flex flex-col items-center justify-center space-y-4 shadow-2xs">
+          <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
+            <Video className="w-8 h-8" />
+          </div>
+          <div className="space-y-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-purple-50 border border-purple-100 text-[#7c3aed] text-[10px] font-black uppercase tracking-wider">
+              <Sparkles className="w-3 h-3" /> Coming Soon
+            </span>
+            <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
+              Classroom Coming Soon
+            </h3>
+            <p className="text-slate-500 text-xs sm:text-sm max-w-md font-medium">
+              Interactive classroom sessions and in-class collaboration tools are on the way. Stay tuned!
+            </p>
+          </div>
+        </div>
+      ) : sessionsLoading ? (
         <div className="flex justify-center py-16">
           <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
         </div>
