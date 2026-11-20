@@ -15,6 +15,8 @@ import {
   fetchCompletedLessons,
   fetchPresentations,
   fetchBatchStudentCount,
+  fetchAllLiveSessions,
+  fetchRecordings,
   PresentationRecord,
 } from './api';
 import { getLessonResolver, clearLessonResolverCache, LessonResolver } from './lessonLinkResolver';
@@ -561,12 +563,27 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
         }
         break;
       case 'live':
+        {
+          const b = user?.batchCode || 'A26W1';
+          prefetchQuery(
+            `all_live_sessions:${b}`,
+            () => fetchAllLiveSessions(b),
+            CACHE_TTL.DYNAMIC
+          );
+        }
+        break;
       case 'recordings':
-        prefetchQuery(
-          `live_sessions:${user?.batchCode || 'all'}`,
-          () => supabase.from('live_sessions').select('*').order('start_time', { ascending: false }),
-          CACHE_TTL.MEDIUM
-        );
+        {
+          const b = user?.batchCode || '';
+          const cat = user?.batchCategory || '';
+          const enrolled = user?.enrolledCourses || [];
+          const cacheKey = `recordings:${b}:${cat}:${[...enrolled].sort().join(',')}`;
+          prefetchQuery(
+            cacheKey,
+            () => fetchRecordings(b, cat, enrolled),
+            CACHE_TTL.DYNAMIC
+          );
+        }
         break;
       case 'practice':
         prefetchQuery(

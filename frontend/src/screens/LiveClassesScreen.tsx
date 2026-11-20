@@ -22,9 +22,12 @@ import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings, fetchPresenta
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { supabase } from '@/lib/supabase';
+import { getCached, invalidateCacheByPrefix } from '@/lib/queryCache';
 
 export function LiveClassesScreen() {
   const { navigate, params, route } = useNav();
+  const { user } = useUser();
+  const batchCode = user.batchCode || 'A26W1';
   const { isUnlocked, isEntityUnlocked, resolver } = useUnlockResolver();
   const [tab, setTab] = useState(() => {
     const searchTab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
@@ -47,8 +50,32 @@ export function LiveClassesScreen() {
   }, [route, params.tab]);
   const [reminders, setReminders] = useState<Record<string, boolean>>({});
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string } | null>(null);
-  const [dbSessions, setDbSessions] = useState<any[]>([]);
-  const [sessionsLoading, setSessionsLoading] = useState(true);
+
+  // Synchronous cache hydration: instant 0ms mount from in-memory or sessionStorage cache
+  const [dbSessions, setDbSessions] = useState<any[]>(() => {
+    try {
+      const mem = getCached<any[]>(`all_live_sessions:${batchCode}`);
+      if (Array.isArray(mem) && mem.length > 0) return mem;
+      const cached = sessionStorage.getItem(`aspire_live_sessions_${batchCode}`) || localStorage.getItem(`aspire_live_sessions_${batchCode}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+  const [sessionsLoading, setSessionsLoading] = useState(() => {
+    try {
+      const mem = getCached<any[]>(`all_live_sessions:${batchCode}`);
+      if (Array.isArray(mem) && mem.length > 0) return false;
+      const cached = sessionStorage.getItem(`aspire_live_sessions_${batchCode}`) || localStorage.getItem(`aspire_live_sessions_${batchCode}`);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return false;
+      }
+    } catch {}
+    return true;
+  });
   const [userCourses, setUserCourses] = useState<any[]>([]);
   const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
 
@@ -56,9 +83,6 @@ export function LiveClassesScreen() {
     const timer = setInterval(() => setCurrentTime(new Date()), 30000);
     return () => clearInterval(timer);
   }, []);
-
-  const { user } = useUser();
-  const batchCode = user.batchCode || 'A26W1';
 
   useEffect(() => {
     async function loadUserCourses() {
@@ -87,6 +111,7 @@ export function LiveClassesScreen() {
   const [classroomVisibleCount, setClassroomVisibleCount] = useState(12);
 
   useEffect(() => {
+    let timeoutId: any = null;
     async function loadPresentations() {
       setPresentationsLoading(true);
       try {
@@ -98,8 +123,20 @@ export function LiveClassesScreen() {
         setPresentationsLoading(false);
       }
     }
-    loadPresentations();
-  }, [user.enrolledCourses]);
+
+    if (tab === 'classroom') {
+      loadPresentations();
+    } else {
+      // Defer presentation loading so it never competes with initial live session display
+      timeoutId = setTimeout(() => {
+        loadPresentations();
+      }, 1500);
+    }
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [user.enrolledCourses, tab]);
 
   const isPptUnlocked = useCallback((ppt: PresentationRecord) => {
     if (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0) return false;
@@ -282,13 +319,37 @@ export function LiveClassesScreen() {
     };
   }, [primaryCourseTitle, userCourses]);
 
-  const loadSessions = useCallback(async () => {
-    setSessionsLoading(true);
+  const loadSessions = useCallback(async (showLoading = false) => {
+    if (showLoading && dbSessions.length === 0) {
+      setSessionsLoading(true);
+    }
     try {
-      const [liveData, recData] = await Promise.all([
-        fetchAllLiveSessions(batchCode),
-        fetchRecordings(batchCode, user.batchCategory, user.enrolledCourses)
-      ]);
+      // 1. Fetch live sessions first (fast path for "Upcoming & Live")
+      const livePromise = fetchAllLiveSessions(batchCode);
+
+      // Fast settlement for "Upcoming & Live" (100ms or 0ms if cached)
+      livePromise.then((liveData) => {
+        if (liveData && liveData.length > 0) {
+          setDbSessions((prev) => {
+            const recOnly = prev.filter((s: any) => s.isRecording);
+            const liveIds = new Set(liveData.map((s: any) => s.id));
+            const retainedRec = recOnly.filter((r: any) => !liveIds.has(r.id));
+            const next = [...liveData, ...retainedRec];
+            try {
+              sessionStorage.setItem(`aspire_live_sessions_${batchCode}`, JSON.stringify(next));
+            } catch {}
+            return next;
+          });
+          setSessionsLoading(false);
+        }
+      }).catch((err) => {
+        console.warn('Live sessions fast-path error:', err);
+      });
+
+      // 2. Fetch recordings concurrently in background without blocking
+      const recPromise = fetchRecordings(batchCode, user.batchCategory, user.enrolledCourses);
+
+      const [liveData, recData] = await Promise.all([livePromise, recPromise]);
 
       const normalizedRecordings = (recData || []).map((r: any) => {
         let parsedCourseId = r.course_id || '';
@@ -340,38 +401,56 @@ export function LiveClassesScreen() {
       }
 
       setDbSessions(combined);
+      try {
+        sessionStorage.setItem(`aspire_live_sessions_${batchCode}`, JSON.stringify(combined));
+      } catch {}
     } catch (err) {
       console.error("Failed to load live sessions:", err);
     } finally {
       setSessionsLoading(false);
     }
-  }, [batchCode, user.batchCategory, user.enrolledCourses]);
+  }, [batchCode, user.batchCategory, user.enrolledCourses, dbSessions.length]);
 
   useEffect(() => {
-    loadSessions();
+    loadSessions(dbSessions.length === 0);
   }, [loadSessions]);
 
   // Realtime subscription: auto-refresh when classes finish or recordings are published
   useEffect(() => {
+    let debounceTimer: any = null;
+
+    const handleRealtime = () => {
+      invalidateCacheByPrefix('all_live_sessions:');
+      invalidateCacheByPrefix('live_sessions:');
+      invalidateCacheByPrefix('recordings:');
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadSessions(false);
+      }, 200);
+    };
+
     const channel = supabase
       .channel(`live_classes_realtime_${Date.now()}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'recordings' },
-        () => {
-          loadSessions();
-        }
+        handleRealtime
       )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'live_sessions' },
-        () => {
-          loadSessions();
-        }
+        handleRealtime
       )
       .subscribe();
 
+    const handleFocus = () => {
+      loadSessions(false);
+    };
+    window.addEventListener('focus', handleFocus);
+
     return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      window.removeEventListener('focus', handleFocus);
       supabase.removeChannel(channel);
     };
   }, [loadSessions]);

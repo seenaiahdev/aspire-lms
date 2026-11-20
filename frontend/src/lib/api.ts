@@ -312,7 +312,7 @@ export async function fetchLiveSessions(batchCode: string) {
       console.warn('Exception in fetchLiveSessions:', err);
       return [];
     }
-  }, 30_000); // 30 seconds
+  }, 120_000); // 2 minutes (Realtime provides instant invalidation on updates)
 }
 
 /**
@@ -346,7 +346,7 @@ export async function fetchAllLiveSessions(batchCode: string) {
       console.warn('Exception in fetchAllLiveSessions:', err);
       return [];
     }
-  }, 30_000); // 30 seconds
+  }, 120_000); // 2 minutes (Realtime provides instant invalidation on updates)
 }
 
 /**
@@ -641,7 +641,7 @@ export async function fetchAssignments(batchCode: string, batchCategory?: string
     } catch {
       return [];
     }
-  }, 30_000); // 30 seconds
+  }, 120_000); // 2 minutes (Realtime provides instant invalidation on updates)
 }
 
 // ════════════════════════════════════════════════════════════════
@@ -1395,7 +1395,7 @@ export async function fetchLeaderboard() {
     } catch {
       return [];
     }
-  }, 30_000); // 30 seconds
+  }, 120_000); // 2 minutes (Realtime provides instant invalidation on updates)
 }
 
 // ════════════════════════════════════════════════════════════════
