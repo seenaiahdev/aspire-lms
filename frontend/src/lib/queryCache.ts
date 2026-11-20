@@ -50,7 +50,15 @@ function readSessionStorage<T>(key: string): CacheEntry<T> | null {
   try {
     const raw = window.sessionStorage.getItem('qc:' + key);
     if (!raw) return null;
-    const parsed = JSON.parse(raw);
+    const parsed = JSON.parse(raw, (_k, v) => {
+      if (v && typeof v === 'object' && v.__dataType === 'Set' && Array.isArray(v.values)) {
+        return new Set(v.values);
+      }
+      if (v && typeof v === 'object' && v.__dataType === 'Map' && Array.isArray(v.entries)) {
+        return new Map(v.entries);
+      }
+      return v;
+    });
     if (parsed && typeof parsed === 'object' && typeof parsed.expiresAt === 'number') {
       return parsed;
     }
@@ -61,7 +69,16 @@ function readSessionStorage<T>(key: string): CacheEntry<T> | null {
 function writeSessionStorage<T>(key: string, entry: CacheEntry<T>): void {
   if (typeof window === 'undefined' || !window.sessionStorage) return;
   try {
-    window.sessionStorage.setItem('qc:' + key, JSON.stringify(entry));
+    const serialized = JSON.stringify(entry, (_k, v) => {
+      if (v instanceof Set) {
+        return { __dataType: 'Set', values: Array.from(v) };
+      }
+      if (v instanceof Map) {
+        return { __dataType: 'Map', entries: Array.from(v.entries()) };
+      }
+      return v;
+    });
+    window.sessionStorage.setItem('qc:' + key, serialized);
   } catch {}
 }
 

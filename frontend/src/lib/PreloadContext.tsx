@@ -113,6 +113,32 @@ const PreloadContext = createContext<PreloadState>(defaultState);
 // Helpers (mirrors LearningScreen logic exactly)
 // ─────────────────────────────────────────────
 
+function toSafeSet(input: any): Set<string> {
+  if (!input) return new Set();
+  if (input instanceof Set) return input;
+  if (Array.isArray(input)) return new Set(input.map(String));
+  if (typeof input === 'object') {
+    if (input.__dataType === 'Set' && Array.isArray(input.values)) {
+      return new Set(input.values.map(String));
+    }
+    return new Set(Object.keys(input));
+  }
+  return new Set();
+}
+
+function toSafeMap(input: any): Map<string, any> {
+  if (!input) return new Map();
+  if (input instanceof Map) return input;
+  if (Array.isArray(input)) return new Map(input);
+  if (typeof input === 'object') {
+    if (input.__dataType === 'Map' && Array.isArray(input.entries)) {
+      return new Map(input.entries);
+    }
+    return new Map(Object.entries(input));
+  }
+  return new Map();
+}
+
 const normTitle = (s: any) =>
   String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 
@@ -170,6 +196,14 @@ function buildCourseSyllabusTree({
   recByTitle,
   presentationsData,
 }: BuildSyllabusParams) {
+  const safeDoneLessons = toSafeSet(doneLessons);
+  const safeDoneAssess = toSafeSet(doneAssess);
+  const safeFailedAssess = toSafeSet(failedAssess);
+  const safeDoneQuiz = toSafeSet(doneQuiz);
+  const safeFailedQuiz = toSafeSet(failedQuiz);
+  const safeDonePractice = toSafeSet(donePractice);
+  const safeRecByTitle = toSafeMap(recByTitle);
+
   const userBatch = (batchCode || '').trim().toLowerCase();
   const userCat = (batchCategory || '').trim().toLowerCase();
 
@@ -250,12 +284,12 @@ function buildCourseSyllabusTree({
               id: cq.id,
               title: cq.title,
               duration: '20m',
-              completed: donePractice.has(cq.id) || donePractice.has(String(cq.id || '').trim()),
+              completed: safeDonePractice.has(cq.id) || safeDonePractice.has(String(cq.id || '').trim()),
             }));
 
             const lessonAssessments = dbAssessments.map((asmnt: any) => {
-              const isDone = doneAssess.has(asmnt.id) || doneAssess.has(String(asmnt.id || '').trim());
-              const isFailed = !isDone && (failedAssess.has(asmnt.id) || failedAssess.has(String(asmnt.id || '').trim()));
+              const isDone = safeDoneAssess.has(asmnt.id) || safeDoneAssess.has(String(asmnt.id || '').trim());
+              const isFailed = !isDone && (safeFailedAssess.has(asmnt.id) || safeFailedAssess.has(String(asmnt.id || '').trim()));
               return {
                 id: asmnt.id,
                 title: asmnt.title,
@@ -274,7 +308,7 @@ function buildCourseSyllabusTree({
                 } catch {}
               }
               const isOverdue = isDueDatePassed(dueDate);
-              const isManualDone = donePractice.has(p.id) || donePractice.has(String(p.id || '').trim());
+              const isManualDone = safeDonePractice.has(p.id) || safeDonePractice.has(String(p.id || '').trim());
               return {
                 id: p.id,
                 title: p.title,
@@ -285,8 +319,8 @@ function buildCourseSyllabusTree({
             });
 
             const lessonQuizzes = dbQuizzes.map((q: any) => {
-              const isDone = doneQuiz.has(q.id) || doneQuiz.has(String(q.id || '').trim());
-              const isFailed = !isDone && (failedQuiz.has(q.id) || failedQuiz.has(String(q.id || '').trim()));
+              const isDone = safeDoneQuiz.has(q.id) || safeDoneQuiz.has(String(q.id || '').trim());
+              const isFailed = !isDone && (safeFailedQuiz.has(q.id) || safeFailedQuiz.has(String(q.id || '').trim()));
               return {
                 id: q.id,
                 title: q.title,
@@ -296,10 +330,10 @@ function buildCourseSyllabusTree({
               };
             });
 
-            const videoCompleted = doneLessons.has(l.id) || doneLessons.has(String(l.id || '').trim());
+            const videoCompleted = safeDoneLessons.has(l.id) || safeDoneLessons.has(String(l.id || '').trim());
             const items = [...practices, ...lessonAssessments, ...lessonProjects, ...lessonQuizzes];
             const lessonCompleted = videoCompleted && items.every((it: any) => it.completed);
-            const rec = recByTitle.get(normTitle(l.title));
+            const rec = safeRecByTitle.get(normTitle(l.title));
 
             const matchingPpt = (presentationsData || []).find((p: any) => {
               if (p.inner_topic_id && (p.inner_topic_id === l.id || resolver.resolveLessonId(p.inner_topic_id) === l.id)) {
