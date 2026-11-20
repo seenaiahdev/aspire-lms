@@ -21,7 +21,6 @@ import { cn, resolveLiveClassStatus } from '@/lib/utils';
 import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings, fetchPresentations, PresentationRecord } from '@/lib/api';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
-import { PresentationViewerModal } from '@/components/ui/PresentationViewerModal';
 import { supabase } from '@/lib/supabase';
 
 export function LiveClassesScreen() {
@@ -73,7 +72,6 @@ export function LiveClassesScreen() {
   // Presentations state for Classroom tab & live session quick reference
   const [presentations, setPresentations] = useState<PresentationRecord[]>([]);
   const [presentationsLoading, setPresentationsLoading] = useState(false);
-  const [selectedPresentation, setSelectedPresentation] = useState<PresentationRecord | null>(null);
   const [classroomSearch, setClassroomSearch] = useState('');
   const [classroomStage, setClassroomStage] = useState('all');
   const [classroomVisibleCount, setClassroomVisibleCount] = useState(12);
@@ -861,17 +859,6 @@ export function LiveClassesScreen() {
                 </button>
               )}
             </div>
-
-            {/* Quick Stats Pill */}
-            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 pt-2 border-t border-slate-100">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-purple-500" />
-                <span>Showing {filteredClassroomPresentations.length} Unlocked Study Decks</span>
-              </div>
-              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-extrabold flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-[#7c3aed]" /> View Only Mode
-              </span>
-            </div>
           </div>
 
           {/* Classroom Decks Grid */}
@@ -914,7 +901,7 @@ export function LiveClassesScreen() {
                 {paginatedClassroomPresentations.map((ppt) => (
                   <div
                     key={ppt.id}
-                    onClick={() => setSelectedPresentation(ppt)}
+                    onClick={() => navigate('presentation', { id: ppt.id, from: 'classroom' })}
                     className="p-5 rounded-[1.5rem] bg-white border border-slate-200/90 hover:border-purple-300 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
                   >
                     <div>
@@ -956,17 +943,20 @@ export function LiveClassesScreen() {
                       <span className="text-[11px] font-bold text-slate-400">
                         {ppt.created_date || 'Classroom Deck'}
                       </span>
-                      <button
-                        type="button"
+                      <a
+                        href={`/presentation?id=${ppt.id}&from=classroom`}
                         onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPresentation(ppt);
+                          if (!e.ctrlKey && !e.metaKey) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            navigate('presentation', { id: ppt.id, from: 'classroom' });
+                          }
                         }}
                         className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-[#7c3aed] text-[#7c3aed] hover:text-white font-extrabold text-xs transition-colors flex items-center gap-1.5 shadow-2xs group-hover:bg-[#7c3aed] group-hover:text-white"
                       >
                         <span>Open Slides</span>
                         <ExternalLink className="w-3 h-3" />
-                      </button>
+                      </a>
                     </div>
                   </div>
                 ))}
@@ -1168,7 +1158,7 @@ export function LiveClassesScreen() {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setSelectedPresentation(sessionPpt);
+                              navigate('presentation', { id: sessionPpt.id, from: 'classroom' });
                             }}
                             className="px-3.5 py-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
                             title="View Live Class Slides (View Only)"
@@ -1296,12 +1286,6 @@ export function LiveClassesScreen() {
           </div>
         </div>
       )}
-      {/* View-Only Presentation Modal */}
-      <PresentationViewerModal
-        isOpen={!!selectedPresentation}
-        onClose={() => setSelectedPresentation(null)}
-        presentation={selectedPresentation}
-      />
     </div>
   );
 }

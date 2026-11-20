@@ -14,7 +14,6 @@ import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
 import { usePreload } from '@/lib/PreloadContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
-import { PresentationViewerModal } from '@/components/ui/PresentationViewerModal';
 
 // Struct for Daily 2-3 Python Topics
 interface PythonTopic {
@@ -173,7 +172,6 @@ export function DashboardScreen() {
   // Presentations & lesson locking state
   const { isUnlocked, isEntityUnlocked, resolver } = useUnlockResolver();
   const [presentations, setPresentations] = useState<PresentationRecord[]>([]);
-  const [selectedPresentation, setSelectedPresentation] = useState<PresentationRecord | null>(null);
 
   useEffect(() => {
     async function loadPresentations() {
@@ -1015,7 +1013,7 @@ export function DashboardScreen() {
                               type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                setSelectedPresentation(sessionPpt);
+                                navigate('presentation', { id: sessionPpt.id, from: 'dashboard' });
                               }}
                               className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
                               title="View Live Class Slides (View Only)"
@@ -1132,12 +1130,6 @@ export function DashboardScreen() {
 
       </div>
 
-      {/* View-Only Presentation Modal */}
-      <PresentationViewerModal
-        isOpen={!!selectedPresentation}
-        onClose={() => setSelectedPresentation(null)}
-        presentation={selectedPresentation}
-      />
     </div>
   );
 }

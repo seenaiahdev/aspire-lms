@@ -17,7 +17,6 @@ import { usePreload } from '@/lib/PreloadContext';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 import { invalidateCache } from '@/lib/queryCache';
-import { PresentationViewerModal } from '@/components/ui/PresentationViewerModal';
 
 import { learningSteps } from '@/lib/tourSteps';
 
@@ -174,7 +173,6 @@ export function LearningScreen() {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<any | null>(null);
-  const [selectedPresentation, setSelectedPresentation] = useState<PresentationRecord | null>(null);
   const [expandedModule, setExpandedModule] = useState<number | null>(0);
   const [lockedToast, setLockedToast] = useState(false);
   const [dbCourses, setDbCourses] = useState<any[]>(() => (preload.ready ? preload.courses : []));
@@ -998,6 +996,7 @@ export function LearningScreen() {
                               const quizzes = mod.lessons?.reduce((n: number, l: any) => n + (l.quizzes?.length || 0), 0) || 0;
                               const assessments = mod.lessons?.reduce((n: number, l: any) => n + (l.assessments?.length || 0), 0) || 0;
                               const projects = mod.lessons?.reduce((n: number, l: any) => n + (l.projects?.length || 0), 0) || 0;
+                              const slides = mod.lessons?.filter((l: any) => !!l.presentation).length || 0;
                               const coding = 0; // Coding labs are merged into `practices`.
 
                               const isModLocked = !mod.lessons?.some((l: any) => localUnlockedLessonIds.includes(l.id));
@@ -1152,6 +1151,31 @@ export function LearningScreen() {
                                           >
                                             <FolderOpen className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
                                             <span>{projects} Project{projects > 1 ? 's' : ''}</span>
+                                          </button>
+                                        )}
+                                        {slides > 0 && (
+                                          <button
+                                            type="button"
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (isModLocked) return;
+                                              const firstPpt = mod.lessons?.find((l: any) => !!l.presentation)?.presentation;
+                                              if (firstPpt) {
+                                                navigate('presentation', { id: firstPpt.id, from: 'milestones' });
+                                              } else {
+                                                navigate('live', { tab: 'classroom' });
+                                              }
+                                            }}
+                                            title="View Lesson Presentation Slides"
+                                            className={cn(
+                                              "text-[11px] font-semibold px-2 py-0.5 rounded-lg flex items-center gap-1.5 border shrink-0 whitespace-nowrap transition-transform active:scale-95",
+                                              isModLocked 
+                                                ? "text-slate-400 bg-slate-50/50 border-slate-200/50 cursor-not-allowed" 
+                                                : "text-purple-700 bg-purple-50/90 hover:bg-purple-100 hover:border-purple-300 border-purple-200/80 cursor-pointer shadow-2xs"
+                                            )}
+                                          >
+                                            <PresentationIcon className="w-3.5 h-3.5 shrink-0 text-[#7c3aed]" />
+                                            <span>{slides} Slide Deck{slides > 1 ? 's' : ''}</span>
                                           </button>
                                         )}
                                       </div>
@@ -1594,7 +1618,10 @@ export function LearningScreen() {
                             {/* CLASS PRESENTATION DECK (VIEW ONLY) */}
                             {lesson.presentation && !isLessonLocked && (
                               <div 
-                                onClick={() => setSelectedPresentation(lesson.presentation)}
+                                onClick={() => {
+                                  setSelectedTopicDrawer(null);
+                                  navigate('presentation', { id: lesson.presentation.id, from: 'milestones' });
+                                }}
                                 className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition-all flex items-center justify-between gap-3 cursor-pointer group/item active:scale-[0.99]"
                               >
                                 <div className="flex items-start gap-3 min-w-0">
@@ -1880,13 +1907,6 @@ export function LearningScreen() {
           </div>
         </div>
       )}
-
-      {/* View-Only Presentation Modal */}
-      <PresentationViewerModal
-        isOpen={!!selectedPresentation}
-        onClose={() => setSelectedPresentation(null)}
-        presentation={selectedPresentation}
-      />
     </div>
   );
 }

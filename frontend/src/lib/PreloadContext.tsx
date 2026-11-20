@@ -15,6 +15,8 @@ import { supabase } from './supabase';
 import {
   fetchCoursesByIds,
   fetchCompletedLessons,
+  fetchPresentations,
+  PresentationRecord,
 } from './api';
 import { getLessonResolver, clearLessonResolverCache } from './lessonLinkResolver';
 import { isDueDatePassed } from './utils';
@@ -43,6 +45,8 @@ export interface PreloadState {
   donePractice: Set<string>;
   /** Recordings keyed by normalised lesson title */
   recByTitle: Map<string, any>;
+  /** Presentation slides cached in real time */
+  presentations: PresentationRecord[];
   /** Bump this to force a full re-prefetch (e.g. after realtime content change) */
   reloadKey: number;
   bumpReload: () => void;
@@ -53,6 +57,7 @@ const defaultState: PreloadState = {
   loading: false,
   courses: [],
   syllabi: {},
+  presentations: [],
   completedLessons: new Set(),
   doneAssess: new Set(),
   failedAssess: new Set(),
@@ -154,6 +159,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           psRes,
           recRes,
           doneLessons,
+          presentationsData,
         ] = await Promise.all([
           fetchCoursesByIds(enrolledCourses),
           supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds),
@@ -161,6 +167,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           supabase.from('practice_submissions').select('problem_id').in('student_id', userLookupIds),
           supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status, instructions').order('created_at', { ascending: false }).limit(60),
           fetchCompletedLessons(sid),
+          fetchPresentations(enrolledCourses),
         ]);
 
         if (cancelled) return;
@@ -339,6 +346,14 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
                     const lessonCompleted = videoCompleted && items.every((it: any) => it.completed);
                     const rec = recByTitle.get(normTitle(l.title));
 
+                    const matchingPpt = (presentationsData || []).find((p: any) => {
+                      if (p.inner_topic_id && (p.inner_topic_id === l.id || resolver.resolveLessonId(p.inner_topic_id) === l.id)) {
+                        return true;
+                      }
+                      const pTitle = normTitle(p.title || p.lesson_name);
+                      return !!pTitle && pTitle === lessonTitleKey;
+                    });
+
                     return {
                       id: l.id,
                       title: l.title,
@@ -346,6 +361,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
                       completed: lessonCompleted,
                       videoCompleted,
                       coverTopics: resolver.getCoverTopics(l.id),
+                      presentation: matchingPpt || null,
                       video: {
                         preview: idx === 0,
                         duration: rec?.duration || '45m',
@@ -374,6 +390,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           loading: false,
           courses: courses || [],
           syllabi: syllabiMap,
+          presentations: presentationsData || [],
           completedLessons: doneLessons,
           doneAssess,
           failedAssess,

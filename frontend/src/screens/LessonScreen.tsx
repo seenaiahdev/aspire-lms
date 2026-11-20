@@ -15,7 +15,6 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
-import { PresentationViewerModal } from '@/components/ui/PresentationViewerModal';
 
 /**
  * Turns an admin-pasted video link into an embeddable URL. Supports Google Drive share links
@@ -785,7 +784,7 @@ export function LessonScreen() {
               <Button
                 size="sm"
                 variant="secondary"
-                onClick={() => setSelectedPpt(currentLessonPpt)}
+                onClick={() => navigate('presentation', { id: currentLessonPpt.id, from: 'lesson' })}
                 leftIcon={<PresentationIcon className="w-4 h-4 text-[#7c3aed]" />}
                 className="rounded-xl font-extrabold text-xs bg-purple-50 text-[#7c3aed] border border-purple-100 hover:bg-purple-100"
               >
@@ -853,10 +852,10 @@ export function LessonScreen() {
             {lessonSubTab === 'slides' && currentLessonPpt && (
               <button
                 type="button"
-                onClick={() => setSelectedPpt(currentLessonPpt)}
+                onClick={() => navigate('presentation', { id: currentLessonPpt.id, from: 'lesson' })}
                 className="text-xs font-extrabold text-[#7c3aed] hover:underline flex items-center gap-1 cursor-pointer"
               >
-                <span>Full Screen</span>
+                <span>Full Page View</span>
                 <ExternalLink className="w-3 h-3" />
               </button>
             )}
@@ -1013,13 +1012,6 @@ export function LessonScreen() {
           </div>
         </div>
       )}
-
-      {/* View-Only Presentation Modal */}
-      <PresentationViewerModal
-        isOpen={!!selectedPpt}
-        onClose={() => setSelectedPpt(null)}
-        presentation={selectedPpt}
-      />
     </div>
   );
 }

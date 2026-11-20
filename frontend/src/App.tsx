@@ -20,6 +20,7 @@ const CourseScreen = lazy(() => import('@/screens/CourseScreen').then(m => ({ de
 const LessonScreen = lazy(() => import('@/screens/LessonScreen').then(m => ({ default: m.LessonScreen })));
 const LiveClassesScreen = lazy(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassesScreen })));
 const LiveClassroomScreen = lazy(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassroomScreen })));
+const PresentationScreen = lazy(() => import('@/screens/PresentationScreen').then(m => ({ default: m.PresentationScreen })));
 const AssignmentsScreen = lazy(() => import('@/screens/AssignmentsScreen').then(m => ({ default: m.AssignmentsScreen })));
 const PracticeScreen = lazy(() => import('@/screens/PracticeScreen').then(m => ({ default: m.PracticeScreen })));
 const WorkspaceScreen = lazy(() => import('@/screens/WorkspaceScreen').then(m => ({ default: m.WorkspaceScreen })));
@@ -129,6 +130,7 @@ function Router() {
           case 'live': return <LiveClassesScreen />;
           case 'recordings': return <LiveClassesScreen />;
           case 'classroom': return <LiveClassroomScreen />;
+          case 'presentation': return <PresentationScreen />;
           case 'assignments':
           case 'daily-assessment': return <AssignmentsScreen />;
           case 'practice': return <PracticeScreen />;
