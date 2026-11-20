@@ -1633,9 +1633,6 @@ export function LearningScreen() {
                                       <span className="text-[10px] font-extrabold uppercase text-[#7c3aed] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
                                         CLASS SLIDES
                                       </span>
-                                      <span className="text-[10px] font-extrabold uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-1">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> View Only
-                                      </span>
                                     </div>
                                     <h4 className="font-bold text-slate-900 text-sm mt-1 leading-tight group-hover/item:text-[#7c3aed] transition-colors truncate">
                                       {lesson.presentation.title || lesson.title}

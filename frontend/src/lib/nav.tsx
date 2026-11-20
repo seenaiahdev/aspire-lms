@@ -179,7 +179,11 @@ export function NavProvider({ children }: { children: ReactNode }) {
       if (!isLoggedIn && !AUTH_ROUTES.includes(base)) {
         navigate('login');
       } else {
+        const searchParams = new URLSearchParams(window.location.search);
+        const newParams: Record<string, string> = {};
+        searchParams.forEach((value, key) => { newParams[key] = value; });
         setRoute(base);
+        setParams(newParams);
       }
     };
 

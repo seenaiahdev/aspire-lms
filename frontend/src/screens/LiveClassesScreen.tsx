@@ -27,17 +27,21 @@ export function LiveClassesScreen() {
   const { navigate, params, route } = useNav();
   const { isUnlocked, isEntityUnlocked, resolver } = useUnlockResolver();
   const [tab, setTab] = useState(() => {
-    if (route === 'recordings' || params.tab === 'completed' || params.tab === 'recordings') return 'completed';
-    if (params.tab === 'classroom') return 'classroom';
-    return params.tab || localStorage.getItem('aspire_live_tab') || 'upcoming';
+    const searchTab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
+    const effectiveTab = params.tab || searchTab;
+    if (route === 'recordings' || effectiveTab === 'completed' || effectiveTab === 'recordings') return 'completed';
+    if (effectiveTab === 'classroom') return 'classroom';
+    return effectiveTab || localStorage.getItem('aspire_live_tab') || 'upcoming';
   });
 
   useEffect(() => {
-    if (route === 'recordings' || params.tab === 'completed' || params.tab === 'recordings') {
+    const searchTab = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
+    const effectiveTab = params.tab || searchTab;
+    if (route === 'recordings' || effectiveTab === 'completed' || effectiveTab === 'recordings') {
       setTab('completed');
-    } else if (params.tab === 'classroom') {
+    } else if (effectiveTab === 'classroom') {
       setTab('classroom');
-    } else if (route === 'live' && (!params.tab || params.tab === 'upcoming')) {
+    } else if (route === 'live' && (!effectiveTab || effectiveTab === 'upcoming')) {
       setTab('upcoming');
     }
   }, [route, params.tab]);
@@ -420,6 +424,15 @@ export function LiveClassesScreen() {
     localStorage.setItem('aspire_live_view_mode', mode);
   };
 
+  const [classroomViewMode, setClassroomViewMode] = useState<'grid' | 'list'>(() => {
+    return (localStorage.getItem('aspire_classroom_view_mode') as 'grid' | 'list') || 'grid';
+  });
+
+  const handleClassroomViewModeChange = (mode: 'grid' | 'list') => {
+    setClassroomViewMode(mode);
+    localStorage.setItem('aspire_classroom_view_mode', mode);
+  };
+
   // ── Recordings (completed tab): pagination (10 per page) ──
   const RECORDINGS_PER_PAGE = 10;
   const [recordingsPage, setRecordingsPage] = useState<number>(1);
@@ -698,24 +711,24 @@ export function LiveClassesScreen() {
           onChange={handleTabChange}
         />
 
-        {/* View Mode on Recordings tab */}
-        {tab === 'completed' && (
+        {/* View Mode on Recordings or Classroom tab */}
+        {(tab === 'completed' || tab === 'classroom') && (
           <div className="flex items-center gap-1 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs self-end sm:self-auto shrink-0">
             <button
-              onClick={() => handleViewModeChange('grid')}
+              onClick={() => tab === 'classroom' ? handleClassroomViewModeChange('grid') : handleViewModeChange('grid')}
               className={cn(
                 "p-1.5 rounded-lg transition-all",
-                viewMode === 'grid' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
+                (tab === 'classroom' ? classroomViewMode === 'grid' : viewMode === 'grid') ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
               )}
               title="Grid View"
             >
               <LayoutGrid className="w-4 h-4" />
             </button>
             <button
-              onClick={() => handleViewModeChange('list')}
+              onClick={() => tab === 'classroom' ? handleClassroomViewModeChange('list') : handleViewModeChange('list')}
               className={cn(
                 "p-1.5 rounded-lg transition-all",
-                viewMode === 'list' ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
+                (tab === 'classroom' ? classroomViewMode === 'list' : viewMode === 'list') ? "bg-purple-50 text-[#7c3aed] border border-purple-200" : "text-slate-400 hover:text-slate-700"
               )}
               title="Compact List View"
             >
@@ -897,70 +910,129 @@ export function LiveClassesScreen() {
             </div>
           ) : (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                {paginatedClassroomPresentations.map((ppt) => (
-                  <div
-                    key={ppt.id}
-                    onClick={() => navigate('presentation', { id: ppt.id, from: 'classroom' })}
-                    className="p-5 rounded-[1.5rem] bg-white border border-slate-200/90 hover:border-purple-300 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
-                  >
-                    <div>
-                      {/* Top Banner Accent */}
-                      <div className="flex items-center justify-between gap-2 mb-3">
-                        <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                          <PresentationIcon className="w-3 h-3 text-[#7c3aed]" />
-                          <span>Google Slides</span>
-                        </span>
-                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
-                          View Only
-                        </span>
+              {classroomViewMode === 'list' ? (
+                <div className="space-y-3">
+                  {paginatedClassroomPresentations.map((ppt) => (
+                    <div
+                      key={ppt.id}
+                      onClick={() => {
+                        localStorage.setItem('aspire_live_tab', 'classroom');
+                        navigate('presentation', { id: ppt.id, from: 'classroom' });
+                      }}
+                      className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200/90 hover:border-purple-300 shadow-2xs hover:shadow-md transition-all duration-200 cursor-pointer group flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+                    >
+                      <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                        <div className="w-10 h-10 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                          <PresentationIcon className="w-5 h-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
+                              Google Slides
+                            </span>
+                            {ppt.subtopic_name && (
+                              <span className="text-[11px] font-semibold text-slate-500 truncate max-w-[200px] flex items-center gap-1">
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                                {ppt.subtopic_name}
+                              </span>
+                            )}
+                          </div>
+                          <h4 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-[#7c3aed] transition-colors leading-snug truncate">
+                            {ppt.title || ppt.lesson_name}
+                          </h4>
+                          {ppt.lesson_name && (
+                            <p className="text-xs text-slate-500 font-semibold truncate flex items-center gap-1.5 mt-0.5">
+                              <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>Lesson: {ppt.lesson_name}</span>
+                            </p>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Presentation Title */}
-                      <h4 className="font-extrabold text-base text-slate-900 group-hover:text-[#7c3aed] transition-colors leading-snug line-clamp-2 mb-2">
-                        {ppt.title || ppt.lesson_name}
-                      </h4>
-
-                      {/* Lesson & Subtopic Meta */}
-                      <div className="space-y-1.5 text-xs text-slate-500 font-semibold mb-4">
-                        {ppt.subtopic_name && (
-                          <p className="line-clamp-1 flex items-center gap-1.5 text-slate-600">
-                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
-                            <span>{ppt.subtopic_name}</span>
-                          </p>
-                        )}
-                        {ppt.lesson_name && (
-                          <p className="line-clamp-1 flex items-center gap-1.5 text-slate-500">
-                            <FileText className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>Lesson: {ppt.lesson_name}</span>
-                          </p>
-                        )}
+                      <div className="shrink-0 flex items-center self-end sm:self-center">
+                        <a
+                          href={`/presentation?id=${ppt.id}&from=classroom`}
+                          onClick={(e) => {
+                            if (!e.ctrlKey && !e.metaKey) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              localStorage.setItem('aspire_live_tab', 'classroom');
+                              navigate('presentation', { id: ppt.id, from: 'classroom' });
+                            }
+                          }}
+                          className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-[#7c3aed] text-[#7c3aed] hover:text-white font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-2xs group-hover:bg-[#7c3aed] group-hover:text-white active:scale-95"
+                        >
+                          <span>Open Slides</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
                       </div>
                     </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {paginatedClassroomPresentations.map((ppt) => (
+                    <div
+                      key={ppt.id}
+                      onClick={() => {
+                        localStorage.setItem('aspire_live_tab', 'classroom');
+                        navigate('presentation', { id: ppt.id, from: 'classroom' });
+                      }}
+                      className="p-5 rounded-[1.5rem] bg-white border border-slate-200/90 hover:border-purple-300 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+                    >
+                      <div>
+                        {/* Top Banner Accent */}
+                        <div className="flex items-center justify-between gap-2 mb-3">
+                          <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                            <PresentationIcon className="w-3 h-3 text-[#7c3aed]" />
+                            <span>Google Slides</span>
+                          </span>
+                        </div>
 
-                    {/* Bottom Action Footer */}
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-slate-400">
-                        {ppt.created_date || 'Classroom Deck'}
-                      </span>
-                      <a
-                        href={`/presentation?id=${ppt.id}&from=classroom`}
-                        onClick={(e) => {
-                          if (!e.ctrlKey && !e.metaKey) {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            navigate('presentation', { id: ppt.id, from: 'classroom' });
-                          }
-                        }}
-                        className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-[#7c3aed] text-[#7c3aed] hover:text-white font-extrabold text-xs transition-colors flex items-center gap-1.5 shadow-2xs group-hover:bg-[#7c3aed] group-hover:text-white"
-                      >
-                        <span>Open Slides</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                        {/* Presentation Title */}
+                        <h4 className="font-extrabold text-base text-slate-900 group-hover:text-[#7c3aed] transition-colors leading-snug line-clamp-2 mb-2">
+                          {ppt.title || ppt.lesson_name}
+                        </h4>
+
+                        {/* Lesson & Subtopic Meta */}
+                        <div className="space-y-1.5 text-xs text-slate-500 font-semibold mb-4">
+                          {ppt.subtopic_name && (
+                            <p className="line-clamp-1 flex items-center gap-1.5 text-slate-600">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                              <span>{ppt.subtopic_name}</span>
+                            </p>
+                          )}
+                          {ppt.lesson_name && (
+                            <p className="line-clamp-1 flex items-center gap-1.5 text-slate-500">
+                              <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>Lesson: {ppt.lesson_name}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Bottom Action Footer */}
+                      <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
+                        <a
+                          href={`/presentation?id=${ppt.id}&from=classroom`}
+                          onClick={(e) => {
+                            if (!e.ctrlKey && !e.metaKey) {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              localStorage.setItem('aspire_live_tab', 'classroom');
+                              navigate('presentation', { id: ppt.id, from: 'classroom' });
+                            }
+                          }}
+                          className="px-4 py-2 rounded-xl bg-purple-50 hover:bg-[#7c3aed] text-[#7c3aed] hover:text-white font-extrabold text-xs transition-all flex items-center gap-1.5 shadow-2xs group-hover:bg-[#7c3aed] group-hover:text-white active:scale-95"
+                        >
+                          <span>Open Slides</span>
+                          <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
 
               {/* Scroll Sentinel for Infinite Pagination */}
               {hasMoreClassroom && (

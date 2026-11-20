@@ -128,6 +128,7 @@ export function PresentationScreen() {
     } else if (fromRoute === 'lesson' && matchedLessonData?.courseId && matchedLessonData?.lesson?.id) {
       navigate('lesson', { id: matchedLessonData.courseId, lesson: matchedLessonData.lesson.id });
     } else {
+      localStorage.setItem('aspire_live_tab', 'classroom');
       navigate('live', { tab: 'classroom' });
     }
   };
