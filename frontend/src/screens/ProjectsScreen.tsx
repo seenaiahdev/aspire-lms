@@ -122,9 +122,13 @@ function formatProjectDescription(description: string): string {
   if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
     try {
       const parsed = JSON.parse(trimmed);
-      return parsed.text || parsed.description || description;
+      const extracted = parsed.text || parsed.description || parsed.overview || parsed.summary || '';
+      if (typeof extracted === 'string' && extracted.trim()) {
+        return extracted.trim();
+      }
+      return 'Hands-on practical development project.';
     } catch {
-      return description;
+      return 'Hands-on practical development project.';
     }
   }
   return description;
@@ -638,6 +642,13 @@ export function ProjectsScreen() {
       // Only surface projects belonging to lessons that are unlocked in Milestones for this student.
       // While unlock resolver is still initializing, don't drop all cached projects to 0!
       .filter((p: any) => {
+        // Filter out empty draft templates with no content and "Untitled Project" title
+        const rawDesc = String(p.description || '');
+        const isDraftTemplate =
+          (!p.title || p.title.trim() === 'Untitled Project') &&
+          (!rawDesc || (rawDesc.includes('"requirements":[]') && (rawDesc.includes('"text":""') || !rawDesc.includes('"text"'))));
+        if (isDraftTemplate) return false;
+
         if (!resolverReady) return true;
         return isEntityUnlocked(p);
       })
