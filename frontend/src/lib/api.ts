@@ -251,9 +251,11 @@ export async function fetchPlacementResources() {
 function liveSessionBatchFilter(batchCode: string): string {
   const b = (batchCode || '').trim();
   if (!b) {
-    return 'target_batch.ilike.%all batches%';
+    return 'target_batch.ilike.%all batches%,target_batch.ilike.%all%';
   }
-  return `batch_code.eq.${b},target_batch.ilike.%${b}%,target_batch.ilike.%all batches%`;
+  const isWeekend = b.toUpperCase().includes('S') || b.toLowerCase().includes('weekend');
+  const catFilter = isWeekend ? 'target_batch.ilike.%weekend%' : 'target_batch.ilike.%weekday%';
+  return `batch_code.eq.${b},target_batch.ilike.%${b}%,target_batch.ilike.%all batches%,target_batch.ilike.%all%,${catFilter}`;
 }
 
 /**
@@ -308,10 +310,12 @@ export async function fetchAllLiveSessions(batchCode: string) {
 
       query = query.or(liveSessionBatchFilter(b));
 
+      // nullsFirst: false ensures all scheduled sessions (with dates) appear first,
+      // and limit 500 ensures template rows are also available for recordings gating.
       const { data, error } = await query
-        .order('date', { ascending: false })
-        .order('time', { ascending: false })
-        .limit(200);
+        .order('date', { ascending: false, nullsFirst: false })
+        .order('time', { ascending: false, nullsFirst: false })
+        .limit(500);
 
       if (error) {
         console.warn('Error fetching all live sessions:', error.message);

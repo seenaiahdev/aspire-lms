@@ -14,8 +14,10 @@ export function parseSessionStart(dateStr: string, timeStr?: string): Date | nul
     const parts = String(timeStr).split('-');
     const startPart = (parts[0] || '').trim();     // "06:00"
     const endPart = (parts[1] || '').trim();       // "07:30 PM"
-    const isPM = /pm/i.test(endPart) || /pm/i.test(startPart);
-    const isAM = /am/i.test(endPart) || /am/i.test(startPart);
+    const startHasAM = /am/i.test(startPart);
+    const startHasPM = /pm/i.test(startPart);
+    const isPM = startHasPM || (!startHasAM && /pm/i.test(endPart));
+    const isAM = startHasAM || (!startHasPM && /am/i.test(endPart));
     const m = startPart.match(/(\d{1,2}):(\d{2})/);
     if (m) {
       let hours = parseInt(m[1], 10);
@@ -36,6 +38,40 @@ export function durationToMinutes(duration?: string, fallback = 90): number {
   const mm = String(duration).match(/(\d+)\s*m/i);
   const total = (h ? parseInt(h[1], 10) : 0) * 60 + (mm ? parseInt(mm[1], 10) : 0);
   return total > 0 ? total : fallback;
+}
+
+/**
+ * Calculates the session end Date, prioritizing explicit time range end parts
+ * (e.g. "5:00 PM" in "1:54 - 5:00 PM") over inaccurate duration fields.
+ */
+export function parseSessionEnd(dateStr: string, timeStr?: string, duration?: string): Date | null {
+  const start = parseSessionStart(dateStr, timeStr);
+  if (!start) return null;
+
+  let explicitEnd: Date | null = null;
+  if (timeStr && timeStr.includes('-')) {
+    const parts = timeStr.split('-');
+    const endPart = (parts[1] || '').trim();
+    const isPM = /pm/i.test(endPart);
+    const isAM = /am/i.test(endPart);
+    const m = endPart.match(/(\d{1,2}):(\d{2})/);
+    if (m) {
+      let hours = parseInt(m[1], 10);
+      const minutes = m[2];
+      if (isPM && hours < 12) hours += 12;
+      if (isAM && hours === 12) hours = 0;
+      const d = new Date(`${dateStr}T${String(hours).padStart(2, '0')}:${minutes}:00`);
+      if (!isNaN(d.getTime()) && d.getTime() > start.getTime()) {
+        explicitEnd = d;
+      }
+    }
+  }
+
+  const durationEnd = new Date(start.getTime() + durationToMinutes(duration) * 60000);
+  if (explicitEnd) {
+    return explicitEnd;
+  }
+  return durationEnd;
 }
 
 export interface LiveClassStatus {
@@ -60,14 +96,15 @@ export function resolveLiveClassStatus(
   const start = parseSessionStart(dateStr, timeStr);
   if (!start) {
     if (raw === 'completed') return { status: 'completed', joinable: false };
-    if (raw === 'ongoing') return { status: 'ongoing', joinable: true };
+    if (raw === 'ongoing' || raw === 'live') return { status: 'ongoing', joinable: true };
     return { status: 'upcoming', joinable: false };
   }
-  const end = new Date(start.getTime() + durationToMinutes(duration) * 60000);
+  const end = parseSessionEnd(dateStr, timeStr, duration) || new Date(start.getTime() + durationToMinutes(duration) * 60000);
   const joinOpen = new Date(start.getTime() - leadMinutes * 60000);
   const t = now.getTime();
   if (raw === 'completed' || t > end.getTime()) return { status: 'completed', joinable: false };
   if (t >= joinOpen.getTime() && t <= end.getTime()) return { status: 'ongoing', joinable: true };
+  if ((raw === 'ongoing' || raw === 'live') && t <= end.getTime()) return { status: 'ongoing', joinable: true };
   return { status: 'upcoming', joinable: false };
 }
 

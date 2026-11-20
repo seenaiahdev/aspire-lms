@@ -115,7 +115,7 @@ function Router() {
 
   return (
     <AppShell>
-      <div key={route} className="page-transition w-full">
+      <div key={route === 'milestones' ? 'learning' : route} className="page-transition w-full">
         {(() => {
           switch (route) {
             case 'dashboard': return <DashboardScreen />;

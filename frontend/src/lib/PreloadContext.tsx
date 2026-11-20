@@ -16,6 +16,7 @@ import {
   fetchCoursesByIds,
   fetchCompletedLessons,
   fetchPresentations,
+  fetchBatchStudentCount,
   PresentationRecord,
 } from './api';
 import { getLessonResolver, clearLessonResolverCache } from './lessonLinkResolver';
@@ -35,6 +36,8 @@ export interface PreloadState {
   courses: any[];
   /** courseId → built syllabus tree (stages → modules → lessons) */
   syllabi: Record<string, any>;
+  /** Batch-wide student count for the logged-in user's batch */
+  batchStudentCount: number;
   /** Lesson IDs the student has completed (video watched) */
   completedLessons: Set<string>;
   /** Assessment/quiz/practice completion sets */
@@ -57,6 +60,7 @@ const defaultState: PreloadState = {
   loading: false,
   courses: [],
   syllabi: {},
+  batchStudentCount: 1,
   presentations: [],
   completedLessons: new Set(),
   doneAssess: new Set(),
@@ -68,6 +72,23 @@ const defaultState: PreloadState = {
   reloadKey: 0,
   bumpReload: () => {},
 };
+
+interface MemoryPreloadCache {
+  userId: string;
+  courses: any[];
+  syllabi: Record<string, any>;
+  batchStudentCount: number;
+  completedLessons: Set<string>;
+  doneAssess: Set<string>;
+  failedAssess: Set<string>;
+  doneQuiz: Set<string>;
+  failedQuiz: Set<string>;
+  donePractice: Set<string>;
+  recByTitle: Map<string, any>;
+  presentations: PresentationRecord[];
+}
+
+let memoryPreloadCache: MemoryPreloadCache | null = null;
 
 const PreloadContext = createContext<PreloadState>(defaultState);
 
@@ -97,7 +118,29 @@ const projLessonTitle = (p: any) => {
 
 export function PreloadProvider({ children }: { children: ReactNode }) {
   const { user } = useUser();
-  const [state, setState] = useState<PreloadState>(defaultState);
+  const [state, setState] = useState<PreloadState>(() => {
+    const sid = user?.id;
+    if (sid && memoryPreloadCache && memoryPreloadCache.userId === sid) {
+      return {
+        ready: true,
+        loading: false,
+        courses: memoryPreloadCache.courses,
+        syllabi: memoryPreloadCache.syllabi,
+        batchStudentCount: memoryPreloadCache.batchStudentCount,
+        presentations: memoryPreloadCache.presentations,
+        completedLessons: memoryPreloadCache.completedLessons,
+        doneAssess: memoryPreloadCache.doneAssess,
+        failedAssess: memoryPreloadCache.failedAssess,
+        doneQuiz: memoryPreloadCache.doneQuiz,
+        failedQuiz: memoryPreloadCache.failedQuiz,
+        donePractice: memoryPreloadCache.donePractice,
+        recByTitle: memoryPreloadCache.recByTitle,
+        reloadKey: 0,
+        bumpReload: () => {},
+      };
+    }
+    return defaultState;
+  });
   const [reloadKey, setReloadKey] = useState(0);
 
   const bumpReload = useCallback(() => {
@@ -129,7 +172,31 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
 
     let cancelled = false;
 
-    setState(prev => ({ ...prev, loading: true, ready: false }));
+    // Stale-While-Revalidate: NEVER drop ready: false if data already exists
+    if (memoryPreloadCache && memoryPreloadCache.userId === sid) {
+      setState(prev => ({
+        ...prev,
+        ready: true,
+        loading: true,
+        courses: memoryPreloadCache!.courses,
+        syllabi: memoryPreloadCache!.syllabi,
+        batchStudentCount: memoryPreloadCache!.batchStudentCount,
+        presentations: memoryPreloadCache!.presentations,
+        completedLessons: memoryPreloadCache!.completedLessons,
+        doneAssess: memoryPreloadCache!.doneAssess,
+        failedAssess: memoryPreloadCache!.failedAssess,
+        doneQuiz: memoryPreloadCache!.doneQuiz,
+        failedQuiz: memoryPreloadCache!.failedQuiz,
+        donePractice: memoryPreloadCache!.donePractice,
+        recByTitle: memoryPreloadCache!.recByTitle,
+      }));
+    } else {
+      setState(prev => ({
+        ...prev,
+        loading: true,
+        ready: prev.ready || prev.courses.length > 0,
+      }));
+    }
 
     (async () => {
       try {
@@ -154,6 +221,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           recRes,
           doneLessons,
           presentationsData,
+          batchStudentCount,
         ] = await Promise.all([
           fetchCoursesByIds(enrolledCourses),
           supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds),
@@ -162,6 +230,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status, instructions').order('created_at', { ascending: false }).limit(60),
           fetchCompletedLessons(sid),
           fetchPresentations(enrolledCourses),
+          fetchBatchStudentCount(batchCode),
         ]);
 
         if (cancelled) return;
@@ -222,7 +291,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           ] = await Promise.all([
             supabase.from('course_topics').select('*').eq('course_id', courseId).order('id', { ascending: true }),
             supabase.from('course_lessons').select('*').eq('course_id', courseId).order('sort_order', { ascending: true }),
-            supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title, course_id, target_batch, publish_status'),
+            supabase.from('assessments').select('id, topic_id, topic_name, duration_minutes, title, course_id, target_batch, publish_status').eq('course_id', courseId),
             supabase.from('coding_questions').select('id, inner_topic_id, title').eq('course_id', courseId),
             supabase.from('projects').select('id, inner_topic_id, title, type, description, due_date').eq('course_id', courseId),
             supabase.from('quizzes').select('id, inner_topic_id, topic_name, duration_minutes, title').eq('course_id', courseId),
@@ -379,11 +448,29 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
 
         if (cancelled) return;
 
+        const finalBatchStudentCount = typeof batchStudentCount === 'number' ? batchStudentCount : 1;
+
+        memoryPreloadCache = {
+          userId: sid,
+          courses: courses || [],
+          syllabi: syllabiMap,
+          batchStudentCount: finalBatchStudentCount,
+          completedLessons: doneLessons,
+          doneAssess,
+          failedAssess,
+          doneQuiz,
+          failedQuiz,
+          donePractice,
+          recByTitle,
+          presentations: presentationsData || [],
+        };
+
         setState({
           ready: true,
           loading: false,
           courses: courses || [],
           syllabi: syllabiMap,
+          batchStudentCount: finalBatchStudentCount,
           presentations: presentationsData || [],
           completedLessons: doneLessons,
           doneAssess,

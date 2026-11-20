@@ -17,7 +17,7 @@ import { Tabs } from '@/components/ui/Tabs';
 import { Avatar } from '@/components/ui/Avatar';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { SearchInput } from '@/components/ui/SearchInput';
-import { cn, resolveLiveClassStatus } from '@/lib/utils';
+import { cn, resolveLiveClassStatus, parseSessionStart } from '@/lib/utils';
 import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings, fetchPresentations, PresentationRecord } from '@/lib/api';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
@@ -50,6 +50,12 @@ export function LiveClassesScreen() {
   const [dbSessions, setDbSessions] = useState<any[]>([]);
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [userCourses, setUserCourses] = useState<any[]>([]);
+  const [currentTime, setCurrentTime] = useState<Date>(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   const { user } = useUser();
   const batchCode = user.batchCode || 'A26W1';
@@ -263,6 +269,7 @@ export function LiveClassesScreen() {
       lessonId: metaLessonId,
       date: cls.date || '',
       time: cls.time || '',
+      target_batch: cls.target_batch || cls.batch_code || '',
       instructor: { name: cls.instructor || 'Lead Trainer', avatar: '', title: 'Course Trainer' },
       scheduledAt: cls.date && cls.time ? `${cls.date} at ${cls.time.slice(0, 5)}` : (cls.date || 'TBD'),
       duration: cls.duration || '1h 30m',
@@ -370,46 +377,27 @@ export function LiveClassesScreen() {
   }, [loadSessions]);
 
   const mappedSessions = useMemo(() => {
-    const parseStartTime = (timeStr: string) => {
-      let startTime24 = '00:00:00';
-      if (timeStr) {
-        const parts = timeStr.split('-');
-        const startPart = parts[0]?.trim(); // "10:00"
-        const endPart = parts[1]?.trim(); // "11:30 AM" or "07:30 PM"
-        const isPM = endPart?.toUpperCase().includes('PM') || startPart?.toUpperCase().includes('PM');
-        
-        if (startPart) {
-          const timeMatch = startPart.match(/(\d+):(\d+)/);
-          if (timeMatch) {
-            let hours = parseInt(timeMatch[1]);
-            const minutes = timeMatch[2];
-            if (isPM && hours < 12) hours += 12;
-            if (!isPM && hours === 12) hours = 0;
-            startTime24 = `${String(hours).padStart(2, '0')}:${minutes}:00`;
-          }
-        }
-      }
-      return startTime24;
-    };
+    // 1. Filter sessions for student's enrolled courses
+    const forStudent = dbSessions.filter(sessionMatchesEnrolled);
 
-    const sorted = [...dbSessions].sort((a, b) => {
-      // Prioritize ongoing sessions first
+    // 2. Map and resolve status using current real-time clock
+    const mapped = forStudent.map(cls => mapSession(cls, currentTime));
+
+    // 3. Sort: Ongoing (LIVE NOW) first, then upcoming chronologically by start time
+    mapped.sort((a, b) => {
       if (a.status === 'ongoing' && b.status !== 'ongoing') return -1;
       if (a.status !== 'ongoing' && b.status === 'ongoing') return 1;
 
-      // Sort chronologically by date and time
-      const timeA = new Date(`${a.date}T${parseStartTime(a.time)}`).getTime();
-      const timeB = new Date(`${b.date}T${parseStartTime(b.time)}`).getTime();
+      if (a.status === 'upcoming' && b.status === 'completed') return -1;
+      if (a.status === 'completed' && b.status === 'upcoming') return 1;
+
+      const timeA = parseSessionStart(a.date, a.time)?.getTime() ?? 0;
+      const timeB = parseSessionStart(b.date, b.time)?.getTime() ?? 0;
       return timeA - timeB;
     });
 
-    // Filter sessions to strictly those that belong to the student's enrolled courses
-    const forStudent = sorted.filter(sessionMatchesEnrolled);
-
-    const now = new Date();
-    // A class becomes joinable ("ongoing") 10 minutes before its DB start time, until it ends.
-    return forStudent.map(cls => mapSession(cls, now));
-  }, [dbSessions, mapSession, sessionMatchesEnrolled]);
+    return mapped;
+  }, [dbSessions, mapSession, sessionMatchesEnrolled, currentTime]);
 
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTech, setSelectedTech] = useState('all');
@@ -539,7 +527,7 @@ export function LiveClassesScreen() {
   };
 
   const filtered = useMemo(() => {
-    const now = new Date();
+    const now = currentTime;
     const yyyy = now.getFullYear();
     const mm = String(now.getMonth() + 1).padStart(2, '0');
     const dd = String(now.getDate()).padStart(2, '0');
@@ -555,10 +543,10 @@ export function LiveClassesScreen() {
       if (tab === 'upcoming') {
         if (c.status === 'ongoing') return true; // always show live-now sessions
         if (c.status !== 'upcoming') return false;
-        // Unscheduled sessions (date is null/empty in DB) must not be shown
-        if (!c.date) return false;
-        // Only show live sessions scheduled for today
-        return c.date === todayStr;
+        // Unscheduled sessions (date is null/empty or 'TBD') must not be shown
+        if (!c.date || c.date === 'TBD') return false;
+        // Show all scheduled sessions for today and upcoming future dates
+        return c.date >= todayStr;
       }
       if (tab === 'completed') {
         // Only show genuine recordings from recordings table, not unrecorded live sessions
@@ -659,7 +647,7 @@ export function LiveClassesScreen() {
       }
       return true;
     });
-  }, [mappedSessions, dbSessions, batchCode, user.batchCategory, tab, searchQuery, selectedTech, dateFilter, customDate, isUnlocked, resolver]);
+  }, [mappedSessions, dbSessions, batchCode, user.batchCategory, tab, searchQuery, selectedTech, dateFilter, customDate, isUnlocked, resolver, currentTime]);
 
   const totalRecordings = filtered.length;
   const totalRecordingsPages = Math.max(1, Math.ceil(totalRecordings / RECORDINGS_PER_PAGE));
@@ -670,7 +658,7 @@ export function LiveClassesScreen() {
       const start = (safeRecordingsPage - 1) * RECORDINGS_PER_PAGE;
       return filtered.slice(start, start + RECORDINGS_PER_PAGE);
     }
-    return tab === 'upcoming' ? filtered.slice(0, 2) : filtered;
+    return filtered;
   }, [filtered, tab, safeRecordingsPage]);
 
   useEffect(() => {
