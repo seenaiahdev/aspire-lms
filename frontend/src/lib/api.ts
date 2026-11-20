@@ -196,8 +196,8 @@ export async function fetchJobs(batchCategory: string, batchCode: string = '') {
       .or(orQuery);
 
     if (error) {
-      console.error('Error fetching jobs:', error);
-      throw error;
+      console.warn('Warning: jobs fetch returned error (falling back to empty):', error);
+      return [];
     }
 
     if (!data) return [];

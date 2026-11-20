@@ -650,14 +650,14 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           presentationsData,
           batchStudentCount,
         ] = await Promise.all([
-          cachedQuery(`user_courses:${enrolledCourses.join(',')}`, () => fetchCoursesByIds(enrolledCourses), CACHE_TTL.STATIC),
-          cachedQuery(`user_aa:${sid}`, () => supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds), CACHE_TTL.USER_DATA),
-          cachedQuery(`user_qa:${sid}`, () => supabase.from('quiz_attempts').select('quiz_id, score, status').in('user_id', userLookupIds), CACHE_TTL.USER_DATA),
-          cachedQuery(`user_ps:${sid}`, () => supabase.from('practice_submissions').select('problem_id').in('student_id', userLookupIds), CACHE_TTL.USER_DATA),
-          cachedQuery(`user_rec:${batchCategory}`, () => supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status, instructions').order('created_at', { ascending: false }).limit(60), CACHE_TTL.MEDIUM),
-          fetchCompletedLessons(sid),
-          cachedQuery(`user_ppt:${enrolledCourses.join(',')}`, () => fetchPresentations(enrolledCourses), CACHE_TTL.STATIC),
-          cachedQuery(`batch_count:${batchCode}`, () => fetchBatchStudentCount(batchCode), CACHE_TTL.STATIC),
+          cachedQuery(`user_courses:${enrolledCourses.join(',')}`, () => fetchCoursesByIds(enrolledCourses), CACHE_TTL.STATIC).catch(() => []),
+          cachedQuery(`user_aa:${sid}`, () => supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds), CACHE_TTL.USER_DATA).catch(() => ({ data: [] })),
+          cachedQuery(`user_qa:${sid}`, () => supabase.from('quiz_attempts').select('quiz_id, score, status').in('user_id', userLookupIds), CACHE_TTL.USER_DATA).catch(() => ({ data: [] })),
+          cachedQuery(`user_ps:${sid}`, () => supabase.from('practice_submissions').select('problem_id').in('student_id', userLookupIds), CACHE_TTL.USER_DATA).catch(() => ({ data: [] })),
+          cachedQuery(`user_rec:${batchCategory}`, () => supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status, instructions').order('created_at', { ascending: false }).limit(60), CACHE_TTL.MEDIUM).catch(() => ({ data: [] })),
+          fetchCompletedLessons(sid).catch(() => new Set<string>()),
+          cachedQuery(`user_ppt:${enrolledCourses.join(',')}`, () => fetchPresentations(enrolledCourses), CACHE_TTL.STATIC).catch(() => []),
+          fetchBatchStudentCount(batchCode).catch(() => 1),
         ]);
 
         if (cancelled) return;
