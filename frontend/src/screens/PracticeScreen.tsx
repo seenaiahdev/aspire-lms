@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
-import { Code2, CheckCircle2, Clock, Compass, TrendingUp, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
+import { Code2, CheckCircle2, Clock, Compass, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
 import { fetchPracticeProblems, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
@@ -506,10 +506,6 @@ if (resolverReady && difficulty === 'all') {
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
                         <div className="flex items-center gap-3 text-xs font-semibold text-slate-500">
                           <span className="flex items-center gap-1">
-                            <TrendingUp className="w-3.5 h-3.5 text-slate-400" />
-                            {p.successRate}%
-                          </span>
-                          <span className="flex items-center gap-1">
                             <Zap className="w-3.5 h-3.5 text-amber-500" />
                             {p.points} XP
                           </span>
@@ -570,7 +566,6 @@ if (resolverReady && difficulty === 'all') {
                       </div>
                       <div className="flex items-center gap-2 sm:gap-4 text-xs font-semibold text-slate-500 flex-wrap">
                         <span>{p.category}</span>
-                        <span className="flex items-center gap-1"><TrendingUp className="w-3.5 h-3.5 text-slate-400" />{p.successRate}% success</span>
                         <span className="flex items-center gap-1"><Zap className="w-3.5 h-3.5 text-amber-500" />{p.points} XP</span>
                       </div>
                     </div>

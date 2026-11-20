@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from 'react';
 
 import { liveClassesSteps } from '@/lib/tourSteps';
 import { 
-  Radio, Calendar, Users, Play, Pause, ArrowRight, ChevronLeft, ChevronRight, Clock, Video, MessageCircle, 
+  Radio, Calendar, Play, Pause, ArrowRight, ChevronLeft, ChevronRight, Clock, Video, MessageCircle, 
   FileText, Hand, Users2, BarChart3, Download, Mic, MicOff, VideoOff, 
   Monitor, PhoneOff, Send, Volume2, Maximize2, HelpCircle, BellRing, CheckCircle2, X, Bell,
   SkipBack, SkipForward, Bookmark, CalendarX, Lock, Search, Filter, LayoutGrid, List, RotateCcw,
@@ -1194,7 +1194,6 @@ export function LiveClassesScreen() {
                 <div className="flex items-center gap-2.5 sm:gap-4 flex-wrap text-xs font-semibold text-slate-500 mb-5 pt-4 border-t border-slate-100">
                   <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400" />{cls.scheduledAt}</span>
                   <span className="flex items-center gap-1.5"><Clock className="w-3.5 h-3.5 text-slate-400" />{cls.duration}</span>
-                  <span className="flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-slate-400" />{cls.participants}</span>
                 </div>
                 
                 {cls.status === 'ongoing' ? (
