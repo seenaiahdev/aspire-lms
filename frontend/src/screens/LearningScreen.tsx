@@ -1,7 +1,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { 
-  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, HelpCircle, Zap, Trophy, TrendingUp, Search, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu, XCircle
+  Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, HelpCircle, Zap, Trophy, TrendingUp, Search, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu, XCircle,
+  Presentation as PresentationIcon
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -10,12 +11,13 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn, isDueDatePassed } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
-import { fetchCoursesByIds, fetchCompletedLessons, fetchBatchStudentCount } from '@/lib/api';
+import { fetchCoursesByIds, fetchCompletedLessons, fetchBatchStudentCount, fetchPresentations, PresentationRecord } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { usePreload } from '@/lib/PreloadContext';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { getLessonResolver, clearLessonResolverCache } from '@/lib/lessonLinkResolver';
 import { invalidateCache } from '@/lib/queryCache';
+import { PresentationViewerModal } from '@/components/ui/PresentationViewerModal';
 
 import { learningSteps } from '@/lib/tourSteps';
 
@@ -172,6 +174,7 @@ export function LearningScreen() {
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<any | null>(null);
+  const [selectedPresentation, setSelectedPresentation] = useState<PresentationRecord | null>(null);
   const [expandedModule, setExpandedModule] = useState<number | null>(0);
   const [lockedToast, setLockedToast] = useState(false);
   const [dbCourses, setDbCourses] = useState<any[]>(() => (preload.ready ? preload.courses : []));
@@ -308,12 +311,13 @@ export function LearningScreen() {
           user.registrationId
         ].filter(Boolean) as string[]));
 
-        const [aaRes, qaRes, psRes, recRes, doneLessons] = await Promise.all([
+        const [aaRes, qaRes, psRes, recRes, doneLessons, presentationsData] = await Promise.all([
           supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds),
           supabase.from('quiz_attempts').select('quiz_id, score, status').in('user_id', userLookupIds),
           supabase.from('practice_submissions').select('problem_id').in('student_id', userLookupIds),
           supabase.from('recordings').select('title, concept_name, video_url, thumbnail, duration, target_batch, publish_status'),
           fetchCompletedLessons(user.id),
+          fetchPresentations(user.enrolledCourses),
         ]);
         const isPassedRow = (r: any) => {
           const score = Number(r.score ?? 0);
@@ -510,6 +514,15 @@ export function LearningScreen() {
                       // Match a real class recording to this lesson by title (see recByTitle above).
                       const rec = recByTitle.get(normTitle(l.title));
 
+                      // Match presentation for this lesson by inner_topic_id or normalized title
+                      const matchingPpt = (presentationsData || []).find((p: any) => {
+                        if (p.inner_topic_id && (p.inner_topic_id === l.id || resolver.resolveLessonId(p.inner_topic_id) === l.id)) {
+                          return true;
+                        }
+                        const pTitle = normTitle(p.title || p.lesson_name);
+                        return !!pTitle && pTitle === lessonTitleKey;
+                      });
+
                       return {
                         id: l.id,
                         title: l.title,
@@ -517,6 +530,7 @@ export function LearningScreen() {
                         completed: lessonCompleted,
                         videoCompleted,
                         coverTopics: resolver.getCoverTopics(l.id),
+                        presentation: matchingPpt || null,
                         video: {
                           preview: idx === 0, // Unlock state is checked at render time via localUnlockedLessonIds
                           duration: rec?.duration || '45m',
@@ -1577,6 +1591,45 @@ export function LearningScreen() {
                               </div>
                             )}
 
+                            {/* CLASS PRESENTATION DECK (VIEW ONLY) */}
+                            {lesson.presentation && !isLessonLocked && (
+                              <div 
+                                onClick={() => setSelectedPresentation(lesson.presentation)}
+                                className="p-3 rounded-xl bg-white border border-slate-200 shadow-sm hover:shadow-md hover:border-purple-300 transition-all flex items-center justify-between gap-3 cursor-pointer group/item active:scale-[0.99]"
+                              >
+                                <div className="flex items-start gap-3 min-w-0">
+                                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#7c3aed] to-[#6d28d9] text-white flex items-center justify-center shrink-0 shadow-sm shadow-purple-500/20 group-hover/item:scale-105 transition-transform">
+                                    <PresentationIcon className="w-4 h-4" />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                      <span className="text-[10px] font-extrabold uppercase text-[#7c3aed] bg-purple-50 px-1.5 py-0.5 rounded border border-purple-100">
+                                        CLASS SLIDES
+                                      </span>
+                                      <span className="text-[10px] font-extrabold uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-100 flex items-center gap-1">
+                                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /> View Only
+                                      </span>
+                                    </div>
+                                    <h4 className="font-bold text-slate-900 text-sm mt-1 leading-tight group-hover/item:text-[#7c3aed] transition-colors truncate">
+                                      {lesson.presentation.title || lesson.title}
+                                    </h4>
+                                    <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
+                                      Google Slides Deck
+                                    </span>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <button
+                                    type="button"
+                                    className="px-3.5 py-1.5 rounded-xl font-extrabold text-xs flex items-center gap-1.5 transition-all bg-[#7c3aed] hover:bg-[#6d28d9] text-white shadow-md shadow-purple-500/20 active:scale-95 pointer-events-none"
+                                  >
+                                    <span>SLIDES</span>
+                                    <ExternalLink className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
                              {/* PRACTICE ITEMS */}
                              {lesson.practices && lesson.practices.map((practice: any) => (
                                <div 
@@ -1828,6 +1881,12 @@ export function LearningScreen() {
         </div>
       )}
 
+      {/* View-Only Presentation Modal */}
+      <PresentationViewerModal
+        isOpen={!!selectedPresentation}
+        onClose={() => setSelectedPresentation(null)}
+        presentation={selectedPresentation}
+      />
     </div>
   );
 }

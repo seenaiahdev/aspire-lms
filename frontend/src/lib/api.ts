@@ -2672,5 +2672,68 @@ export async function fetchStudentAttendanceStats(
   }, 10_000); // 10s TTL for real-time responsiveness
 }
 
+export interface PresentationRecord {
+  id: string;
+  title: string;
+  description: string;
+  ppt_url: string;
+  provider: string;
+  tags?: string[];
+  course_id: string;
+  course_name: string;
+  stage_id: string;
+  stage_name: string;
+  subtopic_id: string;
+  subtopic_name: string;
+  inner_topic_id: string;
+  lesson_name: string;
+  target_batch: string;
+  posted_by: string;
+  created_date: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/**
+ * Transforms a raw Google Slides or Drive link into a secure, view-only embed link without edit/download options.
+ */
+export function getPresentationEmbedUrl(url: string): string {
+  if (!url) return '';
+  const match = url.match(/\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://docs.google.com/presentation/d/${match[1]}/embed?start=false&loop=false&delayms=3000`;
+  }
+  const driveMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (driveMatch && driveMatch[1]) {
+    return `https://drive.google.com/file/d/${driveMatch[1]}/preview`;
+  }
+  return url;
+}
+
+/**
+ * Fetches presentations from the database, cached with 30s TTL.
+ */
+export async function fetchPresentations(courseIds?: string[]): Promise<PresentationRecord[]> {
+  const cacheKey = `presentations:${(courseIds || []).sort().join(',') || 'all'}`;
+  return cachedQuery(cacheKey, async () => {
+    let query = supabase
+      .from('presentations')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (courseIds && courseIds.length > 0) {
+      query = query.in('course_id', courseIds);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      console.error('Error fetching presentations:', error);
+      return [];
+    }
+    return (data || []) as PresentationRecord[];
+  }, 30_000);
+}
+
+
 
 

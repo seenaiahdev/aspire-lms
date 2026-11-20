@@ -1,17 +1,20 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Calendar as CalendarIcon, Play, Code2, Clock, Check, ChevronLeft, ChevronRight as ChevronRightIcon, BookMarked,
-  ArrowLeft, ArrowRight, CheckCircle2, Video, Terminal, BookOpenText, Award, Layers, Sparkles, FileText, CheckCircle, Trophy, TrendingUp, CalendarDays, Radio, CalendarX
+  ArrowLeft, ArrowRight, CheckCircle2, Video, Terminal, BookOpenText, Award, Layers, Sparkles, FileText, CheckCircle, Trophy, TrendingUp, CalendarDays, Radio, CalendarX,
+  Presentation as PresentationIcon
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { useUser } from '@/lib/UserContext';
-import { fetchLiveSessions, fetchDailySchedules, fetchCoursesByIds, isWeekdayBatchUser } from '@/lib/api';
+import { fetchLiveSessions, fetchDailySchedules, fetchCoursesByIds, isWeekdayBatchUser, fetchPresentations, PresentationRecord } from '@/lib/api';
 import { cn, resolveLiveClassStatus, parseSessionStart, durationToMinutes } from '@/lib/utils';
 import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
 import { usePreload } from '@/lib/PreloadContext';
+import { useUnlockResolver } from '@/lib/lessonLinkResolver';
+import { PresentationViewerModal } from '@/components/ui/PresentationViewerModal';
 
 // Struct for Daily 2-3 Python Topics
 interface PythonTopic {
@@ -166,6 +169,54 @@ export function DashboardScreen() {
   const [dbLiveSessions, setDbLiveSessions] = useState<any[]>([]);
   const [dbDailySchedules, setDbDailySchedules] = useState<any[]>([]);
   const [dashboardLoading, setDashboardLoading] = useState(true);
+
+  // Presentations & lesson locking state
+  const { isUnlocked, isEntityUnlocked, resolver } = useUnlockResolver();
+  const [presentations, setPresentations] = useState<PresentationRecord[]>([]);
+  const [selectedPresentation, setSelectedPresentation] = useState<PresentationRecord | null>(null);
+
+  useEffect(() => {
+    async function loadPresentations() {
+      try {
+        const data = await fetchPresentations(currentUser.enrolledCourses);
+        setPresentations(data || []);
+      } catch (err) {
+        console.error('Failed to load presentations:', err);
+      }
+    }
+    loadPresentations();
+  }, [currentUser.enrolledCourses]);
+
+  const isPptUnlocked = useCallback((ppt: PresentationRecord) => {
+    if (!currentUser?.unlockedLessonIds || currentUser.unlockedLessonIds.length === 0) return false;
+    if (currentUser.unlockedLessonIds.includes(ppt.inner_topic_id)) return true;
+    if (resolver && currentUser.unlockedLessonIds.includes(resolver.resolveLessonId(ppt.inner_topic_id))) return true;
+    return isEntityUnlocked(ppt) || isUnlocked(ppt.inner_topic_id);
+  }, [currentUser?.unlockedLessonIds, resolver, isEntityUnlocked, isUnlocked]);
+
+  const getSessionPpt = useCallback((cls: any) => {
+    if (!presentations || presentations.length === 0) return null;
+    let modId = cls.lessonId || cls.moduleId || '';
+    if (!modId && cls.description) {
+      try {
+        const parsed = typeof cls.description === 'string' ? JSON.parse(cls.description) : cls.description;
+        modId = parsed?.moduleId || parsed?.lessonId || '';
+      } catch {}
+    }
+    if (modId) {
+      const match = presentations.find(
+        (p) => p.inner_topic_id === modId || (resolver && resolver.resolveLessonId(p.inner_topic_id) === modId)
+      );
+      if (match) return match;
+    }
+    const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const target = norm(cls.title || cls.session_title);
+    if (target) {
+      const match = presentations.find((p) => norm(p.title) === target || norm(p.lesson_name) === target);
+      if (match) return match;
+    }
+    return null;
+  }, [presentations, resolver]);
 
   // Format date to YYYY-MM-DD
   const selectedDateStr = useMemo(() => {
@@ -941,7 +992,7 @@ export function DashboardScreen() {
                       <p className="text-xs font-bold text-slate-500 mb-4">{cls.course} · {cls.instructor.name}</p>
                     </div>
 
-                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
                       <span className={cn(
                         "text-xs font-extrabold transition-colors inline-flex items-center gap-1.5",
                         cls.status === 'completed' ? "text-slate-500 group-hover:text-[#7c3aed]" : "text-[#7c3aed] group-hover:text-[#6d28d9]"
@@ -955,6 +1006,27 @@ export function DashboardScreen() {
                           <ArrowRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-1" />
                         )}
                       </span>
+
+                      {cls.status === 'ongoing' && (() => {
+                        const sessionPpt = getSessionPpt(cls);
+                        if (sessionPpt && isPptUnlocked(sessionPpt)) {
+                          return (
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setSelectedPresentation(sessionPpt);
+                              }}
+                              className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
+                              title="View Live Class Slides (View Only)"
+                            >
+                              <PresentationIcon className="w-3.5 h-3.5" />
+                              <span>Class Slides</span>
+                            </button>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   </div>
                 ))}
@@ -1060,6 +1132,12 @@ export function DashboardScreen() {
 
       </div>
 
+      {/* View-Only Presentation Modal */}
+      <PresentationViewerModal
+        isOpen={!!selectedPresentation}
+        onClose={() => setSelectedPresentation(null)}
+        presentation={selectedPresentation}
+      />
     </div>
   );
 }

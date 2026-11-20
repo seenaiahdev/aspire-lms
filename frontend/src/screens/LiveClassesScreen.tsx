@@ -6,7 +6,7 @@ import {
   FileText, Hand, Users2, BarChart3, Download, Mic, MicOff, VideoOff, 
   Monitor, PhoneOff, Send, Volume2, Maximize2, HelpCircle, BellRing, CheckCircle2, X, Bell,
   SkipBack, SkipForward, Bookmark, CalendarX, Lock, Search, Filter, LayoutGrid, List, RotateCcw,
-  CalendarDays, Sparkles
+  CalendarDays, Sparkles, Presentation as PresentationIcon, ExternalLink
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
@@ -18,8 +18,10 @@ import { Avatar } from '@/components/ui/Avatar';
 import { StatusChip } from '@/components/ui/StatusChip';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { cn, resolveLiveClassStatus } from '@/lib/utils';
-import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings } from '@/lib/api';
+import { fetchAllLiveSessions, fetchCoursesByIds, fetchRecordings, fetchPresentations, PresentationRecord } from '@/lib/api';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
+import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
+import { PresentationViewerModal } from '@/components/ui/PresentationViewerModal';
 import { supabase } from '@/lib/supabase';
 
 export function LiveClassesScreen() {
@@ -67,6 +69,107 @@ export function LiveClassesScreen() {
   }, [user.enrolledCourses]);
 
   const primaryCourseTitle = userCourses[0]?.title || '';
+
+  // Presentations state for Classroom tab & live session quick reference
+  const [presentations, setPresentations] = useState<PresentationRecord[]>([]);
+  const [presentationsLoading, setPresentationsLoading] = useState(false);
+  const [selectedPresentation, setSelectedPresentation] = useState<PresentationRecord | null>(null);
+  const [classroomSearch, setClassroomSearch] = useState('');
+  const [classroomStage, setClassroomStage] = useState('all');
+  const [classroomVisibleCount, setClassroomVisibleCount] = useState(12);
+
+  useEffect(() => {
+    async function loadPresentations() {
+      setPresentationsLoading(true);
+      try {
+        const data = await fetchPresentations(user.enrolledCourses);
+        setPresentations(data || []);
+      } catch (err) {
+        console.error('Failed to load presentations:', err);
+      } finally {
+        setPresentationsLoading(false);
+      }
+    }
+    loadPresentations();
+  }, [user.enrolledCourses]);
+
+  const isPptUnlocked = useCallback((ppt: PresentationRecord) => {
+    if (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0) return false;
+    if (user.unlockedLessonIds.includes(ppt.inner_topic_id)) return true;
+    if (resolver && user.unlockedLessonIds.includes(resolver.resolveLessonId(ppt.inner_topic_id))) return true;
+    return isEntityUnlocked(ppt) || isUnlocked(ppt.inner_topic_id);
+  }, [user?.unlockedLessonIds, resolver, isEntityUnlocked, isUnlocked]);
+
+  // Only currently unlocked presentations appear in the Classroom tab
+  const unlockedPresentations = useMemo(() => {
+    return presentations.filter(isPptUnlocked);
+  }, [presentations, isPptUnlocked]);
+
+  const classroomStageOptions = useMemo(() => {
+    const set = new Set<string>();
+    unlockedPresentations.forEach((p) => {
+      if (p.stage_name) set.add(p.stage_name);
+    });
+    return Array.from(set);
+  }, [unlockedPresentations]);
+
+  const filteredClassroomPresentations = useMemo(() => {
+    let list = unlockedPresentations;
+    if (classroomStage !== 'all') {
+      list = list.filter((p) => p.stage_name === classroomStage);
+    }
+    if (classroomSearch.trim()) {
+      const q = classroomSearch.trim().toLowerCase();
+      list = list.filter((p) =>
+        (p.title && p.title.toLowerCase().includes(q)) ||
+        (p.lesson_name && p.lesson_name.toLowerCase().includes(q)) ||
+        (p.subtopic_name && p.subtopic_name.toLowerCase().includes(q))
+      );
+    }
+    return list;
+  }, [unlockedPresentations, classroomStage, classroomSearch]);
+
+  useEffect(() => {
+    setClassroomVisibleCount(12);
+  }, [classroomSearch, classroomStage]);
+
+  const hasMoreClassroom = classroomVisibleCount < filteredClassroomPresentations.length;
+
+  const classroomSentinelRef = useInfiniteScroll<HTMLDivElement>({
+    hasMore: hasMoreClassroom,
+    loading: false,
+    onLoadMore: () => {
+      setClassroomVisibleCount((prev) => Math.min(prev + 12, filteredClassroomPresentations.length));
+    },
+  });
+
+  const paginatedClassroomPresentations = useMemo(() => {
+    return filteredClassroomPresentations.slice(0, classroomVisibleCount);
+  }, [filteredClassroomPresentations, classroomVisibleCount]);
+
+  const getSessionPpt = useCallback((cls: any) => {
+    if (!presentations || presentations.length === 0) return null;
+    let modId = cls.lessonId || cls.moduleId || '';
+    if (!modId && cls.description) {
+      try {
+        const parsed = typeof cls.description === 'string' ? JSON.parse(cls.description) : cls.description;
+        modId = parsed?.moduleId || parsed?.lessonId || '';
+      } catch {}
+    }
+    if (modId) {
+      const match = presentations.find(
+        (p) => p.inner_topic_id === modId || (resolver && resolver.resolveLessonId(p.inner_topic_id) === modId)
+      );
+      if (match) return match;
+    }
+    const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const target = norm(cls.title || cls.session_title);
+    if (target) {
+      const match = presentations.find((p) => norm(p.title) === target || norm(p.lesson_name) === target);
+      if (match) return match;
+    }
+    return null;
+  }, [presentations, resolver]);
 
   // Check if session belongs to one of the student's enrolled courses
   const sessionMatchesEnrolled = useCallback((cls: any) => {
@@ -717,18 +820,173 @@ export function LiveClassesScreen() {
 
       {/* ── RECORDINGS & SESSIONS LIST/GRID VIEW ── */}
       {tab === 'classroom' ? (
-        <div className="py-16 px-6 bg-white border border-slate-200/90 rounded-[2rem] text-center flex flex-col items-center justify-center space-y-4 shadow-2xs">
-          <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
-            <Video className="w-8 h-8" />
+        <div className="space-y-6">
+          {/* Classroom Search & Filter Toolbar */}
+          <div className="bg-white border border-slate-200/90 rounded-2xl p-3.5 sm:p-4 shadow-sm space-y-3">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <div className="flex-1">
+                <SearchInput
+                  value={classroomSearch}
+                  onChange={setClassroomSearch}
+                  placeholder="Search unlocked presentation slides by topic, module, or title..."
+                  className="w-full bg-slate-50"
+                />
+              </div>
+
+              {classroomStageOptions.length > 0 && (
+                <div className="w-full sm:w-64 shrink-0">
+                  <select
+                    value={classroomStage}
+                    onChange={(e) => setClassroomStage(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:border-[#7c3aed] transition-colors"
+                  >
+                    <option value="all">All Curriculum Stages</option>
+                    {classroomStageOptions.map((stg) => (
+                      <option key={stg} value={stg}>{stg}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {(classroomSearch || classroomStage !== 'all') && (
+                <button
+                  onClick={() => {
+                    setClassroomSearch('');
+                    setClassroomStage('all');
+                  }}
+                  className="px-3.5 py-2.5 rounded-xl bg-rose-50 text-rose-600 hover:bg-rose-100 border border-rose-200 text-xs font-extrabold flex items-center justify-center gap-1.5 transition-all shrink-0 cursor-pointer"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Reset</span>
+                </button>
+              )}
+            </div>
+
+            {/* Quick Stats Pill */}
+            <div className="flex items-center justify-between text-[11px] font-bold text-slate-500 pt-2 border-t border-slate-100">
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-purple-500" />
+                <span>Showing {filteredClassroomPresentations.length} Unlocked Study Decks</span>
+              </div>
+              <span className="text-[10px] text-slate-400 uppercase tracking-wider font-extrabold flex items-center gap-1">
+                <Sparkles className="w-3 h-3 text-[#7c3aed]" /> View Only Mode
+              </span>
+            </div>
           </div>
-          <div>
-            <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
-              Classroom Coming Soon
-            </h3>
-            <p className="text-slate-500 text-xs sm:text-sm max-w-md font-medium mt-1">
-              Interactive classroom sessions and in-class collaboration tools are on the way. Stay tuned!
-            </p>
-          </div>
+
+          {/* Classroom Decks Grid */}
+          {presentationsLoading ? (
+            <div className="flex justify-center py-16">
+              <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : filteredClassroomPresentations.length === 0 ? (
+            <div className="py-16 px-6 bg-white border border-slate-200/90 rounded-[2rem] text-center flex flex-col items-center justify-center space-y-4 shadow-2xs">
+              <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">
+                <PresentationIcon className="w-8 h-8" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-lg sm:text-xl">
+                  {classroomSearch || classroomStage !== 'all'
+                    ? "No Matching Presentations Found"
+                    : "No Unlocked Presentations Yet"}
+                </h3>
+                <p className="text-slate-500 text-xs sm:text-sm max-w-md font-medium mt-1">
+                  {classroomSearch || classroomStage !== 'all'
+                    ? "Try adjusting your search query or stage filters to view other slides."
+                    : "Presentations are unlocked as you complete milestone lessons in your learning roadmap. Check back as you advance!"}
+                </p>
+              </div>
+              {(classroomSearch || classroomStage !== 'all') && (
+                <button
+                  onClick={() => {
+                    setClassroomSearch('');
+                    setClassroomStage('all');
+                  }}
+                  className="mt-2 px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-extrabold transition-all shadow-md active:scale-95 cursor-pointer flex items-center gap-1.5"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" /> Show All Unlocked Decks
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                {paginatedClassroomPresentations.map((ppt) => (
+                  <div
+                    key={ppt.id}
+                    onClick={() => setSelectedPresentation(ppt)}
+                    className="p-5 rounded-[1.5rem] bg-white border border-slate-200/90 hover:border-purple-300 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
+                  >
+                    <div>
+                      {/* Top Banner Accent */}
+                      <div className="flex items-center justify-between gap-2 mb-3">
+                        <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                          <PresentationIcon className="w-3 h-3 text-[#7c3aed]" />
+                          <span>Google Slides</span>
+                        </span>
+                        <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-100">
+                          View Only
+                        </span>
+                      </div>
+
+                      {/* Presentation Title */}
+                      <h4 className="font-extrabold text-base text-slate-900 group-hover:text-[#7c3aed] transition-colors leading-snug line-clamp-2 mb-2">
+                        {ppt.title || ppt.lesson_name}
+                      </h4>
+
+                      {/* Lesson & Subtopic Meta */}
+                      <div className="space-y-1.5 text-xs text-slate-500 font-semibold mb-4">
+                        {ppt.subtopic_name && (
+                          <p className="line-clamp-1 flex items-center gap-1.5 text-slate-600">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                            <span>{ppt.subtopic_name}</span>
+                          </p>
+                        )}
+                        {ppt.lesson_name && (
+                          <p className="line-clamp-1 flex items-center gap-1.5 text-slate-500">
+                            <FileText className="w-3 h-3 text-slate-400 shrink-0" />
+                            <span>Lesson: {ppt.lesson_name}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Bottom Action Footer */}
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-400">
+                        {ppt.created_date || 'Classroom Deck'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPresentation(ppt);
+                        }}
+                        className="px-3.5 py-1.5 rounded-xl bg-purple-50 hover:bg-[#7c3aed] text-[#7c3aed] hover:text-white font-extrabold text-xs transition-colors flex items-center gap-1.5 shadow-2xs group-hover:bg-[#7c3aed] group-hover:text-white"
+                      >
+                        <span>Open Slides</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Scroll Sentinel for Infinite Pagination */}
+              {hasMoreClassroom && (
+                <div ref={classroomSentinelRef} className="py-8 flex justify-center items-center gap-2 text-xs font-bold text-slate-400">
+                  <div className="w-5 h-5 border-2 border-purple-500 border-t-transparent rounded-full animate-spin" />
+                  <span>Loading more presentations...</span>
+                </div>
+              )}
+
+              {!hasMoreClassroom && filteredClassroomPresentations.length > 0 && (
+                <div className="py-6 text-center text-xs font-bold text-slate-400">
+                  All {filteredClassroomPresentations.length} unlocked presentations loaded
+                </div>
+              )}
+            </div>
+          )}
         </div>
       ) : sessionsLoading ? (
         <div className="flex justify-center py-16">
@@ -889,18 +1147,40 @@ export function LiveClassesScreen() {
                 </div>
                 
                 {cls.status === 'ongoing' ? (
-                  <button 
-                    onClick={() => {
-                      if (cls.link) {
-                        window.open(cls.link, '_blank');
-                      } else {
-                        alert('Meeting link is not available yet.');
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => {
+                        if (cls.link) {
+                          window.open(cls.link, '_blank');
+                        } else {
+                          alert('Meeting link is not available yet.');
+                        }
+                      }} 
+                      className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
+                    >
+                      <Radio className="w-4 h-4" /> Join Live Class on Zoom
+                    </button>
+                    {(() => {
+                      const sessionPpt = getSessionPpt(cls);
+                      if (sessionPpt && isPptUnlocked(sessionPpt)) {
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedPresentation(sessionPpt);
+                            }}
+                            className="px-3.5 py-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
+                            title="View Live Class Slides (View Only)"
+                          >
+                            <PresentationIcon className="w-4 h-4" />
+                            <span>Slides</span>
+                          </button>
+                        );
                       }
-                    }} 
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
-                  >
-                    <Radio className="w-4 h-4" /> Join Live Class on Zoom
-                  </button>
+                      return null;
+                    })()}
+                  </div>
                 ) : cls.status === 'completed' ? (
                   <button 
                     onClick={() => handleWatchRecording(cls)}
@@ -1016,6 +1296,12 @@ export function LiveClassesScreen() {
           </div>
         </div>
       )}
+      {/* View-Only Presentation Modal */}
+      <PresentationViewerModal
+        isOpen={!!selectedPresentation}
+        onClose={() => setSelectedPresentation(null)}
+        presentation={selectedPresentation}
+      />
     </div>
   );
 }
