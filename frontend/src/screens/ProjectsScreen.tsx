@@ -134,7 +134,7 @@ function formatProjectDescription(description: string): string {
   return description;
 }
 
-export function formatDisplayDueDate(rawDueDate?: string | null): string {
+function formatDisplayDueDate(rawDueDate?: string | null): string {
   if (!rawDueDate) return 'No deadline';
   const str = String(rawDueDate).trim();
   if (!str || str === 'null' || str === 'undefined') return 'No deadline';
