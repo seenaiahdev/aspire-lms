@@ -14,7 +14,7 @@ import {
   fetchStudentAttendanceStats,
   invalidateAttendanceCache
 } from '@/lib/api';
-import { invalidateCache } from './queryCache';
+import { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
 import { hasValidSession } from '@/lib/nav';
 import { supabase } from './supabase';
 
@@ -112,10 +112,14 @@ async function fetchResolvedMilestoneLocks(
     return { unlockedLessonIds: [], milestoneLocks: [], nextScheduledUnlockMs: null };
   }
 
-  const { data: locks, error } = await supabase
-    .from('milestone_locks')
-    .select('id, course_id, stage_id, module_id, lesson_id, batch_code, is_locked, unlock_datetime, updated_at')
-    .in('batch_code', allTargets);
+  const { data: locks, error } = await cachedQuery(
+    `milestone_locks:${allTargets.slice().sort().join(',')}`,
+    () => supabase
+      .from('milestone_locks')
+      .select('id, course_id, stage_id, module_id, lesson_id, batch_code, is_locked, unlock_datetime, updated_at')
+      .in('batch_code', allTargets),
+    15000
+  );
 
   if (error || !locks) {
     throw error || new Error('Failed to fetch milestone locks');
@@ -604,6 +608,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       const bumpLocks = () => {
         if (lockTimer) clearTimeout(lockTimer);
         lockTimer = setTimeout(() => {
+          invalidateCacheByPrefix('milestone_locks:');
           syncMilestoneLocks();
         }, 250);
       };
@@ -722,15 +727,19 @@ export function UserProvider({ children }: { children: ReactNode }) {
       window.addEventListener('focus', onSyncCheck);
       document.addEventListener('visibilitychange', onSyncCheck);
 
-      // 7a. Lightweight milestone lock poll every 10s (covers both scheduled unlocks and DBs without realtime on milestone_locks)
+      // 7a. Lightweight milestone lock poll (covers both scheduled unlocks and DBs without realtime on milestone_locks)
       const lockPollInterval = setInterval(() => {
-        syncMilestoneLocks();
-      }, 10000);
+        if (document.visibilityState === 'visible') {
+          syncMilestoneLocks();
+        }
+      }, 30000);
 
-      // 7b. Periodic full resync (every 60s)
+      // 7b. Periodic full resync (every 120s when tab is active)
       const scheduleInterval = setInterval(() => {
-        refetchUser();
-      }, 60000);
+        if (document.visibilityState === 'visible') {
+          refetchUser();
+        }
+      }, 120000);
 
       return () => {
         supabase.removeChannel(userChannel);
