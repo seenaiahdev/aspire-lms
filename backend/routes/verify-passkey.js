@@ -1,5 +1,6 @@
 // Production Express handler: verify-passkey with single-use auto-rotation
 const { decryptPasskey, encryptPasskey, generatePasskey } = require('../lib/passkey-crypto');
+const cache = require('../lib/cache');
 
 const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
 
@@ -76,6 +77,7 @@ module.exports = async (req, res) => {
         apikey: SUPABASE_ANON,
         authorization: `Bearer ${SUPABASE_ANON}`,
       },
+      signal: AbortSignal.timeout(6000),
     });
 
     if (!fetchResp.ok) {
@@ -141,7 +143,13 @@ module.exports = async (req, res) => {
         access_pin: freshEncrypted,
         passkey_updated_at: new Date().toISOString(),
       }),
+      signal: AbortSignal.timeout(6000),
     });
+
+    cache.invalidate(`student_id:${student.id}`);
+    if (student.mobile_number) {
+      cache.invalidate(`student_phone:${cleanSuffix(student.mobile_number)}`);
+    }
 
     return res.status(200).json({
       ok: true,

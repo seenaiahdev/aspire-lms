@@ -35,6 +35,26 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// ── Request Timeout Protection (12 seconds) ─────────────────────────────────
+const REQUEST_TIMEOUT_MS = 12_000;
+
+app.use((req, res, next) => {
+  const timer = setTimeout(() => {
+    if (!res.headersSent) {
+      res.status(504).json({
+        ok: false,
+        error: 'Gateway Timeout',
+        message: `Request exceeded timeout threshold of ${REQUEST_TIMEOUT_MS}ms`,
+      });
+    }
+  }, REQUEST_TIMEOUT_MS);
+
+  res.on('finish', () => clearTimeout(timer));
+  res.on('close', () => clearTimeout(timer));
+
+  next();
+});
+
 // ── Health Check ─────────────────────────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -58,8 +78,12 @@ app.use((req, res) => {
 });
 
 // Start Server
-app.listen(PORT, () => {
-  console.log(`\n🚀 Aspire LMS Backend API Server running on port ${PORT}`);
-  console.log(`📡 Health Check: http://localhost:${PORT}/health`);
-  console.log(`🔐 Passkey & OTP Endpoints active at /api/*\n`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Aspire LMS Backend API Server running on port ${PORT}`);
+    console.log(`📡 Health Check: http://localhost:${PORT}/health`);
+    console.log(`🔐 Passkey & OTP Endpoints active at /api/*\n`);
+  });
+}
+
+module.exports = app;

@@ -131,12 +131,6 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
 
     setState(prev => ({ ...prev, loading: true, ready: false }));
 
-    // Preload lazy JS screen chunks in the background so code-splitting doesn't cause a delay on tab click
-    import('@/screens/LearningScreen').catch(() => {});
-    import('@/screens/LiveClassesScreen').catch(() => {});
-    import('@/screens/AssignmentsScreen').catch(() => {});
-    import('@/screens/PracticeScreen').catch(() => {});
-
     (async () => {
       try {
         const enrolledCourses = user.enrolledCourses!;

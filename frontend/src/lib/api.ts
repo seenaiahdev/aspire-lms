@@ -1,6 +1,6 @@
 import { supabase } from './supabase';
-export { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
-import { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
+export { cachedQuery, invalidateCache, invalidateCacheByPrefix, clearCache, getCacheStats, resetCacheStats, CACHE_TTL } from './queryCache';
+import { cachedQuery, invalidateCache, invalidateCacheByPrefix, CACHE_TTL } from './queryCache';
 import type { AttendanceRecord, AttendanceStats } from '../types';
 
 /**
@@ -832,7 +832,7 @@ export function extractBatchDueDate(
 }
 
 export async function fetchProjects(
-  batchCode: string,
+  batchCode: string = '',
   batchCategory?: string,
   courseId?: string,
   enrolledCourses?: string[]

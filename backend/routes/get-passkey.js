@@ -1,5 +1,6 @@
 // Production Express handler: get-passkey for Admin
 const { decryptPasskey, encryptPasskey, generatePasskey } = require('../lib/passkey-crypto');
+const cache = require('../lib/cache');
 
 const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
 
@@ -19,31 +20,47 @@ module.exports = async (req, res) => {
       return res.status(400).json({ ok: false, error: 'Provide studentId or a 10-digit phone number.' });
     }
 
-    let url = '';
-    if (studentId) {
-      url = `${SUPABASE_URL}/rest/v1/students?select=id,name,email,mobile_number,access_pin,passkey_updated_at&id=eq.${encodeURIComponent(studentId)}&limit=1`;
-    } else {
-      url = `${SUPABASE_URL}/rest/v1/students?select=id,name,email,mobile_number,access_pin,passkey_updated_at&mobile_number=ilike.*${suffix}&limit=5`;
+    const cacheKey = studentId ? `student_id:${studentId}` : `student_phone:${suffix}`;
+    let student = null;
+
+    if (action !== 'regenerate') {
+      student = cache.get(cacheKey);
     }
-
-    const fetchResp = await fetch(url, {
-      headers: {
-        apikey: SUPABASE_ANON,
-        authorization: `Bearer ${SUPABASE_ANON}`,
-      },
-    });
-
-    if (!fetchResp.ok) {
-      return res.status(500).json({ ok: false, error: 'Database query failed' });
-    }
-
-    const rows = await fetchResp.json();
-    const student = Array.isArray(rows)
-      ? (studentId ? rows[0] : rows.find((s) => cleanSuffix(s.mobile_number) === suffix) || rows[0])
-      : null;
 
     if (!student) {
-      return res.status(404).json({ ok: false, error: 'Student not found.' });
+      let url = '';
+      if (studentId) {
+        url = `${SUPABASE_URL}/rest/v1/students?select=id,name,email,mobile_number,access_pin,passkey_updated_at&id=eq.${encodeURIComponent(studentId)}&limit=1`;
+      } else {
+        url = `${SUPABASE_URL}/rest/v1/students?select=id,name,email,mobile_number,access_pin,passkey_updated_at&mobile_number=ilike.*${suffix}&limit=5`;
+      }
+
+      const fetchResp = await fetch(url, {
+        headers: {
+          apikey: SUPABASE_ANON,
+          authorization: `Bearer ${SUPABASE_ANON}`,
+        },
+        signal: AbortSignal.timeout(6000),
+      });
+
+      if (!fetchResp.ok) {
+        return res.status(500).json({ ok: false, error: 'Database query failed' });
+      }
+
+      const rows = await fetchResp.json();
+      student = Array.isArray(rows)
+        ? (studentId ? rows[0] : rows.find((s) => cleanSuffix(s.mobile_number) === suffix) || rows[0])
+        : null;
+
+      if (!student) {
+        return res.status(404).json({ ok: false, error: 'Student not found.' });
+      }
+
+      if (action !== 'regenerate') {
+        cache.set(cacheKey, student, 60_000);
+        if (student.id) cache.set(`student_id:${student.id}`, student, 60_000);
+        if (student.mobile_number) cache.set(`student_phone:${cleanSuffix(student.mobile_number)}`, student, 60_000);
+      }
     }
 
     let activePasskey = null;
@@ -54,6 +71,7 @@ module.exports = async (req, res) => {
     if (!activePasskey || action === 'regenerate') {
       activePasskey = generatePasskey(6);
       const enc = encryptPasskey(activePasskey);
+      const nowIso = new Date().toISOString();
 
       await fetch(`${SUPABASE_URL}/rest/v1/students?id=eq.${encodeURIComponent(student.id)}`, {
         method: 'PATCH',
@@ -65,9 +83,17 @@ module.exports = async (req, res) => {
         },
         body: JSON.stringify({
           access_pin: enc,
-          passkey_updated_at: new Date().toISOString(),
+          passkey_updated_at: nowIso,
         }),
+        signal: AbortSignal.timeout(6000),
       });
+
+      student.access_pin = enc;
+      student.passkey_updated_at = nowIso;
+      cache.invalidate(`student_id:${student.id}`);
+      if (student.mobile_number) cache.invalidate(`student_phone:${cleanSuffix(student.mobile_number)}`);
+      cache.set(`student_id:${student.id}`, student, 60_000);
+      if (student.mobile_number) cache.set(`student_phone:${cleanSuffix(student.mobile_number)}`, student, 60_000);
     }
 
     return res.status(200).json({

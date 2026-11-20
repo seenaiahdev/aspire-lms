@@ -1,6 +1,7 @@
 // Production Express handler: send-otp
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const cache = require('../lib/cache');
 
 const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
 
@@ -61,39 +62,50 @@ module.exports = async (req, res) => {
       return res.status(429).json({ error: 'too_many_requests', retryAfter: rate.retryAfter });
     }
 
-    let student = null;
-    try {
-      const rpcResp = await fetch(
-        `${SUPABASE_URL}/rest/v1/rpc/get_student_by_phone`,
-        {
-          method: 'POST',
-          headers: {
-            apikey: SUPABASE_ANON,
-            authorization: `Bearer ${SUPABASE_ANON}`,
-            'content-type': 'application/json',
-          },
-          body: JSON.stringify({ suffix }),
-        }
-      );
-      if (rpcResp.ok) {
-        const data = await rpcResp.json();
-        const rows = Array.isArray(data) ? data : data ? [data] : [];
-        student = rows.find((s) => cleanSuffix(s.mobile_number) === suffix) || rows[0] || null;
-      }
-    } catch (rpcErr) {
-      console.warn('send-otp: RPC lookup error:', rpcErr.message);
-    }
-
+    let student = cache.get(`student_phone:${suffix}`);
     if (!student) {
       try {
-        const r = await fetch(
-          `${SUPABASE_URL}/rest/v1/students?select=name,email,mobile_number&mobile_number=ilike.*${suffix}&limit=5`,
-          { headers: { apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` } }
+        const rpcResp = await fetch(
+          `${SUPABASE_URL}/rest/v1/rpc/get_student_by_phone`,
+          {
+            method: 'POST',
+            headers: {
+              apikey: SUPABASE_ANON,
+              authorization: `Bearer ${SUPABASE_ANON}`,
+              'content-type': 'application/json',
+            },
+            body: JSON.stringify({ suffix }),
+            signal: AbortSignal.timeout(6000),
+          }
         );
-        const rows = await r.json();
-        student = Array.isArray(rows) ? rows.find((s) => cleanSuffix(s.mobile_number) === suffix) : null;
-      } catch (directErr) {
-        console.warn('send-otp: direct lookup error:', directErr.message);
+        if (rpcResp.ok) {
+          const data = await rpcResp.json();
+          const rows = Array.isArray(data) ? data : data ? [data] : [];
+          student = rows.find((s) => cleanSuffix(s.mobile_number) === suffix) || rows[0] || null;
+        }
+      } catch (rpcErr) {
+        console.warn('send-otp: RPC lookup error:', rpcErr.message);
+      }
+
+      if (!student) {
+        try {
+          const r = await fetch(
+            `${SUPABASE_URL}/rest/v1/students?select=name,email,mobile_number&mobile_number=ilike.*${suffix}&limit=5`,
+            {
+              headers: { apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` },
+              signal: AbortSignal.timeout(6000),
+            }
+          );
+          const rows = await r.json();
+          student = Array.isArray(rows) ? rows.find((s) => cleanSuffix(s.mobile_number) === suffix) : null;
+        } catch (directErr) {
+          console.warn('send-otp: direct lookup error:', directErr.message);
+        }
+      }
+
+      if (student) {
+        cache.set(`student_phone:${suffix}`, student, 60_000);
+        if (student.id) cache.set(`student_id:${student.id}`, student, 60_000);
       }
     }
 
@@ -108,6 +120,9 @@ module.exports = async (req, res) => {
     const transporter = nodemailer.createTransport({
       service: 'gmail',
       auth: { user: GMAIL_USER, pass: GMAIL_APP_PASSWORD },
+      connectionTimeout: 8000,
+      greetingTimeout: 8000,
+      socketTimeout: 8000,
     });
 
     const html = `
@@ -144,7 +159,8 @@ Team AspireNext`;
             route: 'otp',
             variables_values: code,
             numbers: suffix
-          })
+          }),
+          signal: AbortSignal.timeout(4000),
         });
       } catch (smsErr) {
         console.warn('send-otp: Fast2SMS dispatch failed:', smsErr);
@@ -164,7 +180,8 @@ Team AspireNext`;
             'Authorization': `Basic ${authHeader}`,
             'Content-Type': 'application/x-www-form-urlencoded'
           },
-          body: form.toString()
+          body: form.toString(),
+          signal: AbortSignal.timeout(4000),
         });
       } catch (twilioErr) {
         console.warn('send-otp: Twilio dispatch failed:', twilioErr);

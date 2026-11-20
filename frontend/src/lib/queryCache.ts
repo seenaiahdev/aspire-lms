@@ -1,17 +1,35 @@
 /**
- * Lightweight in-memory TTL cache for Supabase query results.
+ * Hardened in-memory TTL cache & deduplication engine for Supabase and data queries.
  *
  * Features:
- * 1. TTL-based expiry — stale entries are automatically discarded.
- * 2. In-flight deduplication — if 5 components call cachedQuery('courses', ...)
- *    simultaneously, only ONE actual fetch is made; the other 4 await the same promise.
- * 3. Real-time channels can call invalidateCache() to bust stale entries.
- * 4. Automatic memory cleanup — evicts expired entries every 60 seconds.
+ * 1. Tiered TTL policies (STATIC: 10m, MEDIUM: 2m, DYNAMIC: 30s, USER_DATA: 15s).
+ * 2. In-flight request deduplication — identical concurrent queries share a single active execution.
+ * 3. Timeout racing — query execution is bounded by timeout thresholds (default 10s).
+ * 4. PostgREST error filtering — queries returning error states are never cached.
+ * 5. Observability — tracks cache hits, misses, inflight deduplications, timeouts, and size.
+ * 6. Automatic memory cleanup — evicts expired entries every 60 seconds with unref'd timer.
  */
+
+export const CACHE_TTL = {
+  STATIC: 10 * 60 * 1000,    // 10 minutes (600,000 ms) — batched metadata, categories, badges
+  MEDIUM: 2 * 60 * 1000,     // 2 minutes (120,000 ms) — courses, milestones, live sessions, schedules
+  DYNAMIC: 30 * 1000,        // 30 seconds (30,000 ms) — quizzes, assignments, leaderboards
+  USER_DATA: 15 * 1000,      // 15 seconds (15,000 ms) — student profile, attempts, user submissions
+} as const;
+
+export const DEFAULT_QUERY_TIMEOUT_MS = 10_000; // 10 seconds default query ceiling
 
 interface CacheEntry<T> {
   data: T;
   expiresAt: number;
+}
+
+export interface CacheStats {
+  hits: number;
+  misses: number;
+  inflightDeduplications: number;
+  timeouts: number;
+  size: number;
 }
 
 const cache = new Map<string, CacheEntry<any>>();
@@ -19,45 +37,77 @@ const cache = new Map<string, CacheEntry<any>>();
 /** In-flight promises for deduplication — keyed identically to `cache`. */
 const inflight = new Map<string, Promise<any>>();
 
-const DEFAULT_TTL_MS = 30_000; // 30 seconds
+// Cache observability metrics
+let hitCount = 0;
+let missCount = 0;
+let dedupCount = 0;
+let timeoutCount = 0;
 
 /**
  * Returns cached data if fresh, otherwise calls fetchFn and caches the result.
  * Concurrent calls for the same key share a single in-flight fetch (deduplication).
+ * Bounded by timeoutMs to prevent hung promises.
  */
 export async function cachedQuery<T>(
   key: string,
-  fetchFn: () => Promise<T>,
-  ttlMs: number = DEFAULT_TTL_MS
+  fetchFn: () => PromiseLike<T> | Promise<T>,
+  ttlMs: number = CACHE_TTL.DYNAMIC,
+  timeoutMs: number = DEFAULT_QUERY_TIMEOUT_MS
 ): Promise<T> {
   const now = Date.now();
 
   // 1. Return cached data if still fresh
   const entry = cache.get(key);
   if (entry && entry.expiresAt > now) {
+    hitCount++;
     return entry.data;
   }
+
+  missCount++;
 
   // 2. If an identical fetch is already in-flight, piggyback on it
   const pending = inflight.get(key);
   if (pending) {
+    dedupCount++;
     return pending;
   }
 
-  // 3. Fire the actual fetch, deduplicate, and cache
-  const promise = fetchFn()
-    .then((data) => {
-      cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  // 3. Fire the actual fetch raced against timeoutMs, deduplicate, and cache
+  let timer: ReturnType<typeof setTimeout> | undefined;
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      timeoutCount++;
       inflight.delete(key);
+      const err = new Error(`Query for key "${key}" timed out after ${timeoutMs}ms`);
+      (err as any).name = 'TimeoutError';
+      reject(err);
+    }, timeoutMs);
+  });
+
+  const fetchPromise = Promise.resolve().then(() => fetchFn());
+
+  const executionPromise = Promise.race([fetchPromise, timeoutPromise])
+    .then((data) => {
+      if (timer) clearTimeout(timer);
+      inflight.delete(key);
+
+      // PostgREST responses with error must NOT be cached
+      const hasError = data && typeof data === 'object' && 'error' in (data as Record<string, unknown>) && Boolean((data as Record<string, unknown>).error);
+      if (!hasError) {
+        cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+      }
+
       return data;
     })
     .catch((err) => {
+      if (timer) clearTimeout(timer);
       inflight.delete(key);
       throw err;
     });
 
-  inflight.set(key, promise);
-  return promise;
+  inflight.set(key, executionPromise);
+  return executionPromise;
 }
 
 /** Invalidate a specific cache key. */
@@ -74,14 +124,34 @@ export function invalidateCacheByPrefix(prefix: string): void {
   }
 }
 
-/** Clear the entire cache. */
+/** Clear the entire cache and in-flight tracking. */
 export function clearCache(): void {
   cache.clear();
+  inflight.clear();
+}
+
+/** Retrieve current cache performance metrics. */
+export function getCacheStats(): CacheStats {
+  return {
+    hits: hitCount,
+    misses: missCount,
+    inflightDeduplications: dedupCount,
+    timeouts: timeoutCount,
+    size: cache.size,
+  };
+}
+
+/** Reset cache performance metrics counters (primarily for testing). */
+export function resetCacheStats(): void {
+  hitCount = 0;
+  missCount = 0;
+  dedupCount = 0;
+  timeoutCount = 0;
 }
 
 // ── Automatic memory cleanup ───────────────────────────────────────────────
 // Evict expired entries every 60 seconds to prevent unbounded memory growth.
-setInterval(() => {
+const cleanupTimer = setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of cache) {
     if (entry.expiresAt <= now) {
@@ -89,3 +159,9 @@ setInterval(() => {
     }
   }
 }, 60_000);
+
+// Ensure test runner or background workers are not kept alive by periodic cleanup
+if (typeof cleanupTimer === 'object' && cleanupTimer !== null && 'unref' in cleanupTimer) {
+  (cleanupTimer as any).unref();
+}
+

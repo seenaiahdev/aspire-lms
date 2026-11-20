@@ -114,7 +114,7 @@ export function NavProvider({ children }: { children: ReactNode }) {
       const newPath = `/${targetRoute}${query ? `?${query}` : ''}`;
       window.history.pushState({}, '', newPath);
     }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
   }, []);
 
   const login = useCallback(() => {
@@ -190,6 +190,13 @@ export function NavProvider({ children }: { children: ReactNode }) {
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
   }, [navigate]);
+
+  // Instant scroll-to-top on every route change (including browser popstate back/forward)
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [route]);
 
 
   return (

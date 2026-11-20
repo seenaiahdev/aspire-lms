@@ -4,6 +4,7 @@ import { Card, CardBody } from '@/components/ui/Card';
 import { Avatar } from '@/components/ui/Avatar';
 import { useUser } from '@/lib/UserContext';
 import { fetchStudentProfile, upsertStudentProfile, updateStudentAvatar } from '@/lib/api';
+import { supabase } from '@/lib/supabase';
 import { cn, formatBatchDisplay } from '@/lib/utils';
 
 interface SearchableYearSelectProps {
@@ -202,7 +203,6 @@ export function SettingsScreen() {
     try {
       // Handle avatar changes on save
       if (removeAvatar) {
-        const { supabase } = await import('@/lib/supabase');
         await supabase.from('students').update({ avatar: '' }).eq('id', currentUser.id);
       } else if (pendingAvatarFile) {
         await updateStudentAvatar(currentUser.id, pendingAvatarFile);
