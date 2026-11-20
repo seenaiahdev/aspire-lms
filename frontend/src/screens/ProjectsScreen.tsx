@@ -119,7 +119,7 @@ const projectGuides: Record<string, ProjectGuide> = {
 function formatProjectDescription(description: string): string {
   if (!description) return '';
   const trimmed = description.trim();
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+  if (trimmed.startsWith('{')) {
     try {
       const parsed = JSON.parse(trimmed);
       const extracted = parsed.text || parsed.description || parsed.overview || parsed.summary || '';
@@ -642,12 +642,26 @@ export function ProjectsScreen() {
       // Only surface projects belonging to lessons that are unlocked in Milestones for this student.
       // While unlock resolver is still initializing, don't drop all cached projects to 0!
       .filter((p: any) => {
-        // Filter out empty draft templates with no content and "Untitled Project" title
-        const rawDesc = String(p.description || '');
-        const isDraftTemplate =
-          (!p.title || p.title.trim() === 'Untitled Project') &&
-          (!rawDesc || (rawDesc.includes('"requirements":[]') && (rawDesc.includes('"text":""') || !rawDesc.includes('"text"'))));
-        if (isDraftTemplate) return false;
+        // Filter out empty draft templates with no content, "Untitled Project", or untitled placeholders
+        const title = String(p.title || '').trim().toLowerCase();
+        if (!title || title === 'untitled project' || title === 'untitled') return false;
+
+        const rawDesc = String(p.description || '').trim();
+        if (rawDesc.startsWith('{')) {
+          try {
+            const parsed = JSON.parse(rawDesc);
+            const hasContent = Boolean(
+              (parsed.text && parsed.text.trim()) ||
+              (parsed.overview && parsed.overview.trim()) ||
+              (parsed.description && parsed.description.trim()) ||
+              (Array.isArray(parsed.requirements) && parsed.requirements.length > 0) ||
+              (Array.isArray(parsed.steps) && parsed.steps.length > 0)
+            );
+            if (!hasContent) return false;
+          } catch {
+            // Malformed JSON draft, filter out if no title
+          }
+        }
 
         if (!resolverReady) return true;
         return isEntityUnlocked(p);

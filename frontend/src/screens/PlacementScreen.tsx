@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import {
   Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock, ExternalLink
@@ -11,6 +11,7 @@ import { SearchInput } from '@/components/ui/SearchInput';
 import { Toast } from '@/components/ui/Toast';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
+import { invalidateCacheByPrefix } from '@/lib/queryCache';
 
 import { placementSteps } from '@/lib/tourSteps';
 
@@ -39,47 +40,102 @@ export function PlacementScreen() {
     }
   }, [user]);
 
+  const loadJobsAndResources = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
+    try {
+      const [jobsData, dbApps, prepData] = await Promise.all([
+        fetchJobs(user?.batchCategory || 'Weekday', user?.batchCode || ''),
+        user?.id ? fetchJobApplications(user.id).catch(dbErr => {
+          console.error('Failed to fetch job applications from DB:', dbErr);
+          return [];
+        }) : Promise.resolve([]),
+        fetchPlacementResources()
+      ]);
+      
+      // Fetch real job applications from Supabase for this student
+      let appliedJobIds: string[] = (dbApps || []).map((a: any) => String(a.job_id || '').trim());
+
+      const storageKey = user?.id ? `aspire_applied_jobs_${user.id}` : 'aspire_applied_jobs';
+      const savedApplied = localStorage.getItem(storageKey);
+      const localAppliedMap = savedApplied ? JSON.parse(savedApplied) : {};
+      const localAppliedIds = Object.keys(localAppliedMap);
+
+      const mergedJobs = jobsData.map((job: any) => {
+        const isApplied = appliedJobIds.includes(String(job.id).trim()) || localAppliedIds.includes(String(job.id).trim());
+        if (isApplied) {
+          return { ...job, status: 'applied' as const };
+        }
+        return { ...job, status: job.status || 'open' };
+      });
+
+      setJobsList(mergedJobs);
+      setPrepList(prepData || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      if (showLoading) setIsLoading(false);
+    }
+  }, [user?.batchCategory, user?.batchCode, user?.id]);
+
+  // Initial load
   useEffect(() => {
-    const loadJobsAndResources = async () => {
-      setIsLoading(true);
-      try {
-        const [jobsData, dbApps, prepData] = await Promise.all([
-          fetchJobs(user?.batchCategory || 'Weekday', user?.batchCode || ''),
-          user?.id ? fetchJobApplications(user.id).catch(dbErr => {
-            console.error('Failed to fetch job applications from DB:', dbErr);
-            return [];
-          }) : Promise.resolve([]),
-          fetchPlacementResources()
-        ]);
-        
-        // Fetch real job applications from Supabase for this student
-        let appliedJobIds: string[] = (dbApps || []).map((a: any) => String(a.job_id || '').trim());
+    if (user?.batchCategory) {
+      loadJobsAndResources(true);
+    }
+  }, [loadJobsAndResources, user?.batchCategory]);
 
-        const storageKey = user?.id ? `aspire_applied_jobs_${user.id}` : 'aspire_applied_jobs';
-        const savedApplied = localStorage.getItem(storageKey);
-        const localAppliedMap = savedApplied ? JSON.parse(savedApplied) : {};
-        const localAppliedIds = Object.keys(localAppliedMap);
+  // Realtime subscription for instant show/hide when is_locked or job status changes in database
+  useEffect(() => {
+    let debounceTimer: any = null;
 
-        const mergedJobs = jobsData.map((job: any) => {
-          const isApplied = appliedJobIds.includes(String(job.id).trim()) || localAppliedIds.includes(String(job.id).trim());
-          if (isApplied) {
-            return { ...job, status: 'applied' as const };
-          }
-          return { ...job, status: job.status || 'open' };
-        });
+    const handleRealtimeChange = (payload: any) => {
+      // Invalidate jobs cache immediately so next fetch is fresh
+      invalidateCacheByPrefix('jobs:');
 
-        setJobsList(mergedJobs);
-        setPrepList(prepData || []);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
+      // Instant optimistic in-memory update for 0ms UI reaction
+      if (payload.eventType === 'UPDATE' && payload.new) {
+        if (payload.new.is_locked) {
+          // If locked, instantly hide from student view with 0ms delay
+          setJobsList((prev) => prev.filter((j) => j.id !== payload.new.id));
+        }
+      } else if (payload.eventType === 'DELETE' && payload.old) {
+        setJobsList((prev) => prev.filter((j) => j.id !== payload.old.id));
       }
+
+      // Re-sync from Supabase smoothly in background without blocking UI
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        loadJobsAndResources(false);
+      }, 100);
     };
 
-    if (user?.batchCategory) {
-      loadJobsAndResources();
-    }  }, [user?.batchCategory, user?.batchCode, user?.id]);
+    const channel = supabase
+      .channel(`placement_jobs_realtime_${Date.now()}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'jobs' },
+        handleRealtimeChange
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'job_applications' },
+        handleRealtimeChange
+      )
+      .subscribe();
+
+    // Re-sync on window focus when student tabs back into the portal
+    const handleFocus = () => {
+      invalidateCacheByPrefix('jobs:');
+      loadJobsAndResources(false);
+    };
+    window.addEventListener('focus', handleFocus);
+
+    return () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      window.removeEventListener('focus', handleFocus);
+      supabase.removeChannel(channel);
+    };
+  }, [loadJobsAndResources]);
 
   const totalCount = jobsList.filter((j) => !j.isLocked).length;
   const appliedCount = jobsList.filter((j) => !j.isLocked && j.status === 'applied').length;
