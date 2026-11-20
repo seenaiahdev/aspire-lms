@@ -81,12 +81,13 @@ export function PlacementScreen() {
       loadJobsAndResources();
     }  }, [user?.batchCategory, user?.batchCode, user?.id]);
 
-  const totalCount = jobsList.length;
-  const appliedCount = jobsList.filter((j) => j.status === 'applied').length;
-  const openCount = jobsList.filter((j) => j.status === 'open').length;
-  const closedCount = jobsList.filter((j) => j.status === 'closed').length;
+  const totalCount = jobsList.filter((j) => !j.isLocked).length;
+  const appliedCount = jobsList.filter((j) => !j.isLocked && j.status === 'applied').length;
+  const openCount = jobsList.filter((j) => !j.isLocked && j.status === 'open').length;
+  const closedCount = jobsList.filter((j) => !j.isLocked && j.status === 'closed').length;
 
   const filteredJobs = jobsList.filter((j) => {
+    if (j.isLocked) return false;
     const matchesFilter = activeFilter === 'all' ? true : j.status === activeFilter;
     const matchesSearch =
       j.role.toLowerCase().includes(searchQuery.toLowerCase()) ||

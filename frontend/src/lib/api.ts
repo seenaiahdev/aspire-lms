@@ -202,7 +202,9 @@ export async function fetchJobs(batchCategory: string, batchCode: string = '') {
 
     if (!data) return [];
 
-    return data.map((item: any) => {
+    return data
+      .filter((item: any) => !item.is_locked)
+      .map((item: any) => {
       let skills: string[] = ['Python', 'Django', 'SQL'];
       if (item.tech_stack) {
         if (Array.isArray(item.tech_stack)) {
