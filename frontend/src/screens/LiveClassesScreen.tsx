@@ -926,17 +926,14 @@ export function LiveClassesScreen() {
                           <PresentationIcon className="w-5 h-5" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
-                              Google Slides
-                            </span>
-                            {ppt.subtopic_name && (
-                              <span className="text-[11px] font-semibold text-slate-500 truncate max-w-[200px] flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-purple-400 shrink-0" />
+                          {ppt.subtopic_name && (
+                            <div className="flex items-center gap-1.5 mb-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                              <span className="text-[11px] font-bold text-slate-500 truncate">
                                 {ppt.subtopic_name}
                               </span>
-                            )}
-                          </div>
+                            </div>
+                          )}
                           <h4 className="font-extrabold text-sm sm:text-base text-slate-900 group-hover:text-[#7c3aed] transition-colors leading-snug truncate">
                             {ppt.title || ppt.lesson_name}
                           </h4>
@@ -981,12 +978,16 @@ export function LiveClassesScreen() {
                       className="p-5 rounded-[1.5rem] bg-white border border-slate-200/90 hover:border-purple-300 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer group flex flex-col justify-between relative overflow-hidden"
                     >
                       <div>
-                        {/* Top Banner Accent */}
+                        {/* Top Header */}
                         <div className="flex items-center justify-between gap-2 mb-3">
-                          <span className="px-2.5 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5">
-                            <PresentationIcon className="w-3 h-3 text-[#7c3aed]" />
-                            <span>Google Slides</span>
-                          </span>
+                          <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center shrink-0">
+                            <PresentationIcon className="w-4 h-4" />
+                          </div>
+                          {ppt.subtopic_name && (
+                            <span className="text-[11px] font-bold text-slate-500 truncate max-w-[200px]">
+                              {ppt.subtopic_name}
+                            </span>
+                          )}
                         </div>
 
                         {/* Presentation Title */}

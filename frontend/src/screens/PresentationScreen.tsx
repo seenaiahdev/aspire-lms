@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, ExternalLink, Presentation as PresentationIcon, 
   FileText, Code2, ClipboardCheck, Brain, FolderGit2, Video, 
-  Clock, ShieldAlert, Sparkles, BookOpen, Layers, CheckCircle2,
-  Maximize2, Minimize2, ChevronRight, Lock
+  Clock, BookOpen, CheckCircle2,
+  Maximize2, Minimize2, ChevronRight, Lock,
+  Pen, Highlighter, Eraser, Trash2, Palette, X
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
@@ -11,6 +12,14 @@ import { usePreload } from '@/lib/PreloadContext';
 import { fetchPresentations, PresentationRecord, getPresentationEmbedUrl } from '@/lib/api';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { cn } from '@/lib/utils';
+
+const PEN_COLORS = [
+  { name: 'Purple', value: '#7c3aed' },
+  { name: 'Emerald', value: '#10b981' },
+  { name: 'Amber', value: '#f59e0b' },
+  { name: 'Coral', value: '#ef4444' },
+  { name: 'Slate', value: '#0f172a' },
+];
 
 export function PresentationScreen() {
   const { params, navigate } = useNav();
@@ -22,6 +31,14 @@ export function PresentationScreen() {
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
+
+  // Interactive Drawing & Pen Canvas State
+  const [activeTool, setActiveTool] = useState<'none' | 'pen' | 'highlighter' | 'eraser'>('none');
+  const [penColor, setPenColor] = useState<string>('#7c3aed');
+  const [penSize] = useState<number>(3);
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const isDrawingRef = useRef(false);
+  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const presentationId = params.id || '';
   const fromRoute = params.from || 'classroom';
@@ -69,6 +86,107 @@ export function PresentationScreen() {
       setIframeLoading(true);
     }
   }, [presentation?.ppt_url]);
+
+  // Synchronize canvas buffer with display bounding box
+  const syncCanvasSize = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0 && (canvas.width !== Math.round(rect.width) || canvas.height !== Math.round(rect.height))) {
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+      if (tempCtx && canvas.width > 0 && canvas.height > 0) {
+        tempCtx.drawImage(canvas, 0, 0);
+      }
+
+      canvas.width = Math.round(rect.width);
+      canvas.height = Math.round(rect.height);
+
+      const ctx = canvas.getContext('2d');
+      if (ctx && tempCanvas.width > 0 && tempCanvas.height > 0) {
+        ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    syncCanvasSize();
+    window.addEventListener('resize', syncCanvasSize);
+    return () => window.removeEventListener('resize', syncCanvasSize);
+  }, [syncCanvasSize, isFullscreen]);
+
+  // Canvas Drawing Handlers
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (activeTool === 'none') return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    syncCanvasSize();
+    isDrawingRef.current = true;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    lastPointRef.current = { x: clientX - rect.left, y: clientY - rect.top };
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawingRef.current || activeTool === 'none' || !lastPointRef.current) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const currentX = clientX - rect.left;
+    const currentY = clientY - rect.top;
+
+    ctx.save();
+    if (activeTool === 'eraser') {
+      ctx.globalCompositeOperation = 'destination-out';
+      ctx.lineWidth = 26;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    } else if (activeTool === 'highlighter') {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = penColor;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 18;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    } else {
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.strokeStyle = penColor;
+      ctx.globalAlpha = 1.0;
+      ctx.lineWidth = penSize;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+    ctx.lineTo(currentX, currentY);
+    ctx.stroke();
+    ctx.restore();
+
+    lastPointRef.current = { x: currentX, y: currentY };
+  };
+
+  const stopDrawing = () => {
+    isDrawingRef.current = false;
+    lastPointRef.current = null;
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  };
 
   // Check if presentation is locked
   const isPptLocked = useMemo(() => {
@@ -133,46 +251,39 @@ export function PresentationScreen() {
     }
   };
 
+  // ── SKELETON LOADER (CARD-BASED MATCHING CINEMA STUDIO LAYOUT) ──
   if (loading) {
     return (
-      <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-4 sm:p-6 lg:p-8 font-sans space-y-6 max-w-7xl mx-auto select-none animate-pulse">
-        {/* Top Header Card Skeleton */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+      <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-4 sm:p-6 lg:p-7 font-sans space-y-4 max-w-7xl mx-auto select-none animate-pulse">
+        {/* Cinema Studio Header Skeleton */}
+        <div className="flex items-center justify-between gap-4 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-slate-200 shrink-0" />
             <div className="space-y-1.5">
-              <div className="w-48 sm:w-72 h-4 bg-slate-200 rounded-md" />
-              <div className="w-24 h-2.5 bg-slate-100 rounded-md" />
+              <div className="w-56 sm:w-80 h-4 bg-slate-200 rounded-md" />
+              <div className="w-32 h-2.5 bg-slate-100 rounded-md" />
             </div>
           </div>
-          <div className="w-44 h-7 bg-emerald-50/70 rounded-xl border border-emerald-100/70" />
+          <div className="flex items-center gap-2">
+            <div className="w-24 h-8 bg-slate-100 rounded-xl" />
+            <div className="w-9 h-9 bg-slate-100 rounded-xl" />
+          </div>
         </div>
 
         {/* 2-Column Grid Cards Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column Slide Card Skeleton */}
-          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-6 lg:p-7 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <div className="w-24 h-5 bg-purple-100 rounded-lg" />
-                  <div className="w-36 h-5 bg-slate-100 rounded-lg" />
-                </div>
-                <div className="w-64 sm:w-96 h-6 bg-slate-200 rounded-lg" />
-              </div>
-              <div className="w-24 h-8 bg-slate-100 rounded-xl" />
-            </div>
-            {/* 16:9 Canvas Skeleton */}
-            <div className="w-full aspect-video min-h-[360px] rounded-2xl bg-slate-900/90 flex flex-col items-center justify-center gap-3 border border-slate-800">
-              <div className="w-10 h-10 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Left Column 16:9 Slide Canvas Skeleton */}
+          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 space-y-3">
+            <div className="w-full aspect-[16/9] rounded-2xl bg-slate-900 flex flex-col items-center justify-center gap-3 border border-slate-800">
+              <div className="w-9 h-9 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
               <div className="w-32 h-3 bg-slate-700/60 rounded-md" />
             </div>
           </div>
 
           {/* Right Column Coursework Card Skeleton */}
-          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-6 space-y-4">
+          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3.5">
             <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-              <div className="w-9 h-9 rounded-xl bg-purple-100 shrink-0" />
+              <div className="w-8 h-8 rounded-xl bg-purple-100 shrink-0" />
               <div className="space-y-1">
                 <div className="w-32 h-4 bg-slate-200 rounded-md" />
                 <div className="w-24 h-2.5 bg-slate-100 rounded-md" />
@@ -250,129 +361,180 @@ export function PresentationScreen() {
   const hasCoursework = practices.length > 0 || assessments.length > 0 || quizzes.length > 0 || projects.length > 0 || !!video?.videoUrl;
 
   return (
-    <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-4 sm:p-6 lg:p-8 font-sans space-y-6 max-w-7xl mx-auto select-none">
+    <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-3 sm:p-5 lg:p-6 font-sans space-y-4 max-w-7xl mx-auto select-none">
       
-      {/* ── TOP HEADER / BREADCRUMB BAR ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
-        <div className="flex items-center gap-3">
+      {/* ── UNIFIED CINEMA STUDIO HEADER (STREAMLINED: ZERO THEORY CLUTTER) ── */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-4 py-3 sm:px-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+        {/* Left: Back Arrow + Lesson Title + Module Subtitle */}
+        <div className="flex items-center gap-3 min-w-0">
           <button
             type="button"
             onClick={handleBack}
-            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-purple-50 text-slate-600 hover:text-[#7c3aed] border border-slate-200/80 hover:border-purple-200 flex items-center justify-center transition-all shrink-0 cursor-pointer"
-            title="Go back"
+            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-purple-50 text-slate-600 hover:text-[#7c3aed] border border-slate-200/80 hover:border-purple-200 flex items-center justify-center transition-all shrink-0 cursor-pointer shadow-2xs active:scale-95"
+            title="Back to Classroom"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-400 flex-wrap">
-              <span 
-                onClick={handleBack} 
-                className="hover:text-slate-700 cursor-pointer transition-colors"
-              >
-                {fromRoute === 'milestones' ? 'Milestones' : fromRoute === 'dashboard' ? 'Dashboard' : 'Classroom'}
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-              <span className="text-slate-600 truncate max-w-[200px]">
-                {presentation.stage_name || matchedLessonData?.stageTitle || 'Course Slides'}
-              </span>
-              <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-              <span className="text-[#7c3aed] font-extrabold truncate max-w-[240px]">
-                {presentation.title}
-              </span>
-            </div>
+          
+          <div className="min-w-0 flex-1">
+            <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug truncate" title={presentation.title || presentation.lesson_name}>
+              {presentation.title || presentation.lesson_name}
+            </h1>
+            {(presentation.subtopic_name || matchedLessonData?.moduleTitle) && (
+              <p className="text-[11px] font-bold text-slate-400 truncate flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                <span>{presentation.subtopic_name || matchedLessonData?.moduleTitle}</span>
+                {presentation.lesson_name && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span className="text-slate-500 truncate">{presentation.lesson_name}</span>
+                  </>
+                )}
+              </p>
+            )}
           </div>
         </div>
 
-        {/* View-Only Badge */}
-        <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
-          <span className="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-extrabold flex items-center gap-1.5 shadow-2xs">
-            <ShieldAlert className="w-3.5 h-3.5 text-emerald-600" />
-            <span>View Only • No Download</span>
-          </span>
+        {/* Right: Studio Annotation Dock & Fullscreen SVG Button */}
+        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
+          {/* Annotation Control Bar */}
+          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/90 shadow-2xs">
+            {/* Pen Tool Button */}
+            <button
+              type="button"
+              onClick={() => setActiveTool(activeTool === 'pen' ? 'none' : 'pen')}
+              className={cn(
+                "p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer",
+                activeTool === 'pen' 
+                  ? "bg-[#7c3aed] text-white shadow-sm shadow-purple-500/20" 
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
+              )}
+              title="Interactive Pen Tool"
+            >
+              <Pen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Pen</span>
+            </button>
+
+            {/* Highlighter Tool Button */}
+            <button
+              type="button"
+              onClick={() => setActiveTool(activeTool === 'highlighter' ? 'none' : 'highlighter')}
+              className={cn(
+                "p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer",
+                activeTool === 'highlighter' 
+                  ? "bg-amber-500 text-white shadow-sm shadow-amber-500/20" 
+                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
+              )}
+              title="Interactive Highlighter Tool"
+            >
+              <Highlighter className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Highlight</span>
+            </button>
+
+            {/* Color Palette (Visible when Pen or Highlighter active) */}
+            {(activeTool === 'pen' || activeTool === 'highlighter') && (
+              <div className="flex items-center gap-1 px-1.5 border-l border-slate-200 animate-fade-in">
+                {PEN_COLORS.map((c) => (
+                  <button
+                    key={c.value}
+                    type="button"
+                    onClick={() => setPenColor(c.value)}
+                    style={{ backgroundColor: c.value }}
+                    className={cn(
+                      "w-4 h-4 rounded-full transition-transform cursor-pointer shrink-0",
+                      penColor === c.value ? "ring-2 ring-offset-1 ring-slate-700 scale-110" : "hover:scale-105 opacity-80"
+                    )}
+                    title={c.name}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* Eraser Tool Button */}
+            <button
+              type="button"
+              onClick={() => setActiveTool(activeTool === 'eraser' ? 'none' : 'eraser')}
+              className={cn(
+                "p-1.5 rounded-lg transition-all cursor-pointer",
+                activeTool === 'eraser' 
+                  ? "bg-rose-500 text-white shadow-sm" 
+                  : "text-slate-500 hover:text-slate-800 hover:bg-white"
+              )}
+              title="Eraser"
+            >
+              <Eraser className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Clear All Annotations */}
+            <button
+              type="button"
+              onClick={clearCanvas}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
+              title="Clear all drawings"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="h-5 w-px bg-slate-200 mx-0.5 hidden sm:block" />
+
+          {/* Fullscreen SVG Icon Button */}
+          <button
+            type="button"
+            onClick={() => setIsFullscreen(!isFullscreen)}
+            className="p-2 sm:px-3 sm:py-2 rounded-xl bg-purple-50 hover:bg-[#7c3aed] text-[#7c3aed] hover:text-white border border-purple-200 hover:border-purple-600 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95"
+            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
+          >
+            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Full Screen'}</span>
+          </button>
         </div>
       </div>
 
-      {/* ── 2-COLUMN LAYOUT: SLIDES ON LEFT, RELATED COURSEWORK ON RIGHT ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* ── 2-COLUMN STUDIO LAYOUT: SLIDES ON LEFT, RELATED COURSEWORK ON RIGHT ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
         
-        {/* ── LEFT COLUMN: MAIN PRESENTATION SLIDES (lg:col-span-8) ── */}
-        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-6 lg:p-7 space-y-5">
+        {/* ── LEFT COLUMN: CINEMA PRESENTATION SLIDES (lg:col-span-8) ── */}
+        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3 sm:p-4 space-y-3">
           
-          {/* Presentation Metadata Banner */}
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-            <div className="space-y-1.5 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="px-2.5 py-0.5 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider flex items-center gap-1">
-                  <PresentationIcon className="w-3 h-3 text-[#7c3aed]" />
-                  {presentation.provider || 'Google Slides'}
-                </span>
-                {presentation.course_name && (
-                  <span className="px-2.5 py-0.5 rounded-lg bg-slate-100 text-slate-700 text-[10px] font-extrabold">
-                    {presentation.course_name}
-                  </span>
-                )}
-                {presentation.subtopic_name && (
-                  <span className="hidden sm:inline-block px-2.5 py-0.5 rounded-lg bg-indigo-50 text-indigo-700 border border-indigo-100 text-[10px] font-bold">
-                    {presentation.subtopic_name}
-                  </span>
-                )}
-              </div>
-              <h1 className="text-xl sm:text-2xl font-black text-slate-900 tracking-tight leading-snug">
-                {presentation.title || presentation.lesson_name}
-              </h1>
-              {presentation.lesson_name && (
-                <p className="text-xs font-semibold text-slate-500 flex items-center gap-1.5">
-                  <FileText className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Mapped Lesson: <strong>{presentation.lesson_name}</strong></span>
-                </p>
-              )}
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => setIsFullscreen(!isFullscreen)}
-                className="px-3.5 py-2 rounded-xl bg-slate-50 hover:bg-purple-50 text-slate-700 hover:text-[#7c3aed] border border-slate-200 hover:border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
-              >
-                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
-                <span>{isFullscreen ? 'Exit Fullscreen' : 'Full Screen'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* ── EMBEDDED SLIDE VIEWER CANVAS ── */}
+          {/* ── 16:9 EDGE-TO-EDGE CANVAS (ZERO DARK PILLARBOX MARGINS) ── */}
           <div 
             className={cn(
-              "w-full rounded-2xl overflow-hidden bg-slate-950 relative border border-slate-800 transition-all duration-300",
-              isFullscreen ? "fixed inset-3 z-[99999] rounded-2xl shadow-2xl" : "aspect-video min-h-[380px] max-h-[580px]"
+              "w-full rounded-2xl overflow-hidden bg-slate-950 relative border border-slate-800 shadow-inner transition-all duration-300",
+              isFullscreen 
+                ? "fixed inset-2 z-[99999] rounded-2xl shadow-2xl flex items-center justify-center bg-black" 
+                : "aspect-[16/9] w-full"
             )}
             onContextMenu={(e) => e.preventDefault()}
           >
+            {/* Close button in Fullscreen mode */}
             {isFullscreen && (
-              <div className="absolute top-3 right-3 z-30">
+              <div className="absolute top-4 right-4 z-40">
                 <button
                   type="button"
                   onClick={() => setIsFullscreen(false)}
-                  className="px-3 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-lg backdrop-blur-md"
+                  className="px-3.5 py-1.5 rounded-xl bg-slate-900/90 hover:bg-slate-800 text-white border border-slate-700 text-xs font-bold flex items-center gap-1.5 shadow-xl backdrop-blur-md cursor-pointer"
                 >
-                  <Minimize2 className="w-3.5 h-3.5" />
-                  <span>Close Fullscreen</span>
+                  <Minimize2 className="w-4 h-4" />
+                  <span>Exit Fullscreen</span>
                 </button>
               </div>
             )}
 
+            {/* Spinner loader while iframe initializes */}
             {iframeLoading && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-slate-950 z-10">
-                <div className="w-9 h-9 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-slate-400 text-xs font-bold tracking-wide">Loading slide deck...</p>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 bg-slate-950 z-10 pointer-events-none">
+                <div className="w-8 h-8 border-3 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
+                <p className="text-slate-400 text-xs font-bold tracking-wide">Loading presentation...</p>
               </div>
             )}
 
+            {/* Google Slides Iframe Embed */}
             {embedUrl ? (
               <iframe
                 src={embedUrl}
                 title={presentation.title || 'Presentation Viewer'}
-                className="w-full h-full border-0 bg-black"
+                className="w-full h-full border-0 bg-black block"
                 allowFullScreen
                 sandbox="allow-scripts allow-same-origin allow-presentation"
                 onLoad={() => setIframeLoading(false)}
@@ -383,20 +545,56 @@ export function PresentationScreen() {
                 <p className="text-xs text-slate-500 mt-1">Presentation link is unavailable.</p>
               </div>
             )}
+
+            {/* ── INTERACTIVE HTML5 DRAWING OVERLAY CANVAS ── */}
+            <canvas
+              ref={canvasRef}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+              onTouchStart={startDrawing}
+              onTouchMove={draw}
+              onTouchEnd={stopDrawing}
+              className={cn(
+                "absolute inset-0 w-full h-full z-20 transition-opacity",
+                activeTool !== 'none' 
+                  ? "pointer-events-auto cursor-crosshair opacity-100" 
+                  : "pointer-events-none opacity-90"
+              )}
+            />
+
+            {/* Floating indicator when Pen / Drawing mode is active */}
+            {activeTool !== 'none' && (
+              <div className="absolute top-3 left-3 z-30 flex items-center gap-2 bg-slate-900/90 text-white px-3 py-1.5 rounded-xl border border-slate-700 shadow-lg backdrop-blur-md text-xs font-bold animate-fade-in pointer-events-auto">
+                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: activeTool === 'eraser' ? '#ef4444' : penColor }} />
+                <span>
+                  {activeTool === 'pen' ? 'Pen Mode' : activeTool === 'highlighter' ? 'Highlighter Mode' : 'Eraser Mode'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTool('none')}
+                  className="ml-1 p-0.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white"
+                  title="Exit Drawing Mode"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
         {/* ── RIGHT COLUMN: RELATED LESSON COURSEWORK & RESOURCES (lg:col-span-4) ── */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 lg:p-6 space-y-4">
+        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-4">
           <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-            <div className="w-9 h-9 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
+            <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
               <BookOpen className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="font-extrabold text-base text-slate-900 leading-tight">
+              <h2 className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
                 Related Coursework
               </h2>
-              <p className="text-xs font-semibold text-slate-500">
+              <p className="text-[11px] font-semibold text-slate-500">
                 Labs, assessments & projects for this topic
               </p>
             </div>
@@ -412,7 +610,7 @@ export function PresentationScreen() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-[640px] overflow-y-auto pr-1">
+            <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
               
               {/* Coding Practices */}
               {practices.map((practice: any) => (

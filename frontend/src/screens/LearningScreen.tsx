@@ -1638,7 +1638,7 @@ export function LearningScreen() {
                                       {lesson.presentation.title || lesson.title}
                                     </h4>
                                     <span className="text-[10px] font-semibold text-slate-500 flex items-center gap-1 mt-1">
-                                      Google Slides Deck
+                                      Slide Deck
                                     </span>
                                   </div>
                                 </div>
