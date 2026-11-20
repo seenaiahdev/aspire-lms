@@ -249,7 +249,10 @@ export async function fetchPlacementResources() {
  * matching only batch_code hides sessions from batches that are actually targeted.
  */
 function liveSessionBatchFilter(batchCode: string): string {
-  const b = batchCode || '';
+  const b = (batchCode || '').trim();
+  if (!b) {
+    return 'target_batch.ilike.%all batches%';
+  }
   return `batch_code.eq.${b},target_batch.ilike.%${b}%,target_batch.ilike.%all batches%`;
 }
 
@@ -259,20 +262,35 @@ function liveSessionBatchFilter(batchCode: string): string {
  * "Upcoming"), so we do not filter by status here.
  */
 export async function fetchLiveSessions(batchCode: string) {
-  return cachedQuery(`live_sessions:${batchCode}`, async () => {
-    const { data, error } = await supabase
-      .from('live_sessions')
-      .select('*')
-      .or(liveSessionBatchFilter(batchCode))
-      .order('date', { ascending: true })
-      .order('time', { ascending: true });
+  const b = (batchCode || '').trim();
+  return cachedQuery(`live_sessions:${b}`, async () => {
+    try {
+      const today = new Date();
+      today.setDate(today.getDate() - 14); // include past 14 days and all upcoming
+      const minDate = today.toISOString().split('T')[0];
 
-    if (error) {
-      console.error('Error fetching live sessions:', error);
-      throw error;
+      let query = supabase
+        .from('live_sessions')
+        .select('*')
+        .gte('date', minDate);
+
+      query = query.or(liveSessionBatchFilter(b));
+
+      const { data, error } = await query
+        .order('date', { ascending: true })
+        .order('time', { ascending: true })
+        .limit(100);
+
+      if (error) {
+        console.warn('Error fetching live sessions:', error.message);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.warn('Exception in fetchLiveSessions:', err);
+      return [];
     }
-
-    return data || [];
   }, 30_000); // 30 seconds
 }
 
@@ -281,20 +299,30 @@ export async function fetchLiveSessions(batchCode: string) {
  * specific batch (matched via batch_code or target_batch).
  */
 export async function fetchAllLiveSessions(batchCode: string) {
-  return cachedQuery(`all_live_sessions:${batchCode}`, async () => {
-    const { data, error } = await supabase
-      .from('live_sessions')
-      .select('*')
-      .or(liveSessionBatchFilter(batchCode))
-      .order('date', { ascending: false })
-      .order('time', { ascending: false });
+  const b = (batchCode || '').trim();
+  return cachedQuery(`all_live_sessions:${b}`, async () => {
+    try {
+      let query = supabase
+        .from('live_sessions')
+        .select('*');
 
-    if (error) {
-      console.error('Error fetching all live sessions:', error);
-      throw error;
+      query = query.or(liveSessionBatchFilter(b));
+
+      const { data, error } = await query
+        .order('date', { ascending: false })
+        .order('time', { ascending: false })
+        .limit(200);
+
+      if (error) {
+        console.warn('Error fetching all live sessions:', error.message);
+        return [];
+      }
+
+      return data || [];
+    } catch (err) {
+      console.warn('Exception in fetchAllLiveSessions:', err);
+      return [];
     }
-
-    return data || [];
   }, 30_000); // 30 seconds
 }
 
