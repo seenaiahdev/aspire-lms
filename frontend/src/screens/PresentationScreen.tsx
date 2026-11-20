@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { 
   ArrowLeft, ExternalLink, Presentation as PresentationIcon, 
-  FileText, Code2, ClipboardCheck, Brain, FolderGit2, Video, 
+  Code2, ClipboardCheck, Brain, FolderGit2, Video, 
   Clock, BookOpen, CheckCircle2,
-  Maximize2, Minimize2, ChevronRight, Lock,
-  Pen, Highlighter, Eraser, Trash2, Palette, X
+  Maximize2, Minimize2, ChevronLeft, ChevronRight, Lock,
+  Pen, Highlighter, Eraser, Trash2, X, Play
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
@@ -18,7 +18,7 @@ const PEN_COLORS = [
   { name: 'Emerald', value: '#10b981' },
   { name: 'Amber', value: '#f59e0b' },
   { name: 'Coral', value: '#ef4444' },
-  { name: 'Slate', value: '#0f172a' },
+  { name: 'White', value: '#ffffff' },
 ];
 
 export function PresentationScreen() {
@@ -31,6 +31,26 @@ export function PresentationScreen() {
   const [loading, setLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
+
+  // Interactive slide count and navigation
+  const [currentSlide, setCurrentSlide] = useState(1);
+  const totalSlides = useMemo(() => {
+    if (!presentation) return 10;
+    const searchString = `${presentation.title || ''} ${presentation.description || ''} ${(presentation.tags || []).join(' ')}`;
+    const match = searchString.match(/(\d+)\s*slides?/i);
+    if (match && parseInt(match[1], 10) > 0) {
+      return parseInt(match[1], 10);
+    }
+    return 10;
+  }, [presentation]);
+
+  const handlePrevSlide = () => {
+    setCurrentSlide((prev) => Math.max(1, prev - 1));
+  };
+
+  const handleNextSlide = () => {
+    setCurrentSlide((prev) => Math.min(totalSlides, prev + 1));
+  };
 
   // Interactive Drawing & Pen Canvas State
   const [activeTool, setActiveTool] = useState<'none' | 'pen' | 'highlighter' | 'eraser'>('none');
@@ -48,42 +68,44 @@ export function PresentationScreen() {
     let alive = true;
 
     async function loadData() {
-      // 1. Fast path: check preload memory cache first
       if (preload.presentations && preload.presentations.length > 0) {
         const found = preload.presentations.find(
           (p) => p.id === presentationId || p.inner_topic_id === presentationId
         );
         if (found) {
-          setPresentation(found);
-          setLoading(false);
+          if (alive) {
+            setPresentation(found);
+            setLoading(false);
+          }
           return;
         }
       }
 
-      // 2. Fallback: fetch from API
-      setLoading(true);
       try {
-        const list = await fetchPresentations(user.enrolledCourses);
+        const all = await fetchPresentations();
         if (!alive) return;
-        const found = list.find(
+        const found = all.find(
           (p) => p.id === presentationId || p.inner_topic_id === presentationId
         );
-        setPresentation(found || list[0] || null);
+        setPresentation(found || null);
       } catch (err) {
-        console.error('Failed to load presentation:', err);
+        console.error('Failed to load presentation record:', err);
       } finally {
         if (alive) setLoading(false);
       }
     }
 
     loadData();
-    return () => { alive = false; };
-  }, [presentationId, preload.presentations, user.enrolledCourses]);
+    return () => {
+      alive = false;
+    };
+  }, [presentationId, preload.presentations]);
 
-  // Reset iframe loading state when URL changes
+  // Reset loading state when presentation changes
   useEffect(() => {
     if (presentation?.ppt_url) {
       setIframeLoading(true);
+      setCurrentSlide(1);
     }
   }, [presentation?.ppt_url]);
 
@@ -117,6 +139,20 @@ export function PresentationScreen() {
     return () => window.removeEventListener('resize', syncCanvasSize);
   }, [syncCanvasSize, isFullscreen]);
 
+  // Keyboard navigation for slides
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTool !== 'none') return;
+      if (e.key === 'ArrowLeft') {
+        setCurrentSlide((prev) => Math.max(1, prev - 1));
+      } else if (e.key === 'ArrowRight') {
+        setCurrentSlide((prev) => Math.min(totalSlides, prev + 1));
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTool, totalSlides]);
+
   // Canvas Drawing Handlers
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (activeTool === 'none') return;
@@ -146,29 +182,26 @@ export function PresentationScreen() {
     ctx.save();
     if (activeTool === 'eraser') {
       ctx.globalCompositeOperation = 'destination-out';
-      ctx.lineWidth = 26;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-    } else if (activeTool === 'highlighter') {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = penColor;
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth = 18;
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.arc(currentX, currentY, 14, 0, Math.PI * 2);
+      ctx.fill();
     } else {
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.strokeStyle = penColor;
-      ctx.globalAlpha = 1.0;
-      ctx.lineWidth = penSize;
       ctx.lineCap = 'round';
       ctx.lineJoin = 'round';
+      if (activeTool === 'highlighter') {
+        ctx.globalAlpha = 0.35;
+        ctx.strokeStyle = penColor;
+        ctx.lineWidth = 14;
+      } else {
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = penColor;
+        ctx.lineWidth = penSize;
+      }
+      ctx.beginPath();
+      ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
+      ctx.lineTo(currentX, currentY);
+      ctx.stroke();
     }
-
-    ctx.beginPath();
-    ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-    ctx.lineTo(currentX, currentY);
-    ctx.stroke();
     ctx.restore();
 
     lastPointRef.current = { x: currentX, y: currentY };
@@ -188,36 +221,32 @@ export function PresentationScreen() {
     }
   };
 
-  // Check if presentation is locked
+  // Determine unlock status
   const isPptLocked = useMemo(() => {
     if (!presentation) return false;
-    if (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0) return true;
+    if (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0) return false;
     if (user.unlockedLessonIds.includes(presentation.inner_topic_id)) return false;
     if (resolver && user.unlockedLessonIds.includes(resolver.resolveLessonId(presentation.inner_topic_id))) return false;
-    return !(isEntityUnlocked(presentation) || isUnlocked(presentation.inner_topic_id));
+    return !isEntityUnlocked(presentation) && !isUnlocked(presentation.inner_topic_id);
   }, [presentation, user?.unlockedLessonIds, resolver, isEntityUnlocked, isUnlocked]);
 
-  // Locate the matching lesson and its coursework from preload.syllabi memory cache
+  // Find mapped lesson coursework
   const matchedLessonData = useMemo(() => {
     if (!presentation || !preload.syllabi) return null;
 
-    const norm = (s: string) => String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const pTitle = norm(presentation.title || presentation.lesson_name);
+    const norm = (str?: string) => (str || '').toLowerCase().trim();
+    const pId = presentation.inner_topic_id;
+    const resolvedPId = resolver ? resolver.resolveLessonId(pId) : pId;
+    const pTitle = norm(presentation.title);
 
-    for (const courseId of Object.keys(preload.syllabi)) {
-      const syllabus = preload.syllabi[courseId];
+    for (const [courseId, syllabus] of Object.entries(preload.syllabi)) {
       if (!syllabus?.stages) continue;
-
       for (const stage of syllabus.stages) {
-        for (const mod of stage.modules || []) {
-          for (const l of mod.lessons || []) {
-            const matchesId = Boolean(
-              presentation.inner_topic_id && (
-                l.id === presentation.inner_topic_id ||
-                (resolver && resolver.resolveLessonId(presentation.inner_topic_id) === l.id)
-              )
-            );
-            const matchesTitle = Boolean(
+        for (const mod of stage.modules) {
+          for (const l of mod.lessons) {
+            const resolvedLId = resolver ? resolver.resolveLessonId(l.id) : l.id;
+            const matchesId = pId === l.id || resolvedPId === resolvedLId;
+            const matchesTitle = !matchesId && (
               (pTitle && norm(l.title) === pTitle) ||
               (presentation.lesson_name && norm(presentation.lesson_name) === norm(l.title))
             );
@@ -251,11 +280,10 @@ export function PresentationScreen() {
     }
   };
 
-  // ── SKELETON LOADER (CARD-BASED MATCHING CINEMA STUDIO LAYOUT) ──
+  // Skeleton Loader
   if (loading) {
     return (
-      <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-4 sm:p-6 lg:p-7 font-sans space-y-4 max-w-7xl mx-auto select-none animate-pulse">
-        {/* Cinema Studio Header Skeleton */}
+      <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-3 sm:p-5 font-sans space-y-3 max-w-7xl mx-auto select-none animate-pulse">
         <div className="flex items-center justify-between gap-4 bg-white p-3.5 sm:p-4 rounded-2xl border border-slate-200/90 shadow-2xs">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-slate-200 shrink-0" />
@@ -264,40 +292,24 @@ export function PresentationScreen() {
               <div className="w-32 h-2.5 bg-slate-100 rounded-md" />
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="w-24 h-8 bg-slate-100 rounded-xl" />
-            <div className="w-9 h-9 bg-slate-100 rounded-xl" />
-          </div>
+          <div className="w-24 h-8 bg-slate-100 rounded-xl" />
         </div>
 
-        {/* 2-Column Grid Cards Skeleton */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Left Column 16:9 Slide Canvas Skeleton */}
-          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 space-y-3">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
+          <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3 space-y-3">
             <div className="w-full aspect-[16/9] rounded-2xl bg-slate-900 flex flex-col items-center justify-center gap-3 border border-slate-800">
               <div className="w-9 h-9 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
               <div className="w-32 h-3 bg-slate-700/60 rounded-md" />
             </div>
           </div>
 
-          {/* Right Column Coursework Card Skeleton */}
-          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-3.5">
-            <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-              <div className="w-8 h-8 rounded-xl bg-purple-100 shrink-0" />
-              <div className="space-y-1">
-                <div className="w-32 h-4 bg-slate-200 rounded-md" />
-                <div className="w-24 h-2.5 bg-slate-100 rounded-md" />
-              </div>
-            </div>
-            <div className="space-y-3">
+          <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 space-y-3">
+            <div className="w-32 h-4 bg-slate-200 rounded-md" />
+            <div className="space-y-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="p-3.5 rounded-2xl border border-slate-100 bg-slate-50/70 space-y-2.5">
-                  <div className="flex justify-between items-center">
-                    <div className="w-20 h-4 bg-slate-200 rounded" />
-                    <div className="w-10 h-3 bg-slate-200 rounded" />
-                  </div>
-                  <div className="w-full h-4 bg-slate-200 rounded" />
-                  <div className="w-1/2 h-3 bg-slate-100 rounded" />
+                <div key={i} className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 space-y-2">
+                  <div className="w-20 h-3 bg-slate-200 rounded" />
+                  <div className="w-full h-3 bg-slate-200 rounded" />
                 </div>
               ))}
             </div>
@@ -319,7 +331,7 @@ export function PresentationScreen() {
         </div>
         <button
           onClick={handleBack}
-          className="px-5 py-2.5 rounded-xl bg-[#7c3aed] text-white text-xs font-extrabold shadow-md hover:bg-[#6d28d9] transition-all"
+          className="px-5 py-2.5 rounded-xl bg-[#7c3aed] text-white text-xs font-extrabold shadow-md hover:bg-[#6d28d9] transition-all cursor-pointer"
         >
           Return to Classroom
         </button>
@@ -341,7 +353,7 @@ export function PresentationScreen() {
         </div>
         <button
           onClick={() => navigate('milestones')}
-          className="px-5 py-2.5 rounded-xl bg-[#7c3aed] text-white text-xs font-extrabold shadow-md hover:bg-[#6d28d9] transition-all"
+          className="px-5 py-2.5 rounded-xl bg-[#7c3aed] text-white text-xs font-extrabold shadow-md hover:bg-[#6d28d9] transition-all cursor-pointer"
         >
           View Milestones Roadmap
         </button>
@@ -361,10 +373,10 @@ export function PresentationScreen() {
   const hasCoursework = practices.length > 0 || assessments.length > 0 || quizzes.length > 0 || projects.length > 0 || !!video?.videoUrl;
 
   return (
-    <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-3 sm:p-5 lg:p-6 font-sans space-y-4 max-w-7xl mx-auto select-none">
+    <div className="min-h-[calc(100vh-4.5rem)] bg-slate-50/70 p-2.5 sm:p-4 lg:p-5 font-sans space-y-3.5 max-w-7xl mx-auto select-none">
       
-      {/* ── UNIFIED CINEMA STUDIO HEADER (STREAMLINED: ZERO THEORY CLUTTER) ── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white px-4 py-3 sm:px-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+      {/* ── UNIFIED CINEMA STUDIO HEADER (STREAMLINED & COMPACT) ── */}
+      <div className="flex items-center justify-between gap-3 bg-white px-4 py-2.5 sm:px-5 rounded-2xl border border-slate-200/90 shadow-2xs">
         {/* Left: Back Arrow + Lesson Title + Module Subtitle */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -377,7 +389,7 @@ export function PresentationScreen() {
           </button>
           
           <div className="min-w-0 flex-1">
-            <h1 className="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-snug truncate" title={presentation.title || presentation.lesson_name}>
+            <h1 className="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-snug truncate" title={presentation.title || presentation.lesson_name}>
               {presentation.title || presentation.lesson_name}
             </h1>
             {(presentation.subtopic_name || matchedLessonData?.moduleTitle) && (
@@ -395,114 +407,27 @@ export function PresentationScreen() {
           </div>
         </div>
 
-        {/* Right: Studio Annotation Dock & Fullscreen SVG Button */}
-        <div className="flex items-center gap-2 self-end sm:self-auto shrink-0 flex-wrap">
-          {/* Annotation Control Bar */}
-          <div className="flex items-center gap-1 bg-slate-50 p-1 rounded-xl border border-slate-200/90 shadow-2xs">
-            {/* Pen Tool Button */}
-            <button
-              type="button"
-              onClick={() => setActiveTool(activeTool === 'pen' ? 'none' : 'pen')}
-              className={cn(
-                "p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer",
-                activeTool === 'pen' 
-                  ? "bg-[#7c3aed] text-white shadow-sm shadow-purple-500/20" 
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
-              )}
-              title="Interactive Pen Tool"
-            >
-              <Pen className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Pen</span>
-            </button>
-
-            {/* Highlighter Tool Button */}
-            <button
-              type="button"
-              onClick={() => setActiveTool(activeTool === 'highlighter' ? 'none' : 'highlighter')}
-              className={cn(
-                "p-1.5 sm:px-2.5 sm:py-1.5 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer",
-                activeTool === 'highlighter' 
-                  ? "bg-amber-500 text-white shadow-sm shadow-amber-500/20" 
-                  : "text-slate-600 hover:text-slate-900 hover:bg-white"
-              )}
-              title="Interactive Highlighter Tool"
-            >
-              <Highlighter className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Highlight</span>
-            </button>
-
-            {/* Color Palette (Visible when Pen or Highlighter active) */}
-            {(activeTool === 'pen' || activeTool === 'highlighter') && (
-              <div className="flex items-center gap-1 px-1.5 border-l border-slate-200 animate-fade-in">
-                {PEN_COLORS.map((c) => (
-                  <button
-                    key={c.value}
-                    type="button"
-                    onClick={() => setPenColor(c.value)}
-                    style={{ backgroundColor: c.value }}
-                    className={cn(
-                      "w-4 h-4 rounded-full transition-transform cursor-pointer shrink-0",
-                      penColor === c.value ? "ring-2 ring-offset-1 ring-slate-700 scale-110" : "hover:scale-105 opacity-80"
-                    )}
-                    title={c.name}
-                  />
-                ))}
-              </div>
-            )}
-
-            {/* Eraser Tool Button */}
-            <button
-              type="button"
-              onClick={() => setActiveTool(activeTool === 'eraser' ? 'none' : 'eraser')}
-              className={cn(
-                "p-1.5 rounded-lg transition-all cursor-pointer",
-                activeTool === 'eraser' 
-                  ? "bg-rose-500 text-white shadow-sm" 
-                  : "text-slate-500 hover:text-slate-800 hover:bg-white"
-              )}
-              title="Eraser"
-            >
-              <Eraser className="w-3.5 h-3.5" />
-            </button>
-
-            {/* Clear All Annotations */}
-            <button
-              type="button"
-              onClick={clearCanvas}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-all cursor-pointer"
-              title="Clear all drawings"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-
-          <div className="h-5 w-px bg-slate-200 mx-0.5 hidden sm:block" />
-
-          {/* Fullscreen SVG Icon Button */}
-          <button
-            type="button"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-2 sm:px-3 sm:py-2 rounded-xl bg-purple-50 hover:bg-[#7c3aed] text-[#7c3aed] hover:text-white border border-purple-200 hover:border-purple-600 text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-95"
-            title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
-          >
-            {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            <span className="hidden sm:inline">{isFullscreen ? 'Exit' : 'Full Screen'}</span>
-          </button>
+        {/* Right: Studio Status Badge */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="px-3 py-1 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 text-xs font-black flex items-center gap-1.5 shadow-2xs">
+            <PresentationIcon className="w-3.5 h-3.5 text-[#7c3aed]" />
+            <span>Studio Mode</span>
+          </span>
         </div>
       </div>
 
-      {/* ── 2-COLUMN STUDIO LAYOUT: SLIDES ON LEFT, RELATED COURSEWORK ON RIGHT ── */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+      {/* ── 2-COLUMN STUDIO LAYOUT: FITTING IN A SINGLE SCREEN ON DESKTOP ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 items-start">
         
         {/* ── LEFT COLUMN: CINEMA PRESENTATION SLIDES (lg:col-span-8) ── */}
-        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3 sm:p-4 space-y-3">
+        <div className="lg:col-span-8 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-2 sm:p-3 space-y-2 flex flex-col justify-between">
           
           {/* ── 16:9 EDGE-TO-EDGE CANVAS (ZERO DARK PILLARBOX MARGINS) ── */}
           <div 
             className={cn(
               "w-full rounded-2xl overflow-hidden bg-slate-950 relative border border-slate-800 shadow-inner transition-all duration-300",
               isFullscreen 
-                ? "fixed inset-2 z-[99999] rounded-2xl shadow-2xl flex items-center justify-center bg-black" 
+                ? "fixed inset-0 z-[99999] rounded-none shadow-2xl flex items-center justify-center bg-black" 
                 : "aspect-[16/9] w-full"
             )}
             onContextMenu={(e) => e.preventDefault()}
@@ -529,12 +454,12 @@ export function PresentationScreen() {
               </div>
             )}
 
-            {/* Google Slides Iframe Embed */}
+            {/* Google Slides Iframe Embed (Height scaled to fill 100% edge-to-edge and push default bar under our dock) */}
             {embedUrl ? (
               <iframe
                 src={embedUrl}
                 title={presentation.title || 'Presentation Viewer'}
-                className="w-full h-full border-0 bg-black block"
+                className="w-full h-[calc(100%+32px)] border-0 bg-black block absolute top-0 left-0"
                 allowFullScreen
                 sandbox="allow-scripts allow-same-origin allow-presentation"
                 onLoad={() => setIframeLoading(false)}
@@ -557,7 +482,7 @@ export function PresentationScreen() {
               onTouchMove={draw}
               onTouchEnd={stopDrawing}
               className={cn(
-                "absolute inset-0 w-full h-full z-20 transition-opacity",
+                "absolute inset-0 w-full h-[calc(100%-44px)] z-20 transition-opacity",
                 activeTool !== 'none' 
                   ? "pointer-events-auto cursor-crosshair opacity-100" 
                   : "pointer-events-none opacity-90"
@@ -581,27 +506,156 @@ export function PresentationScreen() {
                 </button>
               </div>
             )}
+
+            {/* ── CUSTOM BOTTOM STUDIO CONTROLLER BAR (COVERS GOOGLE SLIDES WATERMARK) ── */}
+            <div className="absolute bottom-0 inset-x-0 z-30 h-11 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/90 flex items-center justify-between px-3 select-none text-white shadow-2xl">
+              {/* Left: Navigation and Slide Counter */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={handlePrevSlide}
+                  disabled={currentSlide <= 1}
+                  className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-purple-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors text-slate-200 hover:text-white cursor-pointer"
+                  title="Previous Slide"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <div className="px-2.5 py-1 rounded-lg bg-slate-800/90 text-purple-300 font-black text-xs border border-purple-500/20 tracking-wider">
+                  <span className="text-white">{currentSlide}</span> / <span>{totalSlides}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleNextSlide}
+                  disabled={currentSlide >= totalSlides}
+                  className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-purple-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors text-slate-200 hover:text-white cursor-pointer"
+                  title="Next Slide"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Right: Annotation Tools & Fullscreen SVG (Completely covers Google Slides logo & text!) */}
+              <div className="flex items-center gap-1 bg-slate-900/90 p-0.5 px-1.5 rounded-xl border border-slate-800">
+                {/* Pen */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTool(activeTool === 'pen' ? 'none' : 'pen')}
+                  className={cn(
+                    "p-1.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer",
+                    activeTool === 'pen' 
+                      ? "bg-[#7c3aed] text-white shadow-sm shadow-purple-500/30" 
+                      : "text-slate-300 hover:text-white hover:bg-slate-800"
+                  )}
+                  title="Interactive Pen Tool"
+                >
+                  <Pen className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Pen</span>
+                </button>
+
+                {/* Highlight */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTool(activeTool === 'highlighter' ? 'none' : 'highlighter')}
+                  className={cn(
+                    "p-1.5 sm:px-2.5 sm:py-1 rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all cursor-pointer",
+                    activeTool === 'highlighter' 
+                      ? "bg-amber-500 text-white shadow-sm shadow-amber-500/30" 
+                      : "text-slate-300 hover:text-white hover:bg-slate-800"
+                  )}
+                  title="Interactive Highlighter Tool"
+                >
+                  <Highlighter className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">Highlight</span>
+                </button>
+
+                {/* Color Palette (Visible when Pen or Highlighter active) */}
+                {(activeTool === 'pen' || activeTool === 'highlighter') && (
+                  <div className="flex items-center gap-1 px-1.5 border-l border-slate-700 animate-fade-in">
+                    {PEN_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setPenColor(c.value)}
+                        style={{ backgroundColor: c.value }}
+                        className={cn(
+                          "w-3.5 h-3.5 rounded-full transition-transform cursor-pointer shrink-0",
+                          penColor === c.value ? "ring-2 ring-offset-1 ring-white scale-110" : "hover:scale-105 opacity-80"
+                        )}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                )}
+
+                {/* Eraser */}
+                <button
+                  type="button"
+                  onClick={() => setActiveTool(activeTool === 'eraser' ? 'none' : 'eraser')}
+                  className={cn(
+                    "p-1.5 rounded-lg transition-all cursor-pointer",
+                    activeTool === 'eraser' 
+                      ? "bg-rose-500 text-white shadow-sm" 
+                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                  )}
+                  title="Eraser Tool"
+                >
+                  <Eraser className="w-3.5 h-3.5" />
+                </button>
+
+                {/* Clear Canvas */}
+                <button
+                  type="button"
+                  onClick={clearCanvas}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-all cursor-pointer"
+                  title="Clear All Drawings"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+
+                <div className="w-[1px] h-4 bg-slate-700 mx-1" />
+
+                {/* Fullscreen SVG Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsFullscreen(!isFullscreen)}
+                  className="p-1.5 rounded-lg text-purple-400 hover:text-white hover:bg-purple-600/30 transition-all cursor-pointer"
+                  title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
+                >
+                  {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
           </div>
         </div>
 
         {/* ── RIGHT COLUMN: RELATED LESSON COURSEWORK & RESOURCES (lg:col-span-4) ── */}
-        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-4 sm:p-5 space-y-4">
-          <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100">
-            <div className="w-8 h-8 rounded-xl bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
-              <BookOpen className="w-4 h-4" />
+        <div className="lg:col-span-4 bg-white rounded-3xl border border-slate-200/90 shadow-sm p-3.5 sm:p-4 flex flex-col justify-between space-y-3">
+          
+          {/* Header */}
+          <div className="flex items-center justify-between pb-2.5 border-b border-slate-100 shrink-0">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-purple-50 text-[#7c3aed] border border-purple-100 flex items-center justify-center font-bold shrink-0">
+                <BookOpen className="w-3.5 h-3.5" />
+              </div>
+              <div>
+                <h2 className="font-extrabold text-sm text-slate-900 leading-tight">
+                  Related Coursework
+                </h2>
+                <p className="text-[10px] font-semibold text-slate-400">
+                  Topic activities & media
+                </p>
+              </div>
             </div>
-            <div>
-              <h2 className="font-extrabold text-sm sm:text-base text-slate-900 leading-tight">
-                Related Coursework
-              </h2>
-              <p className="text-[11px] font-semibold text-slate-500">
-                Labs, assessments & projects for this topic
-              </p>
-            </div>
+            {matchedLessonData?.stageTitle && (
+              <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-md truncate max-w-[130px]">
+                {matchedLessonData.stageTitle}
+              </span>
+            )}
           </div>
 
           {!hasCoursework ? (
-            <div className="py-8 px-4 text-center rounded-2xl bg-slate-50 border border-slate-150">
+            <div className="py-6 px-4 text-center rounded-2xl bg-slate-50 border border-slate-150 my-auto">
               <p className="text-xs font-bold text-slate-600">
                 Foundational lecture topic.
               </p>
@@ -610,141 +664,9 @@ export function PresentationScreen() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3 max-h-[580px] overflow-y-auto pr-1">
+            <div className="space-y-2 overflow-y-auto max-h-[380px] sm:max-h-[430px] pr-1">
               
-              {/* Coding Practices */}
-              {practices.map((practice: any) => (
-                <div
-                  key={practice.id}
-                  onClick={() => navigate('workspace', { id: practice.id })}
-                  className="p-3.5 rounded-2xl border border-slate-200/90 hover:border-amber-300 bg-white hover:bg-amber-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex flex-col gap-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase">
-                      Coding Lab
-                    </span>
-                    {practice.completed ? (
-                      <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Completed
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {practice.duration || '20m'}
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-amber-700 transition-colors line-clamp-2 leading-snug">
-                    {practice.title}
-                  </h4>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-end text-xs">
-                    <span className="text-amber-600 font-extrabold flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition-transform">
-                      <span>Solve Lab</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              ))}
-
-              {/* Daily Assessments */}
-              {assessments.map((asmnt: any) => (
-                <div
-                  key={asmnt.id}
-                  onClick={() => navigate('daily-assessment', { id: asmnt.id })}
-                  className="p-3.5 rounded-2xl border border-slate-200/90 hover:border-purple-300 bg-white hover:bg-purple-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex flex-col gap-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#7c3aed] border border-purple-200 text-[10px] font-black uppercase">
-                      Daily Assessment
-                    </span>
-                    {asmnt.completed ? (
-                      <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Passed
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {asmnt.duration || '15m'}
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-[#7c3aed] transition-colors line-clamp-2 leading-snug">
-                    {asmnt.title}
-                  </h4>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-end text-xs">
-                    <span className="text-[#7c3aed] font-extrabold flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition-transform">
-                      <span>Take Assessment</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              ))}
-
-              {/* Weekly Assessment / Quizzes */}
-              {quizzes.map((quiz: any) => (
-                <div
-                  key={quiz.id}
-                  onClick={() => navigate('weekly-assessment', { id: quiz.id })}
-                  className="p-3.5 rounded-2xl border border-slate-200/90 hover:border-indigo-300 bg-white hover:bg-indigo-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex flex-col gap-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-indigo-50 text-indigo-700 border border-indigo-200 text-[10px] font-black uppercase">
-                      Weekly Assessment
-                    </span>
-                    {quiz.completed ? (
-                      <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Done
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {quiz.duration || '30m'}
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-indigo-700 transition-colors line-clamp-2 leading-snug">
-                    {quiz.title}
-                  </h4>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-end text-xs">
-                    <span className="text-indigo-600 font-extrabold flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition-transform">
-                      <span>Take Quiz</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              ))}
-
-              {/* Projects */}
-              {projects.map((proj: any) => (
-                <div
-                  key={proj.id}
-                  onClick={() => navigate('projects', { tab: (proj.type || 'mini').toLowerCase(), id: proj.id })}
-                  className="p-3.5 rounded-2xl border border-slate-200/90 hover:border-emerald-300 bg-white hover:bg-emerald-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex flex-col gap-2"
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase">
-                      Project
-                    </span>
-                    {proj.completed ? (
-                      <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Completed
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400">
-                        {proj.type ? `${proj.type.toUpperCase()}` : 'MINI'}
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-emerald-700 transition-colors line-clamp-2 leading-snug">
-                    {proj.title}
-                  </h4>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-end text-xs">
-                    <span className="text-emerald-600 font-extrabold flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition-transform">
-                      <span>View Project</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </span>
-                  </div>
-                </div>
-              ))}
-
-              {/* Lecture Recording */}
+              {/* 1. TOP PRIORITY: LECTURE VIDEO (Featured at top!) */}
               {video?.videoUrl && (
                 <div
                   onClick={() => {
@@ -752,36 +674,190 @@ export function PresentationScreen() {
                       navigate('lesson', { id: matchedLessonData.courseId, lesson: matchedLessonData.lesson.id });
                     }
                   }}
-                  className="p-3.5 rounded-2xl border border-slate-200/90 hover:border-purple-300 bg-white hover:bg-purple-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex flex-col gap-2"
+                  className="p-2.5 rounded-xl border border-purple-200 bg-gradient-to-r from-purple-50/70 to-indigo-50/40 hover:border-[#7c3aed] shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex items-center justify-between gap-2.5"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#7c3aed] border border-purple-200 text-[10px] font-black uppercase">
-                      Class Video
-                    </span>
-                    {video.completed ? (
-                      <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" /> Watched
-                      </span>
-                    ) : (
-                      <span className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {video.duration || '45m'}
-                      </span>
-                    )}
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-[#7c3aed] text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                      <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase text-[#7c3aed] bg-purple-100/70 px-1.5 py-0.2 rounded">
+                          Video Lecture
+                        </span>
+                        {video.duration && (
+                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" /> {video.duration}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 group-hover:text-[#7c3aed] transition-colors truncate mt-0.5">
+                        {presentation.lesson_name || presentation.title}
+                      </h4>
+                    </div>
                   </div>
-                  <h4 className="font-bold text-xs sm:text-sm text-slate-900 group-hover:text-[#7c3aed] transition-colors line-clamp-2 leading-snug">
-                    {presentation.lesson_name || presentation.title} (Lecture)
-                  </h4>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-end text-xs">
-                    <span className="text-[#7c3aed] font-extrabold flex items-center gap-1 text-[11px] group-hover:translate-x-0.5 transition-transform">
-                      <span>Watch Video</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </span>
-                  </div>
+                  <span className="text-[#7c3aed] font-extrabold text-[11px] shrink-0 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                    Watch <ExternalLink className="w-3 h-3" />
+                  </span>
                 </div>
               )}
 
+              {/* 2. Coding Practices */}
+              {practices.map((practice: any) => (
+                <div
+                  key={practice.id}
+                  onClick={() => navigate('workspace', { id: practice.id })}
+                  className="p-2.5 rounded-xl border border-slate-200/90 hover:border-amber-300 bg-white hover:bg-amber-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center shrink-0">
+                      <Code2 className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/60">
+                          Lab
+                        </span>
+                        {practice.duration && (
+                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" /> {practice.duration}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 group-hover:text-amber-700 transition-colors truncate mt-0.5">
+                        {practice.title}
+                      </h4>
+                    </div>
+                  </div>
+                  <span className="text-amber-600 font-extrabold text-[11px] shrink-0 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                    Solve <ExternalLink className="w-3 h-3" />
+                  </span>
+                </div>
+              ))}
+
+              {/* 3. Daily Assessments */}
+              {assessments.map((assessment: any) => (
+                <div
+                  key={assessment.id}
+                  onClick={() => navigate('assignments')}
+                  className="p-2.5 rounded-xl border border-slate-200/90 hover:border-purple-300 bg-white hover:bg-purple-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center shrink-0">
+                      <ClipboardCheck className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200/60">
+                          Assessment
+                        </span>
+                        {assessment.duration && (
+                          <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
+                            <Clock className="w-2.5 h-2.5" /> {assessment.duration}
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 group-hover:text-purple-700 transition-colors truncate mt-0.5">
+                        {assessment.title}
+                      </h4>
+                    </div>
+                  </div>
+                  <span className="text-purple-600 font-extrabold text-[11px] shrink-0 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                    Take <ExternalLink className="w-3 h-3" />
+                  </span>
+                </div>
+              ))}
+
+              {/* 4. Quizzes */}
+              {quizzes.map((quiz: any) => (
+                <div
+                  key={quiz.id}
+                  onClick={() => navigate('quizzes')}
+                  className="p-2.5 rounded-xl border border-slate-200/90 hover:border-indigo-300 bg-white hover:bg-indigo-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 border border-indigo-200 flex items-center justify-center shrink-0">
+                      <Brain className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200/60">
+                          Quiz
+                        </span>
+                        {quiz.questions?.length && (
+                          <span className="text-[10px] font-bold text-slate-400">
+                            {quiz.questions.length} Qs
+                          </span>
+                        )}
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 group-hover:text-indigo-700 transition-colors truncate mt-0.5">
+                        {quiz.title}
+                      </h4>
+                    </div>
+                  </div>
+                  <span className="text-indigo-600 font-extrabold text-[11px] shrink-0 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                    Start <ExternalLink className="w-3 h-3" />
+                  </span>
+                </div>
+              ))}
+
+              {/* 5. Projects */}
+              {projects.map((proj: any) => (
+                <div
+                  key={proj.id}
+                  onClick={() => navigate('projects')}
+                  className="p-2.5 rounded-xl border border-slate-200/90 hover:border-emerald-300 bg-white hover:bg-emerald-50/20 shadow-2xs hover:shadow-sm transition-all cursor-pointer group flex items-center justify-between gap-2"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center shrink-0">
+                      <FolderGit2 className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
+                          Project
+                        </span>
+                        <span className="text-[10px] font-bold text-slate-400">
+                          {proj.type ? `${proj.type.toUpperCase()}` : 'MINI'}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-xs text-slate-900 group-hover:text-emerald-700 transition-colors truncate mt-0.5">
+                        {proj.title}
+                      </h4>
+                    </div>
+                  </div>
+                  <span className="text-emerald-600 font-extrabold text-[11px] shrink-0 group-hover:translate-x-0.5 transition-transform flex items-center gap-1">
+                    View <ExternalLink className="w-3 h-3" />
+                  </span>
+                </div>
+              ))}
+
             </div>
           )}
+
+          {/* Quick Footer inside right card */}
+          {matchedLessonData?.lesson && (
+            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 shrink-0">
+              <span className="truncate max-w-[200px]">
+                {matchedLessonData.lesson.title}
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  if (matchedLessonData?.courseId && matchedLessonData?.lesson?.id) {
+                    navigate('lesson', { id: matchedLessonData.courseId, lesson: matchedLessonData.lesson.id });
+                  } else {
+                    navigate('milestones');
+                  }
+                }}
+                className="text-[#7c3aed] hover:underline font-bold text-[11px] shrink-0 flex items-center gap-1 cursor-pointer"
+              >
+                <span>Full Lesson</span>
+                <ChevronRight className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+
         </div>
 
       </div>
