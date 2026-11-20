@@ -12,6 +12,7 @@
 
 export const CACHE_TTL = {
   STATIC: 10 * 60 * 1000,    // 10 minutes (600,000 ms) — batched metadata, categories, badges
+  CURRICULUM: 10 * 60 * 1000,// 10 minutes (600,000 ms) — syllabus tree, lessons, course topics
   MEDIUM: 2 * 60 * 1000,     // 2 minutes (120,000 ms) — courses, milestones, live sessions, schedules
   DYNAMIC: 30 * 1000,        // 30 seconds (30,000 ms) — quizzes, assignments, leaderboards
   USER_DATA: 15 * 1000,      // 15 seconds (15,000 ms) — student profile, attempts, user submissions
@@ -43,6 +44,63 @@ let missCount = 0;
 let dedupCount = 0;
 let timeoutCount = 0;
 
+// ── Dual-tier SessionStorage helpers ──────────────────────────────────────────
+function readSessionStorage<T>(key: string): CacheEntry<T> | null {
+  if (typeof window === 'undefined' || !window.sessionStorage) return null;
+  try {
+    const raw = window.sessionStorage.getItem('qc:' + key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object' && typeof parsed.expiresAt === 'number') {
+      return parsed;
+    }
+  } catch {}
+  return null;
+}
+
+function writeSessionStorage<T>(key: string, entry: CacheEntry<T>): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.setItem('qc:' + key, JSON.stringify(entry));
+  } catch {}
+}
+
+function removeSessionStorage(key: string): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    window.sessionStorage.removeItem('qc:' + key);
+  } catch {}
+}
+
+function removeSessionStorageByPrefix(prefix: string): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    const target = 'qc:' + prefix;
+    const toRemove: string[] = [];
+    for (let i = 0; i < window.sessionStorage.length; i++) {
+      const k = window.sessionStorage.key(i);
+      if (k && k.startsWith(target)) {
+        toRemove.push(k);
+      }
+    }
+    toRemove.forEach((k) => window.sessionStorage.removeItem(k));
+  } catch {}
+}
+
+function clearSessionStorage(): void {
+  if (typeof window === 'undefined' || !window.sessionStorage) return;
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < window.sessionStorage.length; i++) {
+      const k = window.sessionStorage.key(i);
+      if (k && k.startsWith('qc:')) {
+        toRemove.push(k);
+      }
+    }
+    toRemove.forEach((k) => window.sessionStorage.removeItem(k));
+  } catch {}
+}
+
 /**
  * Returns cached data if fresh, otherwise calls fetchFn and caches the result.
  * Concurrent calls for the same key share a single in-flight fetch (deduplication).
@@ -56,8 +114,16 @@ export async function cachedQuery<T>(
 ): Promise<T> {
   const now = Date.now();
 
-  // 1. Return cached data if still fresh
-  const entry = cache.get(key);
+  // 1. Return cached data if still fresh in memory or Tier-2 sessionStorage
+  let entry = cache.get(key);
+  if (!entry) {
+    const stored = readSessionStorage<T>(key);
+    if (stored && stored.expiresAt > now) {
+      entry = stored;
+      cache.set(key, stored);
+    }
+  }
+
   if (entry && entry.expiresAt > now) {
     hitCount++;
     return entry.data;
@@ -95,7 +161,9 @@ export async function cachedQuery<T>(
       // PostgREST responses with error must NOT be cached
       const hasError = data && typeof data === 'object' && 'error' in (data as Record<string, unknown>) && Boolean((data as Record<string, unknown>).error);
       if (!hasError) {
-        cache.set(key, { data, expiresAt: Date.now() + ttlMs });
+        const cacheEntry = { data, expiresAt: Date.now() + ttlMs };
+        cache.set(key, cacheEntry);
+        writeSessionStorage(key, cacheEntry);
       }
 
       return data;
@@ -110,9 +178,53 @@ export async function cachedQuery<T>(
   return executionPromise;
 }
 
+/**
+ * Synchronously retrieves cached data if available and non-expired (memory or sessionStorage).
+ */
+export function getCached<T>(key: string): T | undefined {
+  const now = Date.now();
+  let entry = cache.get(key);
+  if (!entry) {
+    const stored = readSessionStorage<T>(key);
+    if (stored && stored.expiresAt > now) {
+      entry = stored;
+      cache.set(key, stored);
+    }
+  }
+  if (entry && entry.expiresAt > now) {
+    return entry.data;
+  }
+  return undefined;
+}
+
+/**
+ * Fires a background prefetch for a query if not already cached.
+ * Safe to call from hover/touch events. Does not throw on error.
+ */
+export function prefetchQuery<T>(
+  key: string,
+  fetchFn: () => PromiseLike<T> | Promise<T>,
+  ttlMs: number = CACHE_TTL.DYNAMIC
+): void {
+  const now = Date.now();
+  let entry = cache.get(key);
+  if (!entry) {
+    const stored = readSessionStorage<T>(key);
+    if (stored && stored.expiresAt > now) {
+      entry = stored;
+      cache.set(key, stored);
+    }
+  }
+  if (entry && entry.expiresAt > now) {
+    return; // Already cached and fresh
+  }
+  cachedQuery(key, fetchFn, ttlMs).catch(() => {});
+}
+
 /** Invalidate a specific cache key. */
 export function invalidateCache(key: string): void {
   cache.delete(key);
+  removeSessionStorage(key);
 }
 
 /** Invalidate all keys matching a prefix. */
@@ -122,12 +234,14 @@ export function invalidateCacheByPrefix(prefix: string): void {
       cache.delete(key);
     }
   }
+  removeSessionStorageByPrefix(prefix);
 }
 
 /** Clear the entire cache and in-flight tracking. */
 export function clearCache(): void {
   cache.clear();
   inflight.clear();
+  clearSessionStorage();
 }
 
 /** Retrieve current cache performance metrics. */

@@ -17,6 +17,8 @@ const tsSource = fs.readFileSync(path.resolve('frontend/src/lib/queryCache.ts'),
 const { code } = esbuild.transformSync(tsSource, { loader: 'ts' });
 const {
   cachedQuery,
+  getCached,
+  prefetchQuery,
   invalidateCache,
   invalidateCacheByPrefix,
   clearCache,
@@ -223,4 +225,34 @@ test('Query Cache Test 6: PostgREST Error Filtering (Never Cache Errors)', async
   assert.equal(second.error, null);
   assert.deepEqual(second.data, [{ id: 1, name: 'Recovered' }]);
   assert.equal(callCount, 2, 'Query must re-run rather than serving cached error');
+});
+
+test('Query Cache Test 7: getCached and prefetchQuery', async () => {
+  clearCache();
+  resetCacheStats();
+
+  // 1. getCached returns undefined on missing key
+  assert.equal(getCached('unseen_key'), undefined);
+
+  // 2. prefetchQuery fires in background without blocking
+  let prefetchedCalls = 0;
+  prefetchQuery('prefetch_test', async () => {
+    prefetchedCalls++;
+    return { status: 'prefetched' };
+  }, 60_000);
+
+  // Wait a small tick for promise execution
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
+  assert.equal(prefetchedCalls, 1);
+  const cachedVal = getCached('prefetch_test');
+  assert.deepEqual(cachedVal, { status: 'prefetched' });
+
+  // 3. Repeated prefetch does not refetch if already cached
+  prefetchQuery('prefetch_test', async () => {
+    prefetchedCalls++;
+    return { status: 'duplicate' };
+  }, 60_000);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(prefetchedCalls, 1, 'prefetched query must not refetch when fresh');
 });

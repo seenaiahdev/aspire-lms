@@ -1,7 +1,9 @@
+import { useRef } from 'react';
 import { GraduationCap, X, Settings, LogOut, ChevronRight } from 'lucide-react';
 import { navItems, type Route } from '@/lib/routes';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
+import { usePreload } from '@/lib/PreloadContext';
 import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { getIcon } from '@/lib/icons';
@@ -29,6 +31,26 @@ function MilestoneRoadmapIcon({ className = "w-5 h-5" }: { className?: string })
 export function Sidebar() {
   const { user: currentUser } = useUser();
   const { sidebarOpen, setSidebarOpen, route, navigate, logout } = useNav();
+  const { prefetchRoute } = usePreload();
+  const hoverTimers = useRef<Record<string, any>>({});
+
+  const handleMouseEnter = (itemId: string) => {
+    if (hoverTimers.current[itemId]) clearTimeout(hoverTimers.current[itemId]);
+    hoverTimers.current[itemId] = setTimeout(() => {
+      prefetchRoute(itemId);
+    }, 60);
+  };
+
+  const handleMouseLeave = (itemId: string) => {
+    if (hoverTimers.current[itemId]) {
+      clearTimeout(hoverTimers.current[itemId]);
+      delete hoverTimers.current[itemId];
+    }
+  };
+
+  const handleTouchStart = (itemId: string) => {
+    prefetchRoute(itemId);
+  };
 
   return (
     <>
@@ -90,6 +112,9 @@ export function Sidebar() {
                   navigate(item.id);
                   setSidebarOpen(false);
                 }}
+                onMouseEnter={() => handleMouseEnter(item.id)}
+                onMouseLeave={() => handleMouseLeave(item.id)}
+                onTouchStart={() => handleTouchStart(item.id)}
                 title={item.label}
                 className={cn(
                   'w-full flex items-center gap-4 px-4 py-3 rounded-2xl text-sm transition-all duration-200 group relative font-bold',

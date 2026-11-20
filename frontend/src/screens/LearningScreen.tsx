@@ -215,6 +215,13 @@ export function LearningScreen() {
     return sortedCourses[0];
   }, [sortedCourses, selectedCourseId]);
 
+  // On-demand fetch active course syllabus if not cached
+  useEffect(() => {
+    if (activeCourse?.id && !dbSyllabi[activeCourse.id]) {
+      preload.ensureCourseSyllabus(activeCourse.id);
+    }
+  }, [activeCourse?.id, dbSyllabi, preload]);
+
   const dbSyllabus = useMemo(() => {
     if (!activeCourse) return null;
     return dbSyllabi[activeCourse.id] || null;
@@ -430,17 +437,30 @@ export function LearningScreen() {
         <div className="space-y-8 animate-fade-in">
 
           {!curriculumRoadmap ? (
-            <div className="py-16 px-4 flex flex-col items-center justify-center text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4 max-w-lg mx-auto my-8">
-              <div className="w-16 h-16 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 shadow-sm">
-                <Trophy className="w-8 h-8" />
+            preload.loading || !activeCourse ? (
+              <div className="space-y-6 animate-pulse">
+                {/* Hero Skeleton */}
+                <div className="h-44 rounded-3xl bg-slate-100 border border-slate-200/60 p-6 flex flex-col justify-between" />
+                {/* Stages Skeleton */}
+                <div className="space-y-4">
+                  {[1, 2, 3].map((n) => (
+                    <div key={n} className="h-24 rounded-2xl bg-slate-100/80 border border-slate-200/50" />
+                  ))}
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <h3 className="text-lg font-black text-slate-900">No Roadmap Available</h3>
-                <p className="text-xs text-slate-500 font-semibold leading-relaxed max-w-xs mx-auto">
-                  You are not currently enrolled in any curriculum track. Please contact your administrator to get enrolled in a program.
-                </p>
+            ) : (
+              <div className="py-16 px-4 flex flex-col items-center justify-center text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4 max-w-lg mx-auto my-8">
+                <div className="w-16 h-16 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 shadow-sm">
+                  <Trophy className="w-8 h-8" />
+                </div>
+                <div className="space-y-1.5">
+                  <h3 className="text-lg font-black text-slate-900">No Roadmap Available</h3>
+                  <p className="text-xs text-slate-500 font-semibold leading-relaxed max-w-xs mx-auto">
+                    You are not currently enrolled in any curriculum track. Please contact your administrator to get enrolled in a program.
+                  </p>
+                </div>
               </div>
-            </div>
+            )
           ) : (
             <>
               {/* Course Switcher Pills if enrolled in multiple courses */}
@@ -450,6 +470,7 @@ export function LearningScreen() {
                     <button
                       key={c.id}
                       onClick={() => setSelectedCourseId(c.id)}
+                      onMouseEnter={() => preload.ensureCourseSyllabus(c.id)}
                       className={cn(
                         "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0",
                         activeCourse?.id === c.id
@@ -944,6 +965,7 @@ export function LearningScreen() {
                           }
                           if (item.targetRoute) navigate(item.targetRoute as any, { id: item.id });
                         }}
+                        onMouseEnter={() => preload.ensureCourseSyllabus(item.id)}
                         className={cn(
                           "relative overflow-hidden rounded-[1.8rem] bg-white border border-slate-200/90 shadow-sm hover:shadow-xl transition-all duration-300 group flex justify-between",
                           view === 'grid' ? "flex-col" : "flex-col sm:flex-row items-stretch h-auto sm:h-52",
