@@ -185,14 +185,14 @@ export async function fetchMilestones(batchCategory: string) {
 export async function fetchJobs(batchCategory: string, batchCode: string = '') {
   return cachedQuery(`jobs:${batchCategory}:${batchCode}`, async () => {
     const targetBatchStr = batchCategory === 'Weekday' ? 'Weekday Batch' : 'Weekend Batch';
-    let orQuery = `target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`;
+    let orQuery = `target_batch.is.null,target_batch.eq.All Batches,target_batch.eq.${targetBatchStr}`;
     if (batchCode) {
       orQuery += `,target_batch.eq.${batchCode}`;
     }
 
     const { data, error } = await supabase
       .from('jobs')
-      .select('id, company, job_title, location, job_type, salary, posted_date, logo, description, publish_status, skills, is_locked')
+      .select('id, company, job_title, location, job_type, salary, posted_date, logo, description, publish_status, tech_stack, is_locked')
       .or(orQuery);
 
     if (error) {
@@ -202,20 +202,37 @@ export async function fetchJobs(batchCategory: string, batchCode: string = '') {
 
     if (!data) return [];
 
-    return data.map((item: any) => ({
-      id: item.id,
-      company: item.company || 'TCS',
-      role: item.job_title || 'Software Engineer',
-      location: item.location || 'Remote',
-      type: item.job_type || 'Full-Time',
-      salary: item.salary || 'LPA',
-      posted: item.posted_date || 'Recent',
-      logo: item.logo || '',
-      description: item.description || 'Job details...',
-      status: item.publish_status === 'Closed' ? 'closed' : 'open',
-      skills: item.skills || ['Python', 'Django', 'SQL'],
-      isLocked: item.is_locked ?? false
-    }));
+    return data.map((item: any) => {
+      let skills: string[] = ['Python', 'Django', 'SQL'];
+      if (item.tech_stack) {
+        if (Array.isArray(item.tech_stack)) {
+          skills = item.tech_stack;
+        } else if (typeof item.tech_stack === 'string') {
+          try {
+            const parsed = JSON.parse(item.tech_stack);
+            if (Array.isArray(parsed)) skills = parsed;
+            else skills = item.tech_stack.split(',').map((s: string) => s.trim()).filter(Boolean);
+          } catch {
+            skills = item.tech_stack.split(',').map((s: string) => s.trim()).filter(Boolean);
+          }
+        }
+      }
+
+      return {
+        id: item.id,
+        company: item.company || 'TechCorp Solutions',
+        role: item.job_title || 'Software Engineer',
+        location: item.location || 'Remote',
+        type: item.job_type || 'Full-Time',
+        salary: item.salary || 'LPA',
+        posted: item.posted_date || 'Recent',
+        logo: item.logo || '',
+        description: item.description || 'Job details...',
+        status: item.publish_status === 'Closed' ? 'closed' : 'open',
+        skills,
+        isLocked: item.is_locked ?? false
+      };
+    });
   }, 60_000); // 60 seconds
 }
 
