@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { createPortal } from 'react-dom';
-import { X, Maximize2, Minimize2, ShieldAlert, Presentation as PresentationIcon, ExternalLink } from 'lucide-react';
+import { X, Maximize2, Minimize2, ShieldAlert, Presentation as PresentationIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Modal } from '@/components/ui/Modal';
 import { getPresentationEmbedUrl, PresentationRecord } from '@/lib/api';
 
 interface PresentationViewerModalProps {
@@ -14,22 +14,6 @@ export function PresentationViewerModal({ isOpen, onClose, presentation }: Prese
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
 
-  // Close on Escape key press
-  useEffect(() => {
-    if (!isOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        if (isFullscreen) {
-          setIsFullscreen(false);
-        } else {
-          onClose();
-        }
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isFullscreen, onClose]);
-
   // Reset loading state when presentation changes
   useEffect(() => {
     if (presentation?.ppt_url) {
@@ -41,19 +25,30 @@ export function PresentationViewerModal({ isOpen, onClose, presentation }: Prese
 
   const embedUrl = getPresentationEmbedUrl(presentation.ppt_url);
 
-  const modalContent = (
-    <div 
-      className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 md:p-6 animate-fade-in select-none"
-      onContextMenu={(e) => e.preventDefault()}
-      onClick={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
+  const handleClose = () => {
+    if (isFullscreen) {
+      setIsFullscreen(false);
+    } else {
+      onClose();
+    }
+  };
+
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      size="5xl"
+      hideCloseButton
+      zIndex={isFullscreen ? "z-[100000]" : "z-[99999]"}
+      backdropClassName="bg-slate-950/80 backdrop-blur-md select-none"
+      className={cn(
+        "p-0 border border-slate-800 bg-[#0e1322] shadow-2xl rounded-2xl md:rounded-3xl flex flex-col overflow-hidden transition-all duration-300",
+        isFullscreen ? "fixed inset-2 sm:inset-4 md:inset-6 w-auto h-auto max-w-none" : "max-w-5xl h-[88vh] max-h-[860px]"
+      )}
     >
       <div 
-        className={cn(
-          "w-full bg-[#0e1322] border border-slate-800 rounded-2xl md:rounded-3xl shadow-2xl flex flex-col overflow-hidden transition-all duration-300",
-          isFullscreen ? "fixed inset-2 sm:inset-4 md:inset-6 z-[100000]" : "max-w-5xl h-[88vh] max-h-[860px]"
-        )}
+        className="flex flex-col h-full w-full"
+        onContextMenu={(e) => e.preventDefault()}
       >
         {/* Top Header Bar */}
         <div className="px-4 py-3 sm:px-6 sm:py-3.5 bg-slate-900/90 border-b border-slate-800/90 flex items-center justify-between gap-3 shrink-0">
@@ -87,15 +82,15 @@ export function PresentationViewerModal({ isOpen, onClose, presentation }: Prese
               type="button"
               onClick={() => setIsFullscreen(!isFullscreen)}
               title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
-              className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors border border-slate-700/60"
+              className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors border border-slate-700/60 cursor-pointer"
             >
               {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
             </button>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               title="Close Presentation"
-              className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 flex items-center justify-center transition-colors border border-slate-700/60"
+              className="w-8 h-8 rounded-xl bg-slate-800 hover:bg-rose-500/20 hover:text-rose-400 text-slate-300 flex items-center justify-center transition-colors border border-slate-700/60 cursor-pointer"
             >
               <X className="w-4 h-4" />
             </button>
@@ -141,8 +136,6 @@ export function PresentationViewerModal({ isOpen, onClose, presentation }: Prese
           </span>
         </div>
       </div>
-    </div>
+    </Modal>
   );
-
-  return createPortal(modalContent, document.body);
 }

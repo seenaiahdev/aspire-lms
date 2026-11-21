@@ -25,7 +25,8 @@ app.use(cors({
     if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
       return callback(null, true);
     }
-    return callback(null, true); // Permissive in dev/staging, can restrict in production via FRONTEND_URL
+    // SEC-07: Strictly reject untrusted origins
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
@@ -71,6 +72,14 @@ app.post('/api/verify-otp', verifyOtp);
 app.post('/api/verify-passkey', verifyPasskey);
 app.post('/api/get-passkey', getPasskey);
 app.get('/api/get-passkey', getPasskey);
+
+// CORS error handler
+app.use((err, req, res, next) => {
+  if (err && (err.message === 'Not allowed by CORS' || err.message?.includes('CORS'))) {
+    return res.status(403).json({ ok: false, error: 'Not allowed by CORS' });
+  }
+  next(err);
+});
 
 // Fallback 404 handler
 app.use((req, res) => {

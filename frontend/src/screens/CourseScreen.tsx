@@ -17,10 +17,13 @@ import { Tabs } from '@/components/ui/Tabs';
 import { Breadcrumb } from '@/components/ui/Breadcrumb';
 import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { AccordionItem } from '@/components/ui/Accordion';
+import { CourseScreenSkeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { supabase } from '@/lib/supabase';
 import { clearLessonResolverCache } from '@/lib/lessonLinkResolver';
+import { cachedQuery, invalidateCacheByPrefix, CACHE_TTL } from '@/lib/queryCache';
+import { realtimeManager } from '@/lib/realtimeManager';
 
 const lessonIcons: Record<string, any> = {
   video: Play, reading: FileText, quiz: ClipboardCheck, project: FolderGit2,
@@ -130,16 +133,34 @@ export function CourseScreen() {
   const [openStageIndex, setOpenStageIndex] = useState<number | null>(null);
   const [openModuleId, setOpenModuleId] = useState<string | null>(null);
 
-  const [dbCourse, setDbCourse] = useState<any>(null);
-  const [dbSyllabus, setDbSyllabus] = useState<any>(null);
+  const batchCategory = user.batchCategory || 'Weekday';
+  const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
+
+  // Synchronously inspect and initialize dbCourse and dbSyllabus from PreloadContext for instant 0ms perceived navigation
+  const preloadedCourse = preload.courses?.find((c: any) => c.id === courseIdToFetch) || null;
+  const preloadedSyllabus = preload.syllabi?.[courseIdToFetch] || null;
+
+  const [dbCourse, setDbCourse] = useState<any>(preloadedCourse);
+  const [dbSyllabus, setDbSyllabus] = useState<any>(preloadedSyllabus);
   const [courseDataLists, setCourseDataLists] = useState<{ topics: any[], lessons: any[] }>({ topics: [], lessons: [] });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!preloadedCourse);
   // Bumped by the realtime channel to re-fetch this course's syllabus on admin edits.
   const [reloadKey, setReloadKey] = useState(0);
 
   const [completedLessonIds, setCompletedLessonIds] = useState<Set<string>>(() => preload.completedLessons || new Set());
 
   // Keep in sync with preload context
+  useEffect(() => {
+    if (!dbCourse && preload.courses && preload.courses.length > 0) {
+      const found = preload.courses.find((c: any) => c.id === courseIdToFetch);
+      if (found) setDbCourse(found);
+    }
+    if (!dbSyllabus && preload.syllabi && preload.syllabi[courseIdToFetch]) {
+      setDbSyllabus(preload.syllabi[courseIdToFetch]);
+    }
+  }, [preload.courses, preload.syllabi, courseIdToFetch, dbCourse, dbSyllabus]);
+
+  // Keep in sync with preload context completed lessons
   useEffect(() => {
     if (preload.completedLessons && preload.completedLessons.size > 0) {
       setCompletedLessonIds(preload.completedLessons);
@@ -157,9 +178,6 @@ export function CourseScreen() {
     });
     return () => { alive = false; };
   }, [user?.id, reloadKey]);
-
-  const batchCategory = user.batchCategory || 'Weekday';
-  const courseIdToFetch = params.id || (user.enrolledCourses && user.enrolledCourses[0]) || 'crs-1786624019154-w';
 
   const [courseResources, setCourseResources] = useState<any[]>([]);
   const [allCourses, setAllCourses] = useState<any[]>([]);
@@ -253,34 +271,60 @@ export function CourseScreen() {
     async function fetchCourseAndSyllabus() {
       setLoading(true);
       try {
-        // 1. Fetch Course details from DB
-        const { data: courseData, error: courseError } = await supabase
-          .from('courses')
-          .select('*')
-          .eq('id', courseIdToFetch)
-          .maybeSingle();
+        // 1. Fetch Course details from DB (cached)
+        const courseData = await cachedQuery(
+          `course_syllabus:course:${courseIdToFetch}`,
+          async () => {
+            const { data, error } = await supabase
+              .from('courses')
+              .select('*')
+              .eq('id', courseIdToFetch)
+              .maybeSingle();
+            if (error) {
+              console.error("Error loading course details:", error.message);
+              return null;
+            }
+            return data;
+          },
+          CACHE_TTL.STATIC
+        );
 
-        if (courseError) {
-          console.error("Error loading course details:", courseError.message);
-        } else if (courseData) {
+        if (courseData) {
           setDbCourse(courseData);
+        } else {
+          return;
         }
 
-        if (!courseData) return;
-
-        // 2. Fetch Syllabus stages & lessons from DB
+        // 2. Fetch Syllabus stages & lessons from DB (cached)
         const [
-          { data: topics },
-          { data: lessons },
-          { data: instructorCoursesData }
+          topics,
+          lessons,
+          instructorCoursesData
         ] = await Promise.all([
-          supabase.from('course_topics').select('*').eq('course_id', courseData.id).order('id', { ascending: true }),
-          // Syllabus list only needs light columns (id/module_id/title/description/sort_order). Heavy
-          // per-lesson content (video_url, body, etc.) is loaded by LessonScreen when a lesson is opened,
-          // so pulling `*` here just bloats the course page. The full lesson list is kept (progress math
-          // needs the count), but each row is now tiny.
-          supabase.from('course_lessons').select('id, module_id, title, description, sort_order').eq('course_id', courseData.id).order('sort_order', { ascending: true }),
-          supabase.from('courses').select('id, instructor, enrolled_count, rating').eq('instructor', courseData.instructor)
+          cachedQuery(
+            `course_syllabus:topics:${courseData.id}`,
+            async () => {
+              const { data } = await supabase.from('course_topics').select('*').eq('course_id', courseData.id).order('id', { ascending: true });
+              return data || [];
+            },
+            CACHE_TTL.CURRICULUM
+          ),
+          cachedQuery(
+            `course_syllabus:lessons_light:${courseData.id}`,
+            async () => {
+              const { data } = await supabase.from('course_lessons').select('id, module_id, title, description, sort_order').eq('course_id', courseData.id).order('sort_order', { ascending: true });
+              return data || [];
+            },
+            CACHE_TTL.CURRICULUM
+          ),
+          cachedQuery(
+            `course_syllabus:instructor:${courseData.instructor}`,
+            async () => {
+              const { data } = await supabase.from('courses').select('id, instructor, enrolled_count, rating').eq('instructor', courseData.instructor);
+              return data || [];
+            },
+            CACHE_TTL.STATIC
+          )
         ]);
 
         if (topics && lessons) {
@@ -312,18 +356,20 @@ export function CourseScreen() {
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
         clearLessonResolverCache();
+        invalidateCacheByPrefix('course_syllabus:');
         setReloadKey((k) => k + 1);
       }, 600);
     };
     const tables = ['course_topics', 'course_lessons', 'courses', 'live_sessions', 'lesson_progress'];
-    const channel = supabase.channel(`course_detail_realtime_${courseIdToFetch}`);
+    const courseTopic = `course_detail_realtime_${courseIdToFetch}`;
+    const channel = realtimeManager.getOrCreateChannel(courseTopic);
     tables.forEach((table) => {
       channel.on('postgres_changes', { event: '*', schema: 'public', table }, bump);
     });
     channel.subscribe();
     return () => {
       if (timer) clearTimeout(timer);
-      supabase.removeChannel(channel);
+      realtimeManager.releaseChannel(courseTopic);
     };
   }, [courseIdToFetch]);
 
@@ -463,14 +509,7 @@ export function CourseScreen() {
   };
 
   if (loading && !dbCourse) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-5.5rem)] bg-slate-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-transparent animate-spin" />
-          <p className="text-slate-600 font-extrabold text-sm">Loading course details...</p>
-        </div>
-      </div>
-    );
+    return <CourseScreenSkeleton />;
   }
 
   return (

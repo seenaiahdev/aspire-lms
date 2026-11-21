@@ -3,7 +3,7 @@ import { GraduationCap, ArrowLeft, ArrowRight, User, Mail, Lock, Eye, EyeOff, Ch
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
 import { cn } from '@/lib/utils';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
 
 export function RegisterScreen() {
   const { navigate } = useNav();

@@ -14,6 +14,9 @@ import {
   evaluateBadgeCriteria,
 } from './api';
 import { getLessonResolver, rawLessonLink, clearLessonResolverCache } from './lessonLinkResolver';
+import { cachedQuery, CACHE_TTL } from './queryCache';
+import { realtimeManager } from './realtimeManager';
+import { cleanPhoneSuffix } from './utils';
 
 export interface AppNotification {
   id: string;
@@ -227,7 +230,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       const stored = loadStored(sid);
       let dbRows: AppNotification[] = [];
       try {
-        const fetched = (await fetchNotifications(sid, { forceFresh: true })) as AppNotification[];
+        const fetched = (await fetchNotifications(sid, { limit: 50 })) as AppNotification[];
         dbRows = (fetched || []).map(sanitizeNotification);
       } catch { /* table may be unavailable */ }
       if (!alive) return;
@@ -293,11 +296,32 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const studentBatch = user?.batchCode || '';
         const studentCat = user?.batchCategory || '';
         const resolver = await getLessonResolver(enrolled, studentBatch);
-        const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
-          supabase.from('assessments').select('id, course_id, target_batch, topic_id, topic_name, publish_status'),
-          supabase.from('coding_questions').select('id, course_id, target_batch, inner_topic_id, title'),
-          supabase.from('quizzes').select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, status, title'),
-          supabase.from('projects').select('id, course_id, target_batch, inner_topic_id, description, status, title')
+        const courseKey = enrolled.slice().sort().join(',');
+        const [assessList, cqList, quizList, projList] = await Promise.all([
+          cachedQuery(`notif_cw_assess:${courseKey}`, async () => {
+            const res = await supabase.from('assessments')
+              .select('id, course_id, target_batch, target_batches, topic_id, topic_name, publish_status, status, title')
+              .in('course_id', enrolled);
+            return res.data || [];
+          }, CACHE_TTL.CURRICULUM),
+          cachedQuery(`notif_cw_cq:${courseKey}`, async () => {
+            const res = await supabase.from('coding_questions')
+              .select('id, course_id, target_batch, target_batches, inner_topic_id, title')
+              .in('course_id', enrolled);
+            return res.data || [];
+          }, CACHE_TTL.CURRICULUM),
+          cachedQuery(`notif_cw_quiz:${courseKey}`, async () => {
+            const res = await supabase.from('quizzes')
+              .select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, status, publish_status, title')
+              .in('course_id', enrolled);
+            return res.data || [];
+          }, CACHE_TTL.CURRICULUM),
+          cachedQuery(`notif_cw_proj:${courseKey}`, async () => {
+            const res = await supabase.from('projects')
+              .select('id, course_id, target_batch, target_batches, inner_topic_id, description, status, publish_status, title')
+              .in('course_id', enrolled);
+            return res.data || [];
+          }, CACHE_TTL.CURRICULUM)
         ]);
         if (!alive) return;
 
@@ -315,10 +339,10 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           );
         };
 
-        const forbiddenAssess = new Set((assessRes.data || []).filter((a: any) => !isItemAllowed(a)).map((a: any) => a.id));
-        const forbiddenCq = new Set((cqRes.data || []).filter((c: any) => !isItemAllowed(c)).map((c: any) => c.id));
-        const forbiddenQuiz = new Set((quizRes.data || []).filter((q: any) => !isItemAllowed(q)).map((q: any) => q.id));
-        const forbiddenProj = new Set((projRes.data || []).filter((p: any) => !isItemAllowed(p)).map((p: any) => p.id));
+        const forbiddenAssess = new Set((assessList || []).filter((a: any) => !isItemAllowed(a)).map((a: any) => a.id));
+        const forbiddenCq = new Set((cqList || []).filter((c: any) => !isItemAllowed(c)).map((c: any) => c.id));
+        const forbiddenQuiz = new Set((quizList || []).filter((q: any) => !isItemAllowed(q)).map((q: any) => q.id));
+        const forbiddenProj = new Set((projList || []).filter((p: any) => !isItemAllowed(p)).map((p: any) => p.id));
 
         const extractEntityId = (id: string, prefix: string) => {
           if (!id.startsWith(prefix)) return null;
@@ -433,18 +457,31 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
       if (enrolled.length > 0) {
         try {
-          const [lessonsRes, topicsRes, coursesRes, milestonesRes] = await Promise.all([
-            supabase.from('course_lessons').select('id, title, module_id, stage_id, course_id').in('course_id', enrolled),
-            supabase.from('course_topics').select('id, course_id, title, subtopics').in('course_id', enrolled),
-            supabase.from('courses').select('id, title').in('id', enrolled),
-            supabase.from('milestones_data').select('id, stages, overview'),
+          const courseKey = enrolled.slice().sort().join(',');
+          const [lessonsData, topicsData, coursesData, milestonesData] = await Promise.all([
+            cachedQuery(`notif_lessons:${courseKey}`, async () => {
+              const res = await supabase.from('course_lessons').select('id, title, module_id, stage_id, course_id').in('course_id', enrolled);
+              return res.data || [];
+            }, CACHE_TTL.CURRICULUM),
+            cachedQuery(`notif_topics:${courseKey}`, async () => {
+              const res = await supabase.from('course_topics').select('id, course_id, title, subtopics').in('course_id', enrolled);
+              return res.data || [];
+            }, CACHE_TTL.CURRICULUM),
+            cachedQuery(`notif_courses:${courseKey}`, async () => {
+              const res = await supabase.from('courses').select('id, title').in('id', enrolled);
+              return res.data || [];
+            }, CACHE_TTL.STATIC),
+            cachedQuery(`notif_milestones`, async () => {
+              const res = await supabase.from('milestones_data').select('id, stages, overview');
+              return res.data || [];
+            }, CACHE_TTL.MEDIUM),
           ]);
 
-          (coursesRes.data || []).forEach((c: any) => {
+          (coursesData || []).forEach((c: any) => {
             if (c?.id && c?.title) courseTitleMap.set(c.id, c.title);
           });
 
-          (topicsRes.data || []).forEach((t: any) => {
+          (topicsData || []).forEach((t: any) => {
             (t?.subtopics || []).forEach((sub: any) => {
               if (sub?.id) {
                 if (sub.title) moduleTitleMap.set(sub.id, sub.title);
@@ -465,7 +502,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
               }
             }
           };
-          (milestonesRes.data || []).forEach((row: any) => {
+          (milestonesData || []).forEach((row: any) => {
             collectMilestoneModTitles(row?.stages);
             const batchData = row?.overview?.batchData;
             if (batchData && typeof batchData === 'object') {
@@ -473,7 +510,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             }
           });
 
-          (lessonsRes.data || []).forEach((l: any) => {
+          (lessonsData || []).forEach((l: any) => {
             enrolledLessonMap.set(l.id, l);
             if (l.module_id) {
               const list = moduleLessonsMap.get(l.module_id) || [];
@@ -627,11 +664,32 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       if (enrolled.length > 0 && newlyLessonIdList.length > 0) {
         try {
           const resolver = await getLessonResolver(enrolled, studentBatch);
-          const [assessRes, cqRes, quizRes, projRes] = await Promise.all([
-            supabase.from('assessments').select('*').in('course_id', enrolled),
-            supabase.from('coding_questions').select('*').in('course_id', enrolled),
-            supabase.from('quizzes').select('*').in('course_id', enrolled),
-            supabase.from('projects').select('*').in('course_id', enrolled),
+          const courseKey = enrolled.slice().sort().join(',');
+          const [assessList, cqList, quizList, projList] = await Promise.all([
+            cachedQuery(`notif_cw_assess:${courseKey}`, async () => {
+              const res = await supabase.from('assessments')
+                .select('id, course_id, target_batch, target_batches, topic_id, topic_name, publish_status, status, title')
+                .in('course_id', enrolled);
+              return res.data || [];
+            }, CACHE_TTL.CURRICULUM),
+            cachedQuery(`notif_cw_cq:${courseKey}`, async () => {
+              const res = await supabase.from('coding_questions')
+                .select('id, course_id, target_batch, target_batches, inner_topic_id, title')
+                .in('course_id', enrolled);
+              return res.data || [];
+            }, CACHE_TTL.CURRICULUM),
+            cachedQuery(`notif_cw_quiz:${courseKey}`, async () => {
+              const res = await supabase.from('quizzes')
+                .select('id, course_id, target_batch, target_batches, inner_topic_id, topic_name, status, publish_status, title')
+                .in('course_id', enrolled);
+              return res.data || [];
+            }, CACHE_TTL.CURRICULUM),
+            cachedQuery(`notif_cw_proj:${courseKey}`, async () => {
+              const res = await supabase.from('projects')
+                .select('id, course_id, target_batch, target_batches, inner_topic_id, description, status, publish_status, title')
+                .in('course_id', enrolled);
+              return res.data || [];
+            }, CACHE_TTL.CURRICULUM)
           ]);
           if (cancelled) return;
 
@@ -641,7 +699,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             dismissedIds.has(`${prefix}-${entityId}`) ||
             dismissedIds.has(`${prefix}-${entityId}__${sid}`);
 
-          (assessRes.data || []).forEach((a: any) => {
+          (assessList || []).forEach((a: any) => {
             if (a.target_batch && !targetsBatch(a.target_batch, studentBatch, a.target_batches, studentCat)) return;
             const pub = norm(a.publish_status || a.status);
             if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
@@ -665,7 +723,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             }
           });
 
-          (cqRes.data || []).forEach((cq: any) => {
+          (cqList || []).forEach((cq: any) => {
             if (cq.target_batch && !targetsBatch(cq.target_batch, studentBatch, cq.target_batches, studentCat)) return;
             const rawId = rawLessonLink(cq);
             const targetLessonId = resolver.resolveEntityLessonId(cq) || (rawId ? resolver.resolveLessonId(rawId) : '');
@@ -687,7 +745,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             }
           });
 
-          (quizRes.data || []).forEach((q: any) => {
+          (quizList || []).forEach((q: any) => {
             if (q.target_batch && !targetsBatch(q.target_batch, studentBatch, q.target_batches, studentCat)) return;
             const pub = norm(q.publish_status || q.status);
             if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
@@ -711,7 +769,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
             }
           });
 
-          (projRes.data || []).forEach((p: any) => {
+          (projList || []).forEach((p: any) => {
             if (p.target_batch && !targetsBatch(p.target_batch, studentBatch, p.target_batches, studentCat)) return;
             const pub = norm(p.publish_status || p.status);
             if (pub && (pub.includes('draft') || pub.includes('hidden'))) return;
@@ -791,11 +849,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     const category = user?.batchCategory || '';
     const courses = user?.enrolledCourses || [];
 
-    const channel = supabase.channel(`notifs_multiplexed_${Date.now()}`);
+    const notifTopic = `notifs_multiplexed_${sid}`;
+    const channel = realtimeManager.getOrCreateChannel(notifTopic);
 
     // Live sessions (client-filtered by batch + published)
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'live_sessions' }, (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       if (payload.eventType === 'DELETE') return;
       const pub = norm(row.publish_status);
       if (pub && !pub.includes('publish')) return;
@@ -814,7 +873,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // New assessments (INSERT) for the student's batch and course
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'assessments' }, async (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       const curUser = userRef.current;
       const curBatch = curUser?.batchCode || batch;
       const curCategory = curUser?.batchCategory || category;
@@ -839,7 +898,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // New projects (INSERT)
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'projects' }, async (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       const curUser = userRef.current;
       const curBatch = curUser?.batchCode || batch;
       const curCategory = curUser?.batchCategory || category;
@@ -864,7 +923,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // Badges (INSERT) targeted to batch / all
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'badges' }, (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       if (!targetsBatch(row.target_batch, batch)) return;
       addNotification(
         { id: `notif-badge-${row.id}`, student_id: sid, type: 'system',
@@ -876,7 +935,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // Rewards: new reward, or a reward becoming unlocked
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'rewards' }, (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       if (payload.eventType === 'DELETE') return;
       if (payload.eventType === 'UPDATE' && row.is_locked !== false) return;
       addNotification(
@@ -891,7 +950,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // New course released to this student's batch (INSERT, or UPDATE that publishes it)
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'courses' }, (payload) => {
       if (payload.eventType === 'DELETE') return;
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       const pub = norm(row.publish_status);
       if (pub && !pub.includes('publish')) return;
       if (!courseTargetsBatch(row.target_batch, batch, category)) return;
@@ -905,7 +964,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // New quizzes (INSERT) for the student's batch and course
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'quizzes' }, async (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       const curUser = userRef.current;
       const curBatch = curUser?.batchCode || batch;
       const curCategory = curUser?.batchCategory || category;
@@ -930,7 +989,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // New coding questions (INSERT) for the student's batch and course
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'coding_questions' }, async (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       const curUser = userRef.current;
       const curBatch = curUser?.batchCode || batch;
       const curCategory = curUser?.batchCategory || category;
@@ -953,7 +1012,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // New placement resources (INSERT, published)
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'placement_resources' }, (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       const pub = norm(row.publish_status);
       if (pub && !pub.includes('publish')) return;
       addNotification(
@@ -966,7 +1025,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // New jobs (INSERT) targeted to the student's batch
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'jobs' }, (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       if (!targetsBatch(row.target_batch, batch)) return;
       addNotification(
         { id: `notif-job-${row.id}`, student_id: sid, type: 'placement',
@@ -978,7 +1037,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // Certificate issued for this student (INSERT)
     channel.on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'certificates', filter: `student_id=eq.${sid}` }, (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       if (row.student_id !== sid) return;
       addNotification(
         { id: `notif-cert-${row.id}`, student_id: sid, type: 'system',
@@ -991,7 +1050,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
     // Admin notifications inserted directly into the notifications table for this student
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'notifications', filter: `student_id=eq.${sid}` }, (payload) => {
       if (payload.eventType === 'DELETE') return;
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       if (row.student_id !== sid) return;
       addNotification(
         { id: row.id, student_id: sid, type: 'system',
@@ -1003,9 +1062,9 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // Students table realtime: catches XP, streak, and profile updates directly
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, (payload) => {
-      const row = payload.new || {};
-      const cleanRowPhone = row.mobile_number ? row.mobile_number.replace(/\D/g, '').slice(-10) : '';
-      const cleanUserPhone = userRef.current?.mobile ? userRef.current.mobile.replace(/\D/g, '').slice(-10) : '';
+      const row = (payload.new as any) || {};
+      const cleanRowPhone = cleanPhoneSuffix(row.mobile_number);
+      const cleanUserPhone = cleanPhoneSuffix(userRef.current?.mobile);
       if (row.id === sid || (cleanUserPhone && cleanRowPhone && cleanUserPhone === cleanRowPhone)) {
         refetchUser?.();
       }
@@ -1013,7 +1072,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     // Student profiles table realtime: catches direct XP, streak, and attendance updates
     channel.on('postgres_changes', { event: '*', schema: 'public', table: 'student_profiles' }, (payload) => {
-      const row = payload.new || {};
+      const row = (payload.new as any) || {};
       if (row.student_id === sid || row.id === sid) {
         refetchUser?.();
       }
@@ -1021,7 +1080,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 
     channel.subscribe();
 
-    return () => { supabase.removeChannel(channel); };
+    return () => { realtimeManager.releaseChannel(notifTopic); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.batchCode, user?.batchCategory, (user?.enrolledCourses || []).join(',')]);
 
@@ -1044,7 +1103,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
           fetchUserSubmissions(sid),
           fetchAssignmentAttempts(sid),
           fetchQuizAttempts(sid),
-          fetchProjects(),
+          fetchProjects(user.batchCode, user.batchCategory, undefined, user.enrolledCourses),
         ]);
 
         if (isCancelled) return;

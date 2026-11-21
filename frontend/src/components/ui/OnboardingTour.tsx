@@ -1,9 +1,4 @@
-import { useEffect } from 'react';
-import { Joyride, Step, TooltipRenderProps, STATUS, CallBackProps, EVENTS } from 'react-joyride';
-import { ChevronRight, Check, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import { useNav } from '@/lib/nav';
-import { useTour } from '@/lib/TourContext';
+import type { Step } from 'react-joyride';
 
 interface OnboardingTourProps {
   /** Unique ID for this tour (e.g. 'dashboard', 'learning') */

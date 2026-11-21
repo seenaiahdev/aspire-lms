@@ -23,10 +23,13 @@ import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { supabase } from '@/lib/supabase';
 import { getCached, invalidateCacheByPrefix } from '@/lib/queryCache';
+import { useToast } from '@/lib/ToastContext';
+import { LiveClassroomSkeleton } from '@/components/ui/Skeleton';
 
 export function LiveClassesScreen() {
   const { navigate, params, route } = useNav();
   const { user } = useUser();
+  const toast = useToast();
   const batchCode = user.batchCode || 'A26W1';
   const { isUnlocked, isEntityUnlocked, resolver } = useUnlockResolver();
   const [tab, setTab] = useState(() => {
@@ -1220,7 +1223,7 @@ export function LiveClassesScreen() {
                       if (cls.link) {
                         window.open(cls.link, '_blank');
                       } else {
-                        alert('Meeting link is not available yet.');
+                        toast.info('Meeting link is not available yet. Please check back shortly.');
                       }
                     }
                   }}
@@ -1282,7 +1285,7 @@ export function LiveClassesScreen() {
                         if (cls.link) {
                           window.open(cls.link, '_blank');
                         } else {
-                          alert('Meeting link is not available yet.');
+                          toast.info('Meeting link is not available yet. Please check back shortly.');
                         }
                       }} 
                       className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95"
@@ -1503,14 +1506,7 @@ export function LiveClassroomScreen() {
   const [votedPollOption, setVotedPollOption] = useState<number | null>(null);
 
   if (loading || !cls) {
-    return (
-      <div className="flex items-center justify-center h-[calc(100vh-5.5rem)] bg-slate-50">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="w-12 h-12 rounded-full border-4 border-purple-500 border-t-transparent animate-spin" />
-          <p className="text-slate-600 font-extrabold text-sm">Loading classroom...</p>
-        </div>
-      </div>
-    );
+    return <LiveClassroomSkeleton />;
   }
 
   const handleSendMessage = () => {

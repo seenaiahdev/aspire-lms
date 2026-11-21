@@ -2,12 +2,14 @@
   "name": "aspire-lms-root",
   "private": true,
   "scripts": {
-    "build": "cd frontend && npm install && npm run build",
+    "build": "npm run build --prefix frontend",
     "install": "cd frontend && npm install",
     "dev:frontend": "npm run dev --prefix frontend",
     "dev:backend": "npm run dev --prefix backend",
     "build:frontend": "npm run build --prefix frontend",
-    "start:backend": "npm start --prefix backend"
+    "start:backend": "npm start --prefix backend",
+    "test": "node --test tests/*.test.mjs backend/scripts/*.cjs 2>nul || node --test tests/security.test.mjs tests/queryCache.test.mjs tests/ux-m3.test.mjs tests/m4-realtime-streak.test.mjs tests/m5-reusability.test.mjs backend/scripts/test-caching-timeouts.cjs backend/scripts/test-crypto.cjs",
+    "test:e2e": "node --test tests/e2e/"
   },
   "dependencies": {
     "nodemailer": "^6.9.14"

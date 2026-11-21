@@ -137,14 +137,18 @@ export function QuizzesScreen() {
   const computeScore = (): number => {
     const mcqs = selectedQuiz?.mcqs || [];
     if (!mcqs.length) return 0;
-    const correctCount = mcqs.filter((q: any, qIdx: number) => answers[qIdx] === q.correctIndex).length;
+    const hasKeys = mcqs.some((q: any) => q.correctIndex !== undefined);
+    if (!hasKeys) return 0; // Authoritative score is calculated on the server
+    const correctCount = mcqs.filter((q: any, qIdx: number) => q.correctIndex !== undefined && answers[qIdx] === q.correctIndex).length;
     return Math.round((correctCount / mcqs.length) * 100);
   };
 
   const computeCorrectCount = (): number => {
     const mcqs = selectedQuiz?.mcqs || [];
     if (!mcqs.length) return 0;
-    return mcqs.filter((q: any, qIdx: number) => answers[qIdx] === q.correctIndex).length;
+    const hasKeys = mcqs.some((q: any) => q.correctIndex !== undefined);
+    if (!hasKeys) return 0;
+    return mcqs.filter((q: any, qIdx: number) => q.correctIndex !== undefined && answers[qIdx] === q.correctIndex).length;
   };
 
   // Convert the in-memory answers map into a positional array (index = question, value = choice).
@@ -159,9 +163,9 @@ export function QuizzesScreen() {
 
       try {
         isExitingIntentionally.current = true;
-        await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray(), totalQuestions, correctAnswers);
+        const saved = await submitQuizAttempt(user.id, selectedQuiz.id, calculatedScore, answersToArray(), totalQuestions, correctAnswers);
         await loadData();
-        setAutoSubmittedScore(calculatedScore);
+        setAutoSubmittedScore(saved?.score !== undefined ? saved.score : calculatedScore);
       } catch (err) {
         console.error('Failed to auto-submit quiz attempt:', err);
       }
@@ -313,9 +317,9 @@ export function QuizzesScreen() {
         setReviewQuizAttempt({
           quiz: selectedQuiz,
           attempt: saved || {
-            score: calculatedScore,
-            total_questions: totalQuestions,
-            correct_answers: correctAnswers,
+            score: saved?.score ?? calculatedScore,
+            total_questions: saved?.total_questions ?? totalQuestions,
+            correct_answers: saved?.correct_answers ?? correctAnswers,
             answers: answersToArray(),
             attempted_at: new Date().toISOString()
           }
@@ -1030,31 +1034,36 @@ export function QuizzesScreen() {
               </Modal>
             </div>
           )}
-          {/* 🛡️ Strict full-screen enforcement — rendered INSIDE the exam portal so it sits
-              ABOVE the exam (the old Modal was z-50, behind the z-99999 exam, so it was invisible). */}
-          {isExamStarted && showFullscreenWarning && (
-            <div className="absolute inset-0 z-[100] bg-slate-900/85 backdrop-blur-sm flex items-center justify-center p-6 animate-fade-in">
-              <div className="bg-white rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
-                <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
-                  <AlertTriangle className="w-8 h-8" />
-                </div>
-                <h3 className="text-xl font-extrabold text-slate-900">Full Screen Required</h3>
-                <p className="text-sm font-semibold text-rose-500">Exit {fullscreenExits} of 3</p>
-                <p className="text-xs font-semibold text-slate-500 leading-relaxed">
-                  This quiz must run in full screen. Leaving full screen or switching tabs 3 times will
-                  automatically submit your quiz.
-                </p>
-                <button
-                  type="button"
-                  onClick={handleResumeFullscreen}
-                  className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <Play className="w-4 h-4 fill-current" />
-                  <span>Resume in Full Screen</span>
-                </button>
-              </div>
+          {/* 🛡️ Strict full-screen enforcement standardized on Modal component */}
+          <Modal
+            isOpen={isExamStarted && showFullscreenWarning}
+            onClose={() => {}}
+            size="sm"
+            hideCloseButton
+            closeOnBackdropClick={false}
+            closeOnEscape={false}
+            zIndex="z-[100000]"
+            backdropClassName="bg-slate-900/85 backdrop-blur-sm"
+            className="p-8 text-center rounded-3xl max-w-md space-y-4"
+          >
+            <div className="w-16 h-16 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto border border-rose-200">
+              <AlertTriangle className="w-8 h-8" />
             </div>
-          )}
+            <h3 className="text-xl font-extrabold text-slate-900">Full Screen Required</h3>
+            <p className="text-sm font-semibold text-rose-500">Exit {fullscreenExits} of 3</p>
+            <p className="text-xs font-semibold text-slate-500 leading-relaxed">
+              This quiz must run in full screen. Leaving full screen or switching tabs 3 times will
+              automatically submit your quiz.
+            </p>
+            <button
+              type="button"
+              onClick={handleResumeFullscreen}
+              className="w-full py-3.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Play className="w-4 h-4 fill-current" />
+              <span>Resume in Full Screen</span>
+            </button>
+          </Modal>
         </div>,
         document.body
       )}

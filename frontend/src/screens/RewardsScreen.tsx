@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { Modal } from '@/components/ui/Modal';
 import {
   Gift, Sparkles, Lock, Unlock, CheckCircle2, Award, ShoppingBag, ArrowRight, Package, Truck, X, ShieldCheck, Loader2, Crown, Trophy, Star
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Toast } from '@/components/ui/Toast';
+import { useToast } from '@/lib/ToastContext';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
@@ -14,8 +15,8 @@ import { fetchRewards, submitRewardClaim, fetchRewardClaims } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 
 import { rewardsSteps } from '@/lib/tourSteps';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
-import aspireBackpackImg from '@/assests/media_1786109472875.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
+import aspireBackpackImg from '@/assets/media_1786109472875.jpg';
 import { BadgesPanel } from '@/components/BadgesPanel';
 import { RewardsHeroBanner } from '@/components/RewardsHeroBanner';
 
@@ -76,6 +77,7 @@ function CircularRewardLock({ progress, size = 76 }: { progress: number; size?: 
 export function RewardsScreen() {
   const { navigate } = useNav();
   const { user } = useUser();
+  const toast = useToast();
   const [rewardsState, setRewardsState] = useState<SwagReward[]>([]);
   const [selectedReward, setSelectedReward] = useState<SwagReward | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -200,20 +202,15 @@ export function RewardsScreen() {
         localStorage.setItem('aspire_claimed_rewards', JSON.stringify(updated));
         return updated;
       });
-      setToastMessage(`Success! ${reward.name} claimed successfully. Free express shipping has been dispatched to the provided address.`);
+      toast.success(`Success! ${reward.name} claimed successfully. Free express shipping has been dispatched to the provided address.`);
     } catch (dbErr: any) {
       console.error('Failed to submit reward claim to Supabase:', dbErr);
-      setToastMessage(`Failed to submit claim: ${dbErr.message || 'database error'}`);
+      toast.error(`Failed to submit claim: ${dbErr.message || 'database error'}`);
     }
   };
 
   return (
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
-
-      
-      {toastMessage && (
-        <Toast message={toastMessage} onClose={() => setToastMessage(null)} position="top-right" />
-      )}
 
       {/* ════════ REWARDS HERO BANNER ════════ */}
       <RewardsHeroBanner />
@@ -400,16 +397,19 @@ export function RewardsScreen() {
 
 
       {/* ════════ REWARD DETAILS MODAL ════════ */}
-      {selectedReward && createPortal(
-        <div 
-          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelectedReward(null); }}
-        >
-          <div className="w-full max-w-xl bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto">
-            
+      <Modal
+        isOpen={selectedReward !== null}
+        onClose={() => setSelectedReward(null)}
+        size="xl"
+        hideCloseButton
+        className="max-w-xl rounded-[2rem] p-0"
+      >
+        {selectedReward && (
+          <>
             {/* Sticky Close Button */}
             <button
               onClick={() => setSelectedReward(null)}
+              aria-label="Close reward details"
               className="absolute top-4 right-4 z-50 w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
             >
               <X className="w-4 h-4" />
@@ -488,20 +488,19 @@ export function RewardsScreen() {
                 </button>
               )}
             </div>
-
-          </div>
-        </div>,
-        document.body
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ════════ SHIPPING DETAILS MODAL ════════ */}
-      {claimRewardTarget && createPortal(
-        <div 
-          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
-          onClick={(e) => { if (e.target === e.currentTarget) setClaimRewardTarget(null); }}
-        >
-          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-2xl sm:rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto p-5 sm:p-6 space-y-6">
-            
+      <Modal
+        isOpen={claimRewardTarget !== null}
+        onClose={() => setClaimRewardTarget(null)}
+        size="sm"
+        className="p-5 sm:p-6 max-h-[90vh] overflow-y-auto space-y-6"
+      >
+        {claimRewardTarget && (
+          <>
             <div className="text-center space-y-2">
               <div className="w-12 h-12 rounded-full bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 mx-auto">
                 <Truck className="w-6 h-6" />
@@ -670,10 +669,9 @@ export function RewardsScreen() {
               </div>
 
             </form>
-          </div>
-        </div>,
-        document.body
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
       {lockedToastReward && (

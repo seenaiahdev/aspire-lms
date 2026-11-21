@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { createPortal } from 'react-dom';
+import { Modal } from '@/components/ui/Modal';
 import { 
   Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, HelpCircle, Zap, Trophy, TrendingUp, Search, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu, XCircle,
   Presentation as PresentationIcon
@@ -13,6 +13,7 @@ import { cn, isDueDatePassed } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { usePreload } from '@/lib/PreloadContext';
 import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
+import { ErrorState } from '@/components/ui/EmptyState';
 
 import { learningSteps } from '@/lib/tourSteps';
 
@@ -871,7 +872,13 @@ export function LearningScreen() {
       {route === 'learning' && (
         <div className="space-y-6 animate-fade-in">
           
-          {learningItems.length === 0 ? (
+          {(user.enrolledCourses?.length ?? 0) > 0 && learningItems.length === 0 ? (
+            <ErrorState
+              title="Unable to load courses"
+              description="Failed to load your enrolled courses. Please check your internet connection and try again."
+              onRetry={() => preload.bumpReload()}
+            />
+          ) : learningItems.length === 0 ? (
             <div className="py-16 px-4 flex flex-col items-center justify-center text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-4 max-w-lg mx-auto my-8">
               <div className="w-16 h-16 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100 shadow-sm">
                 <BookOpen className="w-8 h-8" />
@@ -1078,13 +1085,19 @@ export function LearningScreen() {
 
 
       {/* ════════ DYNAMIC TOPIC CATALOG SIDE DRAWER / MODAL ════════ */}
-      {selectedTopicDrawer && (() => {
-        const mod = selectedTopicDrawer;
+      <Modal
+        isOpen={selectedTopicDrawer !== null}
+        onClose={() => setSelectedTopicDrawer(null)}
+        variant="drawer-right"
+        hideCloseButton
+        backdropClassName="bg-slate-900/60 backdrop-blur-sm"
+        className="w-full max-w-lg h-[100dvh] shadow-2xl flex flex-col justify-between overflow-hidden font-sans p-0 border-0"
+      >
+        {selectedTopicDrawer && (() => {
+          const mod = selectedTopicDrawer;
 
-        return createPortal(
-          <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex justify-end animate-fade-in" onClick={(e) => { if (e.target === e.currentTarget) setSelectedTopicDrawer(null); }}>
-            <div className="w-full max-w-lg bg-white h-[100dvh] shadow-2xl flex flex-col justify-between overflow-hidden animate-slide-left font-sans cursor-default">
-              
+          return (
+            <div className="flex flex-col h-full justify-between">
               {/* Drawer Header */}
               <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4 bg-slate-50/50">
                 <div>
@@ -1496,10 +1509,9 @@ export function LearningScreen() {
 
 
             </div>
-          </div>,
-          document.body
-        );
-      })()}
+          );
+        })()}
+      </Modal>
 
       {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
       {lockedToast && (

@@ -20,7 +20,9 @@ import {
   PresentationRecord,
 } from './api';
 import { getLessonResolver, clearLessonResolverCache, LessonResolver } from './lessonLinkResolver';
-import { isDueDatePassed } from './utils';
+import { isDueDatePassed, cleanPhoneSuffix } from './utils';
+import { buildCourseSyllabusTree, toSafeSet, toSafeMap, normTitle, isPassedRow, type BuildSyllabusParams } from './syllabusTree';
+import { realtimeManager } from './realtimeManager';
 import {
   cachedQuery,
   getCached,
@@ -112,267 +114,8 @@ let memoryPreloadCache: MemoryPreloadCache | null = null;
 const PreloadContext = createContext<PreloadState>(defaultState);
 
 // ─────────────────────────────────────────────
-// Helpers (mirrors LearningScreen logic exactly)
+// Syllabus Tree construction extracted to shared frontend/src/lib/syllabusTree.ts (F-31)
 // ─────────────────────────────────────────────
-
-function toSafeSet(input: any): Set<string> {
-  if (!input) return new Set();
-  if (input instanceof Set) return input;
-  if (Array.isArray(input)) return new Set(input.map(String));
-  if (typeof input === 'object') {
-    if (input.__dataType === 'Set' && Array.isArray(input.values)) {
-      return new Set(input.values.map(String));
-    }
-    return new Set(Object.keys(input));
-  }
-  return new Set();
-}
-
-function toSafeMap(input: any): Map<string, any> {
-  if (!input) return new Map();
-  if (input instanceof Map) return input;
-  if (Array.isArray(input)) return new Map(input);
-  if (typeof input === 'object') {
-    if (input.__dataType === 'Map' && Array.isArray(input.entries)) {
-      return new Map(input.entries);
-    }
-    return new Map(Object.entries(input));
-  }
-  return new Map();
-}
-
-const normTitle = (s: any) =>
-  String(s || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-
-const isPassedRow = (r: any) => {
-  const score = Number(r.score ?? 0);
-  const status = String(r.status ?? '').toLowerCase();
-  return score >= 70 || status === 'passed';
-};
-
-const assessLessonTitle = (a: any) =>
-  normTitle(String(a.topic_name || '').split('||').pop());
-
-const projLessonTitle = (p: any) => {
-  try { return normTitle(JSON.parse(p.description || '{}').moduleName); } catch { return ''; }
-};
-
-interface BuildSyllabusParams {
-  courseId: string;
-  topics: any[];
-  lessons: any[];
-  assessments: any[];
-  codingQuestions: any[];
-  projects: any[];
-  quizzes: any[];
-  resolver: LessonResolver;
-  batchCode: string;
-  batchCategory: string;
-  doneLessons: Set<string>;
-  doneAssess: Set<string>;
-  failedAssess: Set<string>;
-  doneQuiz: Set<string>;
-  failedQuiz: Set<string>;
-  donePractice: Set<string>;
-  recByTitle: Map<string, any>;
-  presentationsData: PresentationRecord[];
-}
-
-function buildCourseSyllabusTree({
-  courseId,
-  topics,
-  lessons,
-  assessments,
-  codingQuestions,
-  projects,
-  quizzes,
-  resolver,
-  batchCode,
-  batchCategory,
-  doneLessons,
-  doneAssess,
-  failedAssess,
-  doneQuiz,
-  failedQuiz,
-  donePractice,
-  recByTitle,
-  presentationsData,
-}: BuildSyllabusParams) {
-  const safeDoneLessons = toSafeSet(doneLessons);
-  const safeDoneAssess = toSafeSet(doneAssess);
-  const safeFailedAssess = toSafeSet(failedAssess);
-  const safeDoneQuiz = toSafeSet(doneQuiz);
-  const safeFailedQuiz = toSafeSet(failedQuiz);
-  const safeDonePractice = toSafeSet(donePractice);
-  const safeRecByTitle = toSafeMap(recByTitle);
-
-  const userBatch = (batchCode || '').trim().toLowerCase();
-  const userCat = (batchCategory || '').trim().toLowerCase();
-
-  const relevantAssessments = (assessments || []).filter((a: any) => {
-    const pub = String(a.publish_status || '').toLowerCase();
-    if (pub && (pub.includes('draft') || pub.includes('hidden'))) return false;
-    // Strict course isolation: assessment must belong to this course
-    if (a.course_id && a.course_id !== courseId) return false;
-    const tb = String(a.target_batch || '').toLowerCase();
-    if (!tb) return true;
-    if (tb.includes('all batches') || tb === 'all') return true;
-    if (userBatch && tb.split(',').map((s: string) => s.trim()).includes(userBatch)) return true;
-    if (userCat && tb.includes(userCat)) return true;
-    return false;
-  });
-
-  const stages = topics.map((topic: any) => {
-    const subtopics = topic.subtopics || [];
-    return {
-      id: topic.id,
-      title: topic.title,
-      modules: subtopics.map((sub: any) => {
-        const rawModuleLessons = lessons.filter((l: any) => l.module_id === sub.id);
-        const seenTitles = new Set<string>();
-        const moduleLessons = rawModuleLessons.filter((l: any) => {
-          const norm = String(l.title || '').toLowerCase().trim();
-          if (seenTitles.has(norm)) return false;
-          seenTitles.add(norm);
-          return true;
-        });
-
-        return {
-          id: sub.id,
-          title: sub.title,
-          description: sub.description || '',
-          duration: sub.durationHours || sub.duration || '5h',
-          lessons: moduleLessons.map((l: any, idx: number) => {
-            const dbPractices = (codingQuestions || []).filter((cq: any) =>
-              resolver.resolveLessonId(cq.inner_topic_id) === l.id
-            );
-            const lessonTitleKey = normTitle(l.title);
-
-            const dbAssessments = (relevantAssessments || []).filter((asmnt: any) => {
-              const parts = asmnt.topic_id ? asmnt.topic_id.split('||') : [];
-              if (resolver.resolveLessonId(parts[2]) === l.id) return true;
-              const aLessonTitle = assessLessonTitle(asmnt);
-              if (aLessonTitle && aLessonTitle === lessonTitleKey) return true;
-              const aModTitle = normTitle(parts[1] || (asmnt.topic_name ? asmnt.topic_name.split('||')[1] : ''));
-              const currentModTitle = normTitle(sub.title);
-              if (aModTitle && currentModTitle && (currentModTitle.includes(aModTitle) || aModTitle.includes(currentModTitle))) {
-                const aWords = aLessonTitle.split(' ').filter((w: string) => w.length > 2);
-                const lWords = lessonTitleKey.split(' ').filter((w: string) => w.length > 2);
-                const overlap = aWords.filter((w: string) => lWords.includes(w));
-                if (overlap.length >= 2) return true;
-                if (aWords.length >= 2 && lWords.length >= 2 && aWords[0] === lWords[0] && aWords[1] === lWords[1]) return true;
-              }
-              return false;
-            });
-
-            const seenProjTitles = new Set<string>();
-            const dbProjects = (projects || []).filter((p: any) => {
-              const t = projLessonTitle(p);
-              const matches = (!!t && t === lessonTitleKey) || resolver.resolveLessonId(p.inner_topic_id) === l.id;
-              if (!matches) return false;
-              const titleKey = String(p.title || '').trim().toLowerCase();
-              if (seenProjTitles.has(titleKey)) return false;
-              seenProjTitles.add(titleKey);
-              return true;
-            });
-
-            const dbQuizzes = (quizzes || []).filter((q: any) => {
-              if (resolver.resolveLessonId(q.inner_topic_id) === l.id) return true;
-              const t = normTitle(q.topic_name);
-              return !!t && t === lessonTitleKey;
-            });
-
-            const practices = dbPractices.map((cq: any) => ({
-              id: cq.id,
-              title: cq.title,
-              duration: '20m',
-              completed: safeDonePractice.has(cq.id) || safeDonePractice.has(String(cq.id || '').trim()),
-            }));
-
-            const lessonAssessments = dbAssessments.map((asmnt: any) => {
-              const isDone = safeDoneAssess.has(asmnt.id) || safeDoneAssess.has(String(asmnt.id || '').trim());
-              const isFailed = !isDone && (safeFailedAssess.has(asmnt.id) || safeFailedAssess.has(String(asmnt.id || '').trim()));
-              return {
-                id: asmnt.id,
-                title: asmnt.title,
-                duration: `${asmnt.duration_minutes || 15}m`,
-                completed: isDone,
-                failed: isFailed,
-              };
-            });
-
-            const lessonProjects = dbProjects.map((p: any) => {
-              let dueDate = p.due_date || '';
-              if (!dueDate && p.description && typeof p.description === 'string') {
-                try {
-                  const parsed = JSON.parse(p.description);
-                  dueDate = parsed.due_date || parsed.dueDate || '';
-                } catch {}
-              }
-              const isOverdue = isDueDatePassed(dueDate);
-              const isManualDone = safeDonePractice.has(p.id) || safeDonePractice.has(String(p.id || '').trim());
-              return {
-                id: p.id,
-                title: p.title,
-                type: p.type || 'mini',
-                completed: isManualDone,
-                isAutoSubmitted: !isManualDone && isOverdue,
-              };
-            });
-
-            const lessonQuizzes = dbQuizzes.map((q: any) => {
-              const isDone = safeDoneQuiz.has(q.id) || safeDoneQuiz.has(String(q.id || '').trim());
-              const isFailed = !isDone && (safeFailedQuiz.has(q.id) || safeFailedQuiz.has(String(q.id || '').trim()));
-              return {
-                id: q.id,
-                title: q.title,
-                duration: `${q.duration_minutes || 30}m`,
-                completed: isDone,
-                failed: isFailed,
-              };
-            });
-
-            const videoCompleted = safeDoneLessons.has(l.id) || safeDoneLessons.has(String(l.id || '').trim());
-            const items = [...practices, ...lessonAssessments, ...lessonProjects, ...lessonQuizzes];
-            const lessonCompleted = videoCompleted && items.every((it: any) => it.completed);
-            const rec = safeRecByTitle.get(normTitle(l.title));
-
-            const matchingPpt = (presentationsData || []).find((p: any) => {
-              if (p.inner_topic_id && (p.inner_topic_id === l.id || resolver.resolveLessonId(p.inner_topic_id) === l.id)) {
-                return true;
-              }
-              const pTitle = normTitle(p.title || p.lesson_name);
-              return !!pTitle && pTitle === lessonTitleKey;
-            });
-
-            return {
-              id: l.id,
-              title: l.title,
-              description: l.description,
-              completed: lessonCompleted,
-              videoCompleted,
-              coverTopics: resolver.getCoverTopics(l.id),
-              presentation: matchingPpt || null,
-              video: {
-                preview: idx === 0,
-                duration: rec?.duration || '45m',
-                completed: videoCompleted,
-                videoUrl: rec?.video_url || '',
-                thumbnail: rec?.thumbnail || '',
-              },
-              practices,
-              assessments: lessonAssessments,
-              projects: lessonProjects,
-              quizzes: lessonQuizzes,
-            };
-          }),
-        };
-      }),
-    };
-  });
-
-  return { id: courseId, stages };
-}
 
 // ─────────────────────────────────────────────
 // Provider
@@ -685,7 +428,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
               sid,
               String(sid || '').trim(),
               user.mobile,
-              (user.mobile || '').replace(/\D/g, '').slice(-10),
+              cleanPhoneSuffix(user.mobile),
               user.registrationId,
             ].filter(Boolean) as string[]
           )
@@ -837,7 +580,8 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       timer = setTimeout(() => bumpReload(), 800);
     };
 
-    const channel = supabase.channel(`preload_realtime_${sid}_${Date.now()}`);
+    const preloadTopic = `preload_realtime_${sid}`;
+    const channel = realtimeManager.getOrCreateChannel(preloadTopic);
     [
       'course_lessons',
       'course_topics',
@@ -859,7 +603,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
 
     return () => {
       if (timer) clearTimeout(timer);
-      supabase.removeChannel(channel);
+      realtimeManager.releaseChannel(preloadTopic);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, (user?.enrolledCourses || []).join(','), bumpReload]);

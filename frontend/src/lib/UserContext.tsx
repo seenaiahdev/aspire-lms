@@ -17,6 +17,8 @@ import {
 import { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
 import { hasValidSession } from '@/lib/nav';
 import { supabase } from './supabase';
+import { realtimeManager } from './realtimeManager';
+import { cleanPhoneSuffix } from './utils';
 
 const initialUser: ExtendedUser = {
   id: 'guest',
@@ -494,7 +496,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
     const isLoggedIn = hasValidSession();
 
     if (sid && sid !== 'guest' && isLoggedIn && loggedInMobile) {
-      const cleanPhone = loggedInMobile.replace(/\D/g, '').slice(-10);
+      const cleanPhone = cleanPhoneSuffix(loggedInMobile);
 
       // Shared debounced full refetch for cascading progress calculations
       let progressTimer: any = null;
@@ -503,10 +505,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
         progressTimer = setTimeout(() => refetchUser(), 600);
       };
 
-      const ts = Date.now();
-
-      // Consolidate all user and progress realtime subscriptions into ONE multiplexed WebSocket channel
-      const userChannel = supabase.channel(`user_multiplexed_${ts}`);
+      const userTopic = `user_multiplexed_${userRef.current?.id || cleanPhone || 'anon'}`;
+      const userChannel = realtimeManager.getOrCreateChannel(userTopic);
 
       // 1. students table: Realtime changes (catches enrollment, direct XP/streak on students row)
       userChannel.on(
@@ -517,11 +517,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
           table: 'students'
         },
         (payload) => {
-          const newRow = payload.new || {};
+          const newRow = (payload.new as any) || {};
           const sid = userRef.current?.id;
           const regId = userRef.current?.registrationId;
-          const cleanPayloadPhone = newRow.mobile_number ? newRow.mobile_number.replace(/\D/g, '').slice(-10) : '';
-          const cleanUserPhone = userRef.current?.mobile ? userRef.current.mobile.replace(/\D/g, '').slice(-10) : cleanPhone;
+          const cleanPayloadPhone = cleanPhoneSuffix(newRow.mobile_number);
+          const cleanUserPhone = cleanPhoneSuffix(userRef.current?.mobile) || cleanPhone;
 
           const matchesId = sid && (newRow.id === sid || newRow.registration_id === sid);
           const matchesReg = regId && (newRow.id === regId || newRow.registration_id === regId);
@@ -559,17 +559,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
           table: 'student_profiles'
         },
         (payload) => {
-          const newRow = payload.new || {};
+          const newRow = (payload.new as any) || {};
           const sid = userRef.current?.id;
           const regId = userRef.current?.registrationId;
           const targetId = newRow.student_id || newRow.id;
 
           if (sid && (targetId === sid || targetId === regId)) {
             const curr = userRef.current;
-            const nextXp = newRow.xp !== undefined ? Number(newRow.xp) : curr?.xp;
+            const nextXp = newRow.xp !== undefined ? Number(newRow.xp) : (curr?.xp ?? 0);
             const nextStreak = newRow.streak !== undefined 
               ? Number(newRow.streak) 
-              : (newRow.attendance !== undefined ? Number(newRow.attendance) : curr?.streak);
+              : (newRow.attendance !== undefined ? Number(newRow.attendance) : (curr?.streak ?? 0));
             const nextAttendance = newRow.attendance !== undefined ? Number(newRow.attendance) : curr?.attendance;
             const nextProgress = newRow.progress !== undefined ? Number(newRow.progress) : curr?.progress;
             const nextGpa = newRow.gpa !== undefined ? Number(newRow.gpa) : curr?.gpa;
@@ -585,7 +585,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
             if (hasChanged) {
               console.log('Real-time student_profiles updated:', newRow);
               setUser((prev) => {
-                const updated = {
+                const updated: ExtendedUser = {
                   ...prev,
                   xp: nextXp,
                   level: Math.floor(nextXp / 500) + 1,
@@ -593,7 +593,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
                   attendance: nextAttendance,
                   progress: nextProgress,
                   gpa: nextGpa,
-                  rank: nextGpa,
+                  rank: prev.rank ?? 0,
                 };
                 try { localStorage.setItem('aspire_cached_user', JSON.stringify(updated)); } catch {}
                 return updated;
@@ -742,7 +742,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
       }, 120000);
 
       return () => {
-        supabase.removeChannel(userChannel);
+        realtimeManager.releaseChannel(userTopic);
         if (progressTimer) clearTimeout(progressTimer);
         if (lockTimer) clearTimeout(lockTimer);
         if (scheduledUnlockTimerRef.current) {

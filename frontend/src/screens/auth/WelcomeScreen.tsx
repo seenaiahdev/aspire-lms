@@ -1,7 +1,7 @@
 import { Sparkles, TrendingUp, Users, GraduationCap, ArrowRight } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
 
 export function WelcomeScreen() {
   const { navigate } = useNav();

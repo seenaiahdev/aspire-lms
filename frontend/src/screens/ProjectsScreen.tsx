@@ -20,6 +20,8 @@ import { ProgressBar } from '@/components/ui/ProgressBar';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { cn, isDueDatePassed } from '@/lib/utils';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
+import { ErrorState } from '@/components/ui/EmptyState';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 import { useNav } from '@/lib/nav';
 import { ProjectOverviewRenderer } from '@/components/projects/ProjectOverviewRenderer';
@@ -282,6 +284,7 @@ export function ProjectsScreen() {
   });
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Automatically switch tab and select project based on route params
   useEffect(() => {
@@ -328,6 +331,7 @@ export function ProjectsScreen() {
   // Fetch projects and submissions from Supabase
   const loadProjectsAndSubmissions = useCallback(async (showLoading: boolean = true, retryCount: number = 0) => {
     if (showLoading && projectsState.length === 0) setIsLoading(true);
+    setFetchError(null);
     try {
       const batchCode = user?.batchCode || (user as any)?.batch || 'A26W1';
       const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
@@ -376,8 +380,9 @@ export function ProjectsScreen() {
       try {
         localStorage.setItem('projectDriveLinks', JSON.stringify(freshLinks));
       } catch {}
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading projects/submissions:', err);
+      setFetchError(err?.message || 'Failed to load projects. Please check your network connection.');
 
       // On failure, use localStorage fallback if state is empty
       setProjectsState((prev) => {
@@ -1305,9 +1310,20 @@ export function ProjectsScreen() {
 
         {/* PROJECTS LIST / GRID */}
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
+        ) : fetchError && projectsState.length === 0 ? (
+          <ErrorState
+            title="Unable to load projects"
+            description={fetchError}
+            onRetry={() => {
+              setFetchError(null);
+              loadProjectsAndSubmissions(true);
+            }}
+          />
         ) : filtered.length === 0 ? (
           <div>
             <Card className="p-12 text-center bg-white border border-slate-200/90 rounded-[2rem] shadow-xs">

@@ -164,3 +164,30 @@ export function isDueDatePassed(rawDueDate?: string): boolean {
   return false;
 }
 
+/**
+ * Sanitizes phone numbers by stripping country codes (+91), role/tag suffixes
+ * (:student, :parent, :admin, #tag), trunk prefixes (0), and non-digit characters,
+ * returning the normalized 10-digit mobile suffix.
+ *
+ * Handles edge cases: null, undefined, empty strings, boundary inputs (<10 digits).
+ *
+ * @param phone Raw phone string or number
+ * @returns Normalized phone suffix (up to 10 digits, or empty string)
+ */
+export function cleanPhoneSuffix(phone?: string | number | null): string {
+  if (phone === null || phone === undefined) return '';
+  const str = String(phone).trim();
+  if (!str) return '';
+
+  // Strip trailing role suffixes like :student, :parent, #tag
+  const base = str.split(/[:#]/)[0].trim();
+
+  // Extract all digit characters
+  const digits = base.replace(/\D/g, '');
+  if (!digits) return '';
+
+  // Return last 10 digits if 10 or more, otherwise return extracted digits (e.g. '12345')
+  return digits.length > 10 ? digits.slice(-10) : digits;
+}
+
+

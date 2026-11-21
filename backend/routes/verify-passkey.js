@@ -1,8 +1,8 @@
 // Production Express handler: verify-passkey with single-use auto-rotation
-const { decryptPasskey, encryptPasskey, generatePasskey } = require('../lib/passkey-crypto');
+const { decryptPasskey, encryptPasskey, generatePasskey, createSessionToken } = require('../lib/passkey-crypto');
 const cache = require('../lib/cache');
-
-const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
+const { cleanPhoneSuffix } = require('../lib/utils');
+const { getSupabaseClient } = require('../lib/supabase');
 
 const MAX_ATTEMPTS = 5;
 const LOCKOUT_MS = 15 * 60 * 1000;
@@ -40,8 +40,7 @@ module.exports = async (req, res) => {
     return res.status(405).json({ ok: false, error: 'method_not_allowed' });
   }
 
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
-  const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM';
+  const supabase = getSupabaseClient();
 
   try {
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
@@ -49,7 +48,7 @@ module.exports = async (req, res) => {
     const phone = String(body.phone || '').trim();
     const candidatePasskey = String(body.passkey || '').trim();
 
-    const suffix = cleanSuffix(phone);
+    const suffix = cleanPhoneSuffix(phone);
     const rateLimitKey = studentId || suffix || 'unknown';
 
     if (!candidatePasskey) {
@@ -65,20 +64,11 @@ module.exports = async (req, res) => {
       return res.status(429).json({ ok: false, error: rateCheck.error });
     }
 
-    let url = '';
-    if (studentId) {
-      url = `${SUPABASE_URL}/rest/v1/students?select=id,name,mobile_number,access_pin&id=eq.${encodeURIComponent(studentId)}&limit=1`;
-    } else {
-      url = `${SUPABASE_URL}/rest/v1/students?select=id,name,mobile_number,access_pin&mobile_number=ilike.*${suffix}&limit=5`;
-    }
+    const endpoint = studentId
+      ? `/students?select=id,name,mobile_number,access_pin&id=eq.${encodeURIComponent(studentId)}&limit=1`
+      : `/students?select=id,name,mobile_number,access_pin&mobile_number=ilike.*${suffix}&limit=5`;
 
-    const fetchResp = await fetch(url, {
-      headers: {
-        apikey: SUPABASE_ANON,
-        authorization: `Bearer ${SUPABASE_ANON}`,
-      },
-      signal: AbortSignal.timeout(6000),
-    });
+    const fetchResp = await supabase.authFetch(endpoint);
 
     if (!fetchResp.ok) {
       const errText = await fetchResp.text();
@@ -95,7 +85,7 @@ module.exports = async (req, res) => {
 
     const rows = await fetchResp.json();
     const student = Array.isArray(rows)
-      ? (studentId ? rows[0] : rows.find((s) => cleanSuffix(s.mobile_number) === suffix) || rows[0])
+      ? (studentId ? rows[0] : rows.find((s) => cleanPhoneSuffix(s.mobile_number) === suffix) || rows[0])
       : null;
 
     if (!student) {
@@ -130,30 +120,62 @@ module.exports = async (req, res) => {
     // ROTATE PASSKEY IMMEDIATELY
     const freshPlaintext = generatePasskey(6);
     const freshEncrypted = encryptPasskey(freshPlaintext);
+    const nowIso = new Date().toISOString();
 
-    await fetch(`${SUPABASE_URL}/rest/v1/students?id=eq.${encodeURIComponent(student.id)}`, {
-      method: 'PATCH',
-      headers: {
-        apikey: SUPABASE_ANON,
-        authorization: `Bearer ${SUPABASE_ANON}`,
-        'content-type': 'application/json',
-        prefer: 'return=minimal',
-      },
-      body: JSON.stringify({
-        access_pin: freshEncrypted,
-        passkey_updated_at: new Date().toISOString(),
-      }),
-      signal: AbortSignal.timeout(6000),
-    });
+    let updated = false;
+    try {
+      const rpcResp = await supabase.authFetch('/rpc/update_student_passkey', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          p_student_id: student.id,
+          p_access_pin: freshEncrypted,
+          p_updated_at: nowIso,
+        }),
+      });
+      if (rpcResp.ok) updated = true;
+    } catch {}
+
+    if (!updated) {
+      await supabase.authFetch(`/students?id=eq.${encodeURIComponent(student.id)}`, {
+        method: 'PATCH',
+        headers: {
+          'content-type': 'application/json',
+          prefer: 'return=minimal',
+        },
+        body: JSON.stringify({
+          access_pin: freshEncrypted,
+          passkey_updated_at: nowIso,
+        }),
+      });
+    }
 
     cache.invalidate(`student_id:${student.id}`);
     if (student.mobile_number) {
-      cache.invalidate(`student_phone:${cleanSuffix(student.mobile_number)}`);
+      cache.invalidate(`student_phone:${cleanPhoneSuffix(student.mobile_number)}`);
     }
+
+    // SEC-06: Issue cryptographically signed session token
+    const tokenPayload = {
+      studentId: student.id,
+      phone: cleanPhoneSuffix(student.mobile_number || phone),
+      name: student.name,
+      iat: Math.floor(Date.now() / 1000),
+      exp: Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60, // 7 days
+    };
+    const token = createSessionToken(tokenPayload);
 
     return res.status(200).json({
       ok: true,
       message: 'Passkey verified successfully.',
+      token,
+      user: {
+        id: student.id,
+        name: student.name,
+        mobileNumber: student.mobile_number,
+      },
       student: {
         id: student.id,
         name: student.name,

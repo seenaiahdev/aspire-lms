@@ -8,7 +8,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { cn } from '@/lib/utils';
 import { getIcon } from '@/lib/icons';
 
-import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
 
 function MilestoneRoadmapIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (

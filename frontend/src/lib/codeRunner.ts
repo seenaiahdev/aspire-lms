@@ -347,69 +347,28 @@ export async function executeCodeFile(
         worker.postMessage({ code: sanitizedCode, args: parsedArgs, fnName });
       } catch {
         cleanup();
-        // Fallback to in-thread execution if Web Worker creation is blocked
-        runInThreadFallback(code, customInput, startTime, resolve);
+        // SEC-10: Reject unisolated main-thread execution — Web Worker sandbox required
+        const duration = Math.round(performance.now() - startTime);
+        resolve({
+          success: false,
+          status: 'error',
+          output: '',
+          stdout: ['[SECURITY ERROR] Sandboxed Web Worker initialization failed.'],
+          error: 'Security Sandbox Error: Untrusted JavaScript execution in the main browser thread is blocked. Web Worker isolation is required.',
+          executionTimeMs: duration,
+        });
       }
     });
   }
 
   // Node.js or environment without Worker support
-  return new Promise((resolve) => {
-    runInThreadFallback(code, customInput, startTime, resolve);
+  const duration = Math.round(performance.now() - startTime);
+  return Promise.resolve({
+    success: false,
+    status: 'error',
+    output: '',
+    stdout: ['[SECURITY ERROR] Sandboxed Web Worker environment unavailable.'],
+    error: 'Security Sandbox Error: Untrusted JavaScript execution in the main browser thread is blocked. Web Worker isolation is required.',
+    executionTimeMs: duration,
   });
-}
-
-function runInThreadFallback(code: string, customInput: string, startTime: number, resolve: (res: ExecutionResult) => void) {
-  const stdout: string[] = [];
-  try {
-    const customConsole = {
-      log: (...args: any[]) => { stdout.push(args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
-      warn: (...args: any[]) => { stdout.push('[WARN] ' + args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
-      error: (...args: any[]) => { stdout.push('[ERROR] ' + args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
-      info: (...args: any[]) => { stdout.push(args.map((a) => (typeof a === 'object' ? JSON.stringify(a) : String(a))).join(' ')); },
-    };
-
-    const parsedArgs = parseCustomInput(customInput);
-    const fnName = findEntrypointFunctionName(code, 'javascript');
-    const sanitizedCode = code.replace(/export\s+default\s+/g, '').replace(/export\s+/g, '');
-
-    let executionScript = `
-      const console = __customConsole__;
-      ${sanitizedCode}
-    `;
-
-    if (fnName) {
-      executionScript += `
-        if (typeof ${fnName} === 'function') {
-          return ${fnName}(...__args__);
-        }
-        return undefined;
-      `;
-    }
-
-    const runner = new Function('__customConsole__', '__args__', executionScript);
-    const result = runner(customConsole, parsedArgs);
-    const duration = Math.round(performance.now() - startTime);
-    const outputStr = result !== undefined
-      ? (typeof result === 'object' ? JSON.stringify(result) : String(result))
-      : '(No return value)';
-
-    resolve({
-      success: true,
-      status: 'passed',
-      output: outputStr,
-      stdout,
-      executionTimeMs: duration,
-    });
-  } catch (jsErr: any) {
-    const duration = Math.round(performance.now() - startTime);
-    resolve({
-      success: false,
-      status: 'error',
-      output: '',
-      stdout,
-      error: jsErr?.message || String(jsErr),
-      executionTimeMs: duration,
-    });
-  }
 }

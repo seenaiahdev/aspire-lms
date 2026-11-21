@@ -10,6 +10,9 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { Modal } from '@/components/ui/Modal';
+import { ErrorState } from '@/components/ui/EmptyState';
+import { AssessmentItemSkeleton } from '@/components/ui/Skeleton';
+import { useToast } from '@/lib/ToastContext';
 import { QuizzesScreen } from '@/screens/QuizzesScreen';
 import { cn } from '@/lib/utils';
 
@@ -135,9 +138,11 @@ const getAssessCacheKey = (studentId?: string) => {
 };
 
 export function AssignmentsScreen() {
-  const { user } = useUser();
+  const { user, updateUser } = useUser();
+  const toast = useToast();
   const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { navigate, params, route } = useNav();
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const cacheKey = useMemo(() => getAssessCacheKey(user?.id), [user?.id]);
 
   const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>(() => {
@@ -190,6 +195,7 @@ export function AssignmentsScreen() {
 
       if (batchCode || enrolledCourses.length > 0) {
         if (showSpinner && courseAssignments.length === 0) setLoading(true);
+        setFetchError(null);
         try {
           const [data, attempts] = await Promise.all([
             fetchAssignments(batchCode, batchCategory, courseId, enrolledCourses),
@@ -251,8 +257,9 @@ export function AssignmentsScreen() {
           } else {
             setCourseAssignments((prev) => prev);
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error("Failed to fetch assignments:", error);
+          setFetchError(error?.message || 'Failed to fetch assignments. Please check your network connection.');
           setCourseAssignments((prev) => prev);
           if (retryCount < 2) {
             setTimeout(() => loadData(false, retryCount + 1), 2500);
@@ -560,17 +567,33 @@ export function AssignmentsScreen() {
     if (currentMCQIndex < activeTask.mcqQuestions.length - 1) {
       setCurrentMCQIndex((prev) => prev + 1);
     } else {
-      // Calculate Score
+      // Calculate Score (authoritatively verified on submission)
       let correctCount = 0;
+      let hasKeys = false;
       activeTask.mcqQuestions.forEach((q, i) => {
-        if (userAnswers[i] === q.correctIndex) {
-          correctCount++;
+        if (q.correctIndex !== undefined) {
+          hasKeys = true;
+          if (userAnswers[i] === q.correctIndex) {
+            correctCount++;
+          }
         }
       });
-      const score = Math.round((correctCount / activeTask.mcqQuestions.length) * 100);
+      const score = hasKeys ? Math.round((correctCount / activeTask.mcqQuestions.length) * 100) : 0;
       setUserScore(score); // Storing % score
       setQuizStatus('results');
-      activeTask.status = 'completed';
+
+      // Immutable state updates (eliminating direct object mutation)
+      setActiveTask(prev => (prev ? { ...prev, status: 'completed' } : null));
+      setCourseAssignments(prev =>
+        prev.map(t => (t.id === activeTask.id ? { ...t, status: 'completed' } : t))
+      );
+
+      // Optimistically award XP
+      const xpGained = activeTask.xp || 50;
+      if (updateUser) {
+        updateUser({ xp: (user.xp || 0) + xpGained });
+      }
+      toast.success(`Assessment submitted! +${xpGained} XP earned!`);
 
       // Save locally
       localStorage.setItem(`assignment_attempt_${activeTask.id}`, JSON.stringify({
@@ -589,8 +612,41 @@ export function AssignmentsScreen() {
           0,
           activeTask.xp,
           [...userAnswers]
-        ).catch(err => {
+        ).then((res) => {
+          if (res?.score !== undefined) {
+            setUserScore(res.score);
+            try {
+              localStorage.setItem(`assignment_attempt_${activeTask.id}`, JSON.stringify({
+                score: res.score,
+                timestamp: new Date().toISOString()
+              }));
+            } catch {}
+          }
+        }).catch(err => {
           console.warn('Failed to save assignment attempt to Supabase:', err);
+          toast.error('Failed to sync assessment result with server.', {
+            action: {
+              label: 'Retry',
+              onClick: () => {
+                if (user?.id && activeTask?.id) {
+                  submitAssignmentAttempt(
+                    user.id,
+                    activeTask.id,
+                    'submitted',
+                    score,
+                    `Completed on ${new Date().toLocaleDateString('en-GB')}`,
+                    0,
+                    activeTask.xp,
+                    [...userAnswers]
+                  ).then(() => {
+                    toast.success('Assessment attempt synced successfully!');
+                  }).catch(() => {
+                    toast.error('Retry failed. Please check your internet connection.');
+                  });
+                }
+              }
+            }
+          });
         });
       }
     }
@@ -915,7 +971,16 @@ export function AssignmentsScreen() {
                   <button
                     onClick={() => {
                       setCodeTested(true);
-                      activeTask.status = 'completed';
+                      setActiveTask(prev => (prev ? { ...prev, status: 'completed' } : null));
+                      setCourseAssignments(prev =>
+                        prev.map(t => (t.id === activeTask.id ? { ...t, status: 'completed' } : t))
+                      );
+
+                      const xpGained = activeTask.xp || 50;
+                      if (updateUser) {
+                        updateUser({ xp: (user.xp || 0) + xpGained });
+                      }
+                      toast.success(`Solution submitted! +${xpGained} XP earned!`);
 
                       // Save locally
                       localStorage.setItem(`assignment_attempt_${activeTask.id}`, JSON.stringify({
@@ -935,6 +1000,7 @@ export function AssignmentsScreen() {
                           activeTask.xp
                         ).catch(err => {
                           console.warn('Failed to save assignment attempt to Supabase:', err);
+                          toast.error('Failed to sync assignment attempt with server.');
                         });
                       }
                     }}
@@ -1331,10 +1397,20 @@ export function AssignmentsScreen() {
 
           {/* Tasks List Cards */}
           {isScreenLoading ? (
-            <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
-              <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
-              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Daily Assessments...</h3>
+            <div className="space-y-3">
+              <AssessmentItemSkeleton />
+              <AssessmentItemSkeleton />
+              <AssessmentItemSkeleton />
             </div>
+          ) : fetchError && courseAssignments.length === 0 ? (
+            <ErrorState
+              title="Unable to load daily assessments"
+              description={fetchError}
+              onRetry={() => {
+                setFetchError(null);
+                loadData(true);
+              }}
+            />
           ) : filteredTasks.length === 0 ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50/50">
               <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-4 border border-slate-200 shadow-sm">

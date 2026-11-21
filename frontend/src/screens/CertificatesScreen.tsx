@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
-import { createPortal } from 'react-dom';
+import { Modal } from '@/components/ui/Modal';
 import {
   Award, Download, Share2, ShieldCheck, Lock, Unlock, CheckCircle2, Clock, Sparkles, BookOpen, ExternalLink, RefreshCw, X, Check, FileCheck, Loader2
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Toast } from '@/components/ui/Toast';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { useNav } from '@/lib/nav';
 import { cn } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { fetchCertificates } from '@/lib/api';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
 import { supabase } from '@/lib/supabase';
 
 import { certificationsSteps } from '@/lib/tourSteps';
@@ -303,7 +304,11 @@ export function CertificatesScreen() {
 
       {/* ════════ CERTIFICATE CARDS GRID ════════ */}
       {loading ? (
-        <div className="flex justify-center p-12"><Loader2 className="w-8 h-8 text-primary-500 animate-spin" /></div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </div>
       ) : filteredCerts.length === 0 ? (
         <div className="text-center p-12 text-slate-500 bg-slate-50 rounded-xl border border-slate-100">
           {certs.length === 0 ? 'No certificates earned yet' : 'No certificates available in this category'}
@@ -452,16 +457,19 @@ export function CertificatesScreen() {
 
 
       {/* ════════ RESPONSIVE OFFICIAL ASPIRE NEXT CERTIFICATE MODAL ════════ */}
-      {selectedCert && createPortal(
-        <div 
-          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-5 font-sans cursor-default overflow-y-auto animate-fade-in"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelectedCert(null); }}
-        >
-          <div className="w-full max-w-2xl lg:max-w-3xl max-h-[92vh] bg-white rounded-2xl sm:rounded-[2rem] shadow-2xl overflow-hidden border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto">
-            
+      <Modal
+        isOpen={selectedCert !== null}
+        onClose={() => setSelectedCert(null)}
+        size="2xl"
+        hideCloseButton
+        className="border border-slate-200 rounded-2xl sm:rounded-[2rem] justify-between"
+      >
+        {selectedCert && (
+          <>
             {/* Sticky Close Button */}
             <button
               onClick={() => setSelectedCert(null)}
+              aria-label="Close certificate preview"
               className="absolute top-4 right-4 z-50 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors shadow-sm cursor-pointer"
             >
               <X className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -610,11 +618,9 @@ export function CertificatesScreen() {
                 </div>
               )}
             </div>
-
-          </div>
-        </div>,
-        document.body
-      )}
+          </>
+        )}
+      </Modal>
 
     </div>
   );

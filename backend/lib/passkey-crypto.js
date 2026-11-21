@@ -6,18 +6,93 @@ const LOWER = 'abcdefghijkmnpqrstuvwxyz';
 const DIGITS = '23456789';
 const ALL_CHARS = UPPER + LOWER + DIGITS;
 
+const WEAK_DEFAULT_SECRETS = new Set([
+  'aspire_lms_otp_hmac_secret_key_2026',
+  'some-secure-random-secret-key-12345',
+  'aspire_lms_passkey_vault_secret_2026',
+  'default-secret',
+  'secret',
+  'password'
+]);
+
+function isWeakSecret(secret) {
+  if (!secret || typeof secret !== 'string') return true;
+  const trimmed = secret.trim();
+  if (trimmed.length < 16) return true;
+  return WEAK_DEFAULT_SECRETS.has(trimmed);
+}
+
+// Runtime fallback secret for local development/testing ONLY (random per process, never static weak string)
+let devRuntimeSecret = null;
+function getDevRuntimeSecret() {
+  if (!devRuntimeSecret) {
+    devRuntimeSecret = crypto.randomBytes(32).toString('hex');
+  }
+  return devRuntimeSecret;
+}
+
 function getCandidateSecrets() {
   const list = [];
-  if (process.env.PASSKEY_SECRET) list.push(process.env.PASSKEY_SECRET);
-  if (process.env.OTP_SECRET) list.push(process.env.OTP_SECRET);
-  list.push('some-secure-random-secret-key-12345');
-  list.push('aspire_lms_passkey_vault_secret_2026');
+  const passkeySecret = process.env.PASSKEY_SECRET;
+  const otpSecret = process.env.OTP_SECRET;
+
+  if (process.env.NODE_ENV === 'production') {
+    if (isWeakSecret(passkeySecret) && isWeakSecret(otpSecret)) {
+      throw new Error('FAIL-CLOSED: High-entropy PASSKEY_SECRET or OTP_SECRET required in production environment.');
+    }
+    if (!isWeakSecret(passkeySecret)) list.push(passkeySecret);
+    if (!isWeakSecret(otpSecret)) list.push(otpSecret);
+  } else {
+    // Non-production (dev/test): prioritize valid configured secrets, never weak defaults
+    if (passkeySecret && !WEAK_DEFAULT_SECRETS.has(passkeySecret)) list.push(passkeySecret);
+    if (otpSecret && !WEAK_DEFAULT_SECRETS.has(otpSecret)) list.push(otpSecret);
+    if (list.length === 0) {
+      list.push(getDevRuntimeSecret());
+    }
+  }
+
   return [...new Set(list.filter(Boolean))];
 }
 
 function getDerivedKey(secret) {
   const s = secret || getCandidateSecrets()[0];
   return crypto.createHash('sha256').update(String(s)).digest();
+}
+
+function createSessionToken(payload, customSecret) {
+  const secret = customSecret || getCandidateSecrets()[0];
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const headerB64 = Buffer.from(JSON.stringify(header)).toString('base64url');
+  const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+  const sig = crypto.createHmac('sha256', String(secret)).update(`${headerB64}.${payloadB64}`).digest('base64url');
+  return `${headerB64}.${payloadB64}.${sig}`;
+}
+
+function verifySessionToken(token, customSecret) {
+  if (!token || typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [headerB64, payloadB64, sig] = parts;
+  if (!headerB64 || !payloadB64 || !sig) return null;
+
+  const secrets = customSecret ? [customSecret] : getCandidateSecrets();
+  for (const s of secrets) {
+    try {
+      const expectedSig = crypto.createHmac('sha256', String(s)).update(`${headerB64}.${payloadB64}`).digest('base64url');
+      const a = Buffer.from(sig);
+      const b = Buffer.from(expectedSig);
+      if (a.length === b.length && crypto.timingSafeEqual(a, b)) {
+        const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+        if (payload.exp && Date.now() > (payload.exp < 10000000000 ? payload.exp * 1000 : payload.exp)) {
+          return null; // Expired
+        }
+        return payload;
+      }
+    } catch {
+      // try next candidate
+    }
+  }
+  return null;
 }
 
 function generatePasskey(length = 6) {
@@ -86,6 +161,11 @@ module.exports = {
   encryptPasskey,
   decryptPasskey,
   getDerivedKey,
+  createSessionToken,
+  verifySessionToken,
+  isWeakSecret,
+  getCandidateSecrets,
+  WEAK_DEFAULT_SECRETS,
   UPPER,
   LOWER,
   DIGITS

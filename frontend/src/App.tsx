@@ -1,43 +1,108 @@
+import React, { lazy, Suspense } from 'react';
 import { NavProvider, useNav } from '@/lib/nav';
 import { TourProvider } from '@/lib/TourContext';
-import { UserProvider } from '@/lib/UserContext';
+import { UserProvider, useUser } from '@/lib/UserContext';
 import { NotificationsProvider } from '@/lib/NotificationsContext';
 import { PreloadProvider } from '@/lib/PreloadContext';
+import { ToastProvider } from '@/lib/ToastContext';
 import { AppShell } from '@/components/layout/AppShell';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import {
+  Skeleton,
+  SkeletonCard,
+  AssessmentItemSkeleton,
+  CourseScreenSkeleton,
+  LessonPlayerSkeleton,
+  WorkspaceSkeleton,
+  LiveClassroomSkeleton,
+} from '@/components/ui/Skeleton';
 
 // Auth screens stay eager — they are the entry point and must render instantly.
 import { SplashScreen } from '@/screens/auth/SplashScreen';
 import { WelcomeScreen } from '@/screens/auth/WelcomeScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 
-// All application screens are statically imported for instantaneous 0ms perceived navigation
-import { DashboardScreen } from '@/screens/DashboardScreen';
-import { LearningScreen } from '@/screens/LearningScreen';
-import { CourseScreen } from '@/screens/CourseScreen';
-import { LessonScreen } from '@/screens/LessonScreen';
-import { LiveClassesScreen, LiveClassroomScreen } from '@/screens/LiveClassesScreen';
-import { PresentationScreen } from '@/screens/PresentationScreen';
-import { AssignmentsScreen } from '@/screens/AssignmentsScreen';
-import { PracticeScreen } from '@/screens/PracticeScreen';
-import { WorkspaceScreen } from '@/screens/WorkspaceScreen';
-import { QuizzesScreen } from '@/screens/QuizzesScreen';
-import { ProjectsScreen } from '@/screens/ProjectsScreen';
-import { ResourcesScreen } from '@/screens/ResourcesScreen';
-import { CommunityScreen } from '@/screens/CommunityScreen';
-import { ScheduleScreen } from '@/screens/ScheduleScreen';
-import { ProgressScreen } from '@/screens/ProgressScreen';
-import { AchievementsScreen } from '@/screens/AchievementsScreen';
-import { CertificatesScreen } from '@/screens/CertificatesScreen';
-import { RewardsScreen } from '@/screens/RewardsScreen';
-import { PlacementScreen } from '@/screens/PlacementScreen';
-import { NotificationsScreen } from '@/screens/NotificationsScreen';
-import { ProfileScreen } from '@/screens/ProfileScreen';
-import { SettingsScreen } from '@/screens/SettingsScreen';
+// Lazy-loaded application screens with named export unwrapping
+const DashboardScreen = lazy(() => import('@/screens/DashboardScreen').then(m => ({ default: m.DashboardScreen })));
+const LearningScreen = lazy(() => import('@/screens/LearningScreen').then(m => ({ default: m.LearningScreen })));
+const CourseScreen = lazy(() => import('@/screens/CourseScreen').then(m => ({ default: m.CourseScreen })));
+const LessonScreen = lazy(() => import('@/screens/LessonScreen').then(m => ({ default: m.LessonScreen })));
+const LiveClassesScreen = lazy(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassesScreen })));
+const LiveClassroomScreen = lazy(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassroomScreen })));
+const PresentationScreen = lazy(() => import('@/screens/PresentationScreen').then(m => ({ default: m.PresentationScreen })));
+const AssignmentsScreen = lazy(() => import('@/screens/AssignmentsScreen').then(m => ({ default: m.AssignmentsScreen })));
+const PracticeScreen = lazy(() => import('@/screens/PracticeScreen').then(m => ({ default: m.PracticeScreen })));
+const WorkspaceScreen = lazy(() => import('@/screens/WorkspaceScreen').then(m => ({ default: m.WorkspaceScreen })));
+const ProjectsScreen = lazy(() => import('@/screens/ProjectsScreen').then(m => ({ default: m.ProjectsScreen })));
+const ResourcesScreen = lazy(() => import('@/screens/ResourcesScreen').then(m => ({ default: m.ResourcesScreen })));
+const CommunityScreen = lazy(() => import('@/screens/CommunityScreen').then(m => ({ default: m.CommunityScreen })));
+const ScheduleScreen = lazy(() => import('@/screens/ScheduleScreen').then(m => ({ default: m.ScheduleScreen })));
+const ProgressScreen = lazy(() => import('@/screens/ProgressScreen').then(m => ({ default: m.ProgressScreen })));
+const AchievementsScreen = lazy(() => import('@/screens/AchievementsScreen').then(m => ({ default: m.AchievementsScreen })));
+const CertificatesScreen = lazy(() => import('@/screens/CertificatesScreen').then(m => ({ default: m.CertificatesScreen })));
+const RewardsScreen = lazy(() => import('@/screens/RewardsScreen').then(m => ({ default: m.RewardsScreen })));
+const PlacementScreen = lazy(() => import('@/screens/PlacementScreen').then(m => ({ default: m.PlacementScreen })));
+const NotificationsScreen = lazy(() => import('@/screens/NotificationsScreen').then(m => ({ default: m.NotificationsScreen })));
+const ProfileScreen = lazy(() => import('@/screens/ProfileScreen').then(m => ({ default: m.ProfileScreen })));
+const SettingsScreen = lazy(() => import('@/screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
 
-import { useUser } from '@/lib/UserContext';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
 
 const authRoutes = ['splash', 'welcome', 'login'];
+
+function RouteLoadingFallback({ route }: { route?: string }) {
+  switch (route) {
+    case 'course':
+      return <CourseScreenSkeleton />;
+    case 'lesson':
+      return <LessonPlayerSkeleton />;
+    case 'workspace':
+      return <WorkspaceSkeleton />;
+    case 'classroom':
+      return <LiveClassroomSkeleton />;
+    default:
+      return (
+        <div className="space-y-6 animate-pulse" role="status" aria-label="Loading page">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-2">
+              <Skeleton className="h-7 w-48 rounded-xl" />
+              <Skeleton className="h-4 w-72 rounded-lg" />
+            </div>
+            <div className="flex gap-2">
+              <Skeleton className="h-9 w-28 rounded-xl" />
+              <Skeleton className="h-9 w-28 rounded-xl" />
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {Array.from({ length: 4 }).map((_, i) => (
+              <div key={i} className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-2xs space-y-3">
+                <div className="flex justify-between items-center">
+                  <Skeleton className="h-4 w-20 rounded" />
+                  <Skeleton className="w-8 h-8 rounded-xl" />
+                </div>
+                <Skeleton className="h-7 w-24 rounded-lg" />
+                <Skeleton className="h-3 w-32 rounded" />
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-4">
+              <Skeleton className="h-6 w-36 rounded-lg" />
+              <div className="space-y-3">
+                <AssessmentItemSkeleton />
+                <AssessmentItemSkeleton />
+                <AssessmentItemSkeleton />
+              </div>
+            </div>
+            <div className="space-y-4">
+              <Skeleton className="h-6 w-32 rounded-lg" />
+              <SkeletonCard />
+            </div>
+          </div>
+        </div>
+      );
+  }
+}
 
 function SplashLoader() {
   return (
@@ -116,39 +181,43 @@ function Router() {
   return (
     <AppShell>
       <div key={route === 'milestones' ? 'learning' : route} className="page-transition w-full">
-        {(() => {
-          switch (route) {
-            case 'dashboard': return <DashboardScreen />;
-            case 'learning': return <LearningScreen />;
-            case 'milestones': return <LearningScreen />;
-            case 'course': return <CourseScreen />;
-            case 'lesson': return <LessonScreen />;
-            case 'live': return <LiveClassesScreen />;
-            case 'recordings': return <LiveClassesScreen />;
-            case 'classroom': return <LiveClassroomScreen />;
-            case 'presentation': return <PresentationScreen />;
-            case 'assignments':
-            case 'daily-assessment': return <AssignmentsScreen />;
-            case 'practice': return <PracticeScreen />;
-            case 'workspace': return <WorkspaceScreen />;
-            case 'quizzes':
-            case 'weekly-assessment': return <AssignmentsScreen />;
-            case 'projects': return <ProjectsScreen />;
-            case 'resources': return <ResourcesScreen />;
-            case 'community': return <CommunityScreen />;
-            case 'schedule': return <ScheduleScreen />;
-            case 'progress': return <ProgressScreen />;
-            case 'achievements': return <AchievementsScreen />;
-            case 'certificates': return <CertificatesScreen />;
-            case 'rewards': return <RewardsScreen />;
-            case 'certifications': return <CertificatesScreen />;
-            case 'placement': return <PlacementScreen />;
-            case 'notifications': return <NotificationsScreen />;
-            case 'profile': return <ProfileScreen />;
-            case 'settings': return <SettingsScreen />;
-            default: return <DashboardScreen />;
-          }
-        })()}
+        <ErrorBoundary level="route" route={route}>
+          <Suspense fallback={<RouteLoadingFallback route={route} />}>
+            {(() => {
+              switch (route) {
+                case 'dashboard': return <DashboardScreen />;
+                case 'learning': return <LearningScreen />;
+                case 'milestones': return <LearningScreen />;
+                case 'course': return <CourseScreen />;
+                case 'lesson': return <LessonScreen />;
+                case 'live': return <LiveClassesScreen />;
+                case 'recordings': return <LiveClassesScreen />;
+                case 'classroom': return <LiveClassroomScreen />;
+                case 'presentation': return <PresentationScreen />;
+                case 'assignments':
+                case 'daily-assessment': return <AssignmentsScreen />;
+                case 'practice': return <PracticeScreen />;
+                case 'workspace': return <WorkspaceScreen />;
+                case 'quizzes':
+                case 'weekly-assessment': return <AssignmentsScreen />;
+                case 'projects': return <ProjectsScreen />;
+                case 'resources': return <ResourcesScreen />;
+                case 'community': return <CommunityScreen />;
+                case 'schedule': return <ScheduleScreen />;
+                case 'progress': return <ProgressScreen />;
+                case 'achievements': return <AchievementsScreen />;
+                case 'certificates': return <CertificatesScreen />;
+                case 'rewards': return <RewardsScreen />;
+                case 'certifications': return <CertificatesScreen />;
+                case 'placement': return <PlacementScreen />;
+                case 'notifications': return <NotificationsScreen />;
+                case 'profile': return <ProfileScreen />;
+                case 'settings': return <SettingsScreen />;
+                default: return <DashboardScreen />;
+              }
+            })()}
+          </Suspense>
+        </ErrorBoundary>
       </div>
     </AppShell>
   );
@@ -161,7 +230,9 @@ function App() {
         <PreloadProvider>
           <NotificationsProvider>
             <TourProvider>
-              <Router />
+              <ToastProvider>
+                <Router />
+              </ToastProvider>
             </TourProvider>
           </NotificationsProvider>
         </PreloadProvider>

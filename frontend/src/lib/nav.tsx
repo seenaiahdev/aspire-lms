@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import type { ReactNode } from 'react';
 import type { Route } from './routes';
+import { cleanPhoneSuffix } from './utils';
 
 interface NavContextValue {
   route: Route;
@@ -39,9 +40,10 @@ export function hasValidSession(): boolean {
 
     if (token) {
       const parts = token.split('.');
-      if (parts.length !== 2) return false;
-      const [payloadB64, signature] = parts;
-      if (!payloadB64 || !signature) return false;
+      if (parts.length !== 2 && parts.length !== 3) return false;
+      const payloadB64 = parts.length === 3 ? parts[1] : parts[0];
+      const signature = parts.length === 3 ? parts[2] : parts[1];
+      if (!payloadB64 || !signature || signature.length < 16) return false;
 
       // Decode base64url payload
       const base64 = payloadB64.replace(/-/g, '+').replace(/_/g, '/');
@@ -57,32 +59,38 @@ export function hasValidSession(): boolean {
         return false;
       }
 
-      if (Date.now() > payload.exp) {
+      const expMs = payload.exp < 10000000000 ? payload.exp * 1000 : payload.exp;
+      if (Date.now() > expMs) {
         // Session expired — purge invalid state
         localStorage.removeItem('aspire_session_token');
         localStorage.setItem('aspire_logged_in', 'false');
         return false;
       }
 
+      // Check mobile matches if provided in payload
+      const sanitizePhone = typeof cleanPhoneSuffix === 'function'
+        ? cleanPhoneSuffix
+        : (p?: string | number | null) => String(p || '').replace(/\D/g, '').slice(-10);
+      const cleanMobile = sanitizePhone(mobile);
+      if (payload.phone) {
+        const payloadPhone = sanitizePhone(payload.phone);
+        if (payloadPhone && payloadPhone !== cleanMobile) {
+          return false;
+        }
+      }
+
       return true;
     }
 
-    // Transition support: if legacy session exists with valid user profile,
-    // verify valid registered user object exists before acknowledging session
-    const cachedUser = localStorage.getItem('aspire_cached_user');
-    if (cachedUser && mobile.replace(/\D/g, '').length === 10) {
-      try {
-        const user = JSON.parse(cachedUser);
-        if (user && user.id && user.id !== 'guest') {
-          return true;
-        }
-      } catch {}
-    }
-
+    // SEC-06: Strict session validation — unverified cached user without signed session token is rejected
     return false;
   } catch {
     return false;
   }
+}
+
+export function isAuthenticated(): boolean {
+  return hasValidSession();
 }
 
 export function NavProvider({ children }: { children: ReactNode }) {
@@ -125,9 +133,11 @@ export function NavProvider({ children }: { children: ReactNode }) {
   }, [navigate]);
 
   const logout = useCallback(() => {
+    localStorage.removeItem('aspire_session_token');
     localStorage.setItem('aspire_logged_in', 'false');
     localStorage.setItem('aspire_active_route', 'login');
     localStorage.removeItem('aspire_logged_in_mobile');
+    localStorage.removeItem('aspire_cached_user');
     setIsLoggedIn(false);
     navigate('login');
   }, [navigate]);
@@ -135,7 +145,7 @@ export function NavProvider({ children }: { children: ReactNode }) {
   // On mount: if logged in → skip splash, go directly to route.
   // If NOT logged in → stay on 'splash' (default useState), SplashScreen navigates to login.
   useEffect(() => {
-    const loggedIn = localStorage.getItem('aspire_logged_in') === 'true';
+    const loggedIn = hasValidSession();
 
     if (loggedIn) {
       // Skip splash for logged-in users — go directly to the page they were on
@@ -175,8 +185,8 @@ export function NavProvider({ children }: { children: ReactNode }) {
       let base = (baseRoute || 'dashboard') as Route;
       if (base === 'quizzes') base = 'weekly-assessment';
       if (base === 'assignments') base = 'daily-assessment';
-      const isLoggedIn = localStorage.getItem('aspire_logged_in') === 'true';
-      if (!isLoggedIn && !AUTH_ROUTES.includes(base)) {
+      const isAuthed = hasValidSession();
+      if (!isAuthed && !AUTH_ROUTES.includes(base)) {
         navigate('login');
       } else {
         const searchParams = new URLSearchParams(window.location.search);

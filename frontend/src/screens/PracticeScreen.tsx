@@ -13,6 +13,8 @@ import { Tabs } from '@/components/ui/Tabs';
 import { DifficultyBadge } from '@/components/ui/StatusChip';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
+import { ErrorState } from '@/components/ui/EmptyState';
+import { AssessmentItemSkeleton } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/utils';
 import { useNav } from '@/lib/nav';
 import { supabase } from '@/lib/supabase';
@@ -106,6 +108,7 @@ export function PracticeScreen() {
     } catch {}
     return true;
   });
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const hasCachedProblems = useMemo(() => {
     try {
@@ -145,6 +148,7 @@ export function PracticeScreen() {
 
   const loadData = useCallback(async (showSpinner = true, retryCount = 0) => {
     if (showSpinner && problems.length === 0) setLoading(true);
+    setFetchError(null);
     try {
       const batchCode = user?.batchCode || (user as any)?.batch || '';
       const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
@@ -266,8 +270,9 @@ export function PracticeScreen() {
 // If query returned 0 items, preserve existing state rather than clearing
 setProblems((prev) => prev);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error loading practice problems:', err);
+      setFetchError(err?.message || 'Failed to load practice problems. Please check your network connection.');
 // On failure, preserve existing state
 setProblems((prev) => prev);
 
@@ -452,12 +457,20 @@ if (resolverReady && difficulty === 'all') {
           </div>
 
           {(loading && filtered.length === 0) || (!resolverReady && filtered.length === 0) ? (
-            <Card>
-              <CardBody className="text-center py-12">
-                <Loader2 className="w-10 h-10 text-[#7c3aed] animate-spin mx-auto mb-4" />
-                <h3 className="font-extrabold text-slate-900 text-base mb-1">Loading Problems...</h3>
-              </CardBody>
-            </Card>
+            <div className="space-y-3">
+              <AssessmentItemSkeleton />
+              <AssessmentItemSkeleton />
+              <AssessmentItemSkeleton />
+            </div>
+          ) : fetchError && problems.length === 0 ? (
+            <ErrorState
+              title="Unable to load practice problems"
+              description={fetchError}
+              onRetry={() => {
+                setFetchError(null);
+                loadData(true);
+              }}
+            />
           ) : filtered.length === 0 ? (
             <Card>
               <CardBody className="text-center py-12">

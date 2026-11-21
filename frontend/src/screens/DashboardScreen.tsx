@@ -14,6 +14,8 @@ import { OnboardingTour } from '@/components/ui/OnboardingTour';
 import { dashboardSteps } from '@/lib/tourSteps';
 import { usePreload } from '@/lib/PreloadContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
+import { useToast } from '@/lib/ToastContext';
+import { ScheduleCardSkeleton } from '@/components/ui/Skeleton';
 
 // Struct for Daily 2-3 Python Topics
 interface PythonTopic {
@@ -33,6 +35,7 @@ export function DashboardScreen() {
   const { user: currentUser } = useUser();
   const { navigate } = useNav();
   const preload = usePreload();
+  const toast = useToast();
 
   // Determine whether current user belongs to a weekday batch (e.g. A26W)
   const isWeekdayBatch = useMemo(() => {
@@ -899,7 +902,12 @@ export function DashboardScreen() {
               )}
             </div>
 
-            {currentLiveClasses.length === 0 ? (
+            {dashboardLoading ? (
+              <div className="grid gap-5 grid-cols-1 md:grid-cols-2">
+                <ScheduleCardSkeleton />
+                <ScheduleCardSkeleton />
+              </div>
+            ) : currentLiveClasses.length === 0 ? (
               isWeekdayBatch && selectedDateObject.getDay() === 0 ? (
                 /* CLEAN SUNDAY HOLIDAY CARD FOR WEEKDAY BATCHES */
                 <div className="py-10 px-6 bg-white border border-slate-200/90 rounded-[1.5rem] text-center flex flex-col items-center justify-center space-y-3 shadow-2xs">
@@ -943,7 +951,7 @@ export function DashboardScreen() {
                         if (cls.link) {
                           window.open(cls.link, '_blank');
                         } else {
-                          alert('Meeting link is not available yet.');
+                          toast.info('Meeting link is not available yet. Please check back shortly.');
                         }
                       } else {
                         navigate('live', { tab: 'upcoming' });

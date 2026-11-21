@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from 'react';
 import { GraduationCap, Mail, Contact, Github, Linkedin, Globe } from 'lucide-react';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
 import { useUser } from '@/lib/UserContext';
 import { useNav } from '@/lib/nav';
 import { Avatar } from '@/components/ui/Avatar';
 import { formatBatchDisplay } from '@/lib/utils';
+import { ProfileCardSkeleton } from '@/components/ui/Skeleton';
 
 export function ProfileScreen() {
-  const { user, refetchUser } = useUser();
+  const { user, refetchUser, loading } = useUser();
   const { navigate } = useNav();
   const [isHovered, setIsHovered] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -48,9 +49,17 @@ export function ProfileScreen() {
   }, []);
 
   // Real-time dynamic student content from UserContext / Supabase
-  const displayBatch = formatBatchDisplay(user.batchCode, user.registrationId) || user.batchCode || 'W2';
-  const displayRegNo = user.registrationId || 'A26W0011';
-  const studentName = user.name || 'Seenu Dommalapati';
+  if (loading && (!user?.name || user.id === 'guest')) {
+    return (
+      <div className="relative min-h-[70vh] w-full flex items-center justify-center font-sans py-6 px-4">
+        <ProfileCardSkeleton />
+      </div>
+    );
+  }
+
+  const displayBatch = formatBatchDisplay(user.batchCode, user.registrationId) || user.batchCode || '—';
+  const displayRegNo = user.registrationId || '—';
+  const studentName = user.name || 'Student';
   const programName = user.program || "Bachelor's Degree";
   // Show real college name only; never fabricate one when the student has not provided it.
   const collegeName = (user.college && user.college.trim()) ? user.college.trim() : '';

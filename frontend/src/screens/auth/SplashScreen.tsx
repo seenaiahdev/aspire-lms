@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useNav, hasValidSession } from '@/lib/nav';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
 
 export function SplashScreen() {
   const { navigate } = useNav();

@@ -7,6 +7,7 @@ import { useUser } from '@/lib/UserContext';
 import { Card } from '@/components/ui/Card';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Toast } from '@/components/ui/Toast';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/utils';
 import { triggerFileDownload } from '@/lib/downloadHelper';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
@@ -238,9 +239,10 @@ export function ResourcesScreen() {
       />
 
       {loading ? (
-        <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
-          <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
-          <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Resources...</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
       ) : filtered.length === 0 ? (
         <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">

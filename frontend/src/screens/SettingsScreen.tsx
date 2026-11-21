@@ -6,6 +6,7 @@ import { useUser } from '@/lib/UserContext';
 import { fetchStudentProfile, upsertStudentProfile, updateStudentAvatar } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { cn, formatBatchDisplay } from '@/lib/utils';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 interface SearchableYearSelectProps {
   label: string;
@@ -143,7 +144,10 @@ export function SettingsScreen() {
   // Load saved settings from database on mount
   useEffect(() => {
     async function loadSettings() {
-      if (!currentUser.id || currentUser.id === 'u1') return; // skip mock user
+      if (!currentUser.id || currentUser.id === 'u1') {
+        setLoadingSettings(false);
+        return; // skip mock user
+      }
       setLoadingSettings(true);
       try {
         const profile = await fetchStudentProfile(currentUser.id);
@@ -475,79 +479,90 @@ export function SettingsScreen() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Full Name</label>
-                    <input 
-                      value={profileForm.name}
-                      readOnly
-                      className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
+                {loadingSettings ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 animate-pulse">
+                    {Array.from({ length: 8 }).map((_, i) => (
+                      <div key={i} className="space-y-2">
+                        <Skeleton className="h-3 w-28 rounded" />
+                        <Skeleton className="h-11 w-full rounded-xl" />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Full Name</label>
+                      <input 
+                        value={profileForm.name}
+                        readOnly
+                        className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Email Address</label>
+                      <input 
+                        value={profileForm.email}
+                        readOnly
+                        className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Registration Number</label>
+                      <input 
+                        value={currentUser.registrationId || 'A26S0002'}
+                        readOnly
+                        className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Batch</label>
+                      <input 
+                        value={formatBatchDisplay(currentUser.batchCode, currentUser.registrationId)}
+                        readOnly
+                        className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">College / Institution</label>
+                      <input 
+                        value={profileForm.college} 
+                        onChange={(e) => setProfileForm({ ...profileForm, college: e.target.value })}
+                        placeholder="e.g. IIT Hyderabad"
+                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Program / Degree</label>
+                      <input 
+                        value={profileForm.program} 
+                        onChange={(e) => setProfileForm({ ...profileForm, program: e.target.value })}
+                        placeholder="e.g. Bachelor's Degree"
+                        className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
+                      />
+                    </div>
+                    <SearchableYearSelect
+                      label="Starting Year"
+                      value={profileForm.startYear || ''}
+                      placeholder="Select Starting Year"
+                      options={Array.from({ length: (new Date().getFullYear()) - 1989 }, (_, i) => new Date().getFullYear() - i)}
+                      onChange={(newStart) => {
+                        const newEnd = profileForm.endYear < newStart ? newStart + 4 : profileForm.endYear;
+                        setProfileForm({ ...profileForm, startYear: newStart, endYear: newEnd });
+                      }}
+                    />
+                    <SearchableYearSelect
+                      label="Ending Year (Graduation)"
+                      value={profileForm.endYear || ''}
+                      placeholder="Select Graduation Year"
+                      options={
+                        profileForm.startYear
+                          ? Array.from({ length: 7 }, (_, i) => profileForm.startYear + i)
+                          : Array.from({ length: 51 }, (_, i) => (new Date().getFullYear() + 10) - i)
+                      }
+                      onChange={(newEnd) => setProfileForm({ ...profileForm, endYear: newEnd })}
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Email Address</label>
-                    <input 
-                      value={profileForm.email}
-                      readOnly
-                      className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Registration Number</label>
-                    <input 
-                      value={currentUser.registrationId || 'A26S0002'}
-                      readOnly
-                      className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Batch</label>
-                    <input 
-                      value={formatBatchDisplay(currentUser.batchCode, currentUser.registrationId)}
-                      readOnly
-                      className="w-full px-4 py-3 rounded-xl bg-slate-100 border border-slate-200 text-sm font-semibold text-slate-500 cursor-not-allowed" 
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">College / Institution</label>
-                    <input 
-                      value={profileForm.college} 
-                      onChange={(e) => setProfileForm({ ...profileForm, college: e.target.value })}
-                      placeholder="e.g. IIT Hyderabad"
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wider">Program / Degree</label>
-                    <input 
-                      value={profileForm.program} 
-                      onChange={(e) => setProfileForm({ ...profileForm, program: e.target.value })}
-                      placeholder="e.g. Bachelor's Degree"
-                      className="w-full px-4 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-100 focus:outline-none transition-all text-sm font-semibold text-slate-900" 
-                    />
-                  </div>
-                  <SearchableYearSelect
-                    label="Starting Year"
-                    value={profileForm.startYear || ''}
-                    placeholder="Select Starting Year"
-                    options={Array.from({ length: (new Date().getFullYear()) - 1989 }, (_, i) => new Date().getFullYear() - i)}
-                    onChange={(newStart) => {
-                      const newEnd = profileForm.endYear < newStart ? newStart + 4 : profileForm.endYear;
-                      setProfileForm({ ...profileForm, startYear: newStart, endYear: newEnd });
-                    }}
-                  />
-                  <SearchableYearSelect
-                    label="Ending Year (Graduation)"
-                    value={profileForm.endYear || ''}
-                    placeholder="Select Graduation Year"
-                    options={
-                      profileForm.startYear
-                        ? Array.from({ length: 7 }, (_, i) => profileForm.startYear + i)
-                        : Array.from({ length: 51 }, (_, i) => (new Date().getFullYear() + 10) - i)
-                    }
-                    onChange={(newEnd) => setProfileForm({ ...profileForm, endYear: newEnd })}
-                  />
-                </div>
+                )}
 
                 <div className="flex gap-3 justify-end pt-4 border-t border-slate-100">
                   <button 

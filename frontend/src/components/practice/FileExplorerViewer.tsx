@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { Modal } from '../ui/Modal';
 import {
   X, ChevronRight, ChevronDown, FileCode, FolderOpen, Folder,
   Copy, Check, ExternalLink, FileText, Globe, Database, Settings,
@@ -478,9 +479,16 @@ export function FileExplorerViewer({ storageUrl, onClose, inline = false }: File
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
+    <Modal
+      isOpen={true}
+      onClose={onClose}
+      size="5xl"
+      hideCloseButton
+      backdropClassName="bg-black/80 backdrop-blur-sm"
+      className="p-0 border-0 bg-transparent shadow-none max-w-6xl h-[90vh]"
+    >
       {viewerContent}
-    </div>
+    </Modal>
   );
 }
 

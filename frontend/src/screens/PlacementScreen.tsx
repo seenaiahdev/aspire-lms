@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom';
+import { Modal } from '@/components/ui/Modal';
 import {
   Briefcase, MapPin, Clock, CheckCircle2, ArrowRight, XCircle, Search, Users, Calendar, Banknote, X, Check, Building2, ShieldCheck, Zap, Lock, ExternalLink
 } from 'lucide-react';
@@ -9,6 +9,7 @@ import { Card } from '@/components/ui/Card';
 import { Tabs } from '@/components/ui/Tabs';
 import { SearchInput } from '@/components/ui/SearchInput';
 import { Toast } from '@/components/ui/Toast';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/lib/supabase';
 import { invalidateCacheByPrefix } from '@/lib/queryCache';
@@ -298,8 +299,10 @@ export function PlacementScreen() {
       {/* Job Opportunities Square Cards Grid */}
       <div>
         {isLoading ? (
-          <div className="flex justify-center py-12">
-            <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin"></div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
           </div>
         ) : filteredJobs.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 items-stretch">
@@ -437,13 +440,15 @@ export function PlacementScreen() {
       </div>
 
       {/* ════════ JOB DETAILS & APPLY MODAL OVERLAY ════════ */}
-      {selectedJob && createPortal(
-        <div 
-          className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-sm flex justify-end animate-fade-in cursor-default"
-          onClick={(e) => { if (e.target === e.currentTarget) setSelectedJob(null); }}
-        >
-          <div className="w-full max-w-xl bg-white h-[100dvh] shadow-2xl flex flex-col justify-between overflow-hidden animate-slide-left font-sans">
-            
+      <Modal
+        isOpen={selectedJob !== null}
+        onClose={() => setSelectedJob(null)}
+        variant="drawer-right"
+        hideCloseButton
+        backdropClassName="bg-slate-900/60 backdrop-blur-sm"
+      >
+        {selectedJob && (
+          <>
             {/* Drawer Header */}
             <div className="p-6 border-b border-slate-100 flex items-start justify-between gap-4 bg-slate-50/60">
               <div className="flex items-start gap-4">
@@ -591,20 +596,19 @@ export function PlacementScreen() {
                 </button>
               )}
             </div>
-
-          </div>
-        </div>,
-        document.body
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ════════ JOB APPLICATION FORM MODAL ════════ */}
-      {applyJobTarget && createPortal(
-        <div 
-          className="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 sm:p-6 font-sans cursor-default overflow-y-auto animate-fade-in"
-          onClick={(e) => { if (e.target === e.currentTarget) setApplyJobTarget(null); }}
-        >
-          <div className="w-full max-w-md max-h-[90vh] overflow-y-auto bg-white rounded-2xl sm:rounded-[2rem] shadow-2xl border border-slate-200 flex flex-col justify-between animate-scale-up relative my-auto p-5 sm:p-6 space-y-6">
-            
+      <Modal
+        isOpen={applyJobTarget !== null}
+        onClose={() => setApplyJobTarget(null)}
+        size="sm"
+        className="p-5 sm:p-6 max-h-[90vh] overflow-y-auto space-y-6"
+      >
+        {applyJobTarget && (
+          <>
             <div className="text-center space-y-2">
               {applyJobTarget.logo ? (
                 <div className="w-16 h-16 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-center p-2 mx-auto shadow-sm overflow-hidden shrink-0">
@@ -722,10 +726,9 @@ export function PlacementScreen() {
               </div>
 
             </form>
-          </div>
-        </div>,
-        document.body
-      )}
+          </>
+        )}
+      </Modal>
 
       {/* ════════ CUSTOM TOAST NOTIFICATION ════════ */}
       {lockedToast && (

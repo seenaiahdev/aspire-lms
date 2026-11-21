@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ProgressBar } from '@/components/ui/ProgressBar';
 import { ProgressRing } from '@/components/ui/ProgressRing';
 import { LineChart, DonutChart, BarChart } from '@/components/ui/Charts';
+import { Skeleton } from '@/components/ui/Skeleton';
 
 export function ProgressScreen() {
   const { user: currentUser } = useUser();
@@ -108,7 +109,7 @@ export function ProgressScreen() {
           <CardBody>
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-bold text-ink-900">Live Class Attendance</h3>
-              <Badge variant={totalSessions === 0 ? 'secondary' : attendancePct >= 85 ? 'success' : attendancePct >= 75 ? 'warning' : 'danger'}>
+              <Badge variant={totalSessions === 0 ? 'secondary' : attendancePct >= 85 ? 'success' : attendancePct >= 75 ? 'warning' : 'error'}>
                 {totalSessions === 0 ? 'No Classes' : `${attendancePct}%`}
               </Badge>
             </div>
@@ -181,7 +182,17 @@ export function ProgressScreen() {
             <p className="text-xs text-ink-500 mb-6">Progress across enrolled courses</p>
             <div className="space-y-4">
               {loading ? (
-                <div className="flex justify-center py-6"><Loader2 className="w-6 h-6 text-primary-500 animate-spin" /></div>
+                <div className="space-y-4">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="flex justify-between">
+                        <Skeleton className="h-3.5 w-32 rounded" />
+                        <Skeleton className="h-3.5 w-8 rounded" />
+                      </div>
+                      <Skeleton className="h-2 w-full rounded-full" />
+                    </div>
+                  ))}
+                </div>
               ) : enrolled.length === 0 ? (
                 <div className="text-center py-6 text-slate-500 text-sm bg-slate-50 rounded-xl border border-slate-100">No courses enrolled</div>
               ) : enrolled.map((c) => (

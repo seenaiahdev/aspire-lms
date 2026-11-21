@@ -48,7 +48,7 @@ export function ForgotPasswordScreen() {
               </div>
               <h2 className="font-display font-bold text-xl text-ink-900 mb-1">Check Your Email</h2>
               <p className="text-ink-500 text-sm mb-6">We've sent a password reset link to your email. It may take a minute to arrive.</p>
-              <Button fullWidth size="lg" onClick={() => navigate('reset')}>
+              <Button fullWidth size="lg" onClick={() => navigate('login')}>
                 Enter Reset Code
               </Button>
               <button onClick={() => setSent(false)} className="text-sm text-ink-500 hover:text-ink-700 font-medium mt-3">

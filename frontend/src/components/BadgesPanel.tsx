@@ -11,6 +11,7 @@ import {
   evaluateBadgeCriteria
 } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { SkeletonCard } from '@/components/ui/Skeleton';
 
 /** Opens a LinkedIn share composer pre-filled with the earned badge. */
 function shareBadgeOnLinkedIn(badgeName: string) {
@@ -124,8 +125,10 @@ export function BadgesPanel() {
 
   if (loading) {
     return (
-      <div className="flex justify-center p-12">
-        <Loader2 className="w-8 h-8 text-[#7c3aed] animate-spin" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 p-4">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
       </div>
     );
   }

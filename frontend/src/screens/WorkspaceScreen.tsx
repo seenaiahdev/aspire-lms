@@ -3,7 +3,7 @@ import {
   ArrowLeft, CheckCircle2, Upload, FolderOpen,
   ExternalLink, AlertCircle, BookOpen, ChevronLeft, ChevronRight,
   MonitorSmartphone, Eye, Lock, FileText, Loader2,
-  Play, Terminal, RotateCcw, Clock, FileCode, Check, XCircle, GripVertical, Code2
+  Play, Terminal, RotateCcw, Clock, FileCode, Check, XCircle, GripVertical, Code2, X
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { Button } from '@/components/ui/Button';
@@ -15,6 +15,8 @@ import { submitPracticeProblem } from '@/lib/api';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 import { executeCodeFile, type ExecutionResult } from '@/lib/codeRunner';
 import { ProblemDescriptionRenderer, renderInlineText } from '@/components/practice/ProblemDescriptionRenderer';
+import { WorkspaceSkeleton } from '@/components/ui/Skeleton';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 
 
 // ── Problem config ────────────────────────────────────────────────────────────
@@ -763,14 +765,7 @@ export function WorkspaceScreen() {
   );
 
   if (loadingProblem) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 text-primary-500 animate-spin mx-auto mb-4" />
-          <h3 className="font-extrabold text-slate-900 text-lg">Loading coding workspace...</h3>
-        </div>
-      </div>
-    );
+    return <WorkspaceSkeleton />;
   }
 
   // ── Right Panel: REVIEW MODE ────────────────────────────────────────────────
@@ -1096,6 +1091,7 @@ export function WorkspaceScreen() {
         <div className={`flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-slate-50 p-4 sm:p-6 lg:p-10 ${
           isDesktop || mobileActiveTab === 'workspace' ? 'block' : 'hidden'
         }`}>
+          <ErrorBoundary level="widget" title="Code Workspace Error" description="The code upload and testing workspace encountered an issue. Click below to retry.">
           <div className="max-w-2xl mx-auto space-y-6">
 
             {/* ── STAGED STATE: Test Against Uploaded File Before Submitting ── */}
@@ -1230,36 +1226,36 @@ export function WorkspaceScreen() {
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-900 text-slate-100 p-4 font-mono text-xs space-y-3">
                       <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
-                          testResult.success ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
+                          testResult?.success ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'
                         }`}>
-                          {testResult.success ? 'Execution Successful' : 'Execution Error'}
+                          {testResult?.success ? 'Execution Successful' : 'Execution Error'}
                         </span>
-                        <span className="text-[11px] text-slate-400">{testResult.executionTimeMs} ms</span>
+                        <span className="text-[11px] text-slate-400">{testResult?.executionTimeMs} ms</span>
                       </div>
 
-                      {testResult.stdout.length > 0 && (
+                      {(testResult?.stdout?.length ?? 0) > 0 && (
                         <div className="space-y-1">
                           <p className="text-[10px] uppercase font-bold text-slate-400">Standard Output (stdout):</p>
                           <pre className="text-slate-300 bg-slate-950 p-2.5 rounded-lg whitespace-pre-wrap">
-                            {testResult.stdout.join('\n')}
+                            {testResult?.stdout?.join('\n')}
                           </pre>
                         </div>
                       )}
 
-                      {testResult.output && (
+                      {testResult?.output && (
                         <div className="space-y-1">
                           <p className="text-[10px] uppercase font-bold text-slate-400">Output Result:</p>
                           <pre className="text-emerald-400 bg-slate-950 p-2.5 rounded-lg whitespace-pre-wrap font-bold">
-                            {testResult.output}
+                            {testResult?.output}
                           </pre>
                         </div>
                       )}
 
-                      {testResult.error && (
+                      {testResult?.error && (
                         <div className="space-y-1">
                           <p className="text-[10px] uppercase font-bold text-rose-400">Error Details:</p>
                           <pre className="text-rose-300 bg-rose-950/40 p-2.5 rounded-lg whitespace-pre-wrap">
-                            {testResult.error}
+                            {testResult?.error}
                           </pre>
                         </div>
                       )}
@@ -1518,6 +1514,7 @@ export function WorkspaceScreen() {
             )}
 
           </div>
+          </ErrorBoundary>
         </div>
       </div>
     </div>

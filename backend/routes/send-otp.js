@@ -2,8 +2,9 @@
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const cache = require('../lib/cache');
-
-const cleanSuffix = (p) => String(p || '').replace(/\D/g, '').slice(-10);
+const { getCandidateSecrets, isWeakSecret } = require('../lib/passkey-crypto');
+const { cleanPhoneSuffix } = require('../lib/utils');
+const { getSupabaseClient } = require('../lib/supabase');
 
 const COOLDOWN_MS = 30 * 1000;
 const HOURLY_CAP = 5;
@@ -34,11 +35,23 @@ function checkRate(suffix, ip) {
 module.exports = async (req, res) => {
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
-  const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || 'https://maahwymvereyofrhrytx.supabase.co';
-  const SUPABASE_ANON = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1hYWh3eW12ZXJleW9mcmhyeXR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUzOTEwMTksImV4cCI6MjEwMDk2NzAxOX0.9LYS14a2SZAf57Uy-VpDtR3b728gRJcFYJnibW9RVbM';
+  const supabase = getSupabaseClient();
   const GMAIL_USER = (process.env.GMAIL_USER || '').trim();
   const GMAIL_APP_PASSWORD = (process.env.GMAIL_APP_PASSWORD || '').replace(/\s+/g, '');
-  const OTP_SECRET = process.env.OTP_SECRET || 'aspire_lms_otp_hmac_secret_key_2026';
+  let OTP_SECRET;
+  try {
+    const secrets = getCandidateSecrets();
+    OTP_SECRET = secrets[0];
+  } catch (secErr) {
+    return res.status(500).json({ error: 'server_misconfiguration', message: secErr.message });
+  }
+
+  if (process.env.NODE_ENV === 'production' && isWeakSecret(process.env.OTP_SECRET)) {
+    return res.status(500).json({
+      error: 'server_misconfiguration',
+      message: 'Fail-closed: Production requires high-entropy OTP_SECRET.'
+    });
+  }
   const TTL_MS = 5 * 60 * 1000;
 
   try {
@@ -48,7 +61,7 @@ module.exports = async (req, res) => {
     }
 
     const body = typeof req.body === 'string' ? JSON.parse(req.body || '{}') : (req.body || {});
-    const suffix = cleanSuffix(body.phone);
+    const suffix = cleanPhoneSuffix(body.phone);
     if (suffix.length < 10) return res.status(400).json({ error: 'invalid_phone' });
 
     const ip = String(
@@ -65,23 +78,17 @@ module.exports = async (req, res) => {
     let student = cache.get(`student_phone:${suffix}`);
     if (!student) {
       try {
-        const rpcResp = await fetch(
-          `${SUPABASE_URL}/rest/v1/rpc/get_student_by_phone`,
-          {
-            method: 'POST',
-            headers: {
-              apikey: SUPABASE_ANON,
-              authorization: `Bearer ${SUPABASE_ANON}`,
-              'content-type': 'application/json',
-            },
-            body: JSON.stringify({ suffix }),
-            signal: AbortSignal.timeout(6000),
-          }
-        );
+        const rpcResp = await supabase.authFetch('/rpc/get_student_by_phone', {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({ suffix }),
+        });
         if (rpcResp.ok) {
           const data = await rpcResp.json();
           const rows = Array.isArray(data) ? data : data ? [data] : [];
-          student = rows.find((s) => cleanSuffix(s.mobile_number) === suffix) || rows[0] || null;
+          student = rows.find((s) => cleanPhoneSuffix(s.mobile_number) === suffix) || rows[0] || null;
         }
       } catch (rpcErr) {
         console.warn('send-otp: RPC lookup error:', rpcErr.message);
@@ -89,15 +96,11 @@ module.exports = async (req, res) => {
 
       if (!student) {
         try {
-          const r = await fetch(
-            `${SUPABASE_URL}/rest/v1/students?select=name,email,mobile_number&mobile_number=ilike.*${suffix}&limit=5`,
-            {
-              headers: { apikey: SUPABASE_ANON, authorization: `Bearer ${SUPABASE_ANON}` },
-              signal: AbortSignal.timeout(6000),
-            }
+          const r = await supabase.authFetch(
+            `/students?select=name,email,mobile_number&mobile_number=ilike.*${suffix}&limit=5`
           );
           const rows = await r.json();
-          student = Array.isArray(rows) ? rows.find((s) => cleanSuffix(s.mobile_number) === suffix) : null;
+          student = Array.isArray(rows) ? rows.find((s) => cleanPhoneSuffix(s.mobile_number) === suffix) : null;
         } catch (directErr) {
           console.warn('send-otp: direct lookup error:', directErr.message);
         }
@@ -114,8 +117,10 @@ module.exports = async (req, res) => {
     const email = String(student.email).trim();
     const code = String(Math.floor(100000 + Math.random() * 900000));
     const expiry = Date.now() + TTL_MS;
-    const sig = crypto.createHmac('sha256', OTP_SECRET).update(`${code}|${email}|${expiry}`).digest('hex');
-    const token = Buffer.from(`${email}|${expiry}`).toString('base64') + '.' + sig;
+    const salt = crypto.randomBytes(16).toString('hex');
+    const sig = crypto.createHmac('sha256', OTP_SECRET).update(`${code}|${email}|${expiry}|${salt}`).digest('hex');
+    const token = Buffer.from(`${email}|${expiry}|${salt}`).toString('base64') + '.' + sig;
+    cache.set(`otp_token:${sig}`, { code, email, expiry }, TTL_MS);
 
     const transporter = nodemailer.createTransport({
       service: 'gmail',

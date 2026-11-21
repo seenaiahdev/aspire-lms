@@ -2,11 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { Phone, ArrowRight, CheckCircle2, ShieldCheck, RefreshCw, Code2, Briefcase, Users, AlertCircle } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { fetchStudentByPhone, API_BASE_URL } from '@/lib/api';
+import { cleanPhoneSuffix } from '@/lib/utils';
 import { useUser } from '@/lib/UserContext';
 import { getFirebaseAuth, isFirebaseConfigured } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
-import aspireLogo from '@/assests/Aspire_logo.jpg';
-import studentVideo from '@/assests/dc3f214ec330b1db0c493b4774adc815.mp4';
+import aspireLogo from '@/assets/Aspire_logo.jpg';
+import studentVideo from '@/assets/dc3f214ec330b1db0c493b4774adc815.mp4';
 
 // OTP Length is 6 digits
 const OTP_LENGTH = 6;
@@ -116,7 +117,8 @@ export function LoginScreen() {
         });
         recaptchaVerifierRef.current = verifier;
 
-        const formattedPhone = `+91${mobile}`;
+        const cleanMobile = cleanPhoneSuffix(mobile);
+        const formattedPhone = `+91${cleanMobile}`;
         confirmationResultRef.current = await signInWithPhoneNumber(auth, formattedPhone, verifier);
         return true;
       } catch (firebaseErr: any) {
@@ -132,7 +134,7 @@ export function LoginScreen() {
         const resp = await fetch(`${API_BASE_URL}/api/send-otp`, {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ phone: mobile }),
+          body: JSON.stringify({ phone: cleanPhoneSuffix(mobile) }),
         });
         if (resp.ok) {
           const data = await resp.json();
@@ -168,7 +170,8 @@ export function LoginScreen() {
 
   const handleLoginClick = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (mobile.length !== 10) {
+    const normalizedMobile = cleanPhoneSuffix(mobile);
+    if (normalizedMobile.length !== 10) {
       setError('Please enter a valid 10-digit mobile number');
       return;
     }
@@ -176,7 +179,7 @@ export function LoginScreen() {
     setIsSubmitting(true);
     try {
       // 1. Gate on Supabase: only registered students get an OTP.
-      const student = await fetchStudentByPhone(mobile);
+      const student = await fetchStudentByPhone(normalizedMobile);
       if (!student) {
         setError('Mobile number not registered. Please try another number.');
         return;
@@ -289,7 +292,7 @@ export function LoginScreen() {
             { label: 'Portfolio', value: 'Not connected' },
           ],
           batchCode: (String(student.registration_id || '').toUpperCase().startsWith('A26S') && (!student.batch || student.batch.toUpperCase().includes('W'))) ? 'A26S1' : student.batch,
-          batchCategory: (String(student.registration_id || '').toUpperCase().includes('S') || String(student.batch || '').toUpperCase().includes('S')) ? 'Weekend' : 'Weekday',
+          batchCategory: ((String(student.registration_id || '').toUpperCase().includes('S') || String(student.batch || '').toUpperCase().includes('S')) ? 'Weekend' : 'Weekday') as 'Weekday' | 'Weekend',
           mobile: mobile,
           gpa: 0,
           attendance: student.streak || 1,
@@ -462,7 +465,7 @@ export function LoginScreen() {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          phone: mobile,
+          phone: cleanPhoneSuffix(mobile),
           studentId: studentRecordRef.current?.id,
           passkey: enteredPasskey,
         }),
