@@ -178,6 +178,17 @@ function Router() {
     }
   }
 
+  // Standalone Full-Screen Workspace (dedicated IDE with split-pane layout & custom header)
+  if (route === 'workspace') {
+    return (
+      <ErrorBoundary level="route" route={route}>
+        <Suspense fallback={<RouteLoadingFallback route={route} />}>
+          <WorkspaceScreen />
+        </Suspense>
+      </ErrorBoundary>
+    );
+  }
+
   return (
     <AppShell>
       <div key={route === 'milestones' ? 'learning' : route} className="page-transition w-full">
@@ -197,7 +208,6 @@ function Router() {
                 case 'assignments':
                 case 'daily-assessment': return <AssignmentsScreen />;
                 case 'practice': return <PracticeScreen />;
-                case 'workspace': return <WorkspaceScreen />;
                 case 'quizzes':
                 case 'weekly-assessment': return <AssignmentsScreen />;
                 case 'projects': return <ProjectsScreen />;

@@ -652,9 +652,9 @@ export function WorkspaceScreen() {
       style={isDesktop ? { width: `${leftWidthPercent}%` } : undefined}
       className={`${
         isDesktop
-          ? 'min-w-0 bg-white border-b lg:border-b-0 border-slate-200 flex flex-col shrink-0 overflow-hidden'
+          ? 'min-w-0 h-full bg-white border-b lg:border-b-0 border-slate-200 flex flex-col shrink-0 overflow-hidden'
           : mobileActiveTab === 'description'
-          ? 'w-full flex-1 flex flex-col overflow-hidden bg-white'
+          ? 'w-full h-full flex-1 flex flex-col overflow-hidden bg-white'
           : 'hidden'
       } ${isDraggingSplitter ? '' : 'transition-[width] duration-150 ease-out'}`}
     >
@@ -664,7 +664,7 @@ export function WorkspaceScreen() {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar text-slate-700 bg-white">
+      <div className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6 custom-scrollbar text-slate-700 bg-white">
         <div>
           <h2 className="text-xl font-black text-slate-900 mb-3 tracking-tight">{problemConfig.title}</h2>
           <ProblemDescriptionRenderer description={problemConfig.description} />
@@ -792,7 +792,7 @@ export function WorkspaceScreen() {
 
   if (isReviewMode) {
     return (
-      <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col font-sans text-slate-800">
+      <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col font-sans text-slate-800 h-[100dvh] w-screen overflow-hidden">
         {/* Full-screen explorer modal (optional "expand") */}
         {showFullExplorer && uploadedStorageUrl && (
           <FileExplorerViewer storageUrl={uploadedStorageUrl} onClose={() => setShowFullExplorer(false)} />
@@ -1000,12 +1000,12 @@ export function WorkspaceScreen() {
         )}
 
         {/* Layout: Left = Question | Right = File Structure */}
-        <div ref={splitContainerRef} className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        <div ref={splitContainerRef} className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
           {LeftPanel}
           {Splitter}
 
           {/* Right: Submitted File Structure */}
-          <div className={`flex-1 min-w-0 flex flex-col overflow-hidden bg-white ${
+          <div className={`flex-1 min-w-0 min-h-0 h-full flex flex-col overflow-hidden bg-white ${
             isDesktop || mobileActiveTab === 'workspace' ? 'flex' : 'hidden'
           }`}>
             {uploadedStorageUrl ? (
@@ -1039,7 +1039,7 @@ export function WorkspaceScreen() {
   // ── Right Panel: SOLVE MODE ─────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col font-sans text-slate-800">
+    <div className="fixed inset-0 z-50 bg-slate-50 flex flex-col font-sans text-slate-800 h-[100dvh] w-screen overflow-hidden">
 
       {/* Header */}
       <div className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 shrink-0 shadow-sm">
@@ -1102,12 +1102,12 @@ export function WorkspaceScreen() {
       )}
 
       {/* Main layout */}
-      <div ref={splitContainerRef} className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+      <div ref={splitContainerRef} className="flex-1 min-h-0 flex flex-col lg:flex-row overflow-hidden">
         {LeftPanel}
         {Splitter}
 
         {/* Right: Upload area */}
-        <div className={`flex-1 min-w-0 overflow-y-auto custom-scrollbar bg-slate-50 p-4 sm:p-6 lg:p-10 ${
+        <div className={`flex-1 min-w-0 min-h-0 h-full overflow-y-auto custom-scrollbar bg-slate-50 p-4 sm:p-6 lg:p-10 ${
           isDesktop || mobileActiveTab === 'workspace' ? 'block' : 'hidden'
         }`}>
           <ErrorBoundary level="widget" title="Code Workspace Error" description="The code upload and testing workspace encountered an issue. Click below to retry.">

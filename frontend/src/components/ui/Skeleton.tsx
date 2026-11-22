@@ -246,7 +246,7 @@ export function LessonPlayerSkeleton() {
  */
 export function WorkspaceSkeleton() {
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col font-sans">
+    <div className="fixed inset-0 z-50 bg-slate-900 flex flex-col font-sans h-[100dvh] w-screen overflow-hidden">
       {/* Header Bar */}
       <div className="h-14 bg-slate-950 border-b border-slate-800 flex items-center justify-between px-4">
         <div className="flex items-center gap-3">
@@ -260,7 +260,7 @@ export function WorkspaceSkeleton() {
       </div>
 
       {/* 2-Pane Editor Body */}
-      <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row overflow-hidden">
         {/* Left Problem Pane */}
         <div className="w-full md:w-1/2 border-r border-slate-800 bg-slate-900 p-6 space-y-4">
           <Skeleton className="h-6 w-3/5 rounded bg-slate-800" />
