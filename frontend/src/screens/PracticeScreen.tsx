@@ -3,6 +3,7 @@ import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { Code2, CheckCircle2, Clock, Compass, Zap, Filter, ExternalLink, Calendar, FolderOpen, Eye, Lock, Loader2, LayoutGrid, List } from 'lucide-react';
 import { fetchPracticeProblems, fetchUserSubmissions, courseTargetsBatch, invalidateCacheByPrefix } from '@/lib/api';
 import { useUser } from '@/lib/UserContext';
+import { usePreload } from '@/lib/PreloadContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 
 import { practiceSteps } from '@/lib/tourSteps';
@@ -105,7 +106,11 @@ export function PracticeScreen() {
     } catch {}
     return [];
   });
+  const preload = usePreload();
   const [problems, setProblems] = useState<any[]>(() => {
+    if (preload.practiceProblems && preload.practiceProblems.length > 0) {
+      return preload.practiceProblems;
+    }
     try {
       // Clear out legacy unfiltered cache to prevent flashing raw questions
       localStorage.removeItem('aspire_practice_problems_cache');
@@ -119,6 +124,7 @@ export function PracticeScreen() {
     return [];
   });
   const [loading, setLoading] = useState(() => {
+    if (preload.practiceProblems && preload.practiceProblems.length > 0) return false;
     try {
       const key = getPracticeCacheKey(user?.id);
       const cached = localStorage.getItem(key);
@@ -130,7 +136,26 @@ export function PracticeScreen() {
     return true;
   });
   const [fetchError, setFetchError] = useState<string | null>(null);
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(() => {
+    if (preload.practiceProblems && preload.practiceProblems.length > 0) return true;
+    try {
+      const key = getPracticeCacheKey(user?.id);
+      const cached = localStorage.getItem(key);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return true;
+      }
+    } catch {}
+    return false;
+  });
+
+  useEffect(() => {
+    if (preload.practiceProblems && preload.practiceProblems.length > 0 && problems.length === 0) {
+      setProblems(preload.practiceProblems);
+      setLoading(false);
+      setHasLoadedOnce(true);
+    }
+  }, [preload.practiceProblems, problems.length]);
   const locksPending = !user?.locksLoaded && (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0);
 
   const hasCachedProblems = useMemo(() => {
@@ -484,7 +509,7 @@ if (resolverReady && !locksPending && difficulty === 'all') {
             ))}
           </div>
 
-          {((!hasLoadedOnce || loading) && filtered.length === 0) || ((!resolverReady || locksPending) && filtered.length === 0) || (problems.length === 0 && !fetchError) ? (
+          {!hasLoadedOnce && problems.length === 0 && !fetchError ? (
             <div className="space-y-3">
               <AssessmentItemSkeleton />
               <AssessmentItemSkeleton />

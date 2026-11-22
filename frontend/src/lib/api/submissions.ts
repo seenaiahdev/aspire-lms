@@ -219,7 +219,7 @@ export async function fetchUserSubmissions(userId: string) {
       return [];
     }
     return data || [];
-  }, 15_000); // 15 seconds
+  }, 300_000); // 5 minutes cache (invalidated on submit/delete)
 }
 
 export async function deletePracticeSubmission(studentId: string, problemId: string) {

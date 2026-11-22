@@ -9,6 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 import { useUser } from '@/lib/UserContext';
+import { usePreload } from '@/lib/PreloadContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { Toast } from '@/components/ui/Toast';
 import { Card, CardBody } from '@/components/ui/Card';
@@ -338,7 +339,11 @@ export function ProjectsScreen() {
     }
   });
 
+  const preload = usePreload();
   const [projectsState, setProjectsState] = useState<any[]>(() => {
+    if (preload.projects && preload.projects.length > 0) {
+      return preload.projects;
+    }
     // Initialise from localStorage cache for instant display while fresh data loads
     try {
       const cached = localStorage.getItem('aspire_projects_cache') || localStorage.getItem('projectsState');
@@ -350,6 +355,7 @@ export function ProjectsScreen() {
     return [];
   });
   const [isLoading, setIsLoading] = useState(() => {
+    if (preload.projects && preload.projects.length > 0) return false;
     try {
       const cached = localStorage.getItem('aspire_projects_cache') || localStorage.getItem('projectsState');
       if (cached) {
@@ -359,7 +365,25 @@ export function ProjectsScreen() {
     } catch {}
     return true;
   });
-  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(() => {
+    if (preload.projects && preload.projects.length > 0) return true;
+    try {
+      const cached = localStorage.getItem('aspire_projects_cache') || localStorage.getItem('projectsState');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return true;
+      }
+    } catch {}
+    return false;
+  });
+
+  useEffect(() => {
+    if (preload.projects && preload.projects.length > 0 && projectsState.length === 0) {
+      setProjectsState(preload.projects);
+      setIsLoading(false);
+      setHasLoadedOnce(true);
+    }
+  }, [preload.projects, projectsState.length]);
 
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -1342,7 +1366,7 @@ export function ProjectsScreen() {
         </div>
 
         {/* PROJECTS LIST / GRID */}
-        {((!hasLoadedOnce || isLoading) && filtered.length === 0) || (projectsState.length === 0 && !fetchError) ? (
+        {!hasLoadedOnce && projectsState.length === 0 && !fetchError ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <SkeletonCard />
             <SkeletonCard />

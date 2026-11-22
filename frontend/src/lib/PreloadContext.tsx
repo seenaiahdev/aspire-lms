@@ -17,6 +17,9 @@ import {
   fetchBatchStudentCount,
   fetchAllLiveSessions,
   fetchRecordings,
+  fetchProjects,
+  fetchPracticeProblems,
+  fetchUserSubmissions,
   PresentationRecord,
 } from './api';
 import { getLessonResolver, clearLessonResolverCache, LessonResolver } from './lessonLinkResolver';
@@ -59,6 +62,10 @@ export interface PreloadState {
   recByTitle: Map<string, any>;
   /** Presentation slides cached */
   presentations: PresentationRecord[];
+  /** Preloaded projects */
+  projects: any[];
+  /** Preloaded practice problems / coding questions */
+  practiceProblems: any[];
   /** Bump this to force a full re-prefetch (e.g. after realtime content change) */
   reloadKey: number;
   bumpReload: () => void;
@@ -79,6 +86,8 @@ const defaultState: PreloadState = {
   syllabi: {},
   batchStudentCount: 1,
   presentations: [],
+  projects: [],
+  practiceProblems: [],
   completedLessons: new Set(),
   doneAssess: new Set(),
   failedAssess: new Set(),
@@ -107,6 +116,8 @@ interface MemoryPreloadCache {
   donePractice: Set<string>;
   recByTitle: Map<string, any>;
   presentations: PresentationRecord[];
+  projects: any[];
+  practiceProblems: any[];
 }
 
 let memoryPreloadCache: MemoryPreloadCache | null = null;
@@ -134,6 +145,8 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
         syllabi: memoryPreloadCache.syllabi,
         batchStudentCount: memoryPreloadCache.batchStudentCount,
         presentations: memoryPreloadCache.presentations,
+        projects: memoryPreloadCache.projects || [],
+        practiceProblems: memoryPreloadCache.practiceProblems || [],
         completedLessons: memoryPreloadCache.completedLessons,
         doneAssess: memoryPreloadCache.doneAssess,
         failedAssess: memoryPreloadCache.failedAssess,
@@ -328,12 +341,45 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           );
         }
         break;
+      case 'projects':
+        {
+          const b = user?.batchCode || '';
+          const cat = user?.batchCategory || '';
+          const enrolled = user?.enrolledCourses || [];
+          const firstCourseId = enrolled[0];
+          prefetchQuery(
+            `projects:${b}:${cat}:${firstCourseId || ''}:${[...enrolled].sort().join(',')}`,
+            () => fetchProjects(b, cat, firstCourseId, enrolled),
+            CACHE_TTL.STATIC
+          );
+          if (user?.id) {
+            prefetchQuery(
+              `student_ps_full:${user.id}`,
+              () => fetchUserSubmissions(user.id),
+              CACHE_TTL.STATIC
+            );
+          }
+        }
+        break;
       case 'practice':
-        prefetchQuery(
-          'practice_problems:active',
-          () => supabase.from('practice_problems').select('*').eq('status', 'active'),
-          CACHE_TTL.STATIC
-        );
+        {
+          const b = user?.batchCode || '';
+          const cat = user?.batchCategory || '';
+          const enrolled = user?.enrolledCourses || [];
+          const firstCourseId = enrolled[0];
+          prefetchQuery(
+            `practice_problems:${firstCourseId || ''}:${b}:${cat}:${[...enrolled].sort().join(',')}`,
+            () => fetchPracticeProblems(firstCourseId, b, cat, enrolled),
+            CACHE_TTL.STATIC
+          );
+          if (user?.id) {
+            prefetchQuery(
+              `student_ps_full:${user.id}`,
+              () => fetchUserSubmissions(user.id),
+              CACHE_TTL.STATIC
+            );
+          }
+        }
         break;
       case 'assignments':
       case 'daily-assessment':
@@ -384,6 +430,8 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
         syllabi: memoryPreloadCache!.syllabi,
         batchStudentCount: memoryPreloadCache!.batchStudentCount,
         presentations: memoryPreloadCache!.presentations,
+        projects: memoryPreloadCache!.projects || [],
+        practiceProblems: memoryPreloadCache!.practiceProblems || [],
         completedLessons: memoryPreloadCache!.completedLessons,
         doneAssess: memoryPreloadCache!.doneAssess,
         failedAssess: memoryPreloadCache!.failedAssess,
@@ -434,6 +482,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           )
         );
 
+        const firstCourseId = enrolledCourses[0];
         const [
           courses,
           aaRes,
@@ -443,6 +492,8 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           doneLessons,
           presentationsData,
           batchStudentCount,
+          projectsData,
+          practiceProblemsData,
         ] = await Promise.all([
           cachedQuery(`user_courses:${enrolledCourses.join(',')}`, () => fetchCoursesByIds(enrolledCourses), CACHE_TTL.STATIC).catch(() => []),
           cachedQuery(`user_aa:${sid}`, () => supabase.from('assessment_attempts').select('assignment_id, score, status').in('student_id', userLookupIds), CACHE_TTL.USER_DATA).catch(() => ({ data: [] })),
@@ -452,9 +503,15 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           fetchCompletedLessons(sid).catch(() => new Set<string>()),
           cachedQuery(`user_ppt:${enrolledCourses.join(',')}`, () => fetchPresentations(enrolledCourses), CACHE_TTL.STATIC).catch(() => []),
           fetchBatchStudentCount(batchCode).catch(() => 1),
+          fetchProjects(batchCode, batchCategory, firstCourseId, enrolledCourses).catch(() => []),
+          fetchPracticeProblems(firstCourseId, batchCode, batchCategory, enrolledCourses).catch(() => []),
         ]);
 
         if (cancelled) return;
+
+        if (sid && sid !== 'guest') {
+          fetchUserSubmissions(sid).catch(() => []);
+        }
 
         // Build completion sets
         const doneAssess = new Set<string>(
@@ -520,6 +577,8 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           donePractice,
           recByTitle,
           presentations: presentationsData || [],
+          projects: projectsData || [],
+          practiceProblems: practiceProblemsData || [],
         };
 
         setState({
@@ -529,6 +588,8 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           syllabi: existingSyllabi,
           batchStudentCount: finalBatchStudentCount,
           presentations: presentationsData || [],
+          projects: projectsData || [],
+          practiceProblems: practiceProblemsData || [],
           completedLessons: doneLessons,
           doneAssess,
           failedAssess,

@@ -11,6 +11,7 @@ import { Modal } from '@/components/ui/Modal';
 import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, CodeViewer, type ProjectFile } from '@/components/practice/FileExplorerViewer';
 import { supabase } from '@/lib/supabase';
 import { useUser } from '@/lib/UserContext';
+import { usePreload } from '@/lib/PreloadContext';
 import { submitPracticeProblem } from '@/lib/api';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 import { executeCodeFile, type ExecutionResult } from '@/lib/codeRunner';
@@ -103,15 +104,61 @@ function formatBytes(bytes: number): string {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+function mapDbProblem(data: any): ProblemConfig {
+  return {
+    id: data.id,
+    title: data.title || 'Untitled Problem',
+    difficulty: (data.difficulty as any) || 'Easy',
+    category: data.category || 'Basics',
+    problem_statement: data.problem_statement || data.description || '',
+    description: data.problem_statement || data.description || '',
+    examples: Array.isArray(data.test_cases) ? data.test_cases.map((tc: any) => ({
+      input: typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input || ''),
+      output: typeof tc.output === 'object' ? JSON.stringify(tc.output) : String(tc.output || ''),
+      explanation: tc.explanation || undefined
+    })) : Array.isArray(data.examples) ? data.examples : [],
+    starterCode: data.starter_code || data.starterCode || ''
+  } as any;
+}
+
 export function WorkspaceScreen() {
   const { navigate, params } = useNav();
   const { user } = useUser();
+  const preload = usePreload();
 
   const [problemConfig, setProblemConfig] = useState<ProblemConfig>(() => {
-    const defaultId = params.id && PROBLEM_CONFIGS[params.id] ? params.id : 'pp1';
-    return PROBLEM_CONFIGS[defaultId] || PROBLEM_CONFIGS['pp1'];
+    const targetId = params.id;
+    if (targetId && PROBLEM_CONFIGS[targetId]) {
+      return PROBLEM_CONFIGS[targetId];
+    }
+    // Check preload cache first (0ms instantaneous lookup)
+    if (targetId && preload.practiceProblems && preload.practiceProblems.length > 0) {
+      const found = preload.practiceProblems.find((p: any) => p.id === targetId);
+      if (found) return mapDbProblem(found);
+    }
+    // Check localStorage cache
+    try {
+      if (targetId) {
+        const cachedKey = `practice_problems_cache_${user?.id || 'guest'}`;
+        const cachedProblems = JSON.parse(localStorage.getItem(cachedKey) || localStorage.getItem('aspire_practice_problems_cache') || '[]');
+        const found = cachedProblems.find((p: any) => p.id === targetId);
+        if (found) return mapDbProblem(found);
+      }
+    } catch {}
+    return PROBLEM_CONFIGS[targetId || 'pp1'] || PROBLEM_CONFIGS['pp1'];
   });
-  const [loadingProblem, setLoadingProblem] = useState(false);
+
+  const [loadingProblem, setLoadingProblem] = useState(() => {
+    const targetId = params.id;
+    if (!targetId || PROBLEM_CONFIGS[targetId]) return false;
+    if (preload.practiceProblems?.some((p: any) => p.id === targetId)) return false;
+    try {
+      const cachedKey = `practice_problems_cache_${user?.id || 'guest'}`;
+      const cachedProblems = JSON.parse(localStorage.getItem(cachedKey) || localStorage.getItem('aspire_practice_problems_cache') || '[]');
+      if (cachedProblems.some((p: any) => p.id === targetId)) return false;
+    } catch {}
+    return true;
+  });
   const problemId = problemConfig.id;
   const isReviewMode = params.mode === 'review';
 
@@ -225,7 +272,11 @@ export function WorkspaceScreen() {
         return;
       }
 
-      setLoadingProblem(true);
+      // If already hydrated from preload/cache, do not block screen with skeleton
+      const hasPreloaded = problemConfig.id === params.id && problemConfig.title !== 'Untitled Problem';
+      if (!hasPreloaded) {
+        setLoadingProblem(true);
+      }
       try {
         const { data, error } = await supabase
           .from('coding_questions')
@@ -234,21 +285,7 @@ export function WorkspaceScreen() {
           .maybeSingle();
 
         if (data) {
-          const mapped: ProblemConfig = {
-            id: data.id,
-            title: data.title || 'Untitled Problem',
-            difficulty: (data.difficulty as any) || 'Easy',
-            category: data.category || 'Basics',
-            problem_statement: data.problem_statement || data.description || '',
-            description: data.problem_statement || data.description || '',
-            examples: Array.isArray(data.test_cases) ? data.test_cases.map((tc: any) => ({
-              input: typeof tc.input === 'object' ? JSON.stringify(tc.input) : String(tc.input || ''),
-              output: typeof tc.output === 'object' ? JSON.stringify(tc.output) : String(tc.output || ''),
-              explanation: tc.explanation || undefined
-            })) : [],
-            starterCode: data.starter_code || ''
-          } as any;
-          setProblemConfig(mapped);
+          setProblemConfig(mapDbProblem(data));
         } else {
           // Fallback to local practice cache if table row isn't returned directly
           try {
