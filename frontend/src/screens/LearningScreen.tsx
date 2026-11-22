@@ -190,6 +190,13 @@ export function LearningScreen() {
     } catch {}
   }, []);
 
+  useEffect(() => {
+    const pTab = params?.category || params?.tab;
+    if (pTab && ['all', 'courses', 'soft_skills', 'aptitude', 'portfolio', 'resume', 'linkedin'].includes(pTab)) {
+      setActiveTab(pTab as any);
+    }
+  }, [params?.category, params?.tab]);
+
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<any | null>(null);
@@ -248,7 +255,13 @@ export function LearningScreen() {
   const activeCourse = useMemo(() => {
     if (!sortedCourses || sortedCourses.length === 0) return null;
     if (selectedCourseId) {
-      const found = sortedCourses.find(c => c.id === selectedCourseId);
+      const target = selectedCourseId.toLowerCase().trim();
+      const found = sortedCourses.find(c => 
+        c.id.toLowerCase() === target || 
+        c.title?.toLowerCase() === target ||
+        c.category?.toLowerCase() === target ||
+        c.title?.toLowerCase().includes(target)
+      );
       if (found) return found;
     }
     return sortedCourses[0];
@@ -475,6 +488,27 @@ export function LearningScreen() {
       {route === 'milestones' && (
         <div className="space-y-8 animate-fade-in">
 
+          {/* Course Switcher Pills if enrolled in multiple courses - ALWAYS rendered */}
+          {sortedCourses.length > 1 && (
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+              {sortedCourses.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => handleSelectCourse(c.id)}
+                  onMouseEnter={() => preload.ensureCourseSyllabus(c.id)}
+                  className={cn(
+                    "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0",
+                    activeCourse?.id === c.id
+                      ? "bg-[#7c3aed] text-white shadow-md shadow-purple-500/20"
+                      : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
+                  )}
+                >
+                  {c.title}
+                </button>
+              ))}
+            </div>
+          )}
+
           {!curriculumRoadmap ? (
             (preload.loading || (activeCourse && !dbSyllabus)) ? (
               <div className="space-y-6 animate-pulse">
@@ -493,36 +527,15 @@ export function LearningScreen() {
                   <Trophy className="w-8 h-8" />
                 </div>
                 <div className="space-y-1.5">
-                  <h3 className="text-lg font-black text-slate-900">No Roadmap Available</h3>
+                  <h3 className="text-lg font-black text-slate-900">Roadmap in Preparation</h3>
                   <p className="text-xs text-slate-500 font-semibold leading-relaxed max-w-xs mx-auto">
-                    You are not currently enrolled in any curriculum track. Please contact your administrator to get enrolled in a program.
+                    The syllabus modules for {activeCourse?.title || 'this track'} are currently being finalized. Please check back shortly.
                   </p>
                 </div>
               </div>
             )
           ) : (
             <>
-              {/* Course Switcher Pills if enrolled in multiple courses */}
-              {sortedCourses.length > 1 && (
-                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-                  {sortedCourses.map((c) => (
-                    <button
-                      key={c.id}
-                      onClick={() => handleSelectCourse(c.id)}
-                      onMouseEnter={() => preload.ensureCourseSyllabus(c.id)}
-                      className={cn(
-                        "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0",
-                        activeCourse?.id === c.id
-                          ? "bg-[#7c3aed] text-white shadow-md shadow-purple-500/20"
-                          : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50 hover:text-slate-900"
-                      )}
-                    >
-                      {c.title}
-                    </button>
-                  ))}
-                </div>
-              )}
-
               {/* 1. Top Banner */}
               <div className="p-6 sm:p-8 rounded-[2rem] bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] text-white shadow-xl relative overflow-hidden">
                 {/* Background Decorations */}
@@ -566,6 +579,15 @@ export function LearningScreen() {
               </div>
 
               {/* 2. Vertical Stage Timeline Roadmap */}
+              {(!curriculumRoadmap.stages || curriculumRoadmap.stages.length === 0) ? (
+                <div className="py-12 px-4 flex flex-col items-center justify-center text-center bg-white rounded-3xl border border-slate-200/80 shadow-2xs space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-purple-50 text-[#7c3aed] flex items-center justify-center border border-purple-100">
+                    <BookOpen className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-base font-bold text-slate-800">Modules Coming Soon</h4>
+                  <p className="text-xs text-slate-500 max-w-sm">The curriculum topics and syllabus modules for {curriculumRoadmap.title} are being added by the academic team.</p>
+                </div>
+              ) : (
               <div className="relative pl-12 space-y-8">
                 
                 {curriculumRoadmap.stages?.slice(0, visibleStages).map((stage: any, stageIdx: number) => {
@@ -900,6 +922,7 @@ export function LearningScreen() {
                 </div>
 
               </div>
+              )}
             </>
           )}
 

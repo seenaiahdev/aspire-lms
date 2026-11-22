@@ -98,9 +98,32 @@ export function NavProvider({ children }: { children: ReactNode }) {
     return hasValidSession();
   });
 
-  // Always start with 'splash' loader screen on page load / refresh
-  const [route, setRoute] = useState<Route>('splash');
-  const [params, setParams] = useState<Record<string, string>>({});
+  // Synchronously compute initial route and query params from URL on frame 0 to eliminate refresh flicker
+  const getInitialRouteAndParams = (): { initialRoute: Route; initialParams: Record<string, string> } => {
+    if (typeof window === 'undefined') return { initialRoute: 'splash', initialParams: {} };
+    const loggedIn = hasValidSession();
+    if (!loggedIn) {
+      return { initialRoute: 'splash', initialParams: {} };
+    }
+    const locationPath = window.location.pathname.replace(/^\//, '') || 'dashboard';
+    const [baseRoute] = locationPath.split('/');
+    let base = (baseRoute || 'dashboard') as Route;
+    if (base === 'quizzes') base = 'weekly-assessment';
+    if (base === 'assignments') base = 'daily-assessment';
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const newParams: Record<string, string> = {};
+    searchParams.forEach((value, key) => { newParams[key] = value; });
+
+    if (AUTH_ROUTES.includes(base)) {
+      return { initialRoute: 'dashboard', initialParams: {} };
+    }
+    return { initialRoute: base, initialParams: newParams };
+  };
+
+  const [{ initialRoute, initialParams }] = useState(getInitialRouteAndParams);
+  const [route, setRoute] = useState<Route>(initialRoute);
+  const [params, setParams] = useState<Record<string, string>>(initialParams);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [commandOpen, setCommandOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);

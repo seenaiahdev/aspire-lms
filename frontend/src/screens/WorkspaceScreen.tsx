@@ -249,6 +249,25 @@ export function WorkspaceScreen() {
             starterCode: data.starter_code || ''
           } as any;
           setProblemConfig(mapped);
+        } else {
+          // Fallback to local practice cache if table row isn't returned directly
+          try {
+            const cachedKey = `practice_problems_cache_${user?.id || 'guest'}`;
+            const cachedProblems = JSON.parse(localStorage.getItem(cachedKey) || localStorage.getItem('aspire_practice_problems_cache') || '[]');
+            const found = cachedProblems.find((p: any) => p.id === params.id);
+            if (found) {
+              setProblemConfig({
+                id: found.id,
+                title: found.title || 'Coding Problem',
+                difficulty: found.difficulty || 'Easy',
+                category: found.category || 'Practice Lab',
+                problem_statement: found.description || found.problem_statement || '',
+                description: found.description || found.problem_statement || '',
+                examples: Array.isArray(found.examples) ? found.examples : (found.testCases ? found.testCases.slice(0, 2) : []),
+                starterCode: found.starterCode || ''
+              } as any);
+            }
+          } catch {}
         }
       } catch (err) {
         console.error("Failed to load dynamic coding question:", err);

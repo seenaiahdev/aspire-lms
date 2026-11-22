@@ -143,6 +143,7 @@ export function AssignmentsScreen() {
   const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { navigate, params, route } = useNav();
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const cacheKey = useMemo(() => getAssessCacheKey(user?.id), [user?.id]);
 
   const [courseAssignments, setCourseAssignments] = useState<PythonTask[]>(() => {
@@ -260,8 +261,8 @@ export function AssignmentsScreen() {
           }
         } catch (error: any) {
           console.error("Failed to fetch assignments:", error);
-          if (retryCount >= 1 || courseAssignments.length > 0) {
-            setFetchError(error?.message || 'Failed to fetch assignments. Please check your network connection.');
+          if (retryCount >= 2) {
+            setFetchError('Unable to connect to the assessment server. Please check your network connection.');
           }
           setCourseAssignments((prev) => prev);
           if (retryCount < 2) {
@@ -269,6 +270,7 @@ export function AssignmentsScreen() {
           }
         } finally {
           if (showSpinner) setLoading(false);
+          setHasLoadedOnce(true);
         }
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1323,7 +1325,7 @@ export function AssignmentsScreen() {
 
   // ════════════════ 3. MAIN ASSIGNMENTS & PRACTICE HUB (CARDS GRID) ════════════════
   return (
-    <div className="space-y-6 font-sans animate-fade-in">
+    <div className="space-y-6 font-sans animate-fade-in pb-24 lg:pb-8">
 
       
       {/* Clean Top Header */}
@@ -1416,7 +1418,7 @@ export function AssignmentsScreen() {
           </div>
 
           {/* Tasks List Cards */}
-          {isScreenLoading || ((!resolverReady || locksPending) && filteredTasks.length === 0) || (courseAssignments.length === 0 && !fetchError) ? (
+          {((!hasLoadedOnce || isScreenLoading) && filteredTasks.length === 0) || ((!resolverReady || locksPending) && filteredTasks.length === 0) || (courseAssignments.length === 0 && !fetchError) ? (
             <div className="space-y-3">
               <AssessmentItemSkeleton />
               <AssessmentItemSkeleton />
@@ -1424,8 +1426,8 @@ export function AssignmentsScreen() {
             </div>
           ) : fetchError && courseAssignments.length === 0 ? (
             <ErrorState
-              title="Unable to load daily assessments"
-              description={fetchError}
+              title="Unable to load daily assessments (503)"
+              description="We encountered a temporary server error connecting to the assessment service. Please retry."
               onRetry={() => {
                 setFetchError(null);
                 loadData(true);

@@ -130,6 +130,7 @@ export function PracticeScreen() {
     return true;
   });
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const locksPending = !user?.locksLoaded && (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0);
 
   const hasCachedProblems = useMemo(() => {
@@ -294,8 +295,8 @@ setProblems((prev) => prev);
       }
     } catch (err: any) {
       console.error('Error loading practice problems:', err);
-      if (retryCount >= 1 || problems.length > 0) {
-        setFetchError(err?.message || 'Failed to load practice problems. Please check your network connection.');
+      if (retryCount >= 2) {
+        setFetchError('Unable to connect to the practice laboratory. Please check your internet connection.');
       }
       // On failure, preserve existing state
       setProblems((prev) => prev);
@@ -305,6 +306,7 @@ setProblems((prev) => prev);
       }
     } finally {
       setLoading(false);
+      setHasLoadedOnce(true);
     }
   }, [user?.id, user?.batchCode, (user as any)?.batch, user?.batchCategory, (user?.enrolledCourses || []).join(','), problems.length]);
 
@@ -419,7 +421,7 @@ if (resolverReady && !locksPending && difficulty === 'all') {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-24 lg:pb-8">
 
       <div id="tour-practice-header">
         <h2 className="font-display font-bold text-2xl text-ink-900">Practice Lab</h2>
@@ -482,7 +484,7 @@ if (resolverReady && !locksPending && difficulty === 'all') {
             ))}
           </div>
 
-          {(loading && filtered.length === 0) || ((!resolverReady || locksPending) && filtered.length === 0) || (problems.length === 0 && !fetchError) ? (
+          {((!hasLoadedOnce || loading) && filtered.length === 0) || ((!resolverReady || locksPending) && filtered.length === 0) || (problems.length === 0 && !fetchError) ? (
             <div className="space-y-3">
               <AssessmentItemSkeleton />
               <AssessmentItemSkeleton />
@@ -490,8 +492,8 @@ if (resolverReady && !locksPending && difficulty === 'all') {
             </div>
           ) : fetchError && problems.length === 0 ? (
             <ErrorState
-              title="Unable to load practice problems"
-              description={fetchError}
+              title="Unable to load practice problems (503)"
+              description="We encountered a temporary server error connecting to the practice coding lab. Please retry."
               onRetry={() => {
                 setFetchError(null);
                 loadData(true);

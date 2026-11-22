@@ -359,6 +359,7 @@ export function ProjectsScreen() {
     } catch {}
     return true;
   });
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
 
   const [toastVisible, setToastVisible] = useState(false);
 
@@ -416,8 +417,8 @@ export function ProjectsScreen() {
       } catch {}
     } catch (err: any) {
       console.error('Error loading projects/submissions:', err);
-      if (retryCount >= 1 || projectsState.length > 0) {
-        setFetchError(err?.message || 'Failed to load projects. Please check your network connection.');
+      if (retryCount >= 2) {
+        setFetchError('Unable to connect to the project repository. Please check your internet connection.');
       }
 
       // On failure, use localStorage fallback if state is empty
@@ -439,6 +440,7 @@ export function ProjectsScreen() {
       }
     } finally {
       setIsLoading(false);
+      setHasLoadedOnce(true);
     }
   }, [user?.id, user?.batchCode, (user as any)?.batch, user?.batchCategory, user?.enrolledCourses, projectsState.length]);
 
@@ -1340,7 +1342,7 @@ export function ProjectsScreen() {
         </div>
 
         {/* PROJECTS LIST / GRID */}
-        {(isLoading && filtered.length === 0) || (projectsState.length === 0 && !fetchError) ? (
+        {((!hasLoadedOnce || isLoading) && filtered.length === 0) || (projectsState.length === 0 && !fetchError) ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <SkeletonCard />
             <SkeletonCard />
@@ -1348,8 +1350,8 @@ export function ProjectsScreen() {
           </div>
         ) : fetchError && projectsState.length === 0 ? (
           <ErrorState
-            title="Unable to load projects"
-            description={fetchError}
+            title="Unable to load projects (503)"
+            description="We encountered a temporary server error connecting to the project repository. Please retry."
             onRetry={() => {
               setFetchError(null);
               loadProjectsAndSubmissions(true);

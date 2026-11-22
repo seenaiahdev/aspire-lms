@@ -523,7 +523,7 @@ export function ScheduleScreen() {
               completed: row.status === 'completed' || manualCompletedEvents.has(row.id)
             };
           })
-          .filter((item: any) => item.dateKey.startsWith(currentMonthPrefix));
+          .filter((item: any) => typeof item?.dateKey === 'string' && item.dateKey.startsWith(currentMonthPrefix));
         setApiTasks(formatted);
       }
     } catch (err) {

@@ -1200,7 +1200,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const earnedBadgeIdSet = new Set(currentEarnedBadgeIds);
         setNotifications((prev) => {
           const filtered = prev.filter((n) => {
-            if (n.id.startsWith(`notif-badge-earned-${sid}-`)) {
+            if (n && typeof n.id === 'string' && n.id.startsWith(`notif-badge-earned-${sid}-`)) {
               const badgeId = n.id.replace(`notif-badge-earned-${sid}-`, '');
               return earnedBadgeIdSet.has(badgeId);
             }
