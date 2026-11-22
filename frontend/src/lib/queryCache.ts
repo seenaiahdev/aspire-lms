@@ -44,6 +44,32 @@ let missCount = 0;
 let dedupCount = 0;
 let timeoutCount = 0;
 
+// ── Concurrency Pool Limiter (Avoids database connection flooding) ────────────
+const MAX_CONCURRENT_QUERIES = 4;
+let activeQueryCount = 0;
+const queryQueue: Array<() => void> = [];
+
+function acquireQuerySlot(): Promise<void> {
+  if (activeQueryCount < MAX_CONCURRENT_QUERIES) {
+    activeQueryCount++;
+    return Promise.resolve();
+  }
+  return new Promise<void>((resolve) => {
+    queryQueue.push(() => {
+      activeQueryCount++;
+      resolve();
+    });
+  });
+}
+
+function releaseQuerySlot() {
+  activeQueryCount--;
+  if (queryQueue.length > 0 && activeQueryCount < MAX_CONCURRENT_QUERIES) {
+    const next = queryQueue.shift();
+    if (next) next();
+  }
+}
+
 // ── Dual-tier SessionStorage helpers ──────────────────────────────────────────
 function readSessionStorage<T>(key: string): CacheEntry<T> | null {
   if (typeof window === 'undefined' || !window.sessionStorage) return null;
@@ -155,25 +181,37 @@ export async function cachedQuery<T>(
     return pending;
   }
 
-  // 3. Fire the actual fetch raced against timeoutMs, deduplicate, and cache
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  // 3. Fire actual fetch through concurrency-controlled slot to avoid database flooding
+  const runQuery = async (): Promise<T> => {
+    await acquireQuerySlot();
+    let slotReleased = false;
+    const releaseOnce = () => {
+      if (!slotReleased) {
+        slotReleased = true;
+        releaseQuerySlot();
+      }
+    };
 
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      timeoutCount++;
-      inflight.delete(key);
-      const err = new Error(`Query for key "${key}" timed out after ${timeoutMs}ms`);
-      (err as any).name = 'TimeoutError';
-      reject(err);
-    }, timeoutMs);
-  });
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-  const fetchPromise = Promise.resolve().then(() => fetchFn());
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => {
+        timeoutCount++;
+        inflight.delete(key);
+        releaseOnce();
+        const err = new Error(`Query for key "${key}" timed out after ${timeoutMs}ms`);
+        (err as any).name = 'TimeoutError';
+        reject(err);
+      }, timeoutMs);
+    });
 
-  const executionPromise = Promise.race([fetchPromise, timeoutPromise])
-    .then((data) => {
+    const fetchPromise = Promise.resolve().then(() => fetchFn());
+
+    try {
+      const data = await Promise.race([fetchPromise, timeoutPromise]);
       if (timer) clearTimeout(timer);
       inflight.delete(key);
+      releaseOnce();
 
       // PostgREST responses with error must NOT be cached
       const hasError = data && typeof data === 'object' && 'error' in (data as Record<string, unknown>) && Boolean((data as Record<string, unknown>).error);
@@ -184,13 +222,15 @@ export async function cachedQuery<T>(
       }
 
       return data;
-    })
-    .catch((err) => {
+    } catch (err) {
       if (timer) clearTimeout(timer);
       inflight.delete(key);
+      releaseOnce();
       throw err;
-    });
+    }
+  };
 
+  const executionPromise = runQuery();
   inflight.set(key, executionPromise);
   return executionPromise;
 }
@@ -258,6 +298,8 @@ export function invalidateCacheByPrefix(prefix: string): void {
 export function clearCache(): void {
   cache.clear();
   inflight.clear();
+  activeQueryCount = 0;
+  queryQueue.length = 0;
   clearSessionStorage();
 }
 

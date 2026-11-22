@@ -336,8 +336,12 @@ setProblems((prev) => prev);
   }, [user?.id, user?.batchCode, (user as any)?.batch, user?.batchCategory, (user?.enrolledCourses || []).join(','), problems.length]);
 
   useEffect(() => {
+    // Avoid redundant database query on mount if practice problems are already preloaded
+    if (preload.practiceProblems && preload.practiceProblems.length > 0) {
+      return;
+    }
     loadData(problems.length === 0);
-  }, [loadData, user?.batchCode, user?.id]);
+  }, [loadData, user?.batchCode, user?.id, preload.practiceProblems]);
 
   useEffect(() => {
     if (!user?.id) return;

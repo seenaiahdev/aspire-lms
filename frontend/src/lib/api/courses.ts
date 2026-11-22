@@ -393,11 +393,12 @@ export async function fetchProjects(
   courseId?: string,
   enrolledCourses?: string[]
 ) {
-  const cacheKey = `projects:${batchCode}:${batchCategory || ''}:${courseId || ''}:${(enrolledCourses || []).sort().join(',')}`;
+  const normCourseId = courseId || (enrolledCourses && enrolledCourses.length > 0 ? enrolledCourses[0] : '');
+  const cacheKey = `projects:${batchCode}:${batchCategory || ''}:${normCourseId}:${(enrolledCourses || []).sort().join(',')}`;
   return cachedQuery(cacheKey, async () => {
     let query = supabase.from('projects').select('*');
-    if (courseId) {
-      query = query.eq('course_id', courseId);
+    if (normCourseId) {
+      query = query.eq('course_id', normCourseId);
     } else if (enrolledCourses && enrolledCourses.length > 0) {
       query = query.in('course_id', enrolledCourses);
     }
@@ -491,14 +492,15 @@ export async function fetchPracticeProblems(
     ...(Array.isArray(enrolledCourses) ? enrolledCourses : []),
     courseId
   ].filter(Boolean) as string[]));
+  const normCourseId = courseId || (validCourseList.length > 0 ? validCourseList[0] : '');
 
-  const cacheKey = `practice_problems:${courseId || ''}:${batchCode || ''}:${batchCategory || ''}:${validCourseList.slice().sort().join(',')}`;
+  const cacheKey = `practice_problems:${normCourseId}:${batchCode || ''}:${batchCategory || ''}:${validCourseList.slice().sort().join(',')}`;
   return cachedQuery(cacheKey, async () => {
     try {
       let query = supabase.from('coding_questions').select('*').order('created_at', { ascending: true });
 
-      if (courseId && (!enrolledCourses || enrolledCourses.length <= 1)) {
-        query = query.eq('course_id', courseId);
+      if (normCourseId && (!enrolledCourses || enrolledCourses.length <= 1)) {
+        query = query.eq('course_id', normCourseId);
       } else if (validCourseList.length > 0) {
         query = query.in('course_id', validCourseList);
       }

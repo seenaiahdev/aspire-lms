@@ -469,8 +469,12 @@ export function ProjectsScreen() {
   }, [user?.id, user?.batchCode, (user as any)?.batch, user?.batchCategory, user?.enrolledCourses, projectsState.length]);
 
   useEffect(() => {
+    // Avoid redundant database query on mount if projects are already preloaded
+    if (preload.projects && preload.projects.length > 0) {
+      return;
+    }
     loadProjectsAndSubmissions(projectsState.length === 0);
-  }, [loadProjectsAndSubmissions, user?.batchCode, user?.id]);
+  }, [loadProjectsAndSubmissions, user?.batchCode, user?.id, preload.projects]);
 
   // Real-time Supabase subscription for projects table (catches admin creates, edits, and deletes)
   useEffect(() => {
