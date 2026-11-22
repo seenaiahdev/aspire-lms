@@ -363,3 +363,88 @@ export function ProfileCardSkeleton() {
     </div>
   );
 }
+
+/**
+ * LiveSessionCardSkeleton — high-fidelity loading state for Upcoming & Live class cards
+ */
+export function LiveSessionCardSkeleton({ count = 2 }: { count?: number }) {
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-pulse">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-white border border-slate-200/90 rounded-3xl p-6 shadow-xs flex flex-col justify-between space-y-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Skeleton className="h-6 w-24 rounded-full" />
+              <Skeleton className="h-5 w-32 rounded-lg" />
+            </div>
+            <div className="space-y-2">
+              <Skeleton className="h-6 w-4/5 rounded-lg" />
+              <Skeleton className="h-4 w-1/2 rounded" />
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <Skeleton className="w-9 h-9 rounded-full shrink-0" />
+              <div className="space-y-1">
+                <Skeleton className="h-3.5 w-28 rounded" />
+                <Skeleton className="h-3 w-20 rounded" />
+              </div>
+            </div>
+          </div>
+          <div className="pt-4 border-t border-slate-100 flex items-center justify-between gap-3">
+            <Skeleton className="h-9 w-28 rounded-xl" />
+            <Skeleton className="h-10 w-36 rounded-xl" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
+ * RecordingCardSkeleton — loading state for Recordings tab (Grid & List view)
+ */
+export function RecordingCardSkeleton({ count = 6, viewMode = 'grid' }: { count?: number; viewMode?: 'grid' | 'list' }) {
+  if (viewMode === 'list') {
+    return (
+      <div className="space-y-3 animate-pulse">
+        {Array.from({ length: count }).map((_, i) => (
+          <div key={i} className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5 flex-1 min-w-0">
+              <Skeleton className="w-12 h-12 rounded-xl shrink-0" />
+              <div className="space-y-2 flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-4 w-20 rounded" />
+                  <Skeleton className="h-3 w-24 rounded" />
+                </div>
+                <Skeleton className="h-5 w-3/4 rounded" />
+              </div>
+            </div>
+            <Skeleton className="h-9 w-28 rounded-xl shrink-0 self-end sm:self-center" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-pulse">
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="bg-white border border-slate-200/90 rounded-3xl overflow-hidden shadow-xs flex flex-col justify-between">
+          <Skeleton className="w-full aspect-video rounded-none" />
+          <div className="p-5 space-y-4 flex-1 flex flex-col justify-between">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Skeleton className="h-4 w-20 rounded" />
+                <Skeleton className="h-3 w-16 rounded" />
+              </div>
+              <Skeleton className="h-5 w-4/5 rounded-lg" />
+            </div>
+            <div className="pt-3 border-t border-slate-100 flex items-center justify-between">
+              <Skeleton className="h-3 w-24 rounded" />
+              <Skeleton className="h-8 w-24 rounded-xl" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}

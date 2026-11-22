@@ -438,7 +438,7 @@ export function LearningScreen() {
         <div className="space-y-8 animate-fade-in">
 
           {!curriculumRoadmap ? (
-            preload.loading || !activeCourse ? (
+            (preload.loading || (activeCourse && !dbSyllabus)) ? (
               <div className="space-y-6 animate-pulse">
                 {/* Hero Skeleton */}
                 <div className="h-44 rounded-3xl bg-slate-100 border border-slate-200/60 p-6 flex flex-col justify-between" />

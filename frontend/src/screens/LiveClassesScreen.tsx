@@ -24,7 +24,7 @@ import { useInfiniteScroll } from '@/lib/useInfiniteScroll';
 import { supabase } from '@/lib/supabase';
 import { getCached, invalidateCacheByPrefix } from '@/lib/queryCache';
 import { useToast } from '@/lib/ToastContext';
-import { LiveClassroomSkeleton } from '@/components/ui/Skeleton';
+import { LiveClassroomSkeleton, LiveSessionCardSkeleton, RecordingCardSkeleton } from '@/components/ui/Skeleton';
 
 export function LiveClassesScreen() {
   const { navigate, params, route } = useNav();
@@ -55,10 +55,18 @@ export function LiveClassesScreen() {
   const [toastMessage, setToastMessage] = useState<{ title: string; desc: string } | null>(null);
 
   // Synchronous cache hydration: instant 0ms mount from in-memory or sessionStorage cache
+  const recordingsKey = `recordings:${batchCode || ''}:${user.batchCategory || ''}:${(user.enrolledCourses || []).sort().join(',')}`;
   const [dbSessions, setDbSessions] = useState<any[]>(() => {
     try {
-      const mem = getCached<any[]>(`all_live_sessions:${batchCode}`);
-      if (Array.isArray(mem) && mem.length > 0) return mem;
+      const memLive = getCached<any[]>(`all_live_sessions:${batchCode}`);
+      const memRec = getCached<any[]>(recordingsKey);
+      if ((Array.isArray(memLive) && memLive.length > 0) || (Array.isArray(memRec) && memRec.length > 0)) {
+        const set = new Set<string>();
+        const res: any[] = [];
+        (memLive || []).forEach((item) => { if (!set.has(item.id)) { set.add(item.id); res.push(item); } });
+        (memRec || []).forEach((item) => { if (!set.has(item.id)) { set.add(item.id); res.push(item); } });
+        return res;
+      }
       const cached = sessionStorage.getItem(`aspire_live_sessions_${batchCode}`) || localStorage.getItem(`aspire_live_sessions_${batchCode}`);
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -69,8 +77,9 @@ export function LiveClassesScreen() {
   });
   const [sessionsLoading, setSessionsLoading] = useState(() => {
     try {
-      const mem = getCached<any[]>(`all_live_sessions:${batchCode}`);
-      if (Array.isArray(mem) && mem.length > 0) return false;
+      const memLive = getCached<any[]>(`all_live_sessions:${batchCode}`);
+      const memRec = getCached<any[]>(recordingsKey);
+      if ((Array.isArray(memLive) && memLive.length > 0) || (Array.isArray(memRec) && memRec.length > 0)) return false;
       const cached = sessionStorage.getItem(`aspire_live_sessions_${batchCode}`) || localStorage.getItem(`aspire_live_sessions_${batchCode}`);
       if (cached) {
         const parsed = JSON.parse(cached);
@@ -1122,9 +1131,11 @@ export function LiveClassesScreen() {
           )}
         </div>
       ) : sessionsLoading ? (
-        <div className="flex justify-center py-16">
-          <div className="w-8 h-8 border-4 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
-        </div>
+        tab === 'completed' ? (
+          <RecordingCardSkeleton count={6} viewMode={viewMode} />
+        ) : (
+          <LiveSessionCardSkeleton count={2} />
+        )
       ) : displayList.length === 0 ? (
         <div className="col-span-full py-16 px-6 bg-white border border-slate-200/90 rounded-[2rem] text-center flex flex-col items-center justify-center space-y-4 shadow-2xs">
           <div className="w-16 h-16 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center text-[#7c3aed] shadow-xs">

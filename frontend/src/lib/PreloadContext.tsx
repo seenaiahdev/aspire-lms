@@ -544,14 +544,18 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
           prefetchRoute,
         });
 
-        // Non-blocking idle warm-up of active course syllabus if not already cached
-        if (enrolledCourses.length > 0 && !existingSyllabi[enrolledCourses[0]]) {
-          setTimeout(() => {
-            if (!cancelled) {
+        // Non-blocking idle warm-up of active course syllabus and live sessions/recordings
+        setTimeout(() => {
+          if (!cancelled) {
+            if (enrolledCourses.length > 0 && !existingSyllabi[enrolledCourses[0]]) {
               ensureCourseSyllabus(enrolledCourses[0]).catch(() => {});
             }
-          }, 60);
-        }
+            if (batchCode) {
+              fetchAllLiveSessions(batchCode).catch(() => {});
+              fetchRecordings(batchCode, batchCategory, enrolledCourses).catch(() => {});
+            }
+          }
+        }, 30);
       } catch (err) {
         console.error('[PreloadContext] Phase 1 prefetch failed:', err);
         if (!cancelled) {
