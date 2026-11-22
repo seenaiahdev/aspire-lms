@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { ClipboardCheck, Clock, Star, TrendingUp, Trophy, Play, Award, Compass, AlertTriangle, Info, CheckCircle2, XCircle, X, ChevronRight, ChevronLeft, HelpCircle, Flag, LogOut, Code2, Lock, Calendar, Loader2, LayoutGrid, List } from 'lucide-react';
+import { AssessmentItemSkeleton } from '@/components/ui/Skeleton';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { fetchQuizzes, fetchLeaderboard, fetchQuizAttempts, submitQuizAttempt } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -20,15 +21,44 @@ import { LockedOverlay } from '@/components/ui/LockedOverlay';
 export function QuizzesScreen() {
   const { user } = useUser();
   const { navigate, params } = useNav();
-  const { isUnlocked } = useUnlockResolver();
-  const [tab, setTab] = useState('upcoming');
-  const [quizzes, setQuizzes] = useState<any[]>([]);
+  const { isUnlocked, ready: resolverReady } = useUnlockResolver();
+  const locksPending = !user?.locksLoaded && (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0);
+
+  const [tab, setTab] = useState(() => {
+    if (params?.subtab && ['upcoming', 'completed', 'analytics'].includes(params.subtab)) return params.subtab;
+    try {
+      const saved = localStorage.getItem('aspire_quiz_tab');
+      if (saved && ['upcoming', 'completed', 'analytics'].includes(saved)) return saved;
+    } catch {}
+    return 'upcoming';
+  });
+
+  const handleTabChange = (t: string) => {
+    setTab(t);
+    try {
+      localStorage.setItem('aspire_quiz_tab', t);
+      const url = new URL(window.location.href);
+      url.searchParams.set('subtab', t);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  };
+
+  const [quizzes, setQuizzes] = useState<any[]>(() => {
+    try {
+      const cached = localStorage.getItem('aspire_quizzes_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
   const [attempts, setAttempts] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => quizzes.length === 0);
 
   const loadData = async (showSpinner = true) => {
-    if (showSpinner) setLoading(true);
+    if (showSpinner && quizzes.length === 0) setLoading(true);
     try {
       const [q, att, l] = await Promise.all([
         (user?.enrolledCourses && user?.enrolledCourses.length > 0) ? fetchQuizzes(user.enrolledCourses) : Promise.resolve([]),
@@ -51,8 +81,11 @@ export function QuizzesScreen() {
           mcqs: item.mcqs || []
         }));
         setQuizzes(mapped);
+        try {
+          localStorage.setItem('aspire_quizzes_cache', JSON.stringify(mapped));
+        } catch {}
       } else {
-        setQuizzes([]);
+        setQuizzes((prev) => prev);
       }
 
       setAttempts(att || []);
@@ -335,7 +368,12 @@ export function QuizzesScreen() {
 
   // A weekly quiz is single-attempt: once an attempt exists it leaves "Upcoming" for "Completed".
   const attemptFor = (quizId: string) => attempts.find((a) => a.quiz_id === quizId);
-  const pendingQuizzes = quizzes.filter((q) => isUnlocked(q.inner_topic_id) && !attemptFor(q.id));
+  const isQuizUnlocked = (innerTopicId?: string) => {
+    if (!resolverReady || locksPending) return true;
+    if (!innerTopicId) return true;
+    return isUnlocked(innerTopicId);
+  };
+  const pendingQuizzes = quizzes.filter((q) => isQuizUnlocked(q.inner_topic_id) && !attemptFor(q.id));
   const completedQuizzes = quizzes.filter((q) => !!attemptFor(q.id));
 
   // Card vs. list ("rectangle") view + render windowing (10, +10 on scroll; reset on tab change).
@@ -377,7 +415,7 @@ export function QuizzesScreen() {
             { id: 'analytics', label: 'Analytics' },
           ]}
           active={tab}
-          onChange={setTab}
+          onChange={handleTabChange}
         />
         {(tab === 'upcoming' || tab === 'completed') && (
           <div className="self-end sm:self-auto shrink-0"><QuizViewToggle /></div>
@@ -386,10 +424,11 @@ export function QuizzesScreen() {
 
       {tab === 'upcoming' && (
         <>
-          {loading ? (
-            <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">
-              <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mx-auto mb-4" />
-              <h3 className="font-extrabold text-slate-900 text-lg mb-1">Loading Weekly Assessments...</h3>
+          {(loading && quizzes.length === 0) || ((!resolverReady || locksPending) && pendingQuizzes.length === 0) ? (
+            <div className="space-y-3">
+              <AssessmentItemSkeleton />
+              <AssessmentItemSkeleton />
+              <AssessmentItemSkeleton />
             </div>
           ) : pendingQuizzes.length === 0 ? (
             <div className="py-20 text-center border-2 border-dashed border-slate-200 rounded-[2rem] bg-slate-50/50">

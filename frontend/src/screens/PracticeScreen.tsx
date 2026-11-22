@@ -53,7 +53,7 @@ export function PracticeScreen() {
   const cacheKey = useMemo(() => getPracticeCacheKey(user?.id), [user?.id]);
 
   const [tab, setTab] = useState(() => {
-    if (params.tab) return params.tab;
+    if (params.tab && ['problems', 'history'].includes(params.tab)) return params.tab;
     try {
       const saved = localStorage.getItem('aspire_practice_tab');
       if (saved === 'problems' || saved === 'history') return saved;
@@ -65,15 +65,36 @@ export function PracticeScreen() {
     setTab(t);
     try {
       localStorage.setItem('aspire_practice_tab', t);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', t);
+      window.history.replaceState({}, '', url.toString());
     } catch {}
   };
 
   useEffect(() => {
-    if (params.tab) {
+    if (params.tab && ['problems', 'history'].includes(params.tab)) {
       setTab(params.tab);
     }
   }, [params.tab]);
-  const [difficulty, setDifficulty] = useState('all');
+
+  const [difficulty, setDifficulty] = useState(() => {
+    if (params.difficulty && ['all', 'Easy', 'Medium', 'Hard'].includes(params.difficulty)) return params.difficulty;
+    try {
+      const saved = localStorage.getItem('aspire_practice_difficulty');
+      if (saved && ['all', 'Easy', 'Medium', 'Hard'].includes(saved)) return saved;
+    } catch {}
+    return 'all';
+  });
+
+  const handleDifficultyChange = (d: string) => {
+    setDifficulty(d);
+    try {
+      localStorage.setItem('aspire_practice_difficulty', d);
+      const url = new URL(window.location.href);
+      url.searchParams.set('difficulty', d);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  };
   const [submissions, setSubmissions] = useState<Submission[]>(() => {
     try {
       const cached = localStorage.getItem('aspire_practice_submissions_cache');
@@ -109,6 +130,7 @@ export function PracticeScreen() {
     return true;
   });
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const locksPending = !user?.locksLoaded && (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0);
 
   const hasCachedProblems = useMemo(() => {
     try {
@@ -272,9 +294,11 @@ setProblems((prev) => prev);
       }
     } catch (err: any) {
       console.error('Error loading practice problems:', err);
-      setFetchError(err?.message || 'Failed to load practice problems. Please check your network connection.');
-// On failure, preserve existing state
-setProblems((prev) => prev);
+      if (retryCount >= 1 || problems.length > 0) {
+        setFetchError(err?.message || 'Failed to load practice problems. Please check your network connection.');
+      }
+      // On failure, preserve existing state
+      setProblems((prev) => prev);
 
       if (retryCount < 2) {
         setTimeout(() => loadData(false, retryCount + 1), 2500);
@@ -339,12 +363,14 @@ setProblems((prev) => prev);
   }, [user?.id, user?.mobile, loadData]);
 
 const filtered = useMemo(() => {
-  // If unlock resolver is still resolving but we already have verified problems in cache, show them immediately
-  if (!resolverReady && hasCachedProblems) {
-    return problems.filter((p) => {
-      const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
-      return matchesDifficulty && !p.solved;
-    });
+  // If unlock resolver or milestone locks are still resolving, don't drop problems to 0
+  if (!resolverReady || locksPending) {
+    if (hasCachedProblems || problems.length > 0) {
+      return problems.filter((p) => {
+        const matchesDifficulty = difficulty === 'all' || p.difficulty === difficulty;
+        return matchesDifficulty && !p.solved;
+      });
+    }
   }
 
   const batchCode = user?.batchCode || (user as any)?.batch || '';
@@ -368,14 +394,14 @@ const filtered = useMemo(() => {
     });
 
 // Save verified unlocked problems to cache memory for instant display on future reloads
-if (resolverReady && difficulty === 'all') {
+if (resolverReady && !locksPending && difficulty === 'all') {
   try {
     localStorage.setItem(cacheKey, JSON.stringify(result));
   } catch {}
 }
 
     return result;
-  }, [problems, difficulty, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, isUnlocked, isEntityUnlocked, user?.id]);
+  }, [problems, difficulty, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, locksPending, isUnlocked, isEntityUnlocked, user?.id]);
 
   const solved = useMemo(() => {
     return Math.max(submissions.length, problems.filter((p) => p.solved).length);
@@ -443,7 +469,7 @@ if (resolverReady && difficulty === 'all') {
             {['all', 'Easy', 'Medium', 'Hard'].map((d) => (
               <button
                 key={d}
-                onClick={() => setDifficulty(d)}
+                onClick={() => handleDifficultyChange(d)}
                 className={cn(
                   'px-3.5 py-1.5 rounded-full text-xs font-extrabold transition-all border cursor-pointer',
                   difficulty === d
@@ -456,7 +482,7 @@ if (resolverReady && difficulty === 'all') {
             ))}
           </div>
 
-          {(loading && filtered.length === 0) || (!resolverReady && filtered.length === 0) ? (
+          {(loading && filtered.length === 0) || ((!resolverReady || locksPending) && filtered.length === 0) || (problems.length === 0 && !fetchError) ? (
             <div className="space-y-3">
               <AssessmentItemSkeleton />
               <AssessmentItemSkeleton />

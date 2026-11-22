@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Modal } from '@/components/ui/Modal';
 import { 
   Calendar, ChevronRight, Download, Eye, Heart, Layers, Play, Star, BookOpen, Clock, Brain, Lock, X, ChevronDown, Video, ExternalLink, Code2, ClipboardCheck, HelpCircle, Zap, Trophy, TrendingUp, Search, Filter, Grid3x3, List, MapPin, CheckCircle2, Sparkles, Terminal, FolderOpen, Loader2, Database, Globe, Server, Cpu, XCircle,
@@ -166,7 +166,30 @@ export function LearningScreen() {
   }, [user?.unlockedLessonIds]);
 
   const [search, setSearch] = useState('');
-  const [activeTab, setActiveTab] = useState<'all' | 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin'>('all');
+  const [activeTab, setActiveTab] = useState<'all' | 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin'>(() => {
+    const pTab = params?.category || params?.tab;
+    if (pTab && ['all', 'courses', 'soft_skills', 'aptitude', 'portfolio', 'resume', 'linkedin'].includes(pTab)) {
+      return pTab as any;
+    }
+    try {
+      const saved = localStorage.getItem('aspire_learning_tab');
+      if (saved && ['all', 'courses', 'soft_skills', 'aptitude', 'portfolio', 'resume', 'linkedin'].includes(saved)) {
+        return saved as any;
+      }
+    } catch {}
+    return 'all';
+  });
+
+  const handleSelectCategoryTab = useCallback((cat: any) => {
+    setActiveTab(cat);
+    try {
+      localStorage.setItem('aspire_learning_tab', cat);
+      const url = new URL(window.location.href);
+      url.searchParams.set('category', cat);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  }, []);
+
   const [activeAccordion, setActiveAccordion] = useState<string | null>(null);
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [selectedTopicDrawer, setSelectedTopicDrawer] = useState<any | null>(null);
@@ -177,8 +200,23 @@ export function LearningScreen() {
   const batchStudentCount = preload.batchStudentCount ?? 1;
 
   const [selectedCourseId, setSelectedCourseId] = useState<string>(() => {
-    return params?.id || params?.courseId || '';
+    if (params?.id || params?.courseId) return params.id || params.courseId;
+    try {
+      const saved = localStorage.getItem('aspire_milestones_courseId');
+      if (saved) return saved;
+    } catch {}
+    return '';
   });
+
+  const handleSelectCourse = useCallback((cId: string) => {
+    setSelectedCourseId(cId);
+    try {
+      localStorage.setItem('aspire_milestones_courseId', cId);
+      const url = new URL(window.location.href);
+      url.searchParams.set('courseId', cId);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (params?.id || params?.courseId) {
@@ -470,7 +508,7 @@ export function LearningScreen() {
                   {sortedCourses.map((c) => (
                     <button
                       key={c.id}
-                      onClick={() => setSelectedCourseId(c.id)}
+                      onClick={() => handleSelectCourse(c.id)}
                       onMouseEnter={() => preload.ensureCourseSyllabus(c.id)}
                       className={cn(
                         "px-4 py-2 rounded-xl text-xs font-extrabold transition-all cursor-pointer shrink-0",
@@ -911,7 +949,7 @@ export function LearningScreen() {
                     return (
                       <button
                         key={tab.id}
-                        onClick={() => setActiveTab(tab.id as any)}
+                        onClick={() => handleSelectCategoryTab(tab.id as any)}
                         className={cn(
                           "px-4 py-2 rounded-xl text-xs font-extrabold whitespace-nowrap transition-all duration-200 cursor-pointer shadow-2xs border shrink-0",
                           isActive

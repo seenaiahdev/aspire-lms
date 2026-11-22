@@ -274,14 +274,48 @@ export function ProjectsScreen() {
   const { user } = useUser();
   const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
   const { params, navigate } = useNav();
-  const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone'>('mini');
+  const [mainCategory, setMainCategory] = useState<'mini' | 'major' | 'capstone'>(() => {
+    if (params.tab && ['mini', 'major', 'capstone'].includes(params.tab)) {
+      return params.tab as any;
+    }
+    try {
+      const saved = localStorage.getItem('aspire_projects_main_category');
+      if (saved && ['mini', 'major', 'capstone'].includes(saved)) return saved as any;
+    } catch {}
+    return 'mini';
+  });
+
+  const handleMainCategoryChange = (cat: 'mini' | 'major' | 'capstone') => {
+    setMainCategory(cat);
+    try {
+      localStorage.setItem('aspire_projects_main_category', cat);
+      const url = new URL(window.location.href);
+      url.searchParams.set('tab', cat);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  };
+
   const [subTab, setSubTab] = useState<'assigned' | 'submitted' | 'feedback'>(() => {
+    if (params.subTab && ['assigned', 'submitted', 'feedback'].includes(params.subTab)) {
+      return params.subTab as any;
+    }
     try {
       const saved = localStorage.getItem('aspire_projects_subtab');
       if (saved === 'assigned' || saved === 'submitted' || saved === 'feedback') return saved;
     } catch {}
     return 'assigned';
   });
+
+  const handleSubTabChange = (t: 'assigned' | 'submitted' | 'feedback') => {
+    setSubTab(t);
+    try {
+      localStorage.setItem('aspire_projects_subtab', t);
+      const url = new URL(window.location.href);
+      url.searchParams.set('subTab', t);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  };
+
   const [lockedToast, setLockedToast] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -382,7 +416,9 @@ export function ProjectsScreen() {
       } catch {}
     } catch (err: any) {
       console.error('Error loading projects/submissions:', err);
-      setFetchError(err?.message || 'Failed to load projects. Please check your network connection.');
+      if (retryCount >= 1 || projectsState.length > 0) {
+        setFetchError(err?.message || 'Failed to load projects. Please check your network connection.');
+      }
 
       // On failure, use localStorage fallback if state is empty
       setProjectsState((prev) => {
@@ -643,9 +679,11 @@ export function ProjectsScreen() {
 
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
+    const locksPending = !user?.locksLoaded && (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0);
+
     return projectsState
       // Only surface projects belonging to lessons that are unlocked in Milestones for this student.
-      // While unlock resolver is still initializing, don't drop all cached projects to 0!
+      // While unlock resolver or milestone locks are still initializing, don't drop all cached projects to 0!
       .filter((p: any) => {
         // Filter out empty draft templates with no content, "Untitled Project", or untitled placeholders
         const title = String(p.title || '').trim().toLowerCase();
@@ -668,7 +706,7 @@ export function ProjectsScreen() {
           }
         }
 
-        if (!resolverReady) return true;
+        if (!resolverReady || locksPending) return true;
         return isEntityUnlocked(p);
       })
       .map((p: any) => {
@@ -698,7 +736,7 @@ export function ProjectsScreen() {
           skills: details?.skills || []
         };
       });
-  }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked, resolverReady]);
+  }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked, resolverReady, user?.locksLoaded, user?.unlockedLessonIds]);
 
   useEffect(() => {
     localStorage.setItem('projectDriveLinks', JSON.stringify(driveLinks));
@@ -725,13 +763,6 @@ export function ProjectsScreen() {
   const assignedCount = categoryProjects.filter((p: any) => p.status === 'assigned').length;
   const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted').length;
   const feedbackCount = categoryProjects.filter((p: any) => p.status === 'feedback').length;
-
-  const handleSubTabChange = (t: 'assigned' | 'submitted' | 'feedback') => {
-    setSubTab(t);
-    try {
-      localStorage.setItem('aspire_projects_subtab', t);
-    } catch {}
-  };
 
 
 
@@ -1269,7 +1300,7 @@ export function ProjectsScreen() {
           return (
             <button
               key={cat.id}
-              onClick={() => setMainCategory(cat.id as any)}
+              onClick={() => handleMainCategoryChange(cat.id as any)}
               className={cn(
                 "px-5 py-2.5 rounded-2xl text-xs font-black tracking-wide transition-all duration-200 cursor-pointer shadow-2xs border shrink-0",
                 isActive
@@ -1309,7 +1340,7 @@ export function ProjectsScreen() {
         </div>
 
         {/* PROJECTS LIST / GRID */}
-        {isLoading ? (
+        {(isLoading && filtered.length === 0) || (projectsState.length === 0 && !fetchError) ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <SkeletonCard />
             <SkeletonCard />

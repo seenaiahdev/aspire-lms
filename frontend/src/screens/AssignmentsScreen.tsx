@@ -183,6 +183,7 @@ export function AssignmentsScreen() {
   }, [user?.id]);
 
   // Keep loading = true (show spinner) while data or resolver is not ready and no cache exists
+  const locksPending = !user?.locksLoaded && (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0);
   const isScreenLoading = (loading || !resolverReady) && !hasCachedAssessments;
 
   const loadData = useCallback(async (showSpinner = true, retryCount = 0) => {
@@ -259,7 +260,9 @@ export function AssignmentsScreen() {
           }
         } catch (error: any) {
           console.error("Failed to fetch assignments:", error);
-          setFetchError(error?.message || 'Failed to fetch assignments. Please check your network connection.');
+          if (retryCount >= 1 || courseAssignments.length > 0) {
+            setFetchError(error?.message || 'Failed to fetch assignments. Please check your network connection.');
+          }
           setCourseAssignments((prev) => prev);
           if (retryCount < 2) {
             setTimeout(() => loadData(false, retryCount + 1), 2500);
@@ -320,7 +323,24 @@ export function AssignmentsScreen() {
   }, [route, params?.tab]);
 
   const [lockedToast, setLockedToast] = useState(false);
-  const [filterTab, setFilterTab] = useState<'pending' | 'completed' | 'all'>('pending');
+  const [filterTab, setFilterTab] = useState<'pending' | 'completed' | 'all'>(() => {
+    if (params?.filter && ['pending', 'completed', 'all'].includes(params.filter)) return params.filter as any;
+    try {
+      const saved = localStorage.getItem('aspire_assignments_filter_tab');
+      if (saved === 'pending' || saved === 'completed' || saved === 'all') return saved;
+    } catch {}
+    return 'pending';
+  });
+
+  const handleFilterTabChange = (f: 'pending' | 'completed' | 'all') => {
+    setFilterTab(f);
+    try {
+      localStorage.setItem('aspire_assignments_filter_tab', f);
+      const url = new URL(window.location.href);
+      url.searchParams.set('filter', f);
+      window.history.replaceState({}, '', url.toString());
+    } catch {}
+  };
 
   // Currently Selected Task for Pre-Start Quiz Details Modal
   const [selectedDetailTask, setSelectedDetailTask] = useState<PythonTask | null>(null);
@@ -350,8 +370,8 @@ export function AssignmentsScreen() {
 
   // Verified unlocked tasks for this student's batch
   const unlockedTasks = useMemo(() => {
-    // While unlock resolver is initializing, retain verified cached tasks to avoid flashing 0!
-    if (!resolverReady && hasCachedAssessments) {
+    // While unlock resolver or milestone locks are initializing, retain verified cached tasks to avoid flashing 0!
+    if ((!resolverReady || locksPending) && (hasCachedAssessments || courseAssignments.length > 0)) {
       return courseAssignments;
     }
 
@@ -375,14 +395,14 @@ export function AssignmentsScreen() {
     });
 
     // Save verified unlocked daily assessments to cache for instant display on future reloads
-    if (resolverReady) {
+    if (resolverReady && !locksPending) {
       try {
         localStorage.setItem(cacheKey, JSON.stringify(list));
       } catch {}
     }
 
     return list;
-  }, [courseAssignments, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, hasCachedAssessments, isUnlocked, isEntityUnlocked, cacheKey]);
+  }, [courseAssignments, user?.batchCode, (user as any)?.batch, user?.batchCategory, resolverReady, locksPending, hasCachedAssessments, isUnlocked, isEntityUnlocked, cacheKey]);
 
   // Filter Tasks by pending / completed tab
   const filteredTasks = useMemo(() => {
@@ -1370,7 +1390,7 @@ export function AssignmentsScreen() {
                 <button
                   key={t.id}
                   type="button"
-                  onClick={() => setFilterTab(t.id as any)}
+                  onClick={() => handleFilterTabChange(t.id as any)}
                   className={`flex-1 py-2 px-3 rounded-xl text-xs font-extrabold transition-all cursor-pointer ${
                     filterTab === t.id
                       ? 'bg-white text-primary-900 shadow-xs border border-slate-200/60 font-bold'
@@ -1396,7 +1416,7 @@ export function AssignmentsScreen() {
           </div>
 
           {/* Tasks List Cards */}
-          {isScreenLoading ? (
+          {isScreenLoading || ((!resolverReady || locksPending) && filteredTasks.length === 0) || (courseAssignments.length === 0 && !fetchError) ? (
             <div className="space-y-3">
               <AssessmentItemSkeleton />
               <AssessmentItemSkeleton />
