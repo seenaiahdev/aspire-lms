@@ -167,25 +167,26 @@ export function LearningScreen() {
 
   const [search, setSearch] = useState('');
   const [activeTab, setActiveTab] = useState<'all' | 'courses' | 'soft_skills' | 'aptitude' | 'portfolio' | 'resume' | 'linkedin'>(() => {
+    // Clean up any stale localStorage persistence so cross-tab navigation always opens main course
+    try {
+      localStorage.removeItem('aspire_learning_tab');
+    } catch {}
     const pTab = params?.category || params?.tab;
     if (pTab && ['all', 'courses', 'soft_skills', 'aptitude', 'portfolio', 'resume', 'linkedin'].includes(pTab)) {
       return pTab as any;
     }
-    try {
-      const saved = localStorage.getItem('aspire_learning_tab');
-      if (saved && ['all', 'courses', 'soft_skills', 'aptitude', 'portfolio', 'resume', 'linkedin'].includes(saved)) {
-        return saved as any;
-      }
-    } catch {}
     return 'all';
   });
 
   const handleSelectCategoryTab = useCallback((cat: any) => {
     setActiveTab(cat);
     try {
-      localStorage.setItem('aspire_learning_tab', cat);
       const url = new URL(window.location.href);
-      url.searchParams.set('category', cat);
+      if (cat === 'all') {
+        url.searchParams.delete('category');
+      } else {
+        url.searchParams.set('category', cat);
+      }
       window.history.replaceState({}, '', url.toString());
     } catch {}
   }, []);
@@ -194,6 +195,8 @@ export function LearningScreen() {
     const pTab = params?.category || params?.tab;
     if (pTab && ['all', 'courses', 'soft_skills', 'aptitude', 'portfolio', 'resume', 'linkedin'].includes(pTab)) {
       setActiveTab(pTab as any);
+    } else {
+      setActiveTab('all');
     }
   }, [params?.category, params?.tab]);
 
@@ -207,20 +210,22 @@ export function LearningScreen() {
   const batchStudentCount = preload.batchStudentCount ?? 1;
 
   const [selectedCourseId, setSelectedCourseId] = useState<string>(() => {
-    if (params?.id || params?.courseId) return params.id || params.courseId;
+    // Clean up any stale localStorage persistence so cross-tab navigation always opens main course
     try {
-      const saved = localStorage.getItem('aspire_milestones_courseId');
-      if (saved) return saved;
+      localStorage.removeItem('aspire_milestones_courseId');
     } catch {}
-    return '';
+    return params?.id || params?.courseId || '';
   });
 
   const handleSelectCourse = useCallback((cId: string) => {
     setSelectedCourseId(cId);
     try {
-      localStorage.setItem('aspire_milestones_courseId', cId);
       const url = new URL(window.location.href);
-      url.searchParams.set('courseId', cId);
+      if (!cId) {
+        url.searchParams.delete('courseId');
+      } else {
+        url.searchParams.set('courseId', cId);
+      }
       window.history.replaceState({}, '', url.toString());
     } catch {}
   }, []);
@@ -228,6 +233,8 @@ export function LearningScreen() {
   useEffect(() => {
     if (params?.id || params?.courseId) {
       setSelectedCourseId(params.id || params.courseId);
+    } else {
+      setSelectedCourseId('');
     }
   }, [params?.id, params?.courseId]);
 
