@@ -427,7 +427,7 @@ export async function fetchProjects(
         return true;
       })
       .map((item: any) => {
-        const resolved = extractBatchDueDate(item.due_date, batchCode, undefined, batchesMap);
+        const resolved = extractBatchDueDate(item.due_date, batchCode, batchCategory, batchesMap);
         return {
           ...item,
           due_date: resolved || '',

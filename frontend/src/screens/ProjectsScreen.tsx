@@ -393,7 +393,7 @@ export function ProjectsScreen() {
     setFetchError(null);
     try {
       const batchCode = user?.batchCode || (user as any)?.batch || 'A26W1';
-      const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend' : 'Weekday');
+      const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
       const enrolledCourses = user?.enrolledCourses && user.enrolledCourses.length > 0
         ? user.enrolledCourses
         : ['crs-1786624019154-w'];
@@ -469,8 +469,24 @@ export function ProjectsScreen() {
   }, [user?.id, user?.batchCode, (user as any)?.batch, user?.batchCategory, user?.enrolledCourses, projectsState.length]);
 
   useEffect(() => {
-    // Avoid redundant database query on mount if projects are already preloaded
+    // Synchronize preloaded projects and ensure student submissions are hydrated
     if (preload.projects && preload.projects.length > 0) {
+      if (projectsState.length === 0) {
+        setProjectsState(preload.projects);
+      }
+      setIsLoading(false);
+      setHasLoadedOnce(true);
+
+      const studentId = user?.id && user.id !== 'guest' ? user.id : undefined;
+      if (studentId && Object.keys(driveLinks).length === 0) {
+        fetchUserSubmissions(studentId).then((subs) => {
+          const freshLinks: Record<string, string> = {};
+          (subs || []).forEach((s: any) => {
+            if (s.problem_id) freshLinks[s.problem_id] = s.storage_url || 'submitted';
+          });
+          setDriveLinks(freshLinks);
+        }).catch(() => {});
+      }
       return;
     }
     loadProjectsAndSubmissions(projectsState.length === 0);
@@ -745,10 +761,10 @@ export function ProjectsScreen() {
         const hasLink = Boolean(driveLinks[p.id]);
         const dueDate = details?.dueDate || p.due_date || p.dueDate || '';
         const isOverdue = isDueDatePassed(dueDate);
-        const isAutoSubmitted = !hasLink && isOverdue;
+        const isAutoSubmitted = !hasLink && String(p.status || '').toLowerCase() === 'submitted';
 
         let status = 'assigned';
-        if (hasLink || isOverdue) {
+        if (hasLink || String(p.status || '').toLowerCase() === 'submitted') {
           status = 'submitted';
         }
         if (String(p.status || '').toLowerCase() === 'feedback') {
@@ -760,6 +776,8 @@ export function ProjectsScreen() {
           ...details,
           projectType,
           status,
+          hasLink,
+          isOverdue,
           isAutoSubmitted,
           course: details?.courseName || p.course || p.category || 'General Curriculum',
           dueDate,
@@ -1424,9 +1442,17 @@ export function ProjectsScreen() {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="font-extrabold text-slate-900 text-sm sm:text-base group-hover:text-[#7c3aed] transition-colors line-clamp-1">{p.title}</h3>
-                      {p.isAutoSubmitted ? (
+                      {p.hasLink ? (
+                        <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider">
+                          Submitted
+                        </span>
+                      ) : p.isAutoSubmitted ? (
                         <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider">
                           Auto-Submitted
+                        </span>
+                      ) : p.isOverdue ? (
+                        <span className="px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black uppercase tracking-wider">
+                          Overdue
                         </span>
                       ) : (
                         <span className="px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">{p.status}</span>
@@ -1480,9 +1506,17 @@ export function ProjectsScreen() {
                         <p className="text-xs font-bold text-slate-500 mt-0.5">{p.course}</p>
                       </div>
                     </div>
-                    {p.isAutoSubmitted ? (
+                    {p.hasLink ? (
+                      <span className="shrink-0 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-black uppercase tracking-wider">
+                        Submitted
+                      </span>
+                    ) : p.isAutoSubmitted ? (
                       <span className="shrink-0 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200 text-[10px] font-black uppercase tracking-wider">
                         Auto-Submitted
+                      </span>
+                    ) : p.isOverdue ? (
+                      <span className="shrink-0 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-black uppercase tracking-wider">
+                        Overdue
                       </span>
                     ) : (
                       <span className="shrink-0 px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 text-[10px] font-black uppercase tracking-wider">

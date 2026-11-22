@@ -272,6 +272,16 @@ export function WorkspaceScreen() {
         return;
       }
 
+      // Check preload first to avoid redundant query
+      if (preload.practiceProblems && preload.practiceProblems.length > 0) {
+        const found = preload.practiceProblems.find((p: any) => p.id === params.id);
+        if (found) {
+          setProblemConfig(mapDbProblem(found));
+          setLoadingProblem(false);
+          return;
+        }
+      }
+
       // If already hydrated from preload/cache, do not block screen with skeleton
       const hasPreloaded = problemConfig.id === params.id && problemConfig.title !== 'Untitled Problem';
       if (!hasPreloaded) {

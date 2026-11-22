@@ -44,8 +44,8 @@ let missCount = 0;
 let dedupCount = 0;
 let timeoutCount = 0;
 
-// ── Concurrency Pool Limiter (Avoids database connection flooding) ────────────
-const MAX_CONCURRENT_QUERIES = 4;
+// ── Concurrency Pool Limiter (Avoids database connection flooding while maintaining instant UI latency) ────
+const MAX_CONCURRENT_QUERIES = 16;
 let activeQueryCount = 0;
 const queryQueue: Array<() => void> = [];
 

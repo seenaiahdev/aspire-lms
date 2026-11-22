@@ -224,7 +224,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       `syllabus:${courseId}`,
       async () => {
         const batchCode = user?.batchCode || '';
-        const batchCategory = user?.batchCategory || 'Weekday';
+        const batchCategory = user?.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
         const resolver = await getLessonResolver([courseId], batchCode);
 
         const [
@@ -331,7 +331,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       case 'recordings':
         {
           const b = user?.batchCode || '';
-          const cat = user?.batchCategory || '';
+          const cat = user?.batchCategory || (b.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
           const enrolled = user?.enrolledCourses || [];
           const cacheKey = `recordings:${b}:${cat}:${[...enrolled].sort().join(',')}`;
           prefetchQuery(
@@ -344,7 +344,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       case 'projects':
         {
           const b = user?.batchCode || '';
-          const cat = user?.batchCategory || '';
+          const cat = user?.batchCategory || (b.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
           const enrolled = user?.enrolledCourses || [];
           const firstCourseId = enrolled[0];
           prefetchQuery(
@@ -364,7 +364,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       case 'practice':
         {
           const b = user?.batchCode || '';
-          const cat = user?.batchCategory || '';
+          const cat = user?.batchCategory || (b.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
           const enrolled = user?.enrolledCourses || [];
           const firstCourseId = enrolled[0];
           prefetchQuery(
@@ -468,7 +468,7 @@ export function PreloadProvider({ children }: { children: ReactNode }) {
       try {
         const enrolledCourses = user.enrolledCourses!;
         const batchCode = user.batchCode || '';
-        const batchCategory = user.batchCategory || 'Weekday';
+        const batchCategory = user.batchCategory || (batchCode.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
 
         const userLookupIds = Array.from(
           new Set(
