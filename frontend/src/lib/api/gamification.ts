@@ -417,6 +417,18 @@ export function isWeekdayBatchUser(user?: {
   );
 }
 
+// In-flight promise cache to deduplicate concurrent recalculateUserStreak calls
+const inFlightStreakCalculations = new Map<string, Promise<number>>();
+
+// In-memory cache for calculated streaks (30-second TTL to eliminate redundant queries)
+const streakMemoryCache = new Map<string, { streak: number; timestamp: number }>();
+const STREAK_CACHE_TTL_MS = 30 * 1000;
+
+// Circuit breaker: if RPC does not exist in schema cache, skip repeatedly calling it for 5 minutes
+let streakRpcAvailable: boolean | null = null;
+let lastRpcCheckTime = 0;
+const RPC_COOLDOWN_MS = 5 * 60 * 1000;
+
 export async function recalculateUserStreak(
   userId: string,
   currentStreak?: number,
@@ -424,28 +436,77 @@ export async function recalculateUserStreak(
 ): Promise<number> {
   if (!userId || userId === 'guest') return currentStreak ?? 0;
 
+  // 1. Check in-memory cache to prevent redundant recalculations within 30s
+  const cacheKey = `${userId}:${isWeekdayParam ?? 'auto'}`;
+  const cached = streakMemoryCache.get(cacheKey);
+  if (cached && (Date.now() - cached.timestamp < STREAK_CACHE_TTL_MS)) {
+    return cached.streak;
+  }
+
+  // 2. Deduplicate concurrent in-flight requests for the same student
+  const existing = inFlightStreakCalculations.get(cacheKey);
+  if (existing) {
+    return existing;
+  }
+
+  const calculationPromise = (async () => {
+    try {
+      const result = await executeStreakCalculation(userId, currentStreak, isWeekdayParam);
+      streakMemoryCache.set(cacheKey, { streak: result, timestamp: Date.now() });
+      return result;
+    } finally {
+      inFlightStreakCalculations.delete(cacheKey);
+    }
+  })();
+
+  inFlightStreakCalculations.set(cacheKey, calculationPromise);
+  return calculationPromise;
+}
+
+async function executeStreakCalculation(
+  userId: string,
+  currentStreak?: number,
+  isWeekdayParam?: boolean
+): Promise<number> {
+  const now = Date.now();
+  const shouldTryRpc = streakRpcAvailable !== false || (now - lastRpcCheckTime > RPC_COOLDOWN_MS);
+
   // 1. Primary Path: Fast atomic single-roundtrip database RPC (F-30)
-  try {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const todayStr = `${yyyy}-${mm}-${dd}`;
+  if (shouldTryRpc) {
+    try {
+      const today = new Date();
+      const yyyy = today.getFullYear();
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const dd = String(today.getDate()).padStart(2, '0');
+      const todayStr = `${yyyy}-${mm}-${dd}`;
 
-    const { data, error } = await supabase.rpc('calculate_user_streak', {
-      p_user_id: userId,
-      p_is_weekday: isWeekdayParam ?? null,
-      p_client_date: todayStr,
-    });
+      const { data, error } = await supabase.rpc('calculate_user_streak', {
+        p_user_id: userId,
+        p_is_weekday: isWeekdayParam ?? null,
+        p_client_date: todayStr,
+      });
 
-    if (!error && typeof data === 'number') {
-      return data;
+      if (!error && typeof data === 'number') {
+        streakRpcAvailable = true;
+        return data;
+      }
+      if (error) {
+        lastRpcCheckTime = Date.now();
+        if (error.message?.includes('schema cache') || error.code === 'PGRST202' || error.message?.includes('Could not find')) {
+          streakRpcAvailable = false;
+          if (typeof window !== 'undefined' && !(window as any).__streakRpcWarned) {
+            (window as any).__streakRpcWarned = true;
+            console.info('Database streak RPC calculate_user_streak not found in schema cache. Using client-side fallback calculation.');
+          }
+        } else {
+          console.warn('Database streak RPC failed, falling back to client-side calculation:', error.message);
+        }
+      }
+    } catch (rpcErr) {
+      lastRpcCheckTime = Date.now();
+      streakRpcAvailable = false;
+      console.warn('Streak RPC exception, falling back to client-side calculation:', rpcErr);
     }
-    if (error) {
-      console.warn('Database streak RPC failed, falling back to client-side calculation:', error.message);
-    }
-  } catch (rpcErr) {
-    console.warn('Streak RPC exception, falling back to client-side calculation:', rpcErr);
   }
 
   // 2. Resilient Fallback Path: Client-side calculation (preserves existing behavior)
