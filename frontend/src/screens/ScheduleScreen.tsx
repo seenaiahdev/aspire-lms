@@ -180,10 +180,36 @@ export function ScheduleScreen() {
   const [calendarDate, setCalendarDate] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState<Date>(today);
   
-  const [apiTasks, setApiTasks] = useState<any[]>([]);
-  const [unlockedExtraEvents, setUnlockedExtraEvents] = useState<any[]>([]);
-  const [localTasks, setLocalTasks] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [apiTasks, setApiTasks] = useState<any[]>(() => {
+    try {
+      const uKey = user?.id ? `aspire_api_tasks_cache_${user.id}` : null;
+      const rawUser = uKey ? localStorage.getItem(uKey) : null;
+      if (rawUser) return JSON.parse(rawUser);
+      const rawGeneric = localStorage.getItem('aspire_api_tasks_cache');
+      if (rawGeneric) return JSON.parse(rawGeneric);
+    } catch {}
+    return [];
+  });
+  const [unlockedExtraEvents, setUnlockedExtraEvents] = useState<any[]>(() => {
+    try {
+      const uKey = user?.id ? `aspire_unlocked_events_cache_${user.id}` : null;
+      const rawUser = uKey ? localStorage.getItem(uKey) : null;
+      if (rawUser) return JSON.parse(rawUser);
+      const rawGeneric = localStorage.getItem('aspire_unlocked_events_cache');
+      if (rawGeneric) return JSON.parse(rawGeneric);
+    } catch {}
+    return [];
+  });
+  const [localTasks, setLocalTasks] = useState<any[]>(() => {
+    try {
+      const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
+      const raw = localStorage.getItem(storageKey);
+      if (raw) return JSON.parse(raw);
+    } catch {}
+    return [];
+  });
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [loadingExtraEvents, setLoadingExtraEvents] = useState(true);
 
   const [completedTaskIds, setCompletedTaskIds] = useState<Set<string>>(() => {
     const s = new Set<string>();
@@ -205,6 +231,22 @@ export function ScheduleScreen() {
     } catch {}
     return s;
   });
+
+  useEffect(() => {
+    if (!user?.id) return;
+    try {
+      const uApi = localStorage.getItem(`aspire_api_tasks_cache_${user.id}`);
+      if (uApi) {
+        const parsed = JSON.parse(uApi);
+        if (Array.isArray(parsed) && parsed.length > 0) setApiTasks(parsed);
+      }
+      const uExtra = localStorage.getItem(`aspire_unlocked_events_cache_${user.id}`);
+      if (uExtra) {
+        const parsed = JSON.parse(uExtra);
+        if (Array.isArray(parsed) && parsed.length > 0) setUnlockedExtraEvents(parsed);
+      }
+    } catch {}
+  }, [user?.id]);
 
   const loadPersonalTasks = useCallback(async () => {
     const storageKey = user?.id ? `aspire_personal_tasks_${user.id}` : 'aspire_personal_tasks_guest';
@@ -267,7 +309,11 @@ export function ScheduleScreen() {
   }, [loadPersonalTasks]);
 
   const loadUnlockedExtraEvents = useCallback(async () => {
-    if (!user) return;
+    if (!user) {
+      setLoadingExtraEvents(false);
+      return;
+    }
+    setLoadingExtraEvents(true);
     try {
       const courseId = user.enrolledCourses?.[0];
       const batchList = Array.from(new Set([user.batchCode, 'ALL'].filter(Boolean) as string[]));
@@ -472,8 +518,16 @@ export function ScheduleScreen() {
       });
 
       setUnlockedExtraEvents(extra);
+      try {
+        localStorage.setItem('aspire_unlocked_events_cache', JSON.stringify(extra));
+        if (user?.id) {
+          localStorage.setItem(`aspire_unlocked_events_cache_${user.id}`, JSON.stringify(extra));
+        }
+      } catch {}
     } catch (err) {
       console.error('Error loading extra events:', err);
+    } finally {
+      setLoadingExtraEvents(false);
     }
   }, [user, isUnlocked, isEntityUnlocked, today, resolver]);
 
@@ -482,8 +536,11 @@ export function ScheduleScreen() {
   }, [loadUnlockedExtraEvents, user?.id, user?.batchCode, user?.batchCategory, user?.enrolledCourses?.join(','), user?.unlockedLessonIds?.join(','), unlockReady]);
 
   const loadTasks = useCallback(async () => {
-    if (!user?.batchCode) return;
-    setIsLoading(true);
+    if (!user?.batchCode) {
+      setLoadingTasks(false);
+      return;
+    }
+    setLoadingTasks(true);
     try {
       const year = calendarDate.getFullYear();
       const monthNum = calendarDate.getMonth();
@@ -525,13 +582,19 @@ export function ScheduleScreen() {
           })
           .filter((item: any) => typeof item?.dateKey === 'string' && item.dateKey.startsWith(currentMonthPrefix));
         setApiTasks(formatted);
+        try {
+          localStorage.setItem('aspire_api_tasks_cache', JSON.stringify(formatted));
+          if (user?.id) {
+            localStorage.setItem(`aspire_api_tasks_cache_${user.id}`, JSON.stringify(formatted));
+          }
+        } catch {}
       }
     } catch (err) {
       console.error(err);
     } finally {
-      setIsLoading(false);
+      setLoadingTasks(false);
     }
-  }, [calendarDate, user?.batchCode, today]);
+  }, [calendarDate, user?.batchCode, today, user?.id]);
 
   useEffect(() => {
     loadTasks();
@@ -660,6 +723,7 @@ export function ScheduleScreen() {
   const activeTasks = useMemo(() => itemsForSelectedDate.filter((item) => !item.completed), [itemsForSelectedDate]);
   const completedTasks = useMemo(() => itemsForSelectedDate.filter((item) => item.completed), [itemsForSelectedDate]);
   const totalTasks = itemsForSelectedDate.length;
+  const isLoading = (loadingTasks || loadingExtraEvents) && totalTasks === 0;
   const totalPages = Math.max(1, Math.ceil(totalTasks / ITEMS_PER_PAGE));
   const safePage = Math.min(currentPage, totalPages);
 
@@ -1238,8 +1302,23 @@ export function ScheduleScreen() {
               </div>
 
               {isLoading ? (
-                <div className="flex justify-center py-12">
-                  <div className="w-8 h-8 border-4 border-[#2563eb] border-t-transparent rounded-full animate-spin"></div>
+                <div className="space-y-3.5 animate-pulse" role="status" aria-label="Loading schedule tasks">
+                  {[1, 2, 3].map((idx) => (
+                    <div 
+                      key={idx} 
+                      className="rounded-[1.8rem] border border-slate-200/80 bg-slate-50/70 p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="flex items-start gap-4 flex-1">
+                        <div className="w-6 h-6 rounded-lg bg-slate-200 shrink-0 mt-0.5" />
+                        <div className="space-y-2 flex-1">
+                          <div className={`h-4.5 bg-slate-200 rounded-md ${idx === 1 ? 'w-3/5' : idx === 2 ? 'w-4/5' : 'w-1/2'}`} />
+                          <div className="h-3.5 w-1/3 bg-slate-200/70 rounded-md" />
+                          <div className="h-3 w-1/4 bg-slate-200/50 rounded-md" />
+                        </div>
+                      </div>
+                      <div className="h-9 w-28 bg-slate-200/80 rounded-2xl shrink-0 self-start sm:self-auto" />
+                    </div>
+                  ))}
                 </div>
               ) : totalTasks === 0 ? (
                 <div className="rounded-[1.8rem] border border-dashed border-slate-200 bg-slate-50 p-8 text-center text-slate-500">
