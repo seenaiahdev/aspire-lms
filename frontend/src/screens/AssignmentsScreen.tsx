@@ -844,17 +844,7 @@ export function AssignmentsScreen() {
                     </div>
 
                     {/* Action Controls directly underneath */}
-                    <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-between shrink-0">
-                      <div className="text-xs text-slate-400 font-medium">
-                        {userAnswers[currentMCQIndex] !== -1 ? (
-                          <span className="text-emerald-600 font-semibold flex items-center gap-1">
-                            <Check className="w-3.5 h-3.5" /> Option {String.fromCharCode(65 + userAnswers[currentMCQIndex])} selected
-                          </span>
-                        ) : (
-                          <span>Select an option to proceed</span>
-                        )}
-                      </div>
-
+                    <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-end shrink-0">
                       <button
                         onClick={() => {
                           if (currentMCQIndex < questions.length - 1) {
