@@ -768,10 +768,10 @@ export function ProjectsScreen() {
         const hasLink = Boolean(driveLinks[p.id]);
         const dueDate = details?.dueDate || p.due_date || p.dueDate || '';
         const isOverdue = isDueDatePassed(dueDate);
-        const isAutoSubmitted = !hasLink && String(p.status || '').toLowerCase() === 'submitted';
+        const isAutoSubmitted = !hasLink && (String(p.status || '').toLowerCase() === 'submitted' || isOverdue);
 
         let status = 'assigned';
-        if (hasLink || String(p.status || '').toLowerCase() === 'submitted') {
+        if (hasLink || isAutoSubmitted || String(p.status || '').toLowerCase() === 'submitted') {
           status = 'submitted';
         }
         if (String(p.status || '').toLowerCase() === 'feedback') {
@@ -848,10 +848,10 @@ export function ProjectsScreen() {
       const hasLink = Boolean(driveLinks[rawP.id]);
       const dueDate = details?.dueDate || rawP.due_date || rawP.dueDate || '';
       const isOverdue = isDueDatePassed(dueDate);
-      const isAutoSubmitted = !hasLink && String(rawP.status || '').toLowerCase() === 'submitted';
+      const isAutoSubmitted = !hasLink && (String(rawP.status || '').toLowerCase() === 'submitted' || isOverdue);
 
       let status = 'assigned';
-      if (hasLink || String(rawP.status || '').toLowerCase() === 'submitted') {
+      if (hasLink || isAutoSubmitted || String(rawP.status || '').toLowerCase() === 'submitted') {
         status = 'submitted';
       }
       if (String(rawP.status || '').toLowerCase() === 'feedback') {
