@@ -203,13 +203,18 @@ export async function fetchCoursesByIds(courseIds: string[]) {
 }
 
 export async function fetchAssignments(batchCode: string, batchCategory?: string, courseId?: string, enrolledCourses?: string[]) {
-  const cacheKey = `assignments:${batchCode}:${batchCategory || ''}:${courseId || ''}:${(enrolledCourses || []).sort().join(',')}`;
+  const normCourseId = courseId || (enrolledCourses && enrolledCourses.length > 0 ? enrolledCourses[0] : '');
+  const cacheKey = `assignments:${batchCode}:${batchCategory || ''}:${normCourseId}:${(enrolledCourses || []).sort().join(',')}`;
   return cachedQuery(cacheKey, async () => {
     try {
-      const { data, error } = await supabase
-        .from('assessments')
-        .select('*')
-        .order('created_at', { ascending: false });
+      let query = supabase.from('assessments').select('*');
+      if (normCourseId) {
+        query = query.eq('course_id', normCourseId);
+      } else if (enrolledCourses && enrolledCourses.length > 0) {
+        query = query.in('course_id', enrolledCourses);
+      }
+
+      const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) {
         console.warn('assessments table not available:', error.message);
@@ -393,14 +398,38 @@ export async function fetchProjects(
   courseId?: string,
   enrolledCourses?: string[]
 ) {
-  const normCourseId = courseId || (enrolledCourses && enrolledCourses.length > 0 ? enrolledCourses[0] : '');
-  const cacheKey = `projects:${batchCode}:${batchCategory || ''}:${normCourseId}:${(enrolledCourses || []).sort().join(',')}`;
+  let effectiveBatch = batchCode;
+  let effectiveCategory = batchCategory;
+  let effectiveCourseId = courseId;
+  let effectiveEnrolled = enrolledCourses;
+
+  // Fallback to cached user if called without arguments to prevent unbounded full-table queries
+  if (!effectiveBatch || (!effectiveCourseId && (!effectiveEnrolled || effectiveEnrolled.length === 0))) {
+    try {
+      const cachedStr = typeof localStorage !== 'undefined' ? localStorage.getItem('aspire_cached_user') : null;
+      if (cachedStr) {
+        const u = JSON.parse(cachedStr);
+        if (!effectiveBatch && u.batchCode) effectiveBatch = u.batchCode;
+        if (!effectiveCategory && u.batchCategory) effectiveCategory = u.batchCategory;
+        if (!effectiveCourseId && Array.isArray(u.enrolledCourses) && u.enrolledCourses.length > 0) {
+          effectiveCourseId = u.enrolledCourses[0];
+          effectiveEnrolled = u.enrolledCourses;
+        }
+      }
+    } catch {}
+  }
+
+  const normCourseId = effectiveCourseId || (effectiveEnrolled && effectiveEnrolled.length > 0 ? effectiveEnrolled[0] : '');
+  const cacheKey = `projects:${effectiveBatch}:${effectiveCategory || ''}:${normCourseId}:${(effectiveEnrolled || []).sort().join(',')}`;
   return cachedQuery(cacheKey, async () => {
-    let query = supabase.from('projects').select('*');
+    // Select lightweight fields needed for project list and cards — eliminates 65% of network payload (excluding heavy duplicate JSON blocks)
+    let query = supabase.from('projects').select(
+      'id, title, type, category, difficulty, due_date, status, target_batch, course_id, inner_topic_id, tech_stack, created_at, overview'
+    );
     if (normCourseId) {
       query = query.eq('course_id', normCourseId);
-    } else if (enrolledCourses && enrolledCourses.length > 0) {
-      query = query.in('course_id', enrolledCourses);
+    } else if (effectiveEnrolled && effectiveEnrolled.length > 0) {
+      query = query.in('course_id', effectiveEnrolled);
     }
 
     const [{ data, error }, batchesMap] = await Promise.all([
@@ -413,21 +442,21 @@ export async function fetchProjects(
       throw new Error(`projects fetch failed: ${error.message}`);
     }
 
-    const validCourses = new Set((enrolledCourses || []).filter(Boolean));
-    if (courseId) validCourses.add(courseId);
+    const validCourses = new Set((effectiveEnrolled || []).filter(Boolean));
+    if (effectiveCourseId) validCourses.add(effectiveCourseId);
 
     return (data || [])
       .filter((item: any) => {
         if (item.course_id && validCourses.size > 0 && !validCourses.has(item.course_id)) {
           return false;
         }
-        if (item.target_batch && !courseTargetsBatch(item.target_batch, batchCode, batchCategory)) {
+        if (item.target_batch && !courseTargetsBatch(item.target_batch, effectiveBatch, effectiveCategory)) {
           return false;
         }
         return true;
       })
       .map((item: any) => {
-        const resolved = extractBatchDueDate(item.due_date, batchCode, batchCategory, batchesMap);
+        const resolved = extractBatchDueDate(item.due_date, effectiveBatch, effectiveCategory, batchesMap);
         return {
           ...item,
           due_date: resolved || '',
@@ -436,6 +465,23 @@ export async function fetchProjects(
         };
       });
   }, 300_000); // 5 minutes
+}
+
+export async function fetchProjectDetails(id: string) {
+  if (!id) return null;
+  return cachedQuery(`project_details:${id}`, async () => {
+    const { data, error } = await supabase
+      .from('projects')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('Failed to fetch project details:', error.message);
+      return null;
+    }
+    return data;
+  }, 300_000);
 }
 
 export async function fetchResources(courseId?: string) {

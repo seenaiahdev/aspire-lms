@@ -85,7 +85,7 @@ export function AchievementsScreen() {
           currentUser?.id ? fetchUserSubmissions(currentUser.id) : Promise.resolve([]),
           currentUser?.id ? fetchAssignmentAttempts(currentUser.id) : Promise.resolve([]),
           currentUser?.id ? fetchQuizAttempts(currentUser.id) : Promise.resolve([]),
-          fetchProjects()
+          fetchProjects(currentUser?.batchCode, currentUser?.batchCategory, currentUser?.enrolledCourses?.[0], currentUser?.enrolledCourses)
         ]);
         setBadges(badgesData || []);
         setSubSubmissions(subsData || []);

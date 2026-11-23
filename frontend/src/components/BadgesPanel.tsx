@@ -94,7 +94,7 @@ export function BadgesPanel() {
           user?.id ? fetchUserSubmissions(user.id) : Promise.resolve([]),
           user?.id ? fetchAssignmentAttempts(user.id) : Promise.resolve([]),
           user?.id ? fetchQuizAttempts(user.id) : Promise.resolve([]),
-          fetchProjects()
+          fetchProjects(user?.batchCode, user?.batchCategory, user?.enrolledCourses?.[0], user?.enrolledCourses)
         ]);
         if (!active) return;
         setBadges(b || []);

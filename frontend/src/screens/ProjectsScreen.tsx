@@ -4,7 +4,7 @@ import {
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
   Upload, FolderOpen, Eye, Lock, LayoutGrid, List, ChevronRight,
 } from 'lucide-react';
-import { fetchProjects, extractBatchDueDate, submitPracticeProblem, fetchUserSubmissions } from '@/lib/api';
+import { fetchProjects, fetchProjectDetails, extractBatchDueDate, submitPracticeProblem, fetchUserSubmissions } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
 import { uploadSubmissionBundle } from '@/lib/submissionStorage';
@@ -119,8 +119,11 @@ const projectGuides: Record<string, ProjectGuide> = {
   },
 };
 
-function formatProjectDescription(description: string): string {
-  if (!description) return '';
+function formatProjectDescription(description?: string, overview?: string): string {
+  if (overview && typeof overview === 'string' && overview.trim()) {
+    return overview.trim();
+  }
+  if (!description) return 'Hands-on practical development project.';
   const trimmed = description.trim();
   if (trimmed.startsWith('{')) {
     try {
@@ -160,7 +163,7 @@ function formatDisplayDueDate(rawDueDate?: string | null): string {
   return clean;
 }
 
-function parseProjectDetails(p: any, batchCode?: string) {
+function parseProjectDetails(p: any, batchCode?: string, batchCategory?: string) {
   if (!p) return null;
 
   let descObj: any = {};
@@ -189,7 +192,7 @@ function parseProjectDetails(p: any, batchCode?: string) {
     (overview ? overview.split('. ')[0] + '.' : '');
 
   const rawDue = p.due_date || descObj.due_date || descObj.dueDate || p.dueDate || '';
-  const resolvedBatchDue = extractBatchDueDate(rawDue, batchCode);
+  const resolvedBatchDue = extractBatchDueDate(rawDue, batchCode, batchCategory);
   const dueDate = resolvedBatchDue !== null ? (resolvedBatchDue || '') : (typeof rawDue === 'string' && !rawDue.trim().startsWith('{') ? rawDue : '');
 
   let rawReqs = p.requirements || descObj.requirements || [];
@@ -726,6 +729,7 @@ export function ProjectsScreen() {
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
     const locksPending = !user?.locksLoaded && (!user?.unlockedLessonIds || user.unlockedLessonIds.length === 0);
+    const batchCategory = user?.batchCategory || (user?.batchCode?.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
 
     return projectsState
       // Only surface projects belonging to lessons that are unlocked in Milestones for this student.
@@ -753,10 +757,13 @@ export function ProjectsScreen() {
         }
 
         if (!resolverReady || locksPending) return true;
-        return isEntityUnlocked(p);
+        // Direct match with student's unlocked milestone lesson IDs
+        if (p.inner_topic_id && user?.unlockedLessonIds?.includes(p.inner_topic_id)) return true;
+        // Resolver Scheme A -> Scheme B bridge fallback
+        return isEntityUnlocked(p) || (p.inner_topic_id ? isUnlocked(p.inner_topic_id) : false);
       })
       .map((p: any) => {
-        const details = parseProjectDetails(p, user?.batchCode);
+        const details = parseProjectDetails(p, user?.batchCode, batchCategory);
         const projectType = (p.project_type || p.type || 'mini').toLowerCase();
         const hasLink = Boolean(driveLinks[p.id]);
         const dueDate = details?.dueDate || p.due_date || p.dueDate || '';
@@ -784,7 +791,7 @@ export function ProjectsScreen() {
           skills: details?.skills || []
         };
       });
-  }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked, resolverReady, user?.locksLoaded, user?.unlockedLessonIds]);
+  }, [projectsState, driveLinks, isUnlocked, isEntityUnlocked, resolverReady, user?.locksLoaded, user?.unlockedLessonIds, user?.batchCode, user?.batchCategory]);
 
   useEffect(() => {
     localStorage.setItem('projectDriveLinks', JSON.stringify(driveLinks));
@@ -835,15 +842,16 @@ export function ProjectsScreen() {
                    projectsState.find((p: any) => p.id === selectedProjectId);
       if (!rawP) return null;
 
-      const details = parseProjectDetails(rawP, user?.batchCode);
+      const batchCategory = user?.batchCategory || (user?.batchCode?.toUpperCase().includes('S') ? 'Weekend Batch' : 'Weekday Batch');
+      const details = parseProjectDetails(rawP, user?.batchCode, batchCategory);
       const projectType = (rawP.project_type || rawP.type || rawP.projectType || 'mini').toLowerCase();
       const hasLink = Boolean(driveLinks[rawP.id]);
       const dueDate = details?.dueDate || rawP.due_date || rawP.dueDate || '';
       const isOverdue = isDueDatePassed(dueDate);
-      const isAutoSubmitted = !hasLink && isOverdue;
+      const isAutoSubmitted = !hasLink && String(rawP.status || '').toLowerCase() === 'submitted';
 
       let status = 'assigned';
-      if (hasLink || isOverdue) {
+      if (hasLink || String(rawP.status || '').toLowerCase() === 'submitted') {
         status = 'submitted';
       }
       if (String(rawP.status || '').toLowerCase() === 'feedback') {
@@ -855,15 +863,32 @@ export function ProjectsScreen() {
         ...details,
         projectType,
         status,
+        hasLink,
+        isOverdue,
         isAutoSubmitted,
-        shortDescription: details?.shortDescription || formatProjectDescription(rawP.description) || details?.overview || '',
+        shortDescription: details?.shortDescription || formatProjectDescription(rawP.description, rawP.overview) || details?.overview || '',
         course: details?.courseName || rawP.course || rawP.category || 'General Curriculum',
         dueDate,
         skills: details?.skills || []
       };
     },
-    [selectedProjectId, effectiveProjects, projectsState, driveLinks]
+    [selectedProjectId, effectiveProjects, projectsState, driveLinks, user?.batchCode, user?.batchCategory]
   );
+
+  // Lazy-load detailed rubric, requirements, and steps for the selected project
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    const existing = projectsState.find((p) => p.id === selectedProjectId);
+    if (existing && (!existing.requirements || existing.requirements.length === 0)) {
+      fetchProjectDetails(selectedProjectId).then((fullData) => {
+        if (fullData) {
+          setProjectsState((prev) =>
+            prev.map((p) => (p.id === selectedProjectId ? { ...p, ...fullData } : p))
+          );
+        }
+      }).catch((e) => console.warn('Could not load detailed project specs:', e));
+    }
+  }, [selectedProjectId, projectsState]);
   const selectedGuide = selectedProject ? (projectGuides[selectedProject.id] || {
     brief: selectedProject.shortDescription || formatProjectDescription(selectedProject.description) || selectedProject.overview,
     techStack: selectedProject.skills,
@@ -1525,7 +1550,7 @@ export function ProjectsScreen() {
                     )}
                   </div>
 
-                  <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{formatProjectDescription(p.description)}</p>
+                  <p className="text-xs font-medium text-slate-600 mb-4 leading-relaxed line-clamp-2">{formatProjectDescription(p.description, p.overview)}</p>
                   
                   <div className="flex flex-wrap gap-1.5 mb-4">
                     {p.skills.map((s: string) => (
