@@ -1,7 +1,12 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { Route } from './routes';
 import { cleanPhoneSuffix } from './utils';
+
+export interface NavBlocker {
+  isBlocked: boolean;
+  onAttempt?: (targetRoute: Route, targetParams?: Record<string, string>) => void;
+}
 
 interface NavContextValue {
   route: Route;
@@ -16,6 +21,8 @@ interface NavContextValue {
   setCommandOpen: (open: boolean) => void;
   notificationsOpen: boolean;
   setNotificationsOpen: (open: boolean) => void;
+  navBlocker: NavBlocker | null;
+  setNavBlocker: (blocker: NavBlocker | null) => void;
 }
 
 const NavContext = createContext<NavContextValue | null>(null);
@@ -128,11 +135,26 @@ export function NavProvider({ children }: { children: ReactNode }) {
   const [commandOpen, setCommandOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
 
+  // Navigation blocker ref & state (for active exam sessions)
+  const blockerRef = useRef<NavBlocker | null>(null);
+  const [navBlockerState, setNavBlockerState] = useState<NavBlocker | null>(null);
+
+  const setNavBlocker = useCallback((blocker: NavBlocker | null) => {
+    blockerRef.current = blocker;
+    setNavBlockerState(blocker);
+  }, []);
+
   // Navigate function with URL Hash & localStorage route sync
   const navigate = useCallback((r: Route, p: Record<string, string> = {}) => {
     let targetRoute = r;
     if (targetRoute === 'quizzes') targetRoute = 'weekly-assessment';
     if (targetRoute === 'assignments') targetRoute = 'daily-assessment';
+
+    // Intercept navigation if a guard is active (e.g. active daily assessment in progress)
+    if (blockerRef.current?.isBlocked && blockerRef.current.onAttempt) {
+      blockerRef.current.onAttempt(targetRoute, p);
+      return;
+    }
 
     setRoute(targetRoute);
     setParams(p);
@@ -246,7 +268,9 @@ export function NavProvider({ children }: { children: ReactNode }) {
         commandOpen, 
         setCommandOpen,
         notificationsOpen,
-        setNotificationsOpen
+        setNotificationsOpen,
+        navBlocker: navBlockerState,
+        setNavBlocker
       }}
     >
       {children}

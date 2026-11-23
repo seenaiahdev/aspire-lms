@@ -141,7 +141,7 @@ export function AssignmentsScreen() {
   const { user, updateUser } = useUser();
   const toast = useToast();
   const { isUnlocked, isEntityUnlocked, ready: resolverReady } = useUnlockResolver();
-  const { navigate, params, route } = useNav();
+  const { navigate, params, route, setNavBlocker } = useNav();
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
   const cacheKey = useMemo(() => getAssessCacheKey(user?.id), [user?.id]);
@@ -358,8 +358,50 @@ export function AssignmentsScreen() {
   const [quizStatus, setQuizStatus] = useState<'taking' | 'results' | 'review'>('taking');
   const [userScore, setUserScore] = useState(0);
   const [confirmQuizAction, setConfirmQuizAction] = useState<'submit' | 'exit' | null>(null);
+  const [pendingNavigation, setPendingNavigation] = useState<{ route: any; params?: Record<string, string> } | null>(null);
   const [userCode, setUserCode] = useState('');
   const [codeTested, setCodeTested] = useState(false);
+
+  // ── Navigation Guard: Prevent accidental exit during active MCQ exam ──
+  useEffect(() => {
+    if (activeTask && quizStatus === 'taking') {
+      // 1. Intercept internal in-app navigation (Sidebar tabs, TopNav links)
+      setNavBlocker({
+        isBlocked: true,
+        onAttempt: (targetRoute, targetParams) => {
+          setPendingNavigation({ route: targetRoute, params: targetParams });
+          setConfirmQuizAction('exit');
+        },
+      });
+
+      // 2. Intercept browser back/forward buttons (popstate)
+      window.history.pushState({ assessmentActive: true }, '', window.location.href);
+
+      const handlePopState = () => {
+        window.history.pushState({ assessmentActive: true }, '', window.location.href);
+        setPendingNavigation(null);
+        setConfirmQuizAction('exit');
+      };
+
+      // 3. Intercept tab close / reload (beforeunload)
+      const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+        e.preventDefault();
+        e.returnValue = '';
+        return '';
+      };
+
+      window.addEventListener('popstate', handlePopState);
+      window.addEventListener('beforeunload', handleBeforeUnload);
+
+      return () => {
+        setNavBlocker(null);
+        window.removeEventListener('popstate', handlePopState);
+        window.removeEventListener('beforeunload', handleBeforeUnload);
+      };
+    } else {
+      setNavBlocker(null);
+    }
+  }, [activeTask, quizStatus, setNavBlocker]);
 
   useEffect(() => {
     if (params?.id && courseAssignments.length > 0 && !activeTask) {
@@ -505,10 +547,21 @@ export function AssignmentsScreen() {
   const handleConfirmQuizAction = () => {
     if (confirmQuizAction === 'submit') {
       handleNextOrSubmit();
+      setConfirmQuizAction(null);
     } else if (confirmQuizAction === 'exit') {
-      closeTaskAndReturnToAssignments();
+      const target = pendingNavigation;
+      setPendingNavigation(null);
+      setConfirmQuizAction(null);
+      setActiveTask(null);
+      setSelectedDetailTask(null);
+      if (target) {
+        navigate(target.route, target.params);
+      } else {
+        closeTaskAndReturnToAssignments();
+      }
+    } else {
+      setConfirmQuizAction(null);
     }
-    setConfirmQuizAction(null);
   };
 
   // Restore active task/details on page refresh or direct URL visit
@@ -680,16 +733,16 @@ export function AssignmentsScreen() {
     const currentQ = questions[currentMCQIndex];
 
     return (
-      <div className="fixed inset-0 z-[9999] bg-slate-50 text-slate-900 h-screen overflow-hidden p-3 sm:p-6 font-sans animate-fade-in flex flex-col justify-between">
+      <div className="w-full flex-1 flex flex-col justify-between max-w-4xl mx-auto font-sans animate-fade-in min-h-[calc(100vh-10rem)] max-h-[calc(100vh-6.5rem)] overflow-hidden">
         
         {/* Full-Screen Top Header Bar */}
         {quizStatus === 'taking' && (
-          <div className="w-full max-w-5xl mx-auto flex items-center justify-between gap-4 pb-2 shrink-0 relative z-10">
+          <div className="w-full flex items-center justify-between gap-3 pb-2.5 shrink-0 relative z-10 border-b border-slate-200/70">
             <button
               onClick={() => openQuizConfirm('exit')}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all active:scale-95 shrink-0 border border-slate-200 shadow-sm"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-100 text-slate-800 text-xs font-bold transition-all active:scale-95 shrink-0 border border-slate-200 shadow-2xs cursor-pointer"
             >
-              <ArrowLeft className="w-4 h-4 text-primary-500" />
+              <ArrowLeft className="w-3.5 h-3.5 text-primary-500" />
               <span>Exit Practice</span>
             </button>
 
@@ -697,12 +750,12 @@ export function AssignmentsScreen() {
               <span className="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-[#3b52a4] border border-indigo-100 text-[11px] font-extrabold shrink-0">
                 {activeTask.category}
               </span>
-              <h2 className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight truncate">
+              <h2 className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight truncate max-w-xs sm:max-w-md">
                 {activeTask.title}
               </h2>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               <span className="px-2.5 py-0.5 rounded-lg bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold flex items-center gap-1">
                 <Trophy className="w-3.5 h-3.5 text-amber-500" />
                 +{activeTask.xp} XP
@@ -713,88 +766,114 @@ export function AssignmentsScreen() {
 
 
         {/* PRACTICE SCREEN BODY (100% STATIC HEIGHT - ZERO SCROLLBARS) */}
-        <div className="w-full max-w-5xl mx-auto my-auto flex-1 flex flex-col justify-between space-y-2.5 relative z-10 overflow-hidden py-1">
+        <div className="w-full flex-1 flex flex-col justify-between relative z-10 overflow-hidden py-1">
 
           {/* ════════ TYPE 1: MCQ EXAM ════════ */}
           {activeTask.type === 'mcq' && (
             <>
               {quizStatus === 'taking' && currentQ ? (
-                <div className="space-y-6 flex-1 flex flex-col justify-between overflow-hidden max-w-5xl mx-auto w-full px-2 sm:px-8 py-2">
+                <div className="space-y-3 flex-1 flex flex-col justify-between overflow-hidden w-full py-1">
                   
-                  {/* Sleek Premium Question Counter Bar */}
-                  <div className="flex items-center justify-between gap-3 shrink-0 pb-4 border-b border-slate-200">
+                  {/* Sleek Question Counter Bar */}
+                  <div className="flex items-center justify-between gap-3 shrink-0 pb-2 border-b border-slate-200/80">
                     <div className="flex items-center gap-2">
-                      <span className="px-3 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs tracking-[0.24em]">
+                      <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-bold text-xs tracking-wider">
                         {currentMCQIndex + 1} / {questions.length}
                       </span>
-                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-[0.32em] hidden sm:inline-flex">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest hidden sm:inline-flex">
                         Question {currentMCQIndex + 1}
                       </span>
                     </div>
 
                     {/* EXAM MODE BADGE */}
-                    <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-slate-100 border border-slate-200">
+                    <div className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-100 border border-slate-200">
                       <Clock className="w-3.5 h-3.5 text-slate-500" />
-                      <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-[0.32em]">Exam Mode</span>
+                      <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider">Exam Mode</span>
                     </div>
                   </div>
 
-                  {/* Question Container (Full-Screen Layout) */}
-                  <div className="flex-1 flex flex-col overflow-y-auto [&::-webkit-scrollbar]:hidden pb-6">
-                    <div className="shrink-0 mt-4 bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 right-0 h-1.5 bg-primary-500" />
-                      <div className="mb-5">
-                        <h3 className="font-semibold text-slate-900 text-lg sm:text-xl leading-7">
-                          {currentQ.question}
-                        </h3>
+                  {/* Question & Options Card (Static Layout, Zero Scrollbars) */}
+                  <div className="flex-1 flex flex-col justify-between bg-white p-5 sm:p-6 rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden">
+                    <div className="absolute top-0 left-0 right-0 h-1 bg-primary-500" />
+                    
+                    {/* Question Header & Code Snippet */}
+                    <div className="shrink-0 mb-2">
+                      <h3 className="font-semibold text-slate-900 text-base sm:text-lg leading-snug">
+                        {currentQ.question}
+                      </h3>
 
-                        {currentQ.codeSnippet && (
-                          <pre className="p-4 rounded-2xl bg-slate-950 text-slate-200 font-mono text-sm overflow-x-auto shadow-inner mt-4 border border-slate-800">
-                            <code>{currentQ.codeSnippet}</code>
-                          </pre>
+                      {currentQ.codeSnippet && (
+                        <pre className="p-3 sm:p-3.5 rounded-xl bg-slate-950 text-slate-200 font-mono text-xs overflow-x-auto shadow-inner mt-2.5 border border-slate-800 max-h-28">
+                          <code>{currentQ.codeSnippet}</code>
+                        </pre>
+                      )}
+                    </div>
+
+                    {/* Clean 2x2 Options Grid with Letter Badges (A, B, C, D) */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 sm:gap-3 my-auto pt-1">
+                      {currentQ.options.map((optionText, idx) => {
+                        const isSelected = userAnswers[currentMCQIndex] === idx;
+                        const optionLetter = String.fromCharCode(65 + idx);
+
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSelectOption(idx)}
+                            className={`w-full text-left rounded-xl border p-3 sm:p-3.5 transition-all duration-150 flex items-center gap-3 cursor-pointer select-none ${
+                              isSelected
+                                ? 'border-primary-500 bg-primary-50/70 shadow-xs ring-1 ring-primary-500/30'
+                                : 'border-slate-200 bg-slate-50/70 hover:border-slate-300 hover:bg-slate-100/80 active:scale-[0.99]'
+                            }`}
+                          >
+                            <div
+                              className={`w-7 h-7 rounded-lg font-bold text-xs flex items-center justify-center shrink-0 transition-colors ${
+                                isSelected
+                                  ? 'bg-primary-600 text-white'
+                                  : 'bg-white border border-slate-300 text-slate-600 shadow-2xs'
+                              }`}
+                            >
+                              {optionLetter}
+                            </div>
+                            <span className={`text-xs sm:text-sm flex-1 leading-snug ${isSelected ? 'text-slate-900 font-semibold' : 'text-slate-700 font-medium'}`}>
+                              {optionText}
+                            </span>
+                            <div className={`w-4 h-4 rounded-full border flex items-center justify-center shrink-0 transition-all ${isSelected ? 'border-primary-600 bg-primary-600 text-white' : 'border-slate-300 bg-white'}`}>
+                              {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Action Controls directly underneath */}
+                    <div className="pt-3 mt-2 border-t border-slate-100 flex items-center justify-between shrink-0">
+                      <div className="text-xs text-slate-400 font-medium">
+                        {userAnswers[currentMCQIndex] !== -1 ? (
+                          <span className="text-emerald-600 font-semibold flex items-center gap-1">
+                            <Check className="w-3.5 h-3.5" /> Option {String.fromCharCode(65 + userAnswers[currentMCQIndex])} selected
+                          </span>
+                        ) : (
+                          <span>Select an option to proceed</span>
                         )}
                       </div>
 
-                      {/* Clean List Options */}
-                      <div className="flex flex-col gap-3">
-                        {currentQ.options.map((optionText, idx) => {
-                          const isSelected = userAnswers[currentMCQIndex] === idx;
-
-                          return (
-                            <button
-                              key={idx}
-                              type="button"
-                              onClick={() => handleSelectOption(idx)}
-                              className={`w-full text-left rounded-2xl border px-4 py-3 transition-all duration-200 flex items-center gap-3 ${isSelected ? 'border-primary-500 bg-primary-50' : 'border-slate-200 bg-slate-50 hover:border-slate-300 hover:bg-slate-100'}`}
-                            >
-                              <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-primary-600 bg-primary-600' : 'border-slate-300 bg-white'}`}>
-                                {isSelected && <div className="w-2 h-2 rounded-full bg-white" />}
-                              </div>
-                              <span className={`text-sm ${isSelected ? 'text-slate-900 font-semibold' : 'text-slate-700'}`}>
-                                {optionText}
-                              </span>
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <button
+                        onClick={() => {
+                          if (currentMCQIndex < questions.length - 1) {
+                            handleNextOrSubmit();
+                          } else {
+                            openQuizConfirm('submit');
+                          }
+                        }}
+                        disabled={userAnswers[currentMCQIndex] === -1}
+                        className="px-6 py-2.5 rounded-xl bg-primary-600 hover:bg-primary-700 text-white font-semibold text-xs sm:text-sm disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-xs flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                      >
+                        <span>{currentMCQIndex < questions.length - 1 ? 'Next Question' : 'Submit Exam'}</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
                     </div>
-                  </div>
 
-                  {/* Action Controls */}
-                  <div className="pt-5 shrink-0 flex flex-col justify-end w-full border-t border-slate-200 mt-auto">
-                    <button
-                      onClick={() => {
-                        if (currentMCQIndex < questions.length - 1) {
-                          handleNextOrSubmit();
-                        } else {
-                          openQuizConfirm('submit');
-                        }
-                      }}
-                      disabled={userAnswers[currentMCQIndex] === -1}
-                      className="w-full max-w-sm px-7 py-3 rounded-2xl bg-primary-600 text-white font-semibold text-sm hover:bg-primary-700 disabled:bg-slate-200 disabled:text-slate-400 transition-all tracking-[0.16em] shadow-sm self-end"
-                    >
-                      {currentMCQIndex < questions.length - 1 ? 'Next Question' : 'Submit Exam'}
-                    </button>
                   </div>
 
                 </div>
@@ -1038,53 +1117,56 @@ export function AssignmentsScreen() {
             </div>
           )}
 
-          <Modal open={confirmQuizAction !== null} onClose={() => setConfirmQuizAction(null)} size="sm">
+          <Modal open={confirmQuizAction !== null} onClose={() => { setConfirmQuizAction(null); setPendingNavigation(null); }} size="sm">
             <div className="p-6 sm:p-8">
               <div className="flex items-start gap-4">
-                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${confirmQuizAction === 'submit' ? 'bg-primary-50 text-primary-600' : 'bg-slate-100 text-slate-700'}`}>
-                  {confirmQuizAction === 'submit' ? <CheckCircle2 className="w-6 h-6" /> : <HelpCircle className="w-6 h-6" />}
+                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${confirmQuizAction === 'submit' ? 'bg-primary-50 text-primary-600' : 'bg-amber-50 text-amber-600 border border-amber-200'}`}>
+                  {confirmQuizAction === 'submit' ? <CheckCircle2 className="w-6 h-6" /> : <AlertCircle className="w-6 h-6" />}
                 </div>
 
                 <div className="min-w-0">
-                  <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">
-                    {confirmQuizAction === 'submit' ? 'Submit Exam' : 'Exit Practice'}
+                  <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
+                    {confirmQuizAction === 'submit' ? 'Submit Exam' : 'Exit Assessment'}
                   </p>
-                  <h3 className="mt-2 text-xl font-semibold text-slate-900">
-                    {confirmQuizAction === 'submit' ? 'Submit your answers now?' : 'Leave this assessment session?'}
+                  <h3 className="mt-1.5 text-lg sm:text-xl font-bold text-slate-900">
+                    {confirmQuizAction === 'submit' ? 'Submit your answers now?' : 'Are you sure you want to exit?'}
                   </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-500">
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600">
                     {confirmQuizAction === 'submit'
                       ? 'Your current answer sheet will be scored and the results screen will open immediately.'
-                      : 'You can return to the assignment hub, but this quiz session will be closed for now.'}
+                      : 'Are you sure you want to exit the assessment? Your unsaved exam progress will be lost.'}
                   </p>
                 </div>
               </div>
 
               <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                 <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-slate-500">Question</span>
-                  <span className="font-semibold text-slate-900">{currentMCQIndex + 1} of {questions.length}</span>
+                  <span className="text-slate-500 font-medium">Exam Progress</span>
+                  <span className="font-semibold text-slate-900">{currentMCQIndex + 1} of {questions.length} Questions</span>
                 </div>
-                <div className="mt-3 h-2 rounded-full bg-slate-200 overflow-hidden">
+                <div className="mt-2.5 h-2 rounded-full bg-slate-200 overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-primary-600"
+                    className="h-full rounded-full bg-primary-600 transition-all duration-300"
                     style={{ width: `${Math.round(((currentMCQIndex + 1) / Math.max(questions.length, 1)) * 100)}%` }}
                   />
                 </div>
               </div>
 
-              <div className="mt-6 flex flex-col sm:flex-row gap-3 sm:justify-end">
+              <div className="mt-6 flex flex-col-reverse sm:flex-row gap-2.5 sm:justify-end">
                 <button
                   type="button"
-                  onClick={() => setConfirmQuizAction(null)}
-                  className="rounded-2xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                  onClick={() => {
+                    setConfirmQuizAction(null);
+                    setPendingNavigation(null);
+                  }}
+                  className="rounded-xl border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 active:scale-95 cursor-pointer"
                 >
-                  Continue Assessment
+                  Stay & Continue Exam
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmQuizAction}
-                  className={`rounded-2xl px-5 py-3 text-sm font-semibold text-white transition shadow-sm ${confirmQuizAction === 'submit' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-rose-600 hover:bg-rose-700'}`}
+                  className={`rounded-xl px-5 py-2.5 text-sm font-semibold text-white transition shadow-xs active:scale-95 cursor-pointer ${confirmQuizAction === 'submit' ? 'bg-primary-600 hover:bg-primary-700' : 'bg-rose-600 hover:bg-rose-700'}`}
                 >
                   {confirmQuizAction === 'submit' ? 'Submit Now' : 'Exit Assessment'}
                 </button>
