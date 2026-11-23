@@ -733,7 +733,7 @@ export function AssignmentsScreen() {
     const currentQ = questions[currentMCQIndex];
 
     return (
-      <div className="w-full flex-1 flex flex-col justify-between max-w-4xl mx-auto font-sans animate-fade-in min-h-[calc(100vh-10rem)] max-h-[calc(100vh-6.5rem)] overflow-hidden">
+      <div className="w-full flex-1 flex flex-col justify-between mx-auto font-sans animate-fade-in min-h-[calc(100vh-10rem)] max-h-[calc(100vh-6.5rem)] overflow-hidden">
         
         {/* Full-Screen Top Header Bar */}
         {quizStatus === 'taking' && (
@@ -746,11 +746,8 @@ export function AssignmentsScreen() {
               <span>Exit Practice</span>
             </button>
 
-            <div className="flex items-center gap-2 text-center min-w-0">
-              <span className="px-2.5 py-0.5 rounded-lg bg-indigo-50 text-[#3b52a4] border border-indigo-100 text-[11px] font-extrabold shrink-0">
-                {activeTask.category}
-              </span>
-              <h2 className="font-extrabold text-slate-900 text-xs sm:text-sm tracking-tight truncate max-w-xs sm:max-w-md">
+            <div className="flex items-center text-center min-w-0">
+              <h2 className="font-extrabold text-slate-900 text-sm sm:text-base tracking-tight truncate">
                 {activeTask.title}
               </h2>
             </div>
@@ -924,7 +921,7 @@ export function AssignmentsScreen() {
                 </div>
               ) : quizStatus === 'review' ? (
                 /* ════════ REVIEW MODE ════════ */
-                <div className="flex-1 w-full max-w-3xl mx-auto flex flex-col h-full overflow-hidden pt-4 sm:pt-8 animate-fade-in">
+                <div className="flex-1 w-full max-w-5xl mx-auto flex flex-col h-full overflow-hidden pt-4 sm:pt-8 animate-fade-in">
                   
                   <div className="flex items-center justify-between pb-4 border-b border-slate-200 shrink-0">
                     <h2 className="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
