@@ -222,8 +222,16 @@ export function LiveClassesScreen() {
     const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const target = norm(cls.title || cls.session_title);
     if (target) {
-      const match = presentations.find((p) => norm(p.title) === target || norm(p.lesson_name) === target);
-      if (match) return match;
+      const exactMatch = presentations.find((p) => norm(p.title) === target || norm(p.lesson_name) === target);
+      if (exactMatch) return exactMatch;
+
+      const fuzzyMatch = presentations.find((p) => {
+        const pt = norm(p.title);
+        const pl = norm(p.lesson_name);
+        return (pt && (pt.includes(target) || target.includes(pt))) ||
+               (pl && (pl.includes(target) || target.includes(pl)));
+      });
+      if (fuzzyMatch) return fuzzyMatch;
     }
     return null;
   }, [presentations, resolver]);
@@ -1205,6 +1213,26 @@ export function LiveClassesScreen() {
               </div>
 
               <div className="shrink-0 flex items-center gap-2">
+                {(() => {
+                  const sessionPpt = getSessionPpt(cls);
+                  if (sessionPpt && (cls.status === 'completed' || isPptUnlocked(sessionPpt))) {
+                    return (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate('presentation', { id: sessionPpt.id, from: 'classroom' });
+                        }}
+                        className="px-3.5 py-2.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
+                        title="View Class Slides"
+                      >
+                        <PresentationIcon className="w-3.5 h-3.5" />
+                        <span>Slides</span>
+                      </button>
+                    );
+                  }
+                  return null;
+                })()}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -1325,12 +1353,34 @@ export function LiveClassesScreen() {
                     })()}
                   </div>
                 ) : cls.status === 'completed' ? (
-                  <button 
-                    onClick={() => handleWatchRecording(cls)}
-                    className="w-full py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 cursor-pointer"
-                  >
-                    <Play className="w-4 h-4 fill-white" /> Watch Recording
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => handleWatchRecording(cls)}
+                      className="flex-1 py-3 rounded-xl bg-gradient-to-r from-[#6d28d9] via-[#7c3aed] to-[#8b5cf6] hover:brightness-110 text-white text-xs font-extrabold transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-95 cursor-pointer"
+                    >
+                      <Play className="w-4 h-4 fill-white" /> Watch Recording
+                    </button>
+                    {(() => {
+                      const sessionPpt = getSessionPpt(cls);
+                      if (sessionPpt && (cls.status === 'completed' || isPptUnlocked(sessionPpt))) {
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate('presentation', { id: sessionPpt.id, from: 'classroom' });
+                            }}
+                            className="px-3.5 py-3 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
+                            title="View Class Slides"
+                          >
+                            <PresentationIcon className="w-4 h-4" />
+                            <span>Slides</span>
+                          </button>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 ) : (
                   <button 
                     onClick={() => handleToggleReminder(cls)}

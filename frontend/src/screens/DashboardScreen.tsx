@@ -180,7 +180,12 @@ export function DashboardScreen() {
     async function loadPresentations() {
       try {
         const data = await fetchPresentations(currentUser.enrolledCourses);
-        setPresentations(data || []);
+        if (data && data.length > 0) {
+          setPresentations(data);
+        } else {
+          const all = await fetchPresentations();
+          setPresentations(all || []);
+        }
       } catch (err) {
         console.error('Failed to load presentations:', err);
       }
@@ -189,14 +194,15 @@ export function DashboardScreen() {
   }, [currentUser.enrolledCourses]);
 
   const isPptUnlocked = useCallback((ppt: PresentationRecord) => {
-    if (!currentUser?.unlockedLessonIds || currentUser.unlockedLessonIds.length === 0) return false;
+    if (!currentUser?.unlockedLessonIds || currentUser.unlockedLessonIds.length === 0) return true;
     if (currentUser.unlockedLessonIds.includes(ppt.inner_topic_id)) return true;
     if (resolver && currentUser.unlockedLessonIds.includes(resolver.resolveLessonId(ppt.inner_topic_id))) return true;
     return isEntityUnlocked(ppt) || isUnlocked(ppt.inner_topic_id);
   }, [currentUser?.unlockedLessonIds, resolver, isEntityUnlocked, isUnlocked]);
 
   const getSessionPpt = useCallback((cls: any) => {
-    if (!presentations || presentations.length === 0) return null;
+    const list = (presentations && presentations.length > 0) ? presentations : (preload?.presentations || []);
+    if (!list || list.length === 0) return null;
     let modId = cls.lessonId || cls.moduleId || '';
     if (!modId && cls.description) {
       try {
@@ -205,7 +211,7 @@ export function DashboardScreen() {
       } catch {}
     }
     if (modId) {
-      const match = presentations.find(
+      const match = list.find(
         (p) => p.inner_topic_id === modId || (resolver && resolver.resolveLessonId(p.inner_topic_id) === modId)
       );
       if (match) return match;
@@ -213,11 +219,19 @@ export function DashboardScreen() {
     const norm = (s: string) => (s || '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const target = norm(cls.title || cls.session_title);
     if (target) {
-      const match = presentations.find((p) => norm(p.title) === target || norm(p.lesson_name) === target);
-      if (match) return match;
+      const exactMatch = list.find((p) => norm(p.title) === target || norm(p.lesson_name) === target);
+      if (exactMatch) return exactMatch;
+
+      const fuzzyMatch = list.find((p) => {
+        const pt = norm(p.title);
+        const pl = norm(p.lesson_name);
+        return (pt && (pt.includes(target) || target.includes(pt))) ||
+               (pl && (pl.includes(target) || target.includes(pl)));
+      });
+      if (fuzzyMatch) return fuzzyMatch;
     }
     return null;
-  }, [presentations, resolver]);
+  }, [presentations, preload?.presentations, resolver]);
 
   // Format date to YYYY-MM-DD
   const selectedDateStr = useMemo(() => {
@@ -1013,9 +1027,9 @@ export function DashboardScreen() {
                         )}
                       </span>
 
-                      {cls.status === 'ongoing' && (() => {
+                      {(() => {
                         const sessionPpt = getSessionPpt(cls);
-                        if (sessionPpt && isPptUnlocked(sessionPpt)) {
+                        if (sessionPpt && (cls.status === 'completed' || isPptUnlocked(sessionPpt))) {
                           return (
                             <button
                               type="button"
@@ -1024,7 +1038,7 @@ export function DashboardScreen() {
                                 navigate('presentation', { id: sessionPpt.id, from: 'dashboard' });
                               }}
                               className="px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-[#7c3aed] border border-purple-200 text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
-                              title="View Live Class Slides (View Only)"
+                              title="View Class Slides"
                             >
                               <PresentationIcon className="w-3.5 h-3.5" />
                               <span>Class Slides</span>
