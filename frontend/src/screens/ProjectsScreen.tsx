@@ -815,12 +815,6 @@ export function ProjectsScreen() {
     return categoryProjects.filter((p: any) => p.status === subTab);
   }, [categoryProjects, subTab]);
 
-  const assignedCount = categoryProjects.filter((p: any) => p.status === 'assigned').length;
-  const submittedCount = categoryProjects.filter((p: any) => p.status === 'submitted').length;
-  const feedbackCount = categoryProjects.filter((p: any) => p.status === 'feedback').length;
-
-
-
   // Card vs. list ("rectangle") view + render windowing (show 10, +10 on scroll).
   const [viewMode, setViewMode] = useState<'card' | 'list'>(() =>
     (localStorage.getItem('aspire_projects_view') as 'card' | 'list') || 'card');
@@ -1393,9 +1387,9 @@ export function ProjectsScreen() {
           <Tabs
             variant="pills"
             tabs={[
-              { id: 'assigned', label: 'Assigned', badge: assignedCount },
-              { id: 'submitted', label: 'Submitted', badge: submittedCount },
-              { id: 'feedback', label: 'Mentor Feedback', badge: feedbackCount },
+              { id: 'assigned', label: 'Assigned' },
+              { id: 'submitted', label: 'Submitted' },
+              { id: 'feedback', label: 'Mentor Feedback' },
             ]}
             active={subTab}
             onChange={(val) => handleSubTabChange(val as any)}
