@@ -35,6 +35,11 @@ export function PresentationScreen() {
 
   // References
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  const embedUrl = useMemo(() => {
+    return presentation?.ppt_url ? getPresentationEmbedUrl(presentation.ppt_url) : '';
+  }, [presentation?.ppt_url]);
 
   // Interactive slide count and navigation
   const [currentSlide, setCurrentSlide] = useState(1);
@@ -48,13 +53,22 @@ export function PresentationScreen() {
     return 10;
   }, [presentation]);
 
-  const handlePrevSlide = () => {
-    setCurrentSlide((prev) => Math.max(1, prev - 1));
-  };
+  const navigateToSlide = useCallback((targetSlide: number) => {
+    const clamped = Math.max(1, Math.min(totalSlides, targetSlide));
+    setCurrentSlide(clamped);
+    if (iframeRef.current && embedUrl) {
+      const base = embedUrl.split('#')[0];
+      iframeRef.current.src = `${base}#slide=id.p${clamped}`;
+    }
+  }, [totalSlides, embedUrl]);
 
-  const handleNextSlide = () => {
-    setCurrentSlide((prev) => Math.min(totalSlides, prev + 1));
-  };
+  const handlePrevSlide = useCallback(() => {
+    navigateToSlide(currentSlide - 1);
+  }, [navigateToSlide, currentSlide]);
+
+  const handleNextSlide = useCallback(() => {
+    navigateToSlide(currentSlide + 1);
+  }, [navigateToSlide, currentSlide]);
 
   // True Native Fullscreen API integration
   const toggleFullscreen = () => {
@@ -97,6 +111,26 @@ export function PresentationScreen() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const isDrawingRef = useRef(false);
   const lastPointRef = useRef<{ x: number; y: number } | null>(null);
+
+  // Keyboard navigation for presentation slides
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (activeTool !== 'none') return;
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) return;
+
+      if (e.key === 'ArrowLeft') {
+        e.preventDefault();
+        handlePrevSlide();
+      } else if (e.key === 'ArrowRight' || e.key === ' ') {
+        e.preventDefault();
+        handleNextSlide();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handlePrevSlide, handleNextSlide, activeTool]);
 
   const presentationId = params.id || '';
   const fromRoute = params.from || 'classroom';
@@ -398,7 +432,6 @@ export function PresentationScreen() {
     );
   }
 
-  const embedUrl = getPresentationEmbedUrl(presentation.ppt_url);
   const lesson = matchedLessonData?.lesson;
 
   const practices = lesson?.practices || [];
@@ -450,9 +483,9 @@ export function PresentationScreen() {
           </div>
         </div>
 
-        {/* Right: Stage Tag */}
+        {/* Right: Stage Title (Clean typography without badge) */}
         {matchedLessonData?.stageTitle && (
-          <span className="text-[11px] font-bold text-slate-500 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-200/80 truncate max-w-[200px] hidden sm:inline-block">
+          <span className="text-xs font-semibold text-slate-500 truncate max-w-[220px] hidden sm:inline-block">
             {matchedLessonData.stageTitle}
           </span>
         )}
@@ -500,6 +533,7 @@ export function PresentationScreen() {
             {/* Google Slides Iframe Embed (Height scaled to fill 100% edge-to-edge and push default bar under our dock) */}
             {embedUrl ? (
               <iframe
+                ref={iframeRef}
                 src={embedUrl}
                 title={presentation.title || 'Presentation Viewer'}
                 className="w-full h-[calc(100%+32px)] border-0 bg-black block absolute top-0 left-0"
@@ -534,15 +568,32 @@ export function PresentationScreen() {
 
             {/* Floating indicator when Pen / Drawing mode is active */}
             {activeTool !== 'none' && (
-              <div className="absolute top-3 left-3 z-30 flex items-center gap-2 bg-slate-900/90 text-white px-3 py-1.5 rounded-xl border border-slate-700 shadow-lg backdrop-blur-md text-xs font-bold animate-fade-in pointer-events-auto">
-                <span className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: activeTool === 'eraser' ? '#ef4444' : penColor }} />
+              <div className="absolute top-3 left-3 z-30 flex items-center gap-2 bg-white/95 text-slate-800 px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-md backdrop-blur-md text-xs font-semibold animate-fade-in pointer-events-auto">
+                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeTool === 'eraser' ? '#ef4444' : penColor }} />
                 <span>
                   {activeTool === 'pen' ? 'Pen Mode' : activeTool === 'highlighter' ? 'Highlighter Mode' : 'Eraser Mode'}
                 </span>
+                {(activeTool === 'pen' || activeTool === 'highlighter') && (
+                  <div className="flex items-center gap-1.5 pl-2 ml-1 border-l border-slate-200">
+                    {PEN_COLORS.map((c) => (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => setPenColor(c.value)}
+                        style={{ backgroundColor: c.value }}
+                        className={cn(
+                          "w-3.5 h-3.5 rounded-full transition-transform cursor-pointer shrink-0 border border-slate-200",
+                          penColor === c.value ? "ring-2 ring-offset-1 ring-[#7c3aed] scale-110" : "hover:scale-105 opacity-80"
+                        )}
+                        title={c.name}
+                      />
+                    ))}
+                  </div>
+                )}
                 <button
                   type="button"
                   onClick={() => setActiveTool('none')}
-                  className="ml-1 p-0.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-white cursor-pointer"
+                  className="ml-1.5 p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
                   title="Exit Drawing Mode"
                 >
                   <X className="w-3.5 h-3.5" />
@@ -550,28 +601,28 @@ export function PresentationScreen() {
               </div>
             )}
 
-            {/* ── CUSTOM BOTTOM STUDIO CONTROLLER BAR (COVERS GOOGLE SLIDES WATERMARK) ── */}
-            <div className="absolute bottom-0 inset-x-0 z-30 h-11 bg-slate-950/95 backdrop-blur-md border-t border-slate-800/90 flex items-center justify-between px-3 select-none text-white shadow-2xl">
+            {/* ── CUSTOM BOTTOM STUDIO CONTROLLER BAR (CLEAN PREMIUM WHITE FLOATING BAR) ── */}
+            <div className="absolute bottom-0 inset-x-0 z-30 h-11 bg-white/95 backdrop-blur-md border-t border-slate-200/80 flex items-center justify-between px-3 select-none text-slate-800 shadow-sm">
               {/* Left: Navigation, Slide Counter & 3-Dots Menu */}
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
                   onClick={handlePrevSlide}
                   disabled={currentSlide <= 1}
-                  className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-purple-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors text-slate-200 hover:text-white cursor-pointer"
-                  title="Previous Slide"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-purple-50 hover:text-[#7c3aed] disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors text-slate-700 cursor-pointer border border-slate-200/80"
+                  title="Previous Slide (←)"
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </button>
-                <div className="px-2.5 py-1 rounded-lg bg-slate-800/90 text-purple-300 font-black text-xs border border-purple-500/20 tracking-wider">
-                  <span className="text-white">{currentSlide}</span> / <span>{totalSlides}</span>
+                <div className="px-2.5 py-1 text-slate-700 font-semibold text-xs tracking-wide select-none">
+                  <span className="text-slate-900 font-bold">{currentSlide}</span> / <span>{totalSlides}</span>
                 </div>
                 <button
                   type="button"
                   onClick={handleNextSlide}
                   disabled={currentSlide >= totalSlides}
-                  className="w-7 h-7 rounded-lg bg-slate-800 hover:bg-purple-600 disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors text-slate-200 hover:text-white cursor-pointer"
-                  title="Next Slide"
+                  className="w-7 h-7 rounded-lg bg-slate-100 hover:bg-purple-50 hover:text-[#7c3aed] disabled:opacity-30 disabled:pointer-events-none flex items-center justify-center transition-colors text-slate-700 cursor-pointer border border-slate-200/80"
+                  title="Next Slide (→)"
                 >
                   <ChevronRight className="w-4 h-4" />
                 </button>
@@ -582,135 +633,149 @@ export function PresentationScreen() {
                     type="button"
                     onClick={() => setShowSlideMenu(!showSlideMenu)}
                     className={cn(
-                      "w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer",
-                      showSlideMenu ? "bg-purple-600 text-white" : "bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                      "w-7 h-7 rounded-lg flex items-center justify-center transition-colors cursor-pointer border border-slate-200/80",
+                      showSlideMenu ? "bg-[#7c3aed] text-white" : "bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900"
                     )}
-                    title="Slide Options"
+                    title="Slide Options & Tools"
                   >
                     <MoreVertical className="w-4 h-4" />
                   </button>
 
                   {showSlideMenu && (
                     <div 
-                      className="absolute bottom-9 left-0 z-50 w-44 bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl py-1 text-xs text-slate-200 animate-fade-in backdrop-blur-md"
-                      onClick={() => setShowSlideMenu(false)}
+                      className="absolute bottom-10 left-0 z-50 w-52 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 text-xs text-slate-700 animate-fade-in backdrop-blur-md"
                     >
+                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Slide Navigation
+                      </div>
                       <button
                         type="button"
-                        onClick={() => setCurrentSlide(1)}
-                        className="w-full px-3 py-1.5 text-left hover:bg-purple-600/30 hover:text-purple-300 transition-colors flex items-center justify-between cursor-pointer"
+                        onClick={() => {
+                          navigateToSlide(1);
+                          setShowSlideMenu(false);
+                        }}
+                        className="w-full px-3 py-1.5 text-left hover:bg-purple-50 hover:text-[#7c3aed] transition-colors flex items-center justify-between cursor-pointer"
                       >
                         <span>First Slide</span>
-                        <span className="text-[10px] text-slate-400">1</span>
+                        <span className="text-[11px] text-slate-400">1</span>
                       </button>
                       <button
                         type="button"
-                        onClick={() => setCurrentSlide(totalSlides)}
-                        className="w-full px-3 py-1.5 text-left hover:bg-purple-600/30 hover:text-purple-300 transition-colors flex items-center justify-between cursor-pointer"
+                        onClick={() => {
+                          navigateToSlide(totalSlides);
+                          setShowSlideMenu(false);
+                        }}
+                        className="w-full px-3 py-1.5 text-left hover:bg-purple-50 hover:text-[#7c3aed] transition-colors flex items-center justify-between cursor-pointer"
                       >
                         <span>Last Slide</span>
-                        <span className="text-[10px] text-slate-400">{totalSlides}</span>
+                        <span className="text-[11px] text-slate-400">{totalSlides}</span>
                       </button>
-                      <div className="my-1 border-t border-slate-800" />
-                      <div className="px-3 py-1 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
-                        Shortcuts
+
+                      {presentation.ppt_url && (
+                        <a
+                          href={presentation.ppt_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => setShowSlideMenu(false)}
+                          className="w-full px-3 py-1.5 text-left hover:bg-purple-50 hover:text-[#7c3aed] transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <span>Open in Google Slides</span>
+                          <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                        </a>
+                      )}
+
+                      <div className="my-1 border-t border-slate-100" />
+
+                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Annotation Tools
                       </div>
-                      <div className="px-3 py-1 text-[11px] text-slate-300 flex justify-between">
-                        <span>Navigate</span>
-                        <span className="text-slate-400">← / →</span>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTool(activeTool === 'pen' ? 'none' : 'pen');
+                          setShowSlideMenu(false);
+                        }}
+                        className={cn(
+                          "w-full px-3 py-1.5 text-left transition-colors flex items-center justify-between cursor-pointer",
+                          activeTool === 'pen' ? "bg-purple-50 text-[#7c3aed] font-semibold" : "hover:bg-slate-50 text-slate-700"
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Pen className="w-3.5 h-3.5" />
+                          <span>Pen Tool</span>
+                        </span>
+                        {activeTool === 'pen' && <span className="w-1.5 h-1.5 rounded-full bg-[#7c3aed]" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTool(activeTool === 'highlighter' ? 'none' : 'highlighter');
+                          setShowSlideMenu(false);
+                        }}
+                        className={cn(
+                          "w-full px-3 py-1.5 text-left transition-colors flex items-center justify-between cursor-pointer",
+                          activeTool === 'highlighter' ? "bg-amber-50 text-amber-700 font-semibold" : "hover:bg-slate-50 text-slate-700"
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Highlighter className="w-3.5 h-3.5" />
+                          <span>Highlighter Tool</span>
+                        </span>
+                        {activeTool === 'highlighter' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveTool(activeTool === 'eraser' ? 'none' : 'eraser');
+                          setShowSlideMenu(false);
+                        }}
+                        className={cn(
+                          "w-full px-3 py-1.5 text-left transition-colors flex items-center justify-between cursor-pointer",
+                          activeTool === 'eraser' ? "bg-rose-50 text-rose-700 font-semibold" : "hover:bg-slate-50 text-slate-700"
+                        )}
+                      >
+                        <span className="flex items-center gap-2">
+                          <Eraser className="w-3.5 h-3.5" />
+                          <span>Eraser Tool</span>
+                        </span>
+                        {activeTool === 'eraser' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          clearCanvas();
+                          setShowSlideMenu(false);
+                        }}
+                        className="w-full px-3 py-1.5 text-left hover:bg-rose-50 hover:text-rose-600 transition-colors flex items-center gap-2 cursor-pointer text-slate-600"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Clear All Annotations</span>
+                      </button>
+
+                      <div className="my-1 border-t border-slate-100" />
+
+                      <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                        Keyboard Shortcuts
                       </div>
-                      <div className="px-3 py-1 text-[11px] text-slate-300 flex justify-between">
+                      <div className="px-3 py-1 text-[11px] text-slate-500 flex justify-between">
+                        <span>Next / Prev</span>
+                        <span className="text-slate-400 font-mono">← / →</span>
+                      </div>
+                      <div className="px-3 py-1 text-[11px] text-slate-500 flex justify-between">
                         <span>Fullscreen</span>
-                        <span className="text-slate-400">Esc</span>
+                        <span className="text-slate-400 font-mono">Esc</span>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
 
-              {/* Right: Annotation Tools & Fullscreen SVG (PURE ICONS, NO TEXT, COMPLETELY COVERING WATERMARK) */}
-              <div className="flex items-center gap-1 bg-slate-900/90 p-0.5 px-1.5 rounded-xl border border-slate-800">
-                {/* Pen (pure icon) */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTool(activeTool === 'pen' ? 'none' : 'pen')}
-                  className={cn(
-                    "p-1.5 rounded-lg transition-all cursor-pointer",
-                    activeTool === 'pen' 
-                      ? "bg-[#7c3aed] text-white shadow-sm shadow-purple-500/30" 
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  )}
-                  title="Pen Tool"
-                >
-                  <Pen className="w-4 h-4" />
-                </button>
-
-                {/* Highlight (pure icon) */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTool(activeTool === 'highlighter' ? 'none' : 'highlighter')}
-                  className={cn(
-                    "p-1.5 rounded-lg transition-all cursor-pointer",
-                    activeTool === 'highlighter' 
-                      ? "bg-amber-500 text-white shadow-sm shadow-amber-500/30" 
-                      : "text-slate-300 hover:text-white hover:bg-slate-800"
-                  )}
-                  title="Highlighter Tool"
-                >
-                  <Highlighter className="w-4 h-4" />
-                </button>
-
-                {/* Color Palette (Visible when Pen or Highlighter active) */}
-                {(activeTool === 'pen' || activeTool === 'highlighter') && (
-                  <div className="flex items-center gap-1 px-1.5 border-l border-slate-700 animate-fade-in">
-                    {PEN_COLORS.map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        onClick={() => setPenColor(c.value)}
-                        style={{ backgroundColor: c.value }}
-                        className={cn(
-                          "w-3.5 h-3.5 rounded-full transition-transform cursor-pointer shrink-0",
-                          penColor === c.value ? "ring-2 ring-offset-1 ring-white scale-110" : "hover:scale-105 opacity-80"
-                        )}
-                        title={c.name}
-                      />
-                    ))}
-                  </div>
-                )}
-
-                {/* Eraser (pure icon) */}
-                <button
-                  type="button"
-                  onClick={() => setActiveTool(activeTool === 'eraser' ? 'none' : 'eraser')}
-                  className={cn(
-                    "p-1.5 rounded-lg transition-all cursor-pointer",
-                    activeTool === 'eraser' 
-                      ? "bg-rose-500 text-white shadow-sm" 
-                      : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
-                  )}
-                  title="Eraser Tool"
-                >
-                  <Eraser className="w-4 h-4" />
-                </button>
-
-                {/* Clear Canvas (pure icon) */}
-                <button
-                  type="button"
-                  onClick={clearCanvas}
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800 transition-all cursor-pointer"
-                  title="Clear Drawings"
-                >
-                  <Trash2 className="w-4 h-4" />
-                </button>
-
-                <div className="w-[1px] h-4 bg-slate-700 mx-1" />
-
-                {/* Fullscreen SVG Toggle */}
+              {/* Right: Fullscreen Toggle */}
+              <div className="flex items-center gap-1">
                 <button
                   type="button"
                   onClick={toggleFullscreen}
-                  className="p-1.5 rounded-lg text-purple-400 hover:text-white hover:bg-purple-600/30 transition-all cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-600 hover:text-[#7c3aed] hover:bg-purple-50 transition-all cursor-pointer border border-slate-200/80"
                   title={isFullscreen ? "Exit Fullscreen" : "Enter Fullscreen"}
                 >
                   {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -719,6 +784,54 @@ export function PresentationScreen() {
             </div>
 
           </div>
+
+          {/* ── LESSON OVERVIEW & KEY CONCEPTS SECTION (ELIMINATES EMPTY SPACE) ── */}
+          <div className="pt-3 border-t border-slate-150 space-y-3">
+            <div className="flex items-center gap-2 text-slate-900 font-bold text-sm">
+              <BookOpen className="w-4 h-4 text-[#7c3aed]" />
+              <span>Lesson Overview & Study Guide</span>
+            </div>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              This lecture deck introduces core architecture, practical workflows, and standard conventions for this lesson. Follow the presentation slides in sequence, then complete the related lab exercises and assessments on the right to practice what you learned.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <ClipboardCheck className="w-4 h-4 text-[#7c3aed]" />
+                  <span>Key Topics in this Lecture</span>
+                </div>
+                <ul className="text-xs text-slate-600 space-y-1.5 list-disc list-inside">
+                  <li>Core concepts and environment setup</li>
+                  <li>Variable declaration and data structures</li>
+                  <li>Logic branching, loops, and control flow</li>
+                  <li>Code organization and standard conventions</li>
+                </ul>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200/80 bg-slate-50/70 p-3.5 space-y-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-slate-800">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                  <span>Recommended Study Order</span>
+                </div>
+                <div className="text-xs text-slate-600 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-slate-700">1.</span>
+                    <span>Review all {totalSlides} presentation slides using the navigation buttons or arrow keys.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-slate-700">2.</span>
+                    <span>Solve the corresponding hands-on practice problems in the workspace sandbox.</span>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <span className="font-bold text-slate-700">3.</span>
+                    <span>Take the daily assessment to test your knowledge and track your progress.</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
         </div>
 
         {/* ── RIGHT COLUMN: UNIFIED LESSON COURSEWORK CARD (lg:col-span-4) ── */}
@@ -739,13 +852,13 @@ export function PresentationScreen() {
                 </p>
               </div>
             </div>
-            <span className="text-[10px] font-extrabold text-[#7c3aed] bg-purple-50 border border-purple-100 px-2 py-0.5 rounded-md">
-              {totalCourseworkCount} Items
+            <span className="text-xs font-semibold text-slate-500">
+              {totalCourseworkCount} items
             </span>
           </div>
 
           {/* Unified Container holding Video + Coursework Activities */}
-          <div className="space-y-2.5 overflow-y-auto max-h-[420px] pr-1">
+          <div className="space-y-2.5 overflow-y-auto max-h-[580px] pr-1">
             
             {/* ── 1. FEATURED LECTURE VIDEO CARD ── */}
             {matchedLessonData?.lesson && (
@@ -765,7 +878,7 @@ export function PresentationScreen() {
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] font-black uppercase text-[#7c3aed] bg-purple-100/80 px-1.5 py-0.5 rounded tracking-wide">
+                      <span className="text-xs font-semibold text-[#7c3aed]">
                         Class Video
                       </span>
                       <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
@@ -803,8 +916,8 @@ export function PresentationScreen() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black uppercase text-amber-700 bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200/60">
-                          Lab
+                        <span className="text-xs font-semibold text-amber-700">
+                          Practice Lab
                         </span>
                         {practice.duration && (
                           <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
@@ -840,8 +953,8 @@ export function PresentationScreen() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black uppercase text-purple-700 bg-purple-50 px-1.5 py-0.2 rounded border border-purple-200/60">
-                          Assessment
+                        <span className="text-xs font-semibold text-purple-700">
+                          Daily Assessment
                         </span>
                         {assessment.duration && (
                           <span className="text-[10px] font-bold text-slate-400 flex items-center gap-0.5">
@@ -877,8 +990,8 @@ export function PresentationScreen() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black uppercase text-indigo-700 bg-indigo-50 px-1.5 py-0.2 rounded border border-indigo-200/60">
-                          Quiz
+                        <span className="text-xs font-semibold text-indigo-700">
+                          Knowledge Quiz
                         </span>
                         {quiz.questions?.length && (
                           <span className="text-[10px] font-bold text-slate-400">
@@ -914,10 +1027,10 @@ export function PresentationScreen() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded border border-emerald-200/60">
-                          Project
+                        <span className="text-xs font-semibold text-emerald-700">
+                          Course Project
                         </span>
-                        <span className="text-[10px] font-bold text-slate-400">
+                        <span className="text-[10px] font-medium text-slate-400">
                           {proj.type ? `${proj.type.toUpperCase()}` : 'MINI'}
                         </span>
                       </div>
