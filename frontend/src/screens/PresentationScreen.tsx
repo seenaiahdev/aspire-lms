@@ -3,7 +3,7 @@ import {
   ArrowLeft, ExternalLink, Presentation as PresentationIcon, 
   Code2, ClipboardCheck, Brain, FolderGit2,
   Clock, BookOpen,
-  Maximize2, Minimize2, ChevronRight, Lock, Play
+  Maximize2, Minimize2, Lock, Play
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
@@ -161,6 +161,20 @@ export function PresentationScreen() {
     };
   }, [candidateCourseIds, preload.syllabi, preload.ensureCourseSyllabus]);
 
+  // Focus iframe on keyboard navigation keys if focus is on outer page
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ' ' || e.key === 'Backspace') {
+        const tag = (document.activeElement?.tagName || '').toLowerCase();
+        if (tag !== 'input' && tag !== 'textarea') {
+          iframeRef.current?.focus();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
   // Determine unlock status
   const isPptLocked = useMemo(() => {
     if (!presentation) return false;
@@ -234,8 +248,8 @@ export function PresentationScreen() {
   // Skeleton Loader
   if (loading) {
     return (
-      <div className="h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden bg-slate-50/70 p-2 sm:p-3 font-sans flex flex-col gap-2.5 max-w-[1600px] mx-auto select-none animate-pulse">
-        <div className="flex items-center justify-between gap-3 bg-white px-3.5 py-2 sm:px-4 rounded-2xl border border-slate-200/90 shadow-2xs shrink-0">
+      <div className="h-[calc(100vh-7.5rem)] max-h-[calc(100vh-7.5rem)] overflow-hidden bg-slate-50/70 p-1 sm:p-2 font-sans flex flex-col gap-2 max-w-[1600px] mx-auto select-none animate-pulse">
+        <div className="flex items-center justify-between gap-3 bg-white px-3.5 py-1.5 sm:px-4 rounded-xl border border-slate-200/90 shadow-2xs shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-slate-200 shrink-0" />
             <div className="space-y-1.5">
@@ -245,15 +259,15 @@ export function PresentationScreen() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
-          <div className="lg:col-span-8 h-full min-h-0 bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-2 flex flex-col overflow-hidden">
-            <div className="w-full h-full rounded-xl bg-slate-900 flex flex-col items-center justify-center gap-3 border border-slate-800">
+        <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch overflow-hidden">
+          <div className="lg:col-span-8 h-full min-h-0 bg-white rounded-xl border border-slate-200/90 shadow-2xs p-1.5 sm:p-2 flex flex-col overflow-hidden">
+            <div className="w-full h-full rounded-lg bg-slate-900 flex flex-col items-center justify-center gap-3 border border-slate-800">
               <div className="w-9 h-9 border-3 border-purple-500 border-t-transparent rounded-full animate-spin" />
               <div className="w-32 h-3 bg-slate-700/60 rounded-md" />
             </div>
           </div>
 
-          <div className="lg:col-span-4 h-full min-h-0 bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-3.5 flex flex-col justify-between overflow-hidden">
+          <div className="lg:col-span-4 h-full min-h-0 bg-white rounded-xl border border-slate-200/90 shadow-2xs p-3 flex flex-col overflow-hidden">
             <div className="w-32 h-4 bg-slate-200 rounded-md shrink-0" />
             <div className="space-y-2 flex-1 my-2">
               {[1, 2, 3].map((i) => (
@@ -263,7 +277,6 @@ export function PresentationScreen() {
                 </div>
               ))}
             </div>
-            <div className="w-24 h-3 bg-slate-100 rounded-md shrink-0" />
           </div>
         </div>
       </div>
@@ -329,10 +342,10 @@ export function PresentationScreen() {
   ].reduce((a, b) => a + b, 0);
 
   return (
-    <div className="h-[calc(100vh-4rem)] max-h-[calc(100vh-4rem)] overflow-hidden bg-slate-50/70 p-2 sm:p-3 font-sans flex flex-col gap-2.5 max-w-[1600px] mx-auto select-none">
+    <div className="h-[calc(100vh-7.5rem)] max-h-[calc(100vh-7.5rem)] overflow-hidden bg-slate-50/70 p-1 sm:p-2 font-sans flex flex-col gap-2 max-w-[1600px] mx-auto select-none">
       
       {/* ── UNIFIED HEADER (STREAMLINED: CLEAN & NO BADGES) ── */}
-      <div className="flex items-center justify-between gap-3 bg-white px-3.5 py-2 sm:px-4 rounded-2xl border border-slate-200/90 shadow-2xs shrink-0">
+      <div className="flex items-center justify-between gap-3 bg-white px-3.5 py-1.5 sm:px-4 rounded-xl border border-slate-200/90 shadow-2xs shrink-0">
         {/* Left: Back Arrow + Lesson Title + Module Subtitle */}
         <div className="flex items-center gap-3 min-w-0">
           <button
@@ -372,16 +385,16 @@ export function PresentationScreen() {
       </div>
 
       {/* ── 2-COLUMN STUDIO LAYOUT: SINGLE STATIC SCREEN (NO PAGE SCROLLING) ── */}
-      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-3 items-stretch">
+      <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-12 gap-2.5 items-stretch overflow-hidden">
         
         {/* ── LEFT COLUMN: CINEMA PRESENTATION SLIDES (lg:col-span-8) ── */}
-        <div className="lg:col-span-8 h-full min-h-0 bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-2 flex flex-col overflow-hidden">
+        <div className="lg:col-span-8 h-full min-h-0 bg-white rounded-xl border border-slate-200/90 shadow-2xs p-1.5 sm:p-2 flex flex-col overflow-hidden">
           
           {/* ── PLAYER CONTAINER ── */}
           <div 
             ref={playerContainerRef}
             className={cn(
-              "relative w-full h-full rounded-xl overflow-hidden bg-black flex-1 min-h-0 flex items-center justify-center transition-all duration-300",
+              "relative w-full h-full rounded-lg overflow-hidden bg-black flex-1 min-h-0 flex items-center justify-center transition-all duration-300",
               isFullscreen && "fixed inset-0 z-[99999] rounded-none shadow-2xl bg-black"
             )}
             onContextMenu={(e) => e.preventDefault()}
@@ -427,7 +440,7 @@ export function PresentationScreen() {
             )}
 
             {/* ── MASK BOTTOM-RIGHT GOOGLE BRANDING & PROVIDE CLEAN FULLSCREEN TOGGLE ── */}
-            <div className="absolute bottom-0 right-0 z-20 h-[30px] w-36 bg-[#f8fafd] flex items-center justify-end pr-2 rounded-br-xl select-none">
+            <div className="absolute bottom-0 right-0 z-20 h-[30px] w-36 bg-[#f8fafd] flex items-center justify-end pr-2 rounded-br-lg select-none">
               <button
                 type="button"
                 onClick={toggleFullscreen}
@@ -443,7 +456,7 @@ export function PresentationScreen() {
         </div>
 
         {/* ── RIGHT COLUMN: UNIFIED LESSON COURSEWORK CARD (lg:col-span-4) ── */}
-        <div className="lg:col-span-4 h-full min-h-0 bg-white rounded-2xl border border-slate-200/90 shadow-2xs p-3.5 flex flex-col justify-between overflow-hidden">
+        <div className="lg:col-span-4 h-full min-h-0 bg-white rounded-xl border border-slate-200/90 shadow-2xs p-3 flex flex-col overflow-hidden">
           
           {/* Header */}
           <div className="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
@@ -684,29 +697,6 @@ export function PresentationScreen() {
           )}
 
           </div>
-
-          {/* Quick Footer inside right card */}
-          {matchedLessonData?.lesson && (
-            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] font-semibold text-slate-400 shrink-0">
-              <span className="truncate max-w-[200px]">
-                {matchedLessonData.lesson.title}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  if (matchedLessonData?.courseId && matchedLessonData?.lesson?.id) {
-                    navigate('lesson', { id: matchedLessonData.courseId, lesson: matchedLessonData.lesson.id });
-                  } else {
-                    navigate('milestones');
-                  }
-                }}
-                className="text-[#7c3aed] hover:underline font-bold text-[11px] shrink-0 flex items-center gap-1 cursor-pointer"
-              >
-                <span>Full Lesson Roadmap</span>
-                <ChevronRight className="w-3 h-3" />
-              </button>
-            </div>
-          )}
 
         </div>
 
