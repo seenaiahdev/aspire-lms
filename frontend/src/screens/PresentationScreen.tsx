@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
   ArrowLeft, ExternalLink, Presentation as PresentationIcon, 
   Code2, ClipboardCheck, Brain, FolderGit2,
   Clock, BookOpen,
-  Maximize2, Minimize2, ChevronRight, Lock,
-  Pen, Highlighter, Eraser, Trash2, X, Play, MoreVertical
+  Maximize2, Minimize2, ChevronRight, Lock, Play
 } from 'lucide-react';
 import { useNav } from '@/lib/nav';
 import { useUser } from '@/lib/UserContext';
@@ -12,14 +11,6 @@ import { usePreload } from '@/lib/PreloadContext';
 import { fetchPresentations, PresentationRecord, getPresentationEmbedUrl } from '@/lib/api';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
 import { cn } from '@/lib/utils';
-
-const PEN_COLORS = [
-  { name: 'Purple', value: '#7c3aed' },
-  { name: 'Emerald', value: '#10b981' },
-  { name: 'Amber', value: '#f59e0b' },
-  { name: 'Coral', value: '#ef4444' },
-  { name: 'White', value: '#ffffff' },
-];
 
 export function PresentationScreen() {
   const { params, navigate } = useNav();
@@ -29,27 +20,13 @@ export function PresentationScreen() {
 
   const [presentation, setPresentation] = useState<PresentationRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isSyllabusLoading, setIsSyllabusLoading] = useState(true);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [iframeLoading, setIframeLoading] = useState(true);
-  const [showSlideMenu, setShowSlideMenu] = useState(false);
 
   // References
   const playerContainerRef = useRef<HTMLDivElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-
-  // Close tools dropdown menu on click outside
-  useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setShowSlideMenu(false);
-      }
-    };
-    if (showSlideMenu) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [showSlideMenu]);
 
   const embedUrl = useMemo(() => {
     return presentation?.ppt_url ? getPresentationEmbedUrl(presentation.ppt_url) : '';
@@ -88,14 +65,6 @@ export function PresentationScreen() {
       document.removeEventListener('webkitfullscreenchange', onFullscreenChange);
     };
   }, []);
-
-  // Interactive Drawing & Pen Canvas State
-  const [activeTool, setActiveTool] = useState<'none' | 'pen' | 'highlighter' | 'eraser'>('none');
-  const [penColor, setPenColor] = useState<string>('#7c3aed');
-  const [penSize] = useState<number>(3);
-  const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const isDrawingRef = useRef(false);
-  const lastPointRef = useRef<{ x: number; y: number } | null>(null);
 
   const presentationId = params.id || '';
   const fromRoute = params.from || 'classroom';
@@ -145,103 +114,52 @@ export function PresentationScreen() {
     }
   }, [presentation?.ppt_url]);
 
-  // Synchronize canvas buffer with display bounding box
-  const syncCanvasSize = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    if (rect.width > 0 && rect.height > 0 && (canvas.width !== Math.round(rect.width) || canvas.height !== Math.round(rect.height))) {
-      const tempCanvas = document.createElement('canvas');
-      tempCanvas.width = canvas.width;
-      tempCanvas.height = canvas.height;
-      const tempCtx = tempCanvas.getContext('2d');
-      if (tempCtx && canvas.width > 0 && canvas.height > 0) {
-        tempCtx.drawImage(canvas, 0, 0);
-      }
-
-      canvas.width = Math.round(rect.width);
-      canvas.height = Math.round(rect.height);
-
-      const ctx = canvas.getContext('2d');
-      if (ctx && tempCanvas.width > 0 && tempCanvas.height > 0) {
-        ctx.drawImage(tempCanvas, 0, 0, canvas.width, canvas.height);
-      }
+  // Candidate course IDs to load syllabus from
+  const candidateCourseIds = useMemo(() => {
+    const set = new Set<string>();
+    if (presentation?.course_id) set.add(presentation.course_id);
+    if (user?.enrolledCourses && user.enrolledCourses.length > 0) {
+      user.enrolledCourses.forEach((c) => set.add(c));
     }
-  }, []);
+    if (preload.courses && preload.courses.length > 0) {
+      preload.courses.forEach((c: any) => set.add(c.id));
+    }
+    return Array.from(set);
+  }, [presentation?.course_id, user?.enrolledCourses, preload.courses]);
 
+  // Ensure course syllabi are fetched so related coursework is never 0
   useEffect(() => {
-    syncCanvasSize();
-    window.addEventListener('resize', syncCanvasSize);
-    return () => window.removeEventListener('resize', syncCanvasSize);
-  }, [syncCanvasSize, isFullscreen]);
+    let alive = true;
 
-  // Canvas Drawing Handlers
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (activeTool === 'none') return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    syncCanvasSize();
-    isDrawingRef.current = true;
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    lastPointRef.current = { x: clientX - rect.left, y: clientY - rect.top };
-  };
-
-  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
-    if (!isDrawingRef.current || activeTool === 'none' || !lastPointRef.current) return;
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-    const currentX = clientX - rect.left;
-    const currentY = clientY - rect.top;
-
-    ctx.save();
-    if (activeTool === 'eraser') {
-      ctx.globalCompositeOperation = 'destination-out';
-      ctx.beginPath();
-      ctx.arc(currentX, currentY, 14, 0, Math.PI * 2);
-      ctx.fill();
-    } else {
-      ctx.lineCap = 'round';
-      ctx.lineJoin = 'round';
-      if (activeTool === 'highlighter') {
-        ctx.globalAlpha = 0.35;
-        ctx.strokeStyle = penColor;
-        ctx.lineWidth = 14;
-      } else {
-        ctx.globalAlpha = 1.0;
-        ctx.strokeStyle = penColor;
-        ctx.lineWidth = penSize;
+    async function loadSyllabi() {
+      if (candidateCourseIds.length === 0) {
+        if (alive) setIsSyllabusLoading(false);
+        return;
       }
-      ctx.beginPath();
-      ctx.moveTo(lastPointRef.current.x, lastPointRef.current.y);
-      ctx.lineTo(currentX, currentY);
-      ctx.stroke();
+
+      const missing = candidateCourseIds.filter((cid) => !preload.syllabi?.[cid]);
+      if (missing.length === 0) {
+        if (alive) setIsSyllabusLoading(false);
+        return;
+      }
+
+      setIsSyllabusLoading(true);
+      try {
+        await Promise.all(
+          missing.map((cid) => preload.ensureCourseSyllabus(cid).catch(() => null))
+        );
+      } catch (err) {
+        console.error('[PresentationScreen] Failed ensuring course syllabus:', err);
+      } finally {
+        if (alive) setIsSyllabusLoading(false);
+      }
     }
-    ctx.restore();
 
-    lastPointRef.current = { x: currentX, y: currentY };
-  };
-
-  const stopDrawing = () => {
-    isDrawingRef.current = false;
-    lastPointRef.current = null;
-  };
-
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  };
+    loadSyllabi();
+    return () => {
+      alive = false;
+    };
+  }, [candidateCourseIds, preload.syllabi, preload.ensureCourseSyllabus]);
 
   // Determine unlock status
   const isPptLocked = useMemo(() => {
@@ -257,9 +175,14 @@ export function PresentationScreen() {
     if (!presentation || !preload.syllabi) return null;
 
     const norm = (str?: string) => (str || '').toLowerCase().trim();
+    const clean = (str?: string) => norm(str).replace(/[^a-z0-9]/g, '');
+
     const pId = presentation.inner_topic_id;
     const resolvedPId = resolver ? resolver.resolveLessonId(pId) : pId;
     const pTitle = norm(presentation.title);
+    const pCleanTitle = clean(presentation.title);
+    const pLessonName = norm(presentation.lesson_name);
+    const pCleanLessonName = clean(presentation.lesson_name);
 
     for (const [courseId, syllabus] of Object.entries(preload.syllabi)) {
       if (!syllabus?.stages) continue;
@@ -267,10 +190,16 @@ export function PresentationScreen() {
         for (const mod of stage.modules) {
           for (const l of mod.lessons) {
             const resolvedLId = resolver ? resolver.resolveLessonId(l.id) : l.id;
-            const matchesId = pId === l.id || resolvedPId === resolvedLId;
+            const matchesId = (pId && (pId === l.id || resolvedPId === resolvedLId)) || (presentation.id && presentation.id === l.id);
+            
+            const lTitle = norm(l.title);
+            const lCleanTitle = clean(l.title);
+
             const matchesTitle = !matchesId && (
-              (pTitle && norm(l.title) === pTitle) ||
-              (presentation.lesson_name && norm(presentation.lesson_name) === norm(l.title))
+              (pTitle && lTitle === pTitle) ||
+              (pLessonName && lTitle === pLessonName) ||
+              (pCleanTitle && lCleanTitle && (pCleanTitle === lCleanTitle || lCleanTitle.includes(pCleanTitle) || pCleanTitle.includes(lCleanTitle))) ||
+              (pCleanLessonName && lCleanTitle && (pCleanLessonName === lCleanTitle || lCleanTitle.includes(pCleanLessonName) || pCleanLessonName.includes(lCleanTitle)))
             );
 
             if (matchesId || matchesTitle) {
@@ -497,187 +426,16 @@ export function PresentationScreen() {
               </div>
             )}
 
-            {/* ── INTERACTIVE HTML5 DRAWING OVERLAY CANVAS ── */}
-            <canvas
-              ref={canvasRef}
-              onMouseDown={startDrawing}
-              onMouseMove={draw}
-              onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
-              onTouchStart={startDrawing}
-              onTouchMove={draw}
-              onTouchEnd={stopDrawing}
-              className={cn(
-                "absolute inset-0 w-full h-[calc(100%-36px)] z-20 transition-opacity",
-                activeTool !== 'none' 
-                  ? "pointer-events-auto cursor-crosshair opacity-100" 
-                  : "pointer-events-none opacity-90"
-              )}
-            />
-
-            {/* Floating indicator when Pen / Drawing mode is active */}
-            {activeTool !== 'none' && (
-              <div className="absolute top-2.5 left-2.5 z-30 flex items-center gap-2 bg-white/95 text-slate-800 px-3 py-1.5 rounded-xl border border-slate-200/90 shadow-md backdrop-blur-md text-xs font-semibold animate-fade-in pointer-events-auto">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: activeTool === 'eraser' ? '#ef4444' : penColor }} />
-                <span>
-                  {activeTool === 'pen' ? 'Pen Mode' : activeTool === 'highlighter' ? 'Highlighter Mode' : 'Eraser Mode'}
-                </span>
-                {(activeTool === 'pen' || activeTool === 'highlighter') && (
-                  <div className="flex items-center gap-1.5 pl-2 ml-1 border-l border-slate-200">
-                    {PEN_COLORS.map((c) => (
-                      <button
-                        key={c.value}
-                        type="button"
-                        onClick={() => setPenColor(c.value)}
-                        style={{ backgroundColor: c.value }}
-                        className={cn(
-                          "w-3.5 h-3.5 rounded-full transition-transform cursor-pointer shrink-0 border border-slate-200",
-                          penColor === c.value ? "ring-2 ring-offset-1 ring-[#7c3aed] scale-110" : "hover:scale-105 opacity-80"
-                        )}
-                        title={c.name}
-                      />
-                    ))}
-                  </div>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setActiveTool('none')}
-                  className="ml-1.5 p-1 rounded-md hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
-                  title="Exit Drawing Mode"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* ── FLOATING 3-DOTS TOOLS MENU (TOP-RIGHT) ── */}
-            <div ref={menuRef} className="absolute top-2.5 right-2.5 z-30">
+            {/* ── MASK BOTTOM-RIGHT GOOGLE BRANDING & PROVIDE CLEAN FULLSCREEN TOGGLE ── */}
+            <div className="absolute bottom-0 right-0 z-20 h-[30px] w-36 bg-[#f8fafd] flex items-center justify-end pr-2 rounded-br-xl select-none">
               <button
                 type="button"
-                onClick={() => setShowSlideMenu(!showSlideMenu)}
-                className={cn(
-                  "w-8 h-8 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-md border backdrop-blur-md",
-                  showSlideMenu
-                    ? "bg-[#7c3aed] text-white border-purple-500"
-                    : "bg-white/90 hover:bg-white text-slate-700 hover:text-slate-900 border-slate-200/90"
-                )}
-                title="Tools & Slide Options"
+                onClick={toggleFullscreen}
+                className="p-1 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-200/50 transition-colors cursor-pointer"
+                title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
               >
-                <MoreVertical className="w-4 h-4" />
+                {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
               </button>
-
-              {showSlideMenu && (
-                <div 
-                  className="absolute top-10 right-0 z-50 w-56 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 text-xs text-slate-700 animate-fade-in"
-                >
-                  {presentation.ppt_url && (
-                    <a
-                      href={presentation.ppt_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => setShowSlideMenu(false)}
-                      className="w-full px-3 py-1.5 text-left hover:bg-purple-50 hover:text-[#7c3aed] transition-colors flex items-center justify-between cursor-pointer"
-                    >
-                      <span>Open in Google Slides</span>
-                      <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                    </a>
-                  )}
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      toggleFullscreen();
-                      setShowSlideMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left hover:bg-purple-50 hover:text-[#7c3aed] transition-colors flex items-center justify-between cursor-pointer"
-                  >
-                    <span>{isFullscreen ? "Exit Fullscreen" : "Fullscreen"}</span>
-                    {isFullscreen ? <Minimize2 className="w-3.5 h-3.5 text-slate-400" /> : <Maximize2 className="w-3.5 h-3.5 text-slate-400" />}
-                  </button>
-
-                  <div className="my-1 border-t border-slate-100" />
-
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Annotation Tools
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTool(activeTool === 'pen' ? 'none' : 'pen');
-                      setShowSlideMenu(false);
-                    }}
-                    className={cn(
-                      "w-full px-3 py-1.5 text-left transition-colors flex items-center justify-between cursor-pointer",
-                      activeTool === 'pen' ? "bg-purple-50 text-[#7c3aed] font-semibold" : "hover:bg-slate-50 text-slate-700"
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Pen className="w-3.5 h-3.5" />
-                      <span>Pen Tool</span>
-                    </span>
-                    {activeTool === 'pen' && <span className="w-1.5 h-1.5 rounded-full bg-[#7c3aed]" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTool(activeTool === 'highlighter' ? 'none' : 'highlighter');
-                      setShowSlideMenu(false);
-                    }}
-                    className={cn(
-                      "w-full px-3 py-1.5 text-left transition-colors flex items-center justify-between cursor-pointer",
-                      activeTool === 'highlighter' ? "bg-amber-50 text-amber-700 font-semibold" : "hover:bg-slate-50 text-slate-700"
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Highlighter className="w-3.5 h-3.5" />
-                      <span>Highlighter Tool</span>
-                    </span>
-                    {activeTool === 'highlighter' && <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setActiveTool(activeTool === 'eraser' ? 'none' : 'eraser');
-                      setShowSlideMenu(false);
-                    }}
-                    className={cn(
-                      "w-full px-3 py-1.5 text-left transition-colors flex items-center justify-between cursor-pointer",
-                      activeTool === 'eraser' ? "bg-rose-50 text-rose-700 font-semibold" : "hover:bg-slate-50 text-slate-700"
-                    )}
-                  >
-                    <span className="flex items-center gap-2">
-                      <Eraser className="w-3.5 h-3.5" />
-                      <span>Eraser Tool</span>
-                    </span>
-                    {activeTool === 'eraser' && <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      clearCanvas();
-                      setShowSlideMenu(false);
-                    }}
-                    className="w-full px-3 py-1.5 text-left hover:bg-rose-50 hover:text-rose-600 transition-colors flex items-center gap-2 cursor-pointer text-slate-600"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Clear All Annotations</span>
-                  </button>
-
-                  <div className="my-1 border-t border-slate-100" />
-
-                  <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                    Keyboard Shortcuts
-                  </div>
-                  <div className="px-3 py-1 text-[11px] text-slate-500 flex justify-between">
-                    <span>Next / Prev Slide</span>
-                    <span className="text-slate-400 font-mono">← / →</span>
-                  </div>
-                  <div className="px-3 py-1 text-[11px] text-slate-500 flex justify-between">
-                    <span>Fullscreen</span>
-                    <span className="text-slate-400 font-mono">Esc</span>
-                  </div>
-                </div>
-              )}
             </div>
 
           </div>
@@ -703,12 +461,28 @@ export function PresentationScreen() {
               </div>
             </div>
             <span className="text-xs font-semibold text-slate-500">
-              {totalCourseworkCount} items
+              {isSyllabusLoading && !matchedLessonData ? 'Loading...' : `${totalCourseworkCount} items`}
             </span>
           </div>
 
           {/* Unified Container holding Video + Coursework Activities */}
           <div className="flex-1 min-h-0 overflow-y-auto space-y-2.5 pr-1 my-2">
+            
+            {isSyllabusLoading && !matchedLessonData ? (
+              <div className="space-y-2.5 animate-pulse my-1">
+                <div className="p-3 rounded-2xl bg-purple-50/50 border border-purple-100 h-16 flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-purple-200" />
+                  <div className="space-y-1.5 flex-1">
+                    <div className="w-24 h-3 bg-purple-200 rounded" />
+                    <div className="w-48 h-3.5 bg-purple-100 rounded" />
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 h-14" />
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 h-14" />
+                <div className="p-3 rounded-xl border border-slate-100 bg-slate-50/70 h-14" />
+              </div>
+            ) : (
+              <>
             
             {/* ── 1. FEATURED LECTURE VIDEO CARD ── */}
             {matchedLessonData?.lesson && (
@@ -906,6 +680,8 @@ export function PresentationScreen() {
               )}
 
             </div>
+            </>
+          )}
 
           </div>
 
