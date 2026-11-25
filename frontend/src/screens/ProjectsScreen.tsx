@@ -1,13 +1,12 @@
-import { useEffect, useMemo, useState, useRef, useCallback } from 'react';
+import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   FolderGit2, Star, Clock, CheckCircle2, MessageCircle, Download,
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
-  Upload, FolderOpen, Eye, Lock, LayoutGrid, List, ChevronRight,
+  Eye, Lock, LayoutGrid, List, ChevronRight, GitBranch, Globe, AlertCircle,
 } from 'lucide-react';
 import { fetchProjects, fetchProjectDetails, extractBatchDueDate, submitPracticeProblem, fetchUserSubmissions } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
 import { useInfiniteScroll, PAGE_SIZE } from '@/lib/useInfiniteScroll';
-import { uploadSubmissionBundle } from '@/lib/submissionStorage';
 import { useUser } from '@/lib/UserContext';
 import { usePreload } from '@/lib/PreloadContext';
 import { useUnlockResolver } from '@/lib/lessonLinkResolver';
@@ -23,14 +22,19 @@ import { cn, isDueDatePassed } from '@/lib/utils';
 import { LockedOverlay } from '@/components/ui/LockedOverlay';
 import { ErrorState } from '@/components/ui/EmptyState';
 import { SkeletonCard } from '@/components/ui/Skeleton';
-import { FileExplorerViewer, saveBundleToStorage, loadBundleFromStorage, type ProjectFile } from '@/components/practice/FileExplorerViewer';
+import { FileExplorerViewer } from '@/components/practice/FileExplorerViewer';
+import { GitHubRepoViewer } from '@/components/practice/GitHubRepoViewer';
+import {
+  parseGitHubRepoUrl,
+  isValidHttpUrl,
+  isGitHubSubmissionUrl,
+  verifyPublicGitHubRepo,
+  type GitHubRepoMeta,
+} from '@/lib/githubApi';
 import { useNav } from '@/lib/nav';
 import { ProjectOverviewRenderer } from '@/components/projects/ProjectOverviewRenderer';
 
 import { projectsSteps } from '@/lib/tourSteps';
-
-const SKIP_DIRS = ['node_modules', '.git', '.next', 'dist', 'build', '__pycache__', '.DS_Store', 'venv', '.venv'];
-const SINGLE_FILE_EXTS = ['.py', '.js', '.ts', '.jsx', '.tsx', '.java', '.cpp', '.c', '.cs', '.go', '.rb', '.php', '.kt', '.swift', '.rs', '.html', '.css', '.txt', '.md'];
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -546,185 +550,154 @@ export function ProjectsScreen() {
 
 
 
-  // Interactive File Explorer Modal state
+  // Interactive Submission Preview Modal state (GitHub Repo Viewer or Legacy Storage Viewer)
   const [showExplorer, setShowExplorer] = useState(false);
   const [explorerUrl, setExplorerUrl] = useState<string>('');
+  const [explorerTitle, setExplorerTitle] = useState<string>('');
 
-  // Upload processing state
-  const [isDragging, setIsDragging] = useState(false);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatusText, setUploadStatusText] = useState('');
-  const [processingFileName, setProcessingFileName] = useState('');
-  const [showBrowseDropdown, setShowBrowseDropdown] = useState(false);
+  // Optional Live Demo URL map persisted locally per project
+  const [demoLinks, setDemoLinks] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('projectDemoLinks');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  // GitHub Repository Submission form state
+  const [githubInput, setGithubInput] = useState('');
+  const [demoInput, setDemoInput] = useState('');
+  const [repoCheckStatus, setRepoCheckStatus] = useState<'idle' | 'checking' | 'verified' | 'rate_limited' | 'error'>('idle');
+  const [repoMeta, setRepoMeta] = useState<GitHubRepoMeta | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // Reset form inputs when switching projects
   useEffect(() => {
-    if (!showBrowseDropdown) return;
-    const close = () => setShowBrowseDropdown(false);
-    window.addEventListener('click', close);
-    return () => window.removeEventListener('click', close);
-  }, [showBrowseDropdown]);
-
-  const folderInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const processFileList = useCallback(async (files: File[], targetProjectId: string) => {
-    if (!files || files.length === 0) return;
+    setGithubInput('');
+    setDemoInput('');
+    setRepoCheckStatus('idle');
+    setRepoMeta(null);
     setErrorMessage(null);
+  }, [selectedProjectId]);
 
-    // Guard: Prevent uploading massive node_modules folder (which freezes the browser and exceeds storage limits)
-    const hasTooManyFiles = files.length > 500 || files.some((f) => {
-      const pathLower = (f.webkitRelativePath || '').toLowerCase();
-      return pathLower.includes('node_modules') || pathLower.includes('/.git/') || pathLower.startsWith('.git/');
-    });
-
-    if (hasTooManyFiles) {
-      setErrorMessage("Please select only your source folder (e.g. 'src') or exclude 'node_modules' / '.git' directories.");
-      setIsProcessing(false);
+  // Live non-blocking GitHub repo verification on URL change (debounced)
+  useEffect(() => {
+    const parsed = parseGitHubRepoUrl(githubInput);
+    if (!parsed) {
+      setRepoCheckStatus('idle');
+      setRepoMeta(null);
       return;
     }
 
-    setIsProcessing(true);
-    setUploadProgress(15);
-    setUploadStatusText('Scanning project files...');
+    let alive = true;
+    const timer = setTimeout(async () => {
+      setRepoCheckStatus('checking');
+      const result = await verifyPublicGitHubRepo(parsed.owner, parsed.repo);
+      if (!alive) return;
 
-    const firstItem = files[0];
-    const nameCandidate = firstItem?.webkitRelativePath?.split('/')[0] || firstItem?.name || 'Project Solution';
-    setProcessingFileName(nameCandidate);
-
-    const projectFiles: ProjectFile[] = [];
-    const langMap: Record<string, string> = {
-      ts: 'typescript', tsx: 'tsx', js: 'javascript', jsx: 'jsx',
-      py: 'python', java: 'java', cpp: 'cpp', c: 'c', cs: 'csharp',
-      html: 'html', css: 'css', json: 'json', md: 'markdown', txt: 'text',
-      go: 'go', rb: 'ruby', php: 'php', kt: 'kotlin', swift: 'swift',
-      rs: 'rust',
-      sql: 'sql', yaml: 'yaml', yml: 'yaml', toml: 'toml', xml: 'xml',
-      sh: 'shell', bash: 'shell', bat: 'bat', ps1: 'powershell', svg: 'xml',
-      ini: 'ini', env: 'text', example: 'text'
-    };
-
-    const readers = files.map((file) =>
-      new Promise<void>((resolve) => {
-        const relativePath = file.webkitRelativePath
-          ? file.webkitRelativePath.split('/').slice(1).join('/')
-          : file.name;
-        const ext = file.name.split('.').pop()?.toLowerCase() ?? '';
-        const nameLower = file.name.toLowerCase();
-
-        const isCodeExt = [
-          'ts', 'tsx', 'js', 'jsx', 'py', 'java', 'cpp', 'c', 'cs', 'html', 'css', 'json', 'md', 'txt', 'go', 'rb', 'php', 'kt', 'swift', 'rs',
-          'sql', 'yaml', 'yml', 'toml', 'xml', 'sh', 'bash', 'bat', 'ps1', 'svg', 'ini', 'env', 'example', 'gitignore', 'gitattributes', 'dockerignore', 'dockerfile', 'procfile'
-        ].includes(ext) || nameLower.startsWith('.env') || nameLower === 'dockerfile' || nameLower === 'license' || nameLower === 'procfile';
-
-        if (file.size < 1024 * 200 && isCodeExt) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            projectFiles.push({
-              path: relativePath,
-              name: file.name,
-              content: (e.target?.result as string) ?? '',
-              size: file.size,
-              language: langMap[ext] ?? 'text',
-            });
-            resolve();
-          };
-          reader.onerror = () => resolve();
-          reader.readAsText(file);
-        } else {
-          projectFiles.push({
-            path: relativePath,
-            name: file.name,
-            content: `// Binary or large file (${(file.size / 1024).toFixed(1)} KB) — preview omitted`,
-            size: file.size,
-            language: 'text',
-          });
-          resolve();
-        }
-      })
-    );
-
-    await Promise.all(readers);
-
-    setUploadProgress(50);
-    setUploadStatusText(`Packaging ${projectFiles.length} file${projectFiles.length !== 1 ? 's' : ''}...`);
-    await new Promise((r) => setTimeout(r, 350));
-
-    setUploadProgress(85);
-    setUploadStatusText('Generating database link & saving submission...');
-    await new Promise((r) => setTimeout(r, 450));
-
-    const totalSize = projectFiles.reduce((s, f) => s + f.size, 0);
-    const projectName = nameCandidate;
-
-    const bundle = {
-      projectName,
-      totalFiles: projectFiles.length,
-      totalSize,
-      uploadedAt: new Date().toISOString(),
-      storageUrl: '',
-      files: projectFiles,
-    };
-
-    // Local copy for instant review.
-    const localUrl = saveBundleToStorage(bundle);
-
-    // Upload to Supabase Storage + record a tiny row so mentors/admins can review (low DB cost).
-    let remoteUrl: string | null = null;
-    if (user && user.id) {
-      setUploadStatusText('Uploading to review storage...');
-      remoteUrl = await uploadSubmissionBundle(bundle, user.id, targetProjectId, 'project');
-      try {
-        await submitPracticeProblem(
-          user.id, targetProjectId, 'project',
-          undefined, undefined, remoteUrl || localUrl, projectName, projectFiles.length, totalSize
-        );
-      } catch (dbErr) {
-        console.warn('Failed to save project submission to Supabase:', dbErr);
+      setRepoMeta(result);
+      if (result.status === 'verified') {
+        setRepoCheckStatus('verified');
+        setErrorMessage(null);
+      } else if (result.status === 'private_or_missing') {
+        setRepoCheckStatus('error');
+        setErrorMessage(result.error || 'Repository not found or is private. Please set it to Public.');
+      } else {
+        // Rate limited or transient network issue: graceful fallback so campus Wi-Fi never blocks
+        setRepoCheckStatus('rate_limited');
+        setErrorMessage(null);
       }
+    }, 450);
+
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [githubInput]);
+
+  const handleGitHubSubmit = useCallback(async (e: React.FormEvent, targetProjectId: string) => {
+    e.preventDefault();
+    if (driveLinks[targetProjectId]) return; // One-time lock guard
+    setErrorMessage(null);
+
+    const parsed = parseGitHubRepoUrl(githubInput);
+    if (!parsed) {
+      setErrorMessage('Please enter a valid GitHub repository URL (e.g. https://github.com/username/project-repo).');
+      return;
     }
 
-    const updatedDriveLinks = { ...driveLinks, [targetProjectId]: remoteUrl || localUrl };
-    setDriveLinks(updatedDriveLinks);
-    localStorage.setItem('projectDriveLinks', JSON.stringify(updatedDriveLinks));
+    const trimmedDemo = demoInput.trim();
+    if (trimmedDemo && !isValidHttpUrl(trimmedDemo)) {
+      setErrorMessage('Live Demo URL must start with http:// or https://.');
+      return;
+    }
 
-    const updatedProjects = projectsState.map((p: any) =>
-      p.id === targetProjectId ? { ...p, status: 'submitted' } : p
-    );
-    setProjectsState(updatedProjects);
-    localStorage.setItem('projectsState', JSON.stringify(updatedProjects));
+    setIsSubmitting(true);
+    try {
+      // Run or reuse live repo verification (gracefully allows submission on rate_limited/network_error)
+      const meta = repoMeta?.normalizedUrl === parsed.normalizedUrl
+        ? repoMeta
+        : await verifyPublicGitHubRepo(parsed.owner, parsed.repo);
 
-    setUploadProgress(100);
-    setIsProcessing(false);
-    setSubTab('submitted');
-    setToastVisible(true);
-  }, [driveLinks, projectsState, user]);
+      if (meta.status === 'private_or_missing') {
+        setRepoCheckStatus('error');
+        setErrorMessage(meta.error || 'Repository not found or is private. Please ensure it is Public.');
+        setIsSubmitting(false);
+        return;
+      }
 
-  const handleFolderInput = useCallback((e: React.ChangeEvent<HTMLInputElement>, projectId: string) => {
-    if (!e.target.files?.length) return;
-    const fileArray = Array.from(e.target.files).filter((f) => {
-      const parts = (f.webkitRelativePath || f.name).split('/');
-      return !parts.some((p) => SKIP_DIRS.includes(p));
-    });
-    processFileList(fileArray, projectId);
-  }, [processFileList]);
+      const repoLabel = `${parsed.owner}/${parsed.repo}`;
+      const detectedLang = meta.language || 'github';
 
-  const handleSingleFileInput = useCallback((e: React.ChangeEvent<HTMLInputElement>, projectId: string) => {
-    if (!e.target.files?.length) return;
-    processFileList(Array.from(e.target.files), projectId);
-  }, [processFileList]);
+      // Save zero-storage URL + metadata (~200B row in practice_submissions, 0B in Storage bucket)
+      if (user && user.id) {
+        try {
+          await submitPracticeProblem(
+            user.id,
+            targetProjectId,
+            detectedLang,
+            undefined,
+            trimmedDemo || undefined,
+            parsed.normalizedUrl,
+            repoLabel,
+            1,
+            0
+          );
+        } catch (dbErr) {
+          console.warn('Failed to save GitHub project submission to Supabase:', dbErr);
+        }
+      }
 
-  const handleDrop = useCallback((e: React.DragEvent, projectId: string) => {
-    e.preventDefault();
-    setIsDragging(false);
-    if (!e.dataTransfer.files?.length) return;
-    const fileArray = Array.from(e.dataTransfer.files).filter((f) => {
-      const parts = (f.webkitRelativePath || f.name).split('/');
-      return !parts.some((p) => SKIP_DIRS.includes(p));
-    });
-    processFileList(fileArray, projectId);
-  }, [processFileList]);
+      const updatedDriveLinks = { ...driveLinks, [targetProjectId]: parsed.normalizedUrl };
+      setDriveLinks(updatedDriveLinks);
+      try {
+        localStorage.setItem('projectDriveLinks', JSON.stringify(updatedDriveLinks));
+      } catch {}
+
+      if (trimmedDemo) {
+        const updatedDemoLinks = { ...demoLinks, [targetProjectId]: trimmedDemo };
+        setDemoLinks(updatedDemoLinks);
+        try {
+          localStorage.setItem('projectDemoLinks', JSON.stringify(updatedDemoLinks));
+        } catch {}
+      }
+
+      const updatedProjects = projectsState.map((p: any) =>
+        p.id === targetProjectId ? { ...p, status: 'submitted' } : p
+      );
+      setProjectsState(updatedProjects);
+      try {
+        localStorage.setItem('projectsState', JSON.stringify(updatedProjects));
+      } catch {}
+
+      setSubTab('submitted');
+      setToastVisible(true);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [driveLinks, demoLinks, githubInput, demoInput, repoMeta, projectsState, user]);
 
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
@@ -940,10 +913,19 @@ export function ProjectsScreen() {
     return (
       <div className="space-y-6 pb-12 animate-fade-in font-sans">
         {showExplorer && explorerUrl && (
-          <FileExplorerViewer
-            storageUrl={explorerUrl}
-            onClose={() => setShowExplorer(false)}
-          />
+          isGitHubSubmissionUrl(explorerUrl) ? (
+            <GitHubRepoViewer
+              githubUrl={explorerUrl}
+              demoUrl={demoLinks[selectedProject.id]}
+              projectTitle={explorerTitle || selectedProject.title}
+              onClose={() => setShowExplorer(false)}
+            />
+          ) : (
+            <FileExplorerViewer
+              storageUrl={explorerUrl}
+              onClose={() => setShowExplorer(false)}
+            />
+          )
         )}
         {toastVisible && (
           <Toast message="Project submitted — we'll notify you when feedback arrives." onClose={() => setToastVisible(false)} position="top-right" />
@@ -1150,52 +1132,74 @@ export function ProjectsScreen() {
 
         </div>
 
-        {/* Hidden inputs */}
-        <input ref={folderInputRef} type="file"
-          /* @ts-ignore */
-          webkitdirectory="" directory="" multiple
-          className="hidden" onChange={(e) => handleFolderInput(e, selectedProject.id)}
-        />
-        <input ref={fileInputRef} type="file"
-          accept={SINGLE_FILE_EXTS.join(',')}
-          className="hidden" onChange={(e) => handleSingleFileInput(e, selectedProject.id)}
-        />
-
-        {/* Project Solution Submission Area */}
+        {/* Project Solution Submission Area (Zero-Storage GitHub Link + One-Time Lock) */}
         <Card className="p-6 sm:p-8 border border-slate-200/90 shadow-sm rounded-[2rem] bg-white">
-          {driveLinks[selectedProject.id] ? (
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-2">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
-                  <CheckCircle2 className="w-7 h-7 text-[#7c3aed]" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-extrabold text-slate-900 text-base">Project Solution Submitted</h3>
-                    <span className="px-2 py-0.5 rounded-md bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase">
-                      Submitted
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 mt-1 font-medium">
-                    Your project code bundle is stored and ready for mentor review.
-                  </p>
-                </div>
-              </div>
+          {driveLinks[selectedProject.id] ? (() => {
+            const submittedUrl = driveLinks[selectedProject.id];
+            const isGitHub = isGitHubSubmissionUrl(submittedUrl);
+            const parsedRepo = isGitHub ? parseGitHubRepoUrl(submittedUrl) : null;
+            const demoUrl = demoLinks[selectedProject.id];
 
-              <div className="flex items-center gap-3 shrink-0">
-                <Button
-                  onClick={() => {
-                    setExplorerUrl(driveLinks[selectedProject.id]);
-                    setShowExplorer(true);
-                  }}
-                  className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs"
-                  leftIcon={<Eye className="w-4 h-4" />}
-                >
-                  View Submitted Files
-                </Button>
+            return (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-2">
+                <div className="flex items-start sm:items-center gap-4 min-w-0">
+                  <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center shrink-0">
+                    <CheckCircle2 className="w-7 h-7 text-[#7c3aed]" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-extrabold text-slate-900 text-base">
+                        {isGitHub ? 'GitHub Repository Submitted' : 'Project Solution Submitted'}
+                      </h3>
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-slate-500">
+                        <Lock className="w-3 h-3 text-slate-400" />
+                        Locked for Review
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1 font-medium truncate">
+                      {parsedRepo ? `${parsedRepo.owner}/${parsedRepo.repo}` : 'Your project solution is saved and ready for mentor review.'}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 flex-wrap shrink-0">
+                  {demoUrl && (
+                    <a
+                      href={demoUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-extrabold text-xs inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Live Demo</span>
+                    </a>
+                  )}
+                  {isGitHub && (
+                    <a
+                      href={parsedRepo?.normalizedUrl || submittedUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold text-xs inline-flex items-center gap-1.5 transition-colors"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      <span>Open on GitHub</span>
+                    </a>
+                  )}
+                  <Button
+                    onClick={() => {
+                      setExplorerUrl(submittedUrl);
+                      setExplorerTitle(selectedProject.title);
+                      setShowExplorer(true);
+                    }}
+                    className="bg-[#7c3aed] hover:bg-[#6d28d9] text-white font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-xs"
+                    leftIcon={<Eye className="w-4 h-4" />}
+                  >
+                    {isGitHub ? 'Inspect Repo' : 'View Submitted Files'}
+                  </Button>
+                </div>
               </div>
-            </div>
-          ) : selectedProject.isAutoSubmitted ? (
+            );
+          })() : selectedProject.isAutoSubmitted ? (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-6 p-2">
               <div className="flex items-start sm:items-center gap-4">
                 <div className="w-14 h-14 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0 text-amber-700">
@@ -1214,120 +1218,120 @@ export function ProjectsScreen() {
                     )}
                   </div>
                   <p className="text-xs text-slate-500 mt-1 font-medium leading-relaxed max-w-xl">
-                    This project reached its deadline and was automatically closed without file submission. Submissions are no longer accepted for this project.
+                    This project reached its deadline and was automatically closed without submission. Submissions are no longer accepted for this project.
                   </p>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-base font-extrabold text-slate-900">
-                  Submit Your Project Solution
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Upload your completed single code file or full project folder.
-                </p>
+            <form onSubmit={(e) => handleGitHubSubmit(e, selectedProject.id)} className="space-y-5">
+              <div className="flex items-start justify-between gap-4 flex-wrap">
+                <div>
+                  <h3 className="text-base font-extrabold text-slate-900">
+                    Submit Your Project via GitHub
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Push your code to a public GitHub repository and submit the repository link below for mentor review.
+                  </p>
+                </div>
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  One-time submission
+                </span>
               </div>
 
-              <div
-                onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
-                onDragLeave={() => setIsDragging(false)}
-                onDrop={(e) => handleDrop(e, selectedProject.id)}
-                onClick={() => fileInputRef.current?.click()}
-                className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-all duration-200 ${
-                  isDragging
-                    ? 'border-[#7c3aed] bg-purple-50/30 scale-[1.01]'
-                    : 'border-slate-300 bg-slate-50/50 hover:border-[#7c3aed]/60 hover:bg-purple-50/5'
-                }`}
-              >
-                {isProcessing ? (
-                  <div className="space-y-4 py-4 max-w-sm mx-auto">
-                    <div className="w-14 h-14 rounded-2xl bg-purple-50 border border-purple-100 flex items-center justify-center mx-auto shadow-2xs">
-                      <div className="w-7 h-7 border-3 border-[#7c3aed] border-t-transparent rounded-full animate-spin" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-black text-slate-900">Uploading Project...</p>
-                      {processingFileName && (
-                        <p className="text-xs font-semibold text-[#7c3aed] mt-0.5 font-mono truncate">
-                          {processingFileName}
-                        </p>
-                      )}
-                      <p className="text-xs text-slate-500 mt-1 font-medium">{uploadStatusText}</p>
-                    </div>
-                    <div className="w-full bg-slate-200/80 h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-[#7c3aed] h-full transition-all duration-300 rounded-full"
-                        style={{ width: `${uploadProgress}%` }}
-                      />
-                    </div>
-                    <p className="text-[11px] font-bold text-slate-400 font-mono">{uploadProgress}% complete</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* GitHub Repository URL */}
+                <div className="space-y-1.5">
+                  <label htmlFor="github-repo-url" className="block text-xs font-bold text-slate-700">
+                    GitHub Repository URL <span className="text-rose-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <GitBranch className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="github-repo-url"
+                      type="url"
+                      required
+                      value={githubInput}
+                      onChange={(e) => {
+                        setGithubInput(e.target.value);
+                        if (errorMessage) setErrorMessage(null);
+                      }}
+                      placeholder="https://github.com/username/project-repo"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-500/15 outline-none text-xs font-medium text-slate-800 transition-all"
+                    />
                   </div>
-                ) : (
-                  <div className="space-y-4">
-                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mx-auto transition-all bg-white border border-slate-200 shadow-3xs ${
-                      isDragging ? 'border-[#7c3aed]/50 text-[#7c3aed]' : 'text-[#7c3aed]'
-                    }`}>
-                      <Upload className="w-7 h-7 text-[#7c3aed]" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-extrabold text-slate-900">
-                        {isDragging ? 'Drop project here!' : 'Drag & Drop your project file or folder'}
-                      </p>
-                      <p className="text-xs text-slate-500 mt-1">Accepts single code files (.py, .js, .java, etc.) or full project folders</p>
-                      {errorMessage && (
-                        <div className="mt-2.5 px-3 py-1.5 rounded-lg bg-red-50 border border-red-200 text-red-600 text-[11px] font-bold leading-normal max-w-sm mx-auto">
-                          ⚠️ {errorMessage}
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex justify-center relative">
-                      <div className="inline-block relative">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setShowBrowseDropdown(!showBrowseDropdown);
-                          }}
-                          className="px-5 py-2.5 rounded-xl bg-[#7c3aed] hover:bg-[#6d28d9] text-white text-xs font-bold transition-all shadow-sm cursor-pointer inline-flex items-center gap-2"
-                        >
-                          <Upload className="w-4 h-4" />
-                          Browse File / Folder
-                        </button>
-                        {showBrowseDropdown && (
-                          <div className="absolute left-1/2 transform -translate-x-1/2 bottom-full mb-2 w-40 rounded-xl bg-white border border-slate-200 shadow-lg py-1.5 z-[100] animate-fade-in text-left">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowBrowseDropdown(false);
-                                fileInputRef.current?.click();
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-2"
-                            >
-                              <Upload className="w-3.5 h-3.5 text-slate-400" />
-                              Upload File
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setShowBrowseDropdown(false);
-                                folderInputRef.current?.click();
-                              }}
-                              className="w-full text-left px-4 py-2 hover:bg-slate-50 text-slate-700 text-xs font-bold flex items-center gap-2 border-t border-slate-100"
-                            >
-                              <FolderOpen className="w-3.5 h-3.5 text-slate-400" />
-                              Upload Folder
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  {/* Live Verification Status */}
+                  {repoCheckStatus === 'checking' && (
+                    <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+                      <span className="w-3 h-3 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin inline-block" />
+                      Verifying public repository...
+                    </p>
+                  )}
+                  {repoCheckStatus === 'verified' && repoMeta && (
+                    <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                      <span>
+                        Public repo verified: {repoMeta.owner}/{repoMeta.repo}
+                        {repoMeta.language ? ` (${repoMeta.language})` : ''}
+                        {repoMeta.commitSha ? ` • ${repoMeta.commitSha}` : ''}
+                      </span>
+                    </p>
+                  )}
+                  {repoCheckStatus === 'rate_limited' && (
+                    <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7c3aed] shrink-0" />
+                      <span>GitHub link format valid — ready to submit.</span>
+                    </p>
+                  )}
+                </div>
+
+                {/* Optional Live Demo URL */}
+                <div className="space-y-1.5">
+                  <label htmlFor="live-demo-url" className="block text-xs font-bold text-slate-700">
+                    Live Demo URL <span className="text-slate-400 font-medium">(Optional)</span>
+                  </label>
+                  <div className="relative">
+                    <Globe className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                    <input
+                      id="live-demo-url"
+                      type="url"
+                      value={demoInput}
+                      onChange={(e) => {
+                        setDemoInput(e.target.value);
+                        if (errorMessage) setErrorMessage(null);
+                      }}
+                      placeholder="https://your-project.vercel.app"
+                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-500/15 outline-none text-xs font-medium text-slate-800 transition-all"
+                    />
                   </div>
-                )}
+                  <p className="text-[11px] text-slate-400 font-medium">
+                    Include a deployed link (Vercel, Netlify, Render, or GitHub Pages) if applicable.
+                  </p>
+                </div>
               </div>
-            </div>
+
+              {errorMessage && (
+                <div className="px-3.5 py-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-100">
+                <p className="text-[11px] text-slate-500 font-medium">
+                  Once submitted, this link is locked and sent directly to your mentor.
+                </p>
+                <Button
+                  type="submit"
+                  disabled={isSubmitting || !githubInput.trim() || repoCheckStatus === 'error'}
+                  className="bg-[#7c3aed] hover:bg-[#6d28d9] disabled:opacity-50 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-xs shrink-0"
+                  leftIcon={isSubmitting ? undefined : <GitBranch className="w-4 h-4" />}
+                >
+                  {isSubmitting ? 'Submitting...' : 'Submit Project for Review'}
+                </Button>
+              </div>
+            </form>
           )}
         </Card>
       </div>
@@ -1338,10 +1342,18 @@ export function ProjectsScreen() {
     <div className="space-y-6 font-sans pb-12 animate-fade-in">
 
       {showExplorer && explorerUrl && (
-        <FileExplorerViewer
-          storageUrl={explorerUrl}
-          onClose={() => setShowExplorer(false)}
-        />
+        isGitHubSubmissionUrl(explorerUrl) ? (
+          <GitHubRepoViewer
+            githubUrl={explorerUrl}
+            projectTitle={explorerTitle}
+            onClose={() => setShowExplorer(false)}
+          />
+        ) : (
+          <FileExplorerViewer
+            storageUrl={explorerUrl}
+            onClose={() => setShowExplorer(false)}
+          />
+        )
       )}
       
       {/* Header */}
@@ -1350,7 +1362,7 @@ export function ProjectsScreen() {
           Projects Workflow
         </h2>
         <p className="text-slate-500 text-xs sm:text-sm mt-0.5">
-          Inspect project briefs, build industry solutions, and submit drive links for mentor reviews.
+          Inspect project briefs, build industry solutions, and submit your GitHub repository for mentor reviews.
         </p>
       </div>
 
