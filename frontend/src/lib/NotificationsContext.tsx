@@ -344,13 +344,14 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
         const forbiddenQuiz = new Set((quizList || []).filter((q: any) => !isItemAllowed(q)).map((q: any) => q.id));
         const forbiddenProj = new Set((projList || []).filter((p: any) => !isItemAllowed(p)).map((p: any) => p.id));
 
-        const extractEntityId = (id: string, prefix: string) => {
-          if (!id.startsWith(prefix)) return null;
+        const extractEntityId = (id: unknown, prefix: string) => {
+          if (typeof id !== 'string' || !id.startsWith(prefix)) return null;
           return id.slice(prefix.length).split('__')[0];
         };
 
         setNotifications((prev) => {
-          const filtered = prev.filter((n) => {
+          const filtered = (prev || []).filter((n) => {
+            if (!n || typeof n.id !== 'string') return false;
             const aId = extractEntityId(n.id, 'notif-assess-');
             if (aId && forbiddenAssess.has(aId)) return false;
             const cId = extractEntityId(n.id, 'notif-cq-');
