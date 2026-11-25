@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react';
 import {
   FolderGit2, Star, Clock, CheckCircle2, MessageCircle, Download,
   FileText, BookOpen, ArrowRight, Code2, Terminal, ExternalLink, Link2,
-  Eye, Lock, LayoutGrid, List, ChevronRight, GitBranch, Globe, AlertCircle,
+  Eye, Lock, LayoutGrid, List, ChevronRight, GitBranch, AlertCircle,
 } from 'lucide-react';
 import { fetchProjects, fetchProjectDetails, extractBatchDueDate, submitPracticeProblem, fetchUserSubmissions } from '@/lib/api';
 import { supabase } from '@/lib/supabase';
@@ -26,7 +26,6 @@ import { FileExplorerViewer } from '@/components/practice/FileExplorerViewer';
 import { GitHubRepoViewer } from '@/components/practice/GitHubRepoViewer';
 import {
   parseGitHubRepoUrl,
-  isValidHttpUrl,
   isGitHubSubmissionUrl,
   verifyPublicGitHubRepo,
   type GitHubRepoMeta,
@@ -555,19 +554,8 @@ export function ProjectsScreen() {
   const [explorerUrl, setExplorerUrl] = useState<string>('');
   const [explorerTitle, setExplorerTitle] = useState<string>('');
 
-  // Optional Live Demo URL map persisted locally per project
-  const [demoLinks, setDemoLinks] = useState<Record<string, string>>(() => {
-    try {
-      const saved = localStorage.getItem('projectDemoLinks');
-      return saved ? JSON.parse(saved) : {};
-    } catch {
-      return {};
-    }
-  });
-
   // GitHub Repository Submission form state
   const [githubInput, setGithubInput] = useState('');
-  const [demoInput, setDemoInput] = useState('');
   const [repoCheckStatus, setRepoCheckStatus] = useState<'idle' | 'checking' | 'verified' | 'rate_limited' | 'error'>('idle');
   const [repoMeta, setRepoMeta] = useState<GitHubRepoMeta | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -576,7 +564,6 @@ export function ProjectsScreen() {
   // Reset form inputs when switching projects
   useEffect(() => {
     setGithubInput('');
-    setDemoInput('');
     setRepoCheckStatus('idle');
     setRepoMeta(null);
     setErrorMessage(null);
@@ -628,12 +615,6 @@ export function ProjectsScreen() {
       return;
     }
 
-    const trimmedDemo = demoInput.trim();
-    if (trimmedDemo && !isValidHttpUrl(trimmedDemo)) {
-      setErrorMessage('Live Demo URL must start with http:// or https://.');
-      return;
-    }
-
     setIsSubmitting(true);
     try {
       // Run or reuse live repo verification (gracefully allows submission on rate_limited/network_error)
@@ -659,7 +640,7 @@ export function ProjectsScreen() {
             targetProjectId,
             detectedLang,
             undefined,
-            trimmedDemo || undefined,
+            undefined,
             parsed.normalizedUrl,
             repoLabel,
             1,
@@ -676,14 +657,6 @@ export function ProjectsScreen() {
         localStorage.setItem('projectDriveLinks', JSON.stringify(updatedDriveLinks));
       } catch {}
 
-      if (trimmedDemo) {
-        const updatedDemoLinks = { ...demoLinks, [targetProjectId]: trimmedDemo };
-        setDemoLinks(updatedDemoLinks);
-        try {
-          localStorage.setItem('projectDemoLinks', JSON.stringify(updatedDemoLinks));
-        } catch {}
-      }
-
       const updatedProjects = projectsState.map((p: any) =>
         p.id === targetProjectId ? { ...p, status: 'submitted' } : p
       );
@@ -697,7 +670,7 @@ export function ProjectsScreen() {
     } finally {
       setIsSubmitting(false);
     }
-  }, [driveLinks, demoLinks, githubInput, demoInput, repoMeta, projectsState, user]);
+  }, [driveLinks, githubInput, repoMeta, projectsState, user]);
 
   // Synchronize effective projects list with driveLinks
   const effectiveProjects = useMemo(() => {
@@ -916,7 +889,6 @@ export function ProjectsScreen() {
           isGitHubSubmissionUrl(explorerUrl) ? (
             <GitHubRepoViewer
               githubUrl={explorerUrl}
-              demoUrl={demoLinks[selectedProject.id]}
               projectTitle={explorerTitle || selectedProject.title}
               onClose={() => setShowExplorer(false)}
             />
@@ -955,8 +927,8 @@ export function ProjectsScreen() {
         </div>
 
         <div className="rounded-[2rem] border border-slate-200 bg-gradient-to-br from-slate-50 via-white to-slate-50 p-6 sm:p-8 shadow-sm">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
-            <div className="max-w-3xl space-y-3">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+            <div className="flex-1 min-w-0 space-y-3">
               <span className="px-3 py-1 rounded-full bg-purple-50 text-[#7c3aed] border border-purple-100 text-[10px] font-black uppercase tracking-wider">
                 {selectedProject.projectType || 'mini'} project
               </span>
@@ -986,18 +958,18 @@ export function ProjectsScreen() {
               )}
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-3 lg:w-[420px]">
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+            <div className="grid grid-cols-2 gap-3 lg:w-[340px] xl:w-[380px] shrink-0">
+              <div className="col-span-2 rounded-2xl border border-slate-200 bg-white p-4 min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Course</p>
-                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{selectedProject.course}</p>
+                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug break-words">{selectedProject.course}</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Due Date</p>
-                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug">{formatDisplayDueDate(selectedProject.dueDate)}</p>
+                <p className="mt-1 text-xs font-bold text-slate-900 leading-snug break-words">{formatDisplayDueDate(selectedProject.dueDate)}</p>
               </div>
-              <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 min-w-0">
                 <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Status</p>
-                <p className={cn("mt-1 text-xs font-bold capitalize leading-snug", selectedProject.isAutoSubmitted ? "text-amber-700" : "text-[#7c3aed]")}>
+                <p className={cn("mt-1 text-xs font-bold capitalize leading-snug break-words", selectedProject.isAutoSubmitted ? "text-amber-700" : "text-[#7c3aed]")}>
                   {selectedProject.isAutoSubmitted ? 'Auto-Submitted' : selectedProject.status}
                 </p>
               </div>
@@ -1138,7 +1110,6 @@ export function ProjectsScreen() {
             const submittedUrl = driveLinks[selectedProject.id];
             const isGitHub = isGitHubSubmissionUrl(submittedUrl);
             const parsedRepo = isGitHub ? parseGitHubRepoUrl(submittedUrl) : null;
-            const demoUrl = demoLinks[selectedProject.id];
 
             return (
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6 p-2">
@@ -1163,17 +1134,6 @@ export function ProjectsScreen() {
                 </div>
 
                 <div className="flex items-center gap-2.5 flex-wrap shrink-0">
-                  {demoUrl && (
-                    <a
-                      href={demoUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="px-4 py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-extrabold text-xs inline-flex items-center gap-1.5 transition-colors"
-                    >
-                      <Globe className="w-3.5 h-3.5" />
-                      <span>Live Demo</span>
-                    </a>
-                  )}
                   {isGitHub && (
                     <a
                       href={parsedRepo?.normalizedUrl || submittedUrl}
@@ -1240,75 +1200,49 @@ export function ProjectsScreen() {
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* GitHub Repository URL */}
-                <div className="space-y-1.5">
-                  <label htmlFor="github-repo-url" className="block text-xs font-bold text-slate-700">
-                    GitHub Repository URL <span className="text-rose-500">*</span>
-                  </label>
-                  <div className="relative">
-                    <GitBranch className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="github-repo-url"
-                      type="url"
-                      required
-                      value={githubInput}
-                      onChange={(e) => {
-                        setGithubInput(e.target.value);
-                        if (errorMessage) setErrorMessage(null);
-                      }}
-                      placeholder="https://github.com/username/project-repo"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-500/15 outline-none text-xs font-medium text-slate-800 transition-all"
-                    />
-                  </div>
-                  {/* Live Verification Status */}
-                  {repoCheckStatus === 'checking' && (
-                    <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
-                      <span className="w-3 h-3 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin inline-block" />
-                      Verifying public repository...
-                    </p>
-                  )}
-                  {repoCheckStatus === 'verified' && repoMeta && (
-                    <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                      <span>
-                        Public repo verified: {repoMeta.owner}/{repoMeta.repo}
-                        {repoMeta.language ? ` (${repoMeta.language})` : ''}
-                        {repoMeta.commitSha ? ` • ${repoMeta.commitSha}` : ''}
-                      </span>
-                    </p>
-                  )}
-                  {repoCheckStatus === 'rate_limited' && (
-                    <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#7c3aed] shrink-0" />
-                      <span>GitHub link format valid — ready to submit.</span>
-                    </p>
-                  )}
+              {/* GitHub Repository URL */}
+              <div className="space-y-1.5">
+                <label htmlFor="github-repo-url" className="block text-xs font-bold text-slate-700">
+                  GitHub Repository URL <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <GitBranch className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    id="github-repo-url"
+                    type="url"
+                    required
+                    value={githubInput}
+                    onChange={(e) => {
+                      setGithubInput(e.target.value);
+                      if (errorMessage) setErrorMessage(null);
+                    }}
+                    placeholder="https://github.com/username/project-repo"
+                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-500/15 outline-none text-xs font-medium text-slate-800 transition-all"
+                  />
                 </div>
-
-                {/* Optional Live Demo URL */}
-                <div className="space-y-1.5">
-                  <label htmlFor="live-demo-url" className="block text-xs font-bold text-slate-700">
-                    Live Demo URL <span className="text-slate-400 font-medium">(Optional)</span>
-                  </label>
-                  <div className="relative">
-                    <Globe className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-                    <input
-                      id="live-demo-url"
-                      type="url"
-                      value={demoInput}
-                      onChange={(e) => {
-                        setDemoInput(e.target.value);
-                        if (errorMessage) setErrorMessage(null);
-                      }}
-                      placeholder="https://your-project.vercel.app"
-                      className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50/70 focus:bg-white focus:border-[#7c3aed] focus:ring-2 focus:ring-purple-500/15 outline-none text-xs font-medium text-slate-800 transition-all"
-                    />
-                  </div>
-                  <p className="text-[11px] text-slate-400 font-medium">
-                    Include a deployed link (Vercel, Netlify, Render, or GitHub Pages) if applicable.
+                {/* Live Verification Status */}
+                {repoCheckStatus === 'checking' && (
+                  <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+                    <span className="w-3 h-3 border-2 border-[#7c3aed] border-t-transparent rounded-full animate-spin inline-block" />
+                    Verifying public repository...
                   </p>
-                </div>
+                )}
+                {repoCheckStatus === 'verified' && repoMeta && (
+                  <p className="text-[11px] font-semibold text-emerald-700 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>
+                      Public repo verified: {repoMeta.owner}/{repoMeta.repo}
+                      {repoMeta.language ? ` (${repoMeta.language})` : ''}
+                      {repoMeta.commitSha ? ` • ${repoMeta.commitSha}` : ''}
+                    </span>
+                  </p>
+                )}
+                {repoCheckStatus === 'rate_limited' && (
+                  <p className="text-[11px] font-semibold text-slate-500 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-[#7c3aed] shrink-0" />
+                    <span>GitHub link format valid — ready to submit.</span>
+                  </p>
+                )}
               </div>
 
               {errorMessage && (
