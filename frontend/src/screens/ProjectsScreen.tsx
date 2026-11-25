@@ -382,6 +382,7 @@ export function ProjectsScreen() {
     } catch {}
     return false;
   });
+  const [isFetchingFresh, setIsFetchingFresh] = useState(true);
 
   useEffect(() => {
     if (preload.projects && preload.projects.length > 0 && projectsState.length === 0) {
@@ -396,6 +397,7 @@ export function ProjectsScreen() {
   // Fetch projects and submissions from Supabase
   const loadProjectsAndSubmissions = useCallback(async (showLoading: boolean = true, retryCount: number = 0) => {
     if (showLoading && projectsState.length === 0) setIsLoading(true);
+    setIsFetchingFresh(true);
     setFetchError(null);
     try {
       const batchCode = user?.batchCode || (user as any)?.batch || 'A26W1';
@@ -445,10 +447,12 @@ export function ProjectsScreen() {
       try {
         localStorage.setItem('projectDriveLinks', JSON.stringify(freshLinks));
       } catch {}
+      setIsFetchingFresh(false);
     } catch (err: any) {
       console.error('Error loading projects/submissions:', err);
       if (retryCount >= 2) {
-        setFetchError('Unable to connect to the project repository. Please check your internet connection.');
+        setFetchError('Unable to connect to the project repository. Please check your internet connection and try again.');
+        setIsFetchingFresh(false);
       }
 
       // On failure, use localStorage fallback if state is empty
@@ -1362,16 +1366,16 @@ export function ProjectsScreen() {
         </div>
 
         {/* PROJECTS LIST / GRID */}
-        {!hasLoadedOnce && projectsState.length === 0 && !fetchError ? (
+        {filtered.length === 0 && !fetchError && (isLoading || isFetchingFresh || !hasLoadedOnce) ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
           </div>
-        ) : fetchError && projectsState.length === 0 ? (
+        ) : fetchError && filtered.length === 0 ? (
           <ErrorState
-            title="Unable to load projects (503)"
-            description="We encountered a temporary server error connecting to the project repository. Please retry."
+            title="Unable to load projects"
+            description={fetchError}
             onRetry={() => {
               setFetchError(null);
               loadProjectsAndSubmissions(true);
