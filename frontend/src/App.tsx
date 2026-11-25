@@ -22,29 +22,67 @@ import { SplashScreen } from '@/screens/auth/SplashScreen';
 import { WelcomeScreen } from '@/screens/auth/WelcomeScreen';
 import { LoginScreen } from '@/screens/auth/LoginScreen';
 
+/**
+ * Wraps React.lazy to automatically reload once when a new Vercel deployment
+ * invalidates stale hashed chunk URLs in an already-open browser tab.
+ */
+function lazyWithRetry<T extends React.ComponentType<any>>(
+  factory: () => Promise<{ default: T }>
+) {
+  return lazy(async () => {
+    try {
+      const mod = await factory();
+      try {
+        sessionStorage.removeItem('aspire_chunk_reload');
+      } catch {}
+      return mod;
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      const isChunkError =
+        msg.includes('Failed to fetch dynamically imported module') ||
+        msg.includes('Importing a module script failed') ||
+        msg.includes('Loading chunk') ||
+        err?.name === 'ChunkLoadError';
+
+      if (isChunkError && typeof window !== 'undefined') {
+        const lastReload = Number(sessionStorage.getItem('aspire_chunk_reload') || '0');
+        const now = Date.now();
+        if (!lastReload || now - lastReload > 15_000) {
+          try {
+            sessionStorage.setItem('aspire_chunk_reload', String(now));
+          } catch {}
+          window.location.reload();
+          return new Promise<{ default: T }>(() => {});
+        }
+      }
+      throw err;
+    }
+  });
+}
+
 // Lazy-loaded application screens with named export unwrapping
-const DashboardScreen = lazy(() => import('@/screens/DashboardScreen').then(m => ({ default: m.DashboardScreen })));
-const LearningScreen = lazy(() => import('@/screens/LearningScreen').then(m => ({ default: m.LearningScreen })));
-const CourseScreen = lazy(() => import('@/screens/CourseScreen').then(m => ({ default: m.CourseScreen })));
-const LessonScreen = lazy(() => import('@/screens/LessonScreen').then(m => ({ default: m.LessonScreen })));
-const LiveClassesScreen = lazy(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassesScreen })));
-const LiveClassroomScreen = lazy(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassroomScreen })));
-const PresentationScreen = lazy(() => import('@/screens/PresentationScreen').then(m => ({ default: m.PresentationScreen })));
-const AssignmentsScreen = lazy(() => import('@/screens/AssignmentsScreen').then(m => ({ default: m.AssignmentsScreen })));
-const PracticeScreen = lazy(() => import('@/screens/PracticeScreen').then(m => ({ default: m.PracticeScreen })));
-const WorkspaceScreen = lazy(() => import('@/screens/WorkspaceScreen').then(m => ({ default: m.WorkspaceScreen })));
-const ProjectsScreen = lazy(() => import('@/screens/ProjectsScreen').then(m => ({ default: m.ProjectsScreen })));
-const ResourcesScreen = lazy(() => import('@/screens/ResourcesScreen').then(m => ({ default: m.ResourcesScreen })));
-const CommunityScreen = lazy(() => import('@/screens/CommunityScreen').then(m => ({ default: m.CommunityScreen })));
-const ScheduleScreen = lazy(() => import('@/screens/ScheduleScreen').then(m => ({ default: m.ScheduleScreen })));
-const ProgressScreen = lazy(() => import('@/screens/ProgressScreen').then(m => ({ default: m.ProgressScreen })));
-const AchievementsScreen = lazy(() => import('@/screens/AchievementsScreen').then(m => ({ default: m.AchievementsScreen })));
-const CertificatesScreen = lazy(() => import('@/screens/CertificatesScreen').then(m => ({ default: m.CertificatesScreen })));
-const RewardsScreen = lazy(() => import('@/screens/RewardsScreen').then(m => ({ default: m.RewardsScreen })));
-const PlacementScreen = lazy(() => import('@/screens/PlacementScreen').then(m => ({ default: m.PlacementScreen })));
-const NotificationsScreen = lazy(() => import('@/screens/NotificationsScreen').then(m => ({ default: m.NotificationsScreen })));
-const ProfileScreen = lazy(() => import('@/screens/ProfileScreen').then(m => ({ default: m.ProfileScreen })));
-const SettingsScreen = lazy(() => import('@/screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
+const DashboardScreen = lazyWithRetry(() => import('@/screens/DashboardScreen').then(m => ({ default: m.DashboardScreen })));
+const LearningScreen = lazyWithRetry(() => import('@/screens/LearningScreen').then(m => ({ default: m.LearningScreen })));
+const CourseScreen = lazyWithRetry(() => import('@/screens/CourseScreen').then(m => ({ default: m.CourseScreen })));
+const LessonScreen = lazyWithRetry(() => import('@/screens/LessonScreen').then(m => ({ default: m.LessonScreen })));
+const LiveClassesScreen = lazyWithRetry(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassesScreen })));
+const LiveClassroomScreen = lazyWithRetry(() => import('@/screens/LiveClassesScreen').then(m => ({ default: m.LiveClassroomScreen })));
+const PresentationScreen = lazyWithRetry(() => import('@/screens/PresentationScreen').then(m => ({ default: m.PresentationScreen })));
+const AssignmentsScreen = lazyWithRetry(() => import('@/screens/AssignmentsScreen').then(m => ({ default: m.AssignmentsScreen })));
+const PracticeScreen = lazyWithRetry(() => import('@/screens/PracticeScreen').then(m => ({ default: m.PracticeScreen })));
+const WorkspaceScreen = lazyWithRetry(() => import('@/screens/WorkspaceScreen').then(m => ({ default: m.WorkspaceScreen })));
+const ProjectsScreen = lazyWithRetry(() => import('@/screens/ProjectsScreen').then(m => ({ default: m.ProjectsScreen })));
+const ResourcesScreen = lazyWithRetry(() => import('@/screens/ResourcesScreen').then(m => ({ default: m.ResourcesScreen })));
+const CommunityScreen = lazyWithRetry(() => import('@/screens/CommunityScreen').then(m => ({ default: m.CommunityScreen })));
+const ScheduleScreen = lazyWithRetry(() => import('@/screens/ScheduleScreen').then(m => ({ default: m.ScheduleScreen })));
+const ProgressScreen = lazyWithRetry(() => import('@/screens/ProgressScreen').then(m => ({ default: m.ProgressScreen })));
+const AchievementsScreen = lazyWithRetry(() => import('@/screens/AchievementsScreen').then(m => ({ default: m.AchievementsScreen })));
+const CertificatesScreen = lazyWithRetry(() => import('@/screens/CertificatesScreen').then(m => ({ default: m.CertificatesScreen })));
+const RewardsScreen = lazyWithRetry(() => import('@/screens/RewardsScreen').then(m => ({ default: m.RewardsScreen })));
+const PlacementScreen = lazyWithRetry(() => import('@/screens/PlacementScreen').then(m => ({ default: m.PlacementScreen })));
+const NotificationsScreen = lazyWithRetry(() => import('@/screens/NotificationsScreen').then(m => ({ default: m.NotificationsScreen })));
+const ProfileScreen = lazyWithRetry(() => import('@/screens/ProfileScreen').then(m => ({ default: m.ProfileScreen })));
+const SettingsScreen = lazyWithRetry(() => import('@/screens/SettingsScreen').then(m => ({ default: m.SettingsScreen })));
 
 import aspireLogo from '@/assets/Aspire_logo.jpg';
 
