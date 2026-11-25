@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X, GitBranch, ExternalLink, Globe, Folder, FolderOpen, FileCode2,
   ChevronRight, ChevronDown, Copy, Check, AlertCircle, GitCommit
@@ -256,13 +257,26 @@ export function GitHubRepoViewer({ githubUrl, demoUrl, projectTitle, onClose }: 
 
   const lines = useMemo(() => (fileContent ? fileContent.split('\n') : []), [fileContent]);
 
-  return (
+  useEffect(() => {
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      window.removeEventListener('keydown', handleKey);
+    };
+  }, [onClose]);
+
+  const modalContent = (
     <div
-      className="fixed inset-0 z-[1200] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6 animate-fade-in"
+      className="fixed inset-0 z-[9999] bg-slate-950/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-6"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-5xl h-[82vh] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="w-full max-w-5xl h-[85vh] max-h-[780px] bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -431,4 +445,6 @@ export function GitHubRepoViewer({ githubUrl, demoUrl, projectTitle, onClose }: 
       </div>
     </div>
   );
+
+  return createPortal(modalContent, document.body);
 }
