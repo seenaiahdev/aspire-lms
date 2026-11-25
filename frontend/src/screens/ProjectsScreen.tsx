@@ -848,10 +848,8 @@ export function ProjectsScreen() {
       const [baseRoute, projectId] = window.location.pathname.replace(/^\//, '').split('/');
       if (baseRoute !== 'projects') return;
       const targetId = params.id || projectId;
-      if (!targetId) {
-        setSelectedProjectId(null);
-        return;
-      }
+      if (!targetId) return;
+
       const matched = effectiveProjects.find((p: any) => p.id === targetId) ||
                       projectsState.find((p: any) => p.id === targetId);
       if (matched) {
@@ -860,7 +858,6 @@ export function ProjectsScreen() {
         if (pType === 'mini' || pType === 'major' || pType === 'capstone') {
           setMainCategory(pType as any);
         }
-        window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     };
 
@@ -868,6 +865,18 @@ export function ProjectsScreen() {
     window.addEventListener('popstate', syncProjectRoute);
     return () => window.removeEventListener('popstate', syncProjectRoute);
   }, [effectiveProjects, projectsState, params.id]);
+
+  // Clear selected project only when navigating back to the projects root via browser Back
+  useEffect(() => {
+    const handlePopState = () => {
+      const [baseRoute, projectId] = window.location.pathname.replace(/^\//, '').split('/');
+      if (baseRoute === 'projects' && !projectId) {
+        setSelectedProjectId(null);
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const isSaved = selectedProject ? Boolean(driveLinks[selectedProject.id]) : false;
 
@@ -1397,7 +1406,7 @@ export function ProjectsScreen() {
               <div
                 key={p.id}
                 id={`project-card-${p.id}`}
-                onClick={() => { setSelectedProjectId(p.id); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                onClick={() => openProjectDetail(p.id)}
                 className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 hover:border-purple-300 hover:shadow-md transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-4 cursor-pointer group"
               >
                 <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
@@ -1449,8 +1458,7 @@ export function ProjectsScreen() {
                       setLockedToast(true);
                       setTimeout(() => setLockedToast(false), 3000);
                     } else {
-                      setSelectedProjectId(p.id);
-                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                      openProjectDetail(p.id);
                     }
                   }}
                   className={cn(
