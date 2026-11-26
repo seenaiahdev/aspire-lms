@@ -15,10 +15,11 @@ import {
   invalidateAttendanceCache
 } from '@/lib/api';
 import { cachedQuery, invalidateCache, invalidateCacheByPrefix } from './queryCache';
-import { hasValidSession } from '@/lib/nav';
+import { hasValidSession, useNav } from '@/lib/nav';
 import { supabase } from './supabase';
 import { realtimeManager } from './realtimeManager';
 import { cleanPhoneSuffix } from './utils';
+import { getLocalSessionId, getActiveSessionInfo, KICKED_OUT_REASON_KEY } from './sessionGuard';
 
 const initialUser: ExtendedUser = {
   id: 'guest',
@@ -222,8 +223,16 @@ export function UserProvider({ children }: { children: ReactNode }) {
     return !cached;
   });
 
+  const { logout } = useNav();
   const userRef = useRef(user);
   userRef.current = user;
+
+  const enforceKickout = useCallback(() => {
+    try {
+      localStorage.setItem(KICKED_OUT_REASON_KEY, 'another_device');
+    } catch {}
+    logout();
+  }, [logout]);
   const scheduledUnlockTimerRef = useRef<any>(null);
   const syncMilestoneLocksRef = useRef<() => Promise<void>>(async () => {});
 
@@ -528,6 +537,12 @@ export function UserProvider({ children }: { children: ReactNode }) {
           const matchesPhone = cleanUserPhone && cleanPayloadPhone && cleanUserPhone === cleanPayloadPhone;
 
           if (matchesId || matchesReg || matchesPhone) {
+            // Single-active-session enforcement: kick out immediately if another device claimed the session
+            const localSessId = getLocalSessionId();
+            if (localSessId && newRow.active_session_id && newRow.active_session_id !== localSessId) {
+              enforceKickout();
+              return;
+            }
             console.log('Real-time students table updated:', newRow);
             if (newRow.xp !== undefined || newRow.streak !== undefined || newRow.attendance !== undefined) {
               setUser((prev) => {
@@ -549,6 +564,28 @@ export function UserProvider({ children }: { children: ReactNode }) {
           }
         }
       );
+
+      // 1b. Throttled tab-focus / visibility session check (catches takeovers during sleep/offline)
+      let lastFocusCheckAt = 0;
+      const checkSessionOnResume = () => {
+        if (document.visibilityState === 'hidden') return;
+        const now = Date.now();
+        if (now - lastFocusCheckAt < 10_000) return;
+        lastFocusCheckAt = now;
+
+        const currentSid = userRef.current?.id;
+        const localSessId = getLocalSessionId();
+        if (!currentSid || currentSid === 'guest' || !localSessId || !hasValidSession()) return;
+
+        getActiveSessionInfo(currentSid).then((info) => {
+          if (info?.activeSessionId && info.activeSessionId !== localSessId) {
+            enforceKickout();
+          }
+        });
+      };
+
+      document.addEventListener('visibilitychange', checkSessionOnResume);
+      window.addEventListener('focus', checkSessionOnResume);
 
       // 2. student_profiles table: Realtime changes (catches XP, streak/attendance, bio, etc.)
       userChannel.on(
@@ -753,9 +790,11 @@ export function UserProvider({ children }: { children: ReactNode }) {
         clearInterval(scheduleInterval);
         window.removeEventListener('focus', onSyncCheck);
         document.removeEventListener('visibilitychange', onSyncCheck);
+        window.removeEventListener('focus', checkSessionOnResume);
+        document.removeEventListener('visibilitychange', checkSessionOnResume);
       };
     }
-  }, [refetchUser, syncMilestoneLocks, user?.id, user?.batchCode, user?.batchCategory]);
+  }, [refetchUser, syncMilestoneLocks, enforceKickout, user?.id, user?.batchCode, user?.batchCategory]);
 
   const updateUser = (updates: Partial<ExtendedUser>) => {
     setUser((prevUser) => {

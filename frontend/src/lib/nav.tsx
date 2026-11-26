@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useCallback, useEffect, useRef } f
 import type { ReactNode } from 'react';
 import type { Route } from './routes';
 import { cleanPhoneSuffix } from './utils';
+import { clearActiveSession, getLocalSessionId } from './sessionGuard';
 
 export interface NavBlocker {
   isBlocked: boolean;
@@ -178,6 +179,14 @@ export function NavProvider({ children }: { children: ReactNode }) {
   }, [navigate]);
 
   const logout = useCallback(() => {
+    try {
+      const rawUser = localStorage.getItem('aspire_cached_user');
+      const parsed = rawUser ? JSON.parse(rawUser) : null;
+      const localSessId = getLocalSessionId();
+      clearActiveSession(parsed?.id, localSessId);
+    } catch {
+      clearActiveSession(null, getLocalSessionId());
+    }
     localStorage.removeItem('aspire_session_token');
     localStorage.setItem('aspire_logged_in', 'false');
     localStorage.setItem('aspire_active_route', 'login');
