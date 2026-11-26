@@ -385,6 +385,10 @@ export function LoginScreen() {
   const handleCancelSessionConflict = () => {
     setSessionConflict(null);
     setIsSubmitting(false);
+    setStep('mobile');
+    setOtp(new Array(OTP_LENGTH).fill(''));
+    setPasskey(new Array(PASSKEY_LENGTH).fill(''));
+    setError('');
     try {
       localStorage.removeItem('aspire_session_token');
     } catch {}

@@ -61,8 +61,8 @@ BEGIN
   END IF;
 
   UPDATE public.students
-  SET active_session_id = p_session_id,
-      active_session_device = COALESCE(NULLIF(trim(p_device_label), ''), 'Web Browser'),
+  SET active_session_id = left(trim(p_session_id), 128),
+      active_session_device = COALESCE(NULLIF(left(trim(p_device_label), 120), ''), 'Web Browser'),
       active_session_at = NOW()
   WHERE id = p_student_id;
 
